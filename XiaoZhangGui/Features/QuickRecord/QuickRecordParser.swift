@@ -123,8 +123,12 @@ struct LocalQuickRecordParser: QuickRecordParsing {
     }
 
     private func customerName(from text: String) -> String? {
-        if let match = text.range(of: #"([\u4e00-\u9fa5A-Za-z0-9]{1,12})(老板|别墅|房|店)"#, options: .regularExpression) {
-            return String(text[match])
+        var cleaned = text
+        for token in ["今天", "明天", "后天", "月底"] {
+            cleaned = cleaned.replacingOccurrences(of: token, with: "")
+        }
+        if let match = cleaned.range(of: #"([\u4e00-\u9fa5A-Za-z0-9]{1,8})(老板|别墅|房|店)"#, options: .regularExpression) {
+            return String(cleaned[match])
         }
         return nil
     }
