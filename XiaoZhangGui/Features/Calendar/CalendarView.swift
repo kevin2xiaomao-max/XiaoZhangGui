@@ -49,6 +49,7 @@ struct CalendarView: View {
 
                 }
             }
+            .bottomDockPadding()
         }
         .navigationTitle("日历")
         .navigationBarTitleDisplayMode(.inline)
@@ -236,8 +237,8 @@ struct CalendarView: View {
             }
         }
         .padding(18)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: Tokens.Radius.xl, style: .continuous))
-        .padding(.horizontal, Tokens.Space.page)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: V21Layout.radiusXL, style: .continuous))
+        .padding(.horizontal, V21Layout.pageMargin)
     }
 }
 

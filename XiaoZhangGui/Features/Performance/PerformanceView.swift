@@ -73,6 +73,7 @@ struct PerformanceView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .bottomDockPadding()
         .navigationTitle("业绩")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -152,9 +153,9 @@ struct PerformanceView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(V21.surfacePrimary, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(V21.surfacePrimary, in: RoundedRectangle(cornerRadius: V21Layout.radiusMD, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: V21Layout.radiusMD, style: .continuous)
                 .strokeBorder(Color(.separator).opacity(0.28), lineWidth: 0.5)
         )
     }

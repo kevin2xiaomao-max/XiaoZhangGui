@@ -130,7 +130,7 @@ struct V21FAB: View {
                 action()
             } label: {
                 Image(systemName: systemImage)
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.system(size: V21Layout.fabIconSize, weight: .semibold))
                     .frame(width: V21Layout.fabSize, height: V21Layout.fabSize)
             }
             .buttonStyle(.glassProminent)
@@ -142,7 +142,7 @@ struct V21FAB: View {
                 action()
             } label: {
                 Image(systemName: systemImage)
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.system(size: V21Layout.fabIconSize, weight: .semibold))
                     .foregroundStyle(.white)
                     .frame(width: V21Layout.fabSize, height: V21Layout.fabSize)
                     .background(V21.brandGreen, in: Circle())
@@ -168,5 +168,26 @@ struct EmptyStateView: View {
         .foregroundStyle(.secondary)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 8)
+    }
+}
+
+// MARK: - 统一底部安全区 Padding
+// 解决系统 Tab Bar + 独立语音按钮遮挡长列表底部内容的问题
+
+struct BottomContentPaddingModifier: ViewModifier {
+    let padding: CGFloat
+    func body(content: Content) -> some View {
+        content
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                Spacer(minLength: padding)
+            }
+    }
+}
+
+extension View {
+    /// 给 List/ScrollView 添加统一的底部呼吸空间，
+    /// 确保最后一项内容不会被 Tab Bar + 独立语音按钮遮挡。
+    func bottomDockPadding(_ padding: CGFloat = V21Layout.bottomContentPadding) -> some View {
+        modifier(BottomContentPaddingModifier(padding: padding))
     }
 }

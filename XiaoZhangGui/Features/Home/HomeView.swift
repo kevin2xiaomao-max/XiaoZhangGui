@@ -148,6 +148,7 @@ struct HomeView: View {
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .background(Color(.systemGroupedBackground).ignoresSafeArea())
+        .bottomDockPadding()
         .navigationTitle("你的小掌柜")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

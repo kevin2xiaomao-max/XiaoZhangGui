@@ -9,118 +9,129 @@ struct VoiceView: View {
     @State private var manualText = ""
 
     var body: some View {
-        PageBackground {
-            if let vm = viewModel {
-                content(vm)
-                    .onAppear {
-                        guard vm.isSpeechRecognizerInitialized else { return }
-                        vm.beginListening()
-                    }
-            } else {
-                Color.clear.onAppear {
-                    viewModel = VoiceViewModel(context: context)
+        if let vm = viewModel {
+            content(vm)
+                .onAppear {
+                    guard vm.isSpeechRecognizerInitialized else { return }
+                    vm.beginListening()
                 }
+        } else {
+            Color.clear.onAppear {
+                viewModel = VoiceViewModel(context: context)
             }
         }
         .onChange(of: viewModel?.didSave ?? false) { _, saved in
             guard saved else { return }
             Task { @MainActor in
-                try? await Task.sleep(for: .seconds(1))
+                try? await Task.sleep(for: .seconds(0.8))
                 dismiss()
             }
         }
     }
 
     private func content(_ vm: VoiceViewModel) -> some View {
-        ZStack {
-            if vm.phase == .listening {
-                SpatialRipples()
-            }
-
-            VStack(spacing: 0) {
-                HStack {
-                    Spacer()
-                    Button {
-                        vm.reset()
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 36, height: 36)
-                            .background(.ultraThinMaterial, in: Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("关闭")
-                }
-                .padding(.top, 8)
-
+        VStack(spacing: 0) {
+            // 顶部关闭按钮（小，不抢视觉）
+            HStack {
                 Spacer()
-
-                stateTitle(vm)
-
-                Spacer().frame(height: 20)
-
-                transcriptCard(vm)
-
-                if vm.phase == .listening {
-                    Spacer().frame(height: 24)
-                    VoiceWaveform()
+                Button {
+                    vm.reset()
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 32, height: 32)
+                        .background(.ultraThinMaterial, in: Circle())
                 }
-
-                Spacer().frame(height: 36)
-
-                if vm.isSpeechRecognizerInitialized {
-                    centralButton(vm)
-                    Spacer().frame(height: 14)
-                    hintText(vm)
-                }
-
-                if vm.phase == .preview || vm.phase == .saving {
-                    previewSection(vm)
-                        .padding(.top, 28)
-                }
-
-                Spacer()
+                .buttonStyle(.plain)
+                .accessibilityLabel("关闭")
             }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+
+            // 状态文字（居中，简洁）
+            stateTitle(vm)
+                .padding(.top, 4)
+
+            // 转写/波形区
+            Group {
+                if vm.phase == .listening || vm.phase == .textFallback || !vm.transcript.isEmpty {
+                    transcriptOrWave(vm)
+                }
+            }
+            .padding(.top, 10)
             .padding(.horizontal, 20)
+
+            Spacer(minLength: 0)
+
+            // 主语音按钮（紧凑 60pt）
+            centralButton(vm)
+                .padding(.bottom, 6)
+
+            // 提示文字（简洁）
+            hintText(vm)
+                .padding(.bottom, 4)
+
+            // 预览/保存区
+            if vm.phase == .preview || vm.phase == .saving {
+                previewSection(vm)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
+                    .padding(.bottom, 12)
+            } else {
+                Spacer(minLength: 12)
+            }
         }
     }
 
+    // MARK: - 子视图
+
     private func stateTitle(_ vm: VoiceViewModel) -> some View {
-        let isSaved = vm.didSave
-        return Text(isSaved ? "已保存" : vm.phase.statusText)
-            .font(.title2.weight(.semibold))
+        let text: String
+        let tint: Color
+        if vm.didSave {
+            text = "已记录"
+            tint = V21.brandGreen
+        } else if case .error = vm.phase {
+            text = "出错了，点击重试"
+            tint = V21.danger
+        } else {
+            text = vm.phase.statusText
+            tint = Color.primary
+        }
+        return Text(text)
+            .font(.headline)
             .multilineTextAlignment(.center)
-            .foregroundStyle(isSaved ? V21.brandGreen : (isError(vm) ? V21.danger : Color.primary))
+            .foregroundStyle(tint)
     }
 
-    private func isError(_ vm: VoiceViewModel) -> Bool {
-        if case .error = vm.phase { return true }
-        return false
-    }
-
-    private func transcriptCard(_ vm: VoiceViewModel) -> some View {
+    private func transcriptOrWave(_ vm: VoiceViewModel) -> some View {
         Group {
-            if !vm.transcript.isEmpty || vm.phase == .listening || vm.phase == .textFallback {
-                VStack(spacing: 12) {
-                    if vm.phase == .textFallback {
-                        TextField("例如：明天提醒我进货 500 元的牛奶", text: $manualText, axis: .vertical)
-                            .font(.body)
-                            .lineLimit(2...5)
-                            .multilineTextAlignment(.center)
-                            .onSubmit { submitManual(vm) }
-                    } else {
-                        Text(vm.transcript.isEmpty ? "请开始说话…" : vm.transcript)
-                            .font(.body)
-                            .foregroundStyle(vm.transcript.isEmpty ? Color.secondary : Color.primary)
-                            .lineSpacing(4)
-                            .multilineTextAlignment(.center)
-                    }
-                }
-                .padding(18)
-                .frame(maxWidth: .infinity, minHeight: 88)
-                .modifier(VoiceTranscriptChrome())
+            if vm.phase == .textFallback {
+                TextField("例如：明天提醒我进货 500 元的牛奶", text: $manualText, axis: .vertical)
+                    .font(.body)
+                    .lineLimit(2...4)
+                    .multilineTextAlignment(.center)
+                    .onSubmit { submitManual(vm) }
+                    .padding(10)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            } else if !vm.transcript.isEmpty {
+                // 识别中 / 有结果 → 显示转写文字在小卡片里
+                Text(vm.transcript)
+                    .font(.body)
+                    .foregroundStyle(Color.primary)
+                    .lineLimit(3)
+                    .multilineTextAlignment(.center)
+                    .padding(10)
+                    .frame(maxWidth: .infinity)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            } else {
+                // 正在聆听但还没有文字 → 轻量波形
+                CompactVoiceWaveform()
+                    .frame(height: 20)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 20)
             }
         }
     }
@@ -147,12 +158,14 @@ struct VoiceView: View {
             }
         }
         let tint = vm.phase == .listening ? V21.danger : V21.brandGreen
+        let size = V21Layout.centralVoiceButton // 60pt
+
         return Group {
             if #available(iOS 26.0, *) {
                 Button(action: press) {
                     Image(systemName: centralIcon(vm))
-                        .font(.system(size: 24, weight: .semibold))
-                        .frame(width: 84, height: 84)
+                        .font(.system(size: V21Layout.voiceButtonIconSize, weight: .semibold))
+                        .frame(width: size, height: size)
                 }
                 .buttonStyle(.glassProminent)
                 .tint(tint)
@@ -162,15 +175,15 @@ struct VoiceView: View {
                     ZStack {
                         Circle()
                             .fill(.ultraThinMaterial)
-                            .frame(width: 84, height: 84)
+                            .frame(width: size + 12, height: size + 12)
                         Circle()
                             .fill(tint)
-                            .frame(width: 68, height: 68)
+                            .frame(width: size, height: size)
                         Image(systemName: centralIcon(vm))
-                            .font(.system(size: 24, weight: .semibold))
+                            .font(.system(size: V21Layout.voiceButtonIconSize, weight: .semibold))
                             .foregroundStyle(.white)
                     }
-                    .frame(width: 84, height: 84)
+                    .frame(width: size, height: size)
                     .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
@@ -199,8 +212,8 @@ struct VoiceView: View {
         return Group {
             if !text.isEmpty {
                 Text(text)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
             }
         }
     }
@@ -222,10 +235,10 @@ struct VoiceView: View {
                             .font(.subheadline.weight(selected ? .semibold : .medium))
                             .foregroundStyle(selected ? V21.brandGreen : Color.primary)
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .background(V21.surfacePrimary, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .padding(.vertical, 8)
+                            .background(V21.surfacePrimary, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
                                     .strokeBorder(selected ? V21.brandGreen.opacity(0.5) : Color(.separator).opacity(0.35), lineWidth: 0.8)
                             )
                     }
@@ -248,7 +261,7 @@ struct VoiceView: View {
                             }
                         }
                         .frame(maxWidth: .infinity)
-                        .frame(height: 50)
+                        .frame(height: 44)
                     }
                     .buttonStyle(.glassProminent)
                     .tint(V21.brandGreen)
@@ -268,32 +281,52 @@ struct VoiceView: View {
                             }
                         }
                         .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                        .background(V21.brandGreen, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .frame(height: 44)
+                        .background(V21.brandGreen, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
                     .buttonStyle(.plain)
                     .disabled(vm.phase == .saving)
                 }
             }
-            .padding(.top, 8)
+            .padding(.top, 4)
         }
     }
 }
 
-private struct VoiceTranscriptChrome: ViewModifier {
-    func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
-            content.glassEffect(.regular, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        } else {
-            content
-                .background(V21.surfacePrimary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(Color(.separator).opacity(0.28), lineWidth: 0.5)
-                )
+// MARK: - 紧凑波形（高度 20pt，轻量动态反馈）
+
+struct CompactVoiceWaveform: View {
+    @State private var phase = false
+
+    var body: some View {
+        HStack(spacing: 3) {
+            ForEach(0..<15, id: \.self) { index in
+                Capsule()
+                    .fill(V21.brandGreen.opacity(0.7))
+                    .frame(width: 2.5, height: waveHeight(index))
+                    .animation(
+                        .easeInOut(duration: 0.55)
+                            .repeatForever(autoreverses: true)
+                            .delay(Double(index % 5) * 0.07),
+                        value: phase
+                    )
+            }
         }
+        .onAppear { phase = true }
+    }
+
+    private func waveHeight(_ index: Int) -> CGFloat {
+        let minH: CGFloat = 4
+        let maxH: CGFloat = 18
+        let base = phase ? maxH : minH
+        let wobble = CGFloat.random(in: -3...3) // 微小抖动
+        let centerDist = abs(index - 7) // 中间高两边低
+        let factor: CGFloat = max(0.4, 1 - centerDist * 0.08)
+        return max(minH, base * factor + wobble)
     }
 }
+
+// MARK: - 旧组件保留（向后兼容，如果没被引用会被编译器裁剪）
 
 struct SpatialRipples: View {
     @State private var animate = false
@@ -315,33 +348,5 @@ struct SpatialRipples: View {
         }
         .onAppear { animate = true }
         .allowsHitTesting(false)
-    }
-}
-
-struct VoiceWaveform: View {
-    @State private var phase = false
-
-    var body: some View {
-        HStack(spacing: 4) {
-            ForEach(0..<15, id: \.self) { index in
-                Capsule()
-                    .fill(V21.brandGreen)
-                    .frame(width: 3, height: waveHeight(index))
-                    .animation(
-                        .easeInOut(duration: 0.65)
-                            .repeatForever(autoreverses: true)
-                            .delay(Double(index % 5) * 0.08),
-                        value: phase
-                    )
-            }
-        }
-        .frame(height: 34)
-        .onAppear { phase = true }
-    }
-
-    private func waveHeight(_ index: Int) -> CGFloat {
-        let base: CGFloat = phase ? 8 : 34
-        let factor = CGFloat(1 - (index % 5)) / 5
-        return 12 + (base - 12) * factor + (phase ? 6 : -6)
     }
 }

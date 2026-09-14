@@ -67,6 +67,7 @@ struct GoodsView: View {
 
                 }
                 .listStyle(.plain)
+                .bottomDockPadding()
 
                 V21FAB(systemImage: "plus") {
                     showNewEditor = true

@@ -54,6 +54,7 @@ struct ExpiryView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .bottomDockPadding()
         .navigationTitle("临期提醒")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -91,6 +92,6 @@ struct ExpiryStatCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: Tokens.Radius.md, style: .continuous))
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: V21Layout.radiusMD, style: .continuous))
     }
 }

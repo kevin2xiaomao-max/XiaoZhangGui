@@ -121,6 +121,7 @@ struct ProfileView: View {
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .background(Color(.systemGroupedBackground).ignoresSafeArea())
+        .bottomDockPadding()
         .navigationTitle("我的")
         .navigationDestination(item: $toolRoute) { route in
             switch route {
@@ -527,30 +528,50 @@ private struct AboutSheet: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section {
-                    VStack(spacing: 8) {
-                        Image(systemName: "storefront")
-                            .font(.system(size: 28, weight: .medium))
-                            .foregroundStyle(V21.brandGreen)
-                        Text("你的小掌柜").font(.headline).foregroundStyle(.primary)
-                        Text("v\(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "3.0.1")")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+            VStack(spacing: 12) {
+                Spacer(minLength: 20)
+                Image(systemName: "storefront")
+                    .font(.system(size: 40, weight: .medium))
+                    .foregroundStyle(V21.brandGreen)
+                    .frame(width: 64, height: 64)
+                    .background(.ultraThinMaterial, in: Circle())
+
+                Text("你的小掌柜")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.primary)
+
+                Text("v\(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "3.0.2")")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Spacer(minLength: 16)
+
+                Text("本次更新：UI 精修 · 语音界面紧凑化 · 长列表安全区优化")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(.systemGroupedBackground).ignoresSafeArea())
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 28))
+                            .foregroundStyle(.tertiary)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .listRowBackground(Color.clear)
-                }
-                Section("本次更新") {
-                    Text("扫呗导入、业绩趋势、快速记录与系统 Tab。")
-                        .foregroundStyle(.secondary)
+                    .accessibilityLabel("关闭")
                 }
             }
-            .navigationTitle("关于")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("关闭") { dismiss() } } }
+            .toolbarBackground(.hidden, for: .navigationBar)
         }
+        .presentationDetents([.height(260)])
+        .presentationDragIndicator(.visible)
+        .presentationCornerRadius(24)
     }
 }
 

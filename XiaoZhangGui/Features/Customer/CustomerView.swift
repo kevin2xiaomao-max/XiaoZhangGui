@@ -69,6 +69,7 @@ struct CustomerView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .bottomDockPadding()
         .navigationTitle("配送需求")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

@@ -47,9 +47,12 @@ struct RootView: View {
         .sheet(isPresented: $showQuickRecord) {
             QuickRecordSheet()
         }
-        .fullScreenCover(isPresented: $showVoice, onDismiss: { tab = lastContentTab }) {
+        .sheet(isPresented: $showVoice, onDismiss: { tab = lastContentTab }) {
             if canInitializeSpeechRecognizer {
                 VoiceView()
+                    .presentationDetents([.height(280), .medium])
+                    .presentationDragIndicator(.visible)
+                    .presentationCornerRadius(28)
             }
         }
     }
