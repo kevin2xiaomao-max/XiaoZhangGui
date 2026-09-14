@@ -9,15 +9,17 @@ struct VoiceView: View {
     @State private var manualText = ""
 
     var body: some View {
-        if let vm = viewModel {
-            content(vm)
-                .onAppear {
-                    guard vm.isSpeechRecognizerInitialized else { return }
-                    vm.beginListening()
+        Group {
+            if let vm = viewModel {
+                content(vm)
+                    .onAppear {
+                        guard vm.isSpeechRecognizerInitialized else { return }
+                        vm.beginListening()
+                    }
+            } else {
+                Color.clear.onAppear {
+                    viewModel = VoiceViewModel(context: context)
                 }
-        } else {
-            Color.clear.onAppear {
-                viewModel = VoiceViewModel(context: context)
             }
         }
         .onChange(of: viewModel?.didSave ?? false) { _, saved in
@@ -321,7 +323,7 @@ struct CompactVoiceWaveform: View {
         let base = phase ? maxH : minH
         let wobble = CGFloat.random(in: -3...3) // 微小抖动
         let centerDist = abs(index - 7) // 中间高两边低
-        let factor: CGFloat = max(0.4, 1 - centerDist * 0.08)
+        let factor: CGFloat = max(0.4, 1 - CGFloat(centerDist) * 0.08)
         return max(minH, base * factor + wobble)
     }
 }
