@@ -88,11 +88,16 @@ enum SaobeiXLSXParser {
 
 private extension String {
     func decodingXMLEntities() -> String {
-        replacingOccurrences(of: "<", with: "<")
-            .replacingOccurrences(of: ">", with: ">")
-            .replacingOccurrences(of: """, with: "\"")
-            .replacingOccurrences(of: "&#39;", with: "'")
-            .replacingOccurrences(of: "&", with: "&")
+        let lt = "&" + "lt;"
+        let gt = "&" + "gt;"
+        let quot = "&" + "quot;"
+        let apos = "&" + "#39;"
+        let amp = "&" + "amp;"
+        return replacingOccurrences(of: lt, with: "<")
+            .replacingOccurrences(of: gt, with: ">")
+            .replacingOccurrences(of: quot, with: "\"")
+            .replacingOccurrences(of: apos, with: "'")
+            .replacingOccurrences(of: amp, with: "&")
     }
 }
 
