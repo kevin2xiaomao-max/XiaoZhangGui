@@ -120,7 +120,7 @@ struct VoiceView: View {
                     }
                 }
                 .padding(18)
-                .frame(minHeight: 88, maxWidth: .infinity)
+                .frame(maxWidth: .infinity, minHeight: 88)
                 .background(V21.surfacePrimary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
