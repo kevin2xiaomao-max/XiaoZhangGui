@@ -111,7 +111,7 @@ struct HomeView: View {
                     }
                     .buttonStyle(.plain)
                 }
-                Button("查看全部", systemImage: "chevron.right") { tab = .todo }.font(.footnote)
+                HomeMoreButton(title: "查看全部") { tab = .todo }
             }
         }
     }
@@ -123,10 +123,21 @@ struct HomeView: View {
             } else {
                 ForEach(summary.deliveries.prefix(3)) { item in
                     NavigationLink(value: "customer") {
-                        BusinessRow(title: item.content, subtitle: item.roomOrAddress, badge: item.statusEnum.rawValue, badgeTone: item.statusEnum == .pending ? .warning : .accent)
+                        BusinessRow(
+                            title: item.content,
+                            subtitle: item.displaySubtitle,
+                            badge: item.statusEnum.rawValue,
+                            badgeTone: item.badgeTone
+                        )
                     }
+                    .buttonStyle(.plain)
+                    .tint(.primary)
                 }
-                NavigationLink("查看全部", value: "customer").font(.footnote)
+                NavigationLink(value: "customer") {
+                    HomeMoreLabel()
+                }
+                .buttonStyle(.plain)
+                .tint(.secondary)
             }
         }
     }
@@ -138,10 +149,21 @@ struct HomeView: View {
             } else {
                 ForEach(summary.pendingExpiry.prefix(3)) { item in
                     NavigationLink(value: "expiry") {
-                        BusinessRow(title: "\(item.name) ×\(item.quantity)", subtitle: item.daysLeft() == 0 ? "今天处理" : "\(item.daysLeft()) 天后到期", badge: item.daysLeft() <= 1 ? "尽快处理" : "待处理", badgeTone: item.daysLeft() <= 1 ? .danger : .warning)
+                        BusinessRow(
+                            title: "\(item.name) ×\(item.quantity)",
+                            subtitle: item.daysLeft() == 0 ? "今天处理" : "\(item.daysLeft()) 天后到期",
+                            badge: item.daysLeft() <= 1 ? "尽快处理" : "待处理",
+                            badgeTone: item.daysLeft() <= 1 ? .danger : .warning
+                        )
                     }
+                    .buttonStyle(.plain)
+                    .tint(.primary)
                 }
-                NavigationLink("查看全部", value: "expiry").font(.footnote)
+                NavigationLink(value: "expiry") {
+                    HomeMoreLabel()
+                }
+                .buttonStyle(.plain)
+                .tint(.secondary)
             }
         }
     }
@@ -160,7 +182,16 @@ private struct HomeBrandHeader: View {
             HStack(spacing: 8) {
                 Text("你的小掌柜").font(.largeTitle.bold())
                 Spacer(minLength: 6)
-                WeatherPill(model: weatherModel, palette: palette, action: showWeather)
+                Button(action: showWeather) {
+                    Image(systemName: "cloud.sun")
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 36, height: 36)
+                        .background(V21.surfacePrimary, in: Circle())
+                        .overlay(Circle().stroke(V21.divider, lineWidth: 0.5))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("天气")
                 Button(action: showAvatar) { HomeAvatar(settings: settings) }
                     .buttonStyle(.plain)
                     .frame(width: 44, height: 44)
@@ -235,6 +266,31 @@ private struct HomeStatusLine: View {
     var body: some View {
         Label(text, systemImage: systemImage).font(.subheadline).foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 10)
+    }
+}
+
+private struct HomeMoreButton: View {
+    let title: String
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            HomeMoreLabel()
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct HomeMoreLabel: View {
+    var body: some View {
+        HStack {
+            Spacer()
+            Text("查看全部")
+                .font(.footnote.weight(.medium))
+            Image(systemName: "chevron.right")
+                .font(.caption2.weight(.semibold))
+        }
+        .foregroundStyle(.secondary)
+        .padding(.vertical, 8)
     }
 }
 
