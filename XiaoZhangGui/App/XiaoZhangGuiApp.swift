@@ -7,13 +7,15 @@ struct XiaoZhangGuiApp: App {
     let container = try? AppDatabase.makeContainer()
 
     @State private var settings = AppSettings.shared
+    @State private var demo = DemoMode.shared
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
             if let container {
                 RootView()
-                    .modelContainer(container)
+                    .id(demo.sessionID)
+                    .modelContainer(demo.isEnabled ? DemoCatalog.container : container)
                     .environment(settings)
                     .tint(AppTheme.palette(named: settings.appThemeName).accent)
                     .preferredColorScheme(settings.colorScheme)
@@ -32,8 +34,8 @@ struct XiaoZhangGuiApp: App {
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active || phase == .background,
                   let container else { return }
-            // 小组件 / Live Activity / 锁屏数据快照刷新
-            let snapshot = SnapshotSyncManager.buildSnapshot(context: ModelContext(container))
+            let contextContainer = demo.isEnabled ? DemoCatalog.container : container
+            let snapshot = SnapshotSyncManager.buildSnapshot(context: ModelContext(contextContainer))
             snapshot.save()
             WidgetCenter.shared.reloadAllTimelines()
             if phase == .active {
@@ -41,5 +43,4 @@ struct XiaoZhangGuiApp: App {
             }
         }
     }
-
 }
