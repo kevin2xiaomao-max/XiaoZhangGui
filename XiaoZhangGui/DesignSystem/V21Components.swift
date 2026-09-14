@@ -7,12 +7,17 @@ struct GlassSurface<Content: View>: View {
     @ViewBuilder var content: () -> Content
 
     var body: some View {
-        content()
-            .background(V21.surfacePrimary, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .strokeBorder(Color(.separator).opacity(0.28), lineWidth: 0.5)
-            }
+        if #available(iOS 26.0, *) {
+            content()
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+        } else {
+            content()
+                .background(V21.surfacePrimary, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: radius, style: .continuous)
+                        .strokeBorder(Color(.separator).opacity(0.28), lineWidth: 0.5)
+                }
+        }
     }
 }
 
@@ -119,18 +124,32 @@ struct V21FAB: View {
     var action: () -> Void
 
     var body: some View {
-        Button {
-            Haptic.medium()
-            action()
-        } label: {
-            Image(systemName: systemImage)
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: V21Layout.fabSize, height: V21Layout.fabSize)
-                .background(V21.brandGreen, in: Circle())
+        if #available(iOS 26.0, *) {
+            Button {
+                Haptic.medium()
+                action()
+            } label: {
+                Image(systemName: systemImage)
+                    .font(.system(size: 20, weight: .semibold))
+                    .frame(width: V21Layout.fabSize, height: V21Layout.fabSize)
+            }
+            .buttonStyle(.glassProminent)
+            .tint(V21.brandGreen)
+            .accessibilityLabel("新增")
+        } else {
+            Button {
+                Haptic.medium()
+                action()
+            } label: {
+                Image(systemName: systemImage)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: V21Layout.fabSize, height: V21Layout.fabSize)
+                    .background(V21.brandGreen, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("新增")
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("新增")
     }
 }
 

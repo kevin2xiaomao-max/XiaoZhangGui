@@ -64,6 +64,8 @@ struct ProfileView: View {
                     .padding(.vertical, 6)
                 }
                 .buttonStyle(.plain)
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
             }
 
             Section("个性化") {
@@ -117,6 +119,8 @@ struct ProfileView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(Color(.systemGroupedBackground).ignoresSafeArea())
         .navigationTitle("我的")
         .navigationDestination(item: $toolRoute) { route in
             switch route {
@@ -494,9 +498,18 @@ private struct VoiceSettingsSheet: View {
                 }
                 if showsVoiceButton {
                     Section {
-                        Button("测试语音") {
-                            dismiss()
-                            showVoice = true
+                        if #available(iOS 26.0, *) {
+                            Button("测试语音") {
+                                dismiss()
+                                showVoice = true
+                            }
+                            .buttonStyle(.glassProminent)
+                            .tint(V21.brandGreen)
+                        } else {
+                            Button("测试语音") {
+                                dismiss()
+                                showVoice = true
+                            }
                         }
                     }
                 }

@@ -4,7 +4,6 @@ import SwiftData
 struct VoiceView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
-    @Environment(AppSettings.self) private var settings
 
     @State private var viewModel: VoiceViewModel?
     @State private var manualText = ""
@@ -121,11 +120,7 @@ struct VoiceView: View {
                 }
                 .padding(18)
                 .frame(maxWidth: .infinity, minHeight: 88)
-                .background(V21.surfacePrimary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(Color(.separator).opacity(0.28), lineWidth: 0.5)
-                )
+                .modifier(VoiceTranscriptChrome())
             }
         }
     }
@@ -138,7 +133,7 @@ struct VoiceView: View {
     }
 
     private func centralButton(_ vm: VoiceViewModel) -> some View {
-        Button {
+        let press: () -> Void = {
             switch vm.phase {
             case .listening:
                 vm.stopListening()
@@ -150,23 +145,38 @@ struct VoiceView: View {
             default:
                 break
             }
-        } label: {
-            ZStack {
-                Circle()
-                    .fill(.ultraThinMaterial)
-                    .frame(width: 84, height: 84)
-                Circle()
-                    .fill(vm.phase == .listening ? V21.danger : V21.brandGreen)
-                    .frame(width: 68, height: 68)
-                Image(systemName: centralIcon(vm))
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundStyle(.white)
-            }
-            .frame(width: 84, height: 84)
-            .contentShape(Circle())
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(vm.phase == .listening ? "停止" : "开始语音")
+        let tint = vm.phase == .listening ? V21.danger : V21.brandGreen
+        return Group {
+            if #available(iOS 26.0, *) {
+                Button(action: press) {
+                    Image(systemName: centralIcon(vm))
+                        .font(.system(size: 24, weight: .semibold))
+                        .frame(width: 84, height: 84)
+                }
+                .buttonStyle(.glassProminent)
+                .tint(tint)
+                .accessibilityLabel(vm.phase == .listening ? "停止" : "开始语音")
+            } else {
+                Button(action: press) {
+                    ZStack {
+                        Circle()
+                            .fill(.ultraThinMaterial)
+                            .frame(width: 84, height: 84)
+                        Circle()
+                            .fill(tint)
+                            .frame(width: 68, height: 68)
+                        Image(systemName: centralIcon(vm))
+                            .font(.system(size: 24, weight: .semibold))
+                            .foregroundStyle(.white)
+                    }
+                    .frame(width: 84, height: 84)
+                    .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(vm.phase == .listening ? "停止" : "开始语音")
+            }
+        }
     }
 
     private func centralIcon(_ vm: VoiceViewModel) -> String {
@@ -223,26 +233,64 @@ struct VoiceView: View {
                 }
             }
 
-            Button {
-                Haptic.medium()
-                vm.save()
-            } label: {
-                Group {
-                    if vm.phase == .saving {
-                        ProgressView().tint(.white)
-                    } else {
-                        Text("保存记录")
-                            .font(.body.weight(.semibold))
-                            .foregroundStyle(.white)
+            Group {
+                if #available(iOS 26.0, *) {
+                    Button {
+                        Haptic.medium()
+                        vm.save()
+                    } label: {
+                        Group {
+                            if vm.phase == .saving {
+                                ProgressView().tint(.white)
+                            } else {
+                                Text("保存记录")
+                                    .font(.body.weight(.semibold))
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
                     }
+                    .buttonStyle(.glassProminent)
+                    .tint(V21.brandGreen)
+                    .disabled(vm.phase == .saving)
+                } else {
+                    Button {
+                        Haptic.medium()
+                        vm.save()
+                    } label: {
+                        Group {
+                            if vm.phase == .saving {
+                                ProgressView().tint(.white)
+                            } else {
+                                Text("保存记录")
+                                    .font(.body.weight(.semibold))
+                                    .foregroundStyle(.white)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(V21.brandGreen, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(vm.phase == .saving)
                 }
-                .frame(maxWidth: .infinity)
-                .frame(height: 50)
-                .background(V21.brandGreen, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
-            .buttonStyle(.plain)
-            .disabled(vm.phase == .saving)
             .padding(.top, 8)
+        }
+    }
+}
+
+private struct VoiceTranscriptChrome: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.glassEffect(.regular, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        } else {
+            content
+                .background(V21.surfacePrimary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(Color(.separator).opacity(0.28), lineWidth: 0.5)
+                )
         }
     }
 }

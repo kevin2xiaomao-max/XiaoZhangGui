@@ -15,7 +15,7 @@ concurrency:
 jobs:
   build:
     name: 小掌柜 Xcode 构建、测试与 IPA
-    runs-on: macos-15
+    runs-on: xcode-27
     timeout-minutes: 60
     steps:
       - name: 检出源码
@@ -49,7 +49,7 @@ jobs:
         run: |
           set -euo pipefail
           NAME=""
-          for cand in "iPhone 16" "iPhone 16 Pro" "iPhone 17" "iPhone 17 Pro" "iPhone 15" "iPhone 15 Pro"; do
+          for cand in "iPhone 17" "iPhone 17 Pro" "iPhone 16" "iPhone 16 Pro" "iPhone 15" "iPhone 15 Pro"; do
             if xcrun simctl list devices available | grep -F "$cand (" >/dev/null; then
               NAME="$cand"
               break
