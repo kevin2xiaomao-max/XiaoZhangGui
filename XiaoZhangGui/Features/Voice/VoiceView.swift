@@ -301,9 +301,10 @@ struct CompactVoiceWaveform: View {
     var body: some View {
         HStack(spacing: 3) {
             ForEach(0..<15, id: \.self) { index in
+                let height = computeHeight(index: index)
                 Capsule()
                     .fill(V21.brandGreen.opacity(0.7))
-                    .frame(width: 2.5, height: waveHeight(index))
+                    .frame(width: 2.5, height: height)
                     .animation(
                         .easeInOut(duration: 0.55)
                             .repeatForever(autoreverses: true)
@@ -315,19 +316,20 @@ struct CompactVoiceWaveform: View {
         .onAppear { phase = true }
     }
 
-    private func waveHeight(_ index: Int) -> CGFloat {
+    @MainActor
+    private func computeHeight(index: Int) -> CGFloat {
         let minH: CGFloat = 4
         let maxH: CGFloat = 18
         let base = phase ? maxH : minH
-        let wobble = CGFloat.random(in: -3...3) // 微小抖动
-        let centerDist = abs(index - 7) // 中间高两边低
-        let factor: CGFloat = max(0.4, 1 - centerDist * 0.08)
-        return max(minH, base * factor + wobble)
+        let centerDist = abs(index - 7)
+        let factor: CGFloat = max(0.4, 1 - CGFloat(centerDist) * 0.08)
+        return max(minH, base * factor)
     }
 }
 
 // MARK: - 旧组件保留（向后兼容，如果没被引用会被编译器裁剪）
 
+@MainActor
 struct SpatialRipples: View {
     @State private var animate = false
 
