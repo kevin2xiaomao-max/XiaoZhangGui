@@ -80,8 +80,6 @@ struct MoneyEditorSheet: View {
                     Text("明细")
                 }
             }
-            .scrollContentBackground(.hidden)
-            .background(V21.background)
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

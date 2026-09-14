@@ -7,29 +7,17 @@ struct WeatherPill: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 7) {
+            HStack(spacing: 4) {
                 weatherIcon
-                VStack(alignment: .leading, spacing: 1) {
-                    if let weather = model.snapshot {
-                        Text("\(weather.roundedTemperature)° · \(weather.city)")
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
-                            .foregroundColor(V21.textPrimary)
-                        Text(weather.isStale ? "缓存天气" : weather.condition)
-                            .font(AppTypography.caption)
-                            .foregroundColor(V21.textTertiary)
-                    } else {
-                        Text(statusTitle)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(V21.textSecondary)
-                    }
+                if let weather = model.snapshot {
+                    Text("\(weather.roundedTemperature)°")
+                        .font(.subheadline.monospacedDigit().weight(.medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
                 }
-                .lineLimit(1)
             }
-            .padding(.horizontal, 10)
-            .frame(minHeight: 40)
-            .background(.thinMaterial, in: Capsule())
-            .background(palette.accent.opacity(0.06), in: Capsule())
-            .overlay(Capsule().stroke(V21.divider.opacity(0.7), lineWidth: 1))
+            .frame(minWidth: 36, minHeight: 36)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel)
@@ -38,28 +26,19 @@ struct WeatherPill: View {
     @ViewBuilder
     private var weatherIcon: some View {
         if model.state == .loading && model.snapshot == nil {
-            ProgressView().controlSize(.small).tint(palette.accent)
+            ProgressView().controlSize(.small)
         } else {
             Image(systemName: model.snapshot?.symbolName ?? fallbackSymbol)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(palette.accent)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.secondary)
         }
     }
 
     private var fallbackSymbol: String {
         switch model.state {
-        case .notConfigured: return "cloud.slash"
+        case .notConfigured: return "cloud.sun"
         case .unavailable: return "wifi.exclamationmark"
         default: return "cloud.sun"
-        }
-    }
-
-    private var statusTitle: String {
-        switch model.state {
-        case .loading: return "获取天气"
-        case .notConfigured: return "天气未配置"
-        case .unavailable: return "天气暂不可用"
-        case .idle, .loaded: return "天气"
         }
     }
 
@@ -67,7 +46,12 @@ struct WeatherPill: View {
         if let weather = model.snapshot {
             return "\(weather.city)，\(weather.condition)，\(weather.roundedTemperature)度"
         }
-        return statusTitle
+        switch model.state {
+        case .notConfigured: return "天气"
+        case .unavailable: return "天气暂不可用"
+        case .loading: return "正在获取天气"
+        default: return "天气"
+        }
     }
 }
 
@@ -76,67 +60,64 @@ struct WeatherDetailSheet: View {
     let palette: AppThemePalette
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack {
-                Text("当前天气")
-                    .font(AppTypography.sectionTitle)
-                    .foregroundColor(V21.textPrimary)
-                Spacer()
-                Button {
-                    model.refresh()
-                } label: {
-                    if model.isRefreshing {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Image(systemName: "arrow.clockwise")
+        NavigationStack {
+            List {
+                if let weather = model.snapshot {
+                    Section {
+                        HStack(alignment: .center, spacing: 16) {
+                            Image(systemName: weather.symbolName)
+                                .font(.system(size: 34, weight: .medium))
+                                .foregroundStyle(V21.brandGreen)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("\(weather.roundedTemperature)°")
+                                    .font(.system(size: 40, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(.primary)
+                                Text("\(weather.condition) · \(weather.city)")
+                                    .font(.body)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    Section {
+                        if let feelsLike = weather.roundedFeelsLike {
+                            LabeledContent("体感", value: "\(feelsLike)°")
+                        }
+                        if let probability = weather.precipitationProbability {
+                            LabeledContent("降雨", value: "\(Int((probability * 100).rounded()))%")
+                        }
+                        if weather.isStale {
+                            LabeledContent("状态", value: "离线缓存")
+                        }
+                    }
+                } else {
+                    Section {
+                        AppEmptyState(
+                            title: model.state == .notConfigured ? "未配置天气服务" : "天气暂不可用",
+                            systemImage: model.state == .notConfigured ? "cloud.sun" : "wifi.exclamationmark",
+                            actionTitle: model.isConfigured ? "重试" : nil
+                        ) {
+                            model.refresh()
+                        }
                     }
                 }
-                .foregroundColor(palette.accent)
-                .frame(width: 44, height: 44)
-                .disabled(model.isRefreshing || !model.isConfigured)
-                .accessibilityLabel("刷新天气")
             }
-
-            if let weather = model.snapshot {
-                HStack(alignment: .center, spacing: 16) {
-                    Image(systemName: weather.symbolName)
-                        .font(.system(size: 34, weight: .medium))
-                        .foregroundColor(palette.accent)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("\(weather.roundedTemperature)°")
-                            .font(.system(size: 40, weight: .semibold, design: .rounded))
-                            .foregroundColor(V21.textPrimary)
-                        Text("\(weather.condition) · \(weather.city)")
-                            .font(AppTypography.body)
-                            .foregroundColor(V21.textSecondary)
+            .navigationTitle("当前天气")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        model.refresh()
+                    } label: {
+                        if model.isRefreshing {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                        }
                     }
+                    .disabled(model.isRefreshing || !model.isConfigured)
+                    .accessibilityLabel("刷新天气")
                 }
-                HStack(spacing: 18) {
-                    if let feelsLike = weather.roundedFeelsLike {
-                        Label("体感 \(feelsLike)°", systemImage: "thermometer.medium")
-                    }
-                    if let probability = weather.precipitationProbability {
-                        Label("降雨 \(Int((probability * 100).rounded()))%", systemImage: "drop.fill")
-                    }
-                    if weather.isStale {
-                        Label("离线缓存", systemImage: "clock.arrow.circlepath")
-                    }
-                }
-                .font(AppTypography.caption)
-                .foregroundColor(V21.textTertiary)
-            } else {
-                ContentUnavailableView(
-                    model.state == .notConfigured ? "天气未配置" : "天气暂不可用",
-                    systemImage: model.state == .notConfigured ? "cloud.slash" : "wifi.exclamationmark",
-                    description: Text(model.state == .notConfigured ? "配置天气服务后将显示恩平实时天气" : "请检查网络后稍后重试")
-                )
             }
-
-            Spacer(minLength: 0)
         }
-        .padding(.horizontal, 24)
-        .padding(.top, 10)
-        .background(V21.background)
     }
 }
-

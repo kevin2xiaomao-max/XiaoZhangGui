@@ -54,8 +54,6 @@ struct ExpiryView: View {
             }
         }
         .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .background(V21.background)
         .navigationTitle("临期提醒")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

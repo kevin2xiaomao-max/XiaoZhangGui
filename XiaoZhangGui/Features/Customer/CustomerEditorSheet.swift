@@ -40,8 +40,6 @@ struct CustomerEditorSheet: View {
                 .padding(.top, V21Layout.spaceLG)
                 .padding(.bottom, 48)
             }
-            .scrollContentBackground(.hidden)
-            .background(V21.background)
             .navigationTitle(request == nil ? "新增配送需求" : "编辑配送需求")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

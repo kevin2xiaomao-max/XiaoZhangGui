@@ -32,8 +32,6 @@ struct MemoEditorSheet: View {
                 .padding(.top, V21Layout.spaceLG)
                 .padding(.bottom, 48)
             }
-            .scrollContentBackground(.hidden)
-            .background(V21.background)
             .navigationTitle(memo == nil ? "新增记录" : "编辑记录")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

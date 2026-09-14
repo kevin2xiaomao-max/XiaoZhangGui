@@ -1,9 +1,6 @@
 import SwiftUI
 import UIKit
 
-// MARK: - V2.1 Design Tokens — Colors
-// 语义完全对齐 Android V21 Color.kt（Light / Dark 双套）
-
 extension Color {
     init(hex: UInt32, alpha: Double = 1) {
         self.init(
@@ -15,7 +12,6 @@ extension Color {
         )
     }
 
-    /// Light / Dark 动态色
     static func v21Dynamic(light: UInt32, dark: UInt32, lightAlpha: Double = 1, darkAlpha: Double = 1) -> Color {
         Color(UIColor { trait in
             if trait.userInterfaceStyle == .dark {
@@ -38,50 +34,41 @@ extension UIColor {
     }
 }
 
-// MARK: - Token 常量
-
 enum V21 {
-    // ========== 品牌色（双主题一致） ==========
-    static var brandGreen: Color { AppTheme.palette(named: AppSettings.shared.appThemeName).accent }
-    static var brandGreenSoft: Color { AppTheme.palette(named: AppSettings.shared.appThemeName).accent }
-    static var brandGreenDeep: Color { AppTheme.palette(named: AppSettings.shared.appThemeName).accentSecondary }
+    static let brandGreen = Color(hex: 0x1FA971)
+    static let brandGreenSoft = Color(hex: 0x1FA971)
+    static let brandGreenDeep = Color(hex: 0x168B68)
     static let warning = Color(hex: 0xFF9F0A)
-    static let danger = Color(hex: 0xFF6B6B)
+    static let danger = Color(hex: 0xE5484D)
     static let info = Color(hex: 0x0A84FF)
 
-    static var brandGreenGradient: LinearGradient { AppTheme.palette(named: AppSettings.shared.appThemeName).heroGradient }
+    static var brandGreenGradient: LinearGradient {
+        LinearGradient(colors: [Color(hex: 0x2FBF71), Color(hex: 0x168B68)], startPoint: .topLeading, endPoint: .bottomTrailing)
+    }
 
-    // ========== 背景 ==========
-    static let background = Color.v21Dynamic(light: 0xF3F9F5, dark: 0x0A100D)
-    static let backgroundSecondary = Color.v21Dynamic(light: 0xEAF4EE, dark: 0x0E1712)
+    static let background = Color.v21Dynamic(light: 0xF3F8F5, dark: 0x0B0F0D)
+    static let backgroundSecondary = Color.v21Dynamic(light: 0xEAF3EE, dark: 0x101614)
 
-    // ========== Surface 三级 ==========
-    static let surfacePrimary = Color.v21Dynamic(light: 0xFFFFFF, dark: 0xFFFFFF, lightAlpha: 0.92, darkAlpha: 0.055)
-    static let surfaceGlass = Color.v21Dynamic(light: 0xFFFFFF, dark: 0xFFFFFF, lightAlpha: 0.82, darkAlpha: 0.07)
-    static let surfaceElevated = Color.v21Dynamic(light: 0xFFFFFF, dark: 0xFFFFFF, lightAlpha: 0.85, darkAlpha: 0.07)
+    static let surfacePrimary = Color.v21Dynamic(light: 0xFFFFFF, dark: 0x1C1C1E)
+    static let surfaceGlass = Color.v21Dynamic(light: 0xFFFFFF, dark: 0x1C1C1E)
+    static let surfaceElevated = Color.v21Dynamic(light: 0xFFFFFF, dark: 0x2C2C2E)
 
-    // ========== 文字四级 ==========
-    static let textPrimary = Color.v21Dynamic(light: 0x1A1D21, dark: 0xFFFFFF)
-    static let textSecondary = Color.v21Dynamic(light: 0x3A3F47, dark: 0xFFFFFF, lightAlpha: 1, darkAlpha: 0.8)
-    static let textTertiary = Color.v21Dynamic(light: 0x7D848E, dark: 0xFFFFFF, lightAlpha: 1, darkAlpha: 0.45)
-    static let textQuaternary = Color.v21Dynamic(light: 0xB5BAC4, dark: 0xFFFFFF, lightAlpha: 1, darkAlpha: 0.28)
+    static let textPrimary = Color.v21Dynamic(light: 0x1A1D21, dark: 0xF5F5F7)
+    static let textSecondary = Color.v21Dynamic(light: 0x3A3F47, dark: 0xC7C7CC)
+    static let textTertiary = Color.v21Dynamic(light: 0x6E7380, dark: 0x8E8E93)
+    static let textQuaternary = Color.v21Dynamic(light: 0xB0B4BC, dark: 0x636366)
 
-    // ========== 分割线 / 时间轴 ==========
-    static let divider = Color.v21Dynamic(light: 0x1E2328, dark: 0xFFFFFF, lightAlpha: 0.09, darkAlpha: 0.05)
-    static let dividerStrong = Color.v21Dynamic(light: 0x1E2328, dark: 0xFFFFFF, lightAlpha: 0.12, darkAlpha: 0.08)
-    static let dividerHighlight = Color.v21Dynamic(light: 0xFFFFFF, dark: 0xFFFFFF, lightAlpha: 0.9, darkAlpha: 0.12)
+    static let divider = Color.v21Dynamic(light: 0x1E2328, dark: 0xFFFFFF, lightAlpha: 0.08, darkAlpha: 0.08)
+    static let dividerStrong = Color.v21Dynamic(light: 0x1E2328, dark: 0xFFFFFF, lightAlpha: 0.12, darkAlpha: 0.12)
+    static let dividerHighlight = Color.v21Dynamic(light: 0x1E2328, dark: 0xFFFFFF, lightAlpha: 0.16, darkAlpha: 0.16)
     static let timeline = Color.v21Dynamic(light: 0x1E2328, dark: 0xFFFFFF, lightAlpha: 0.16, darkAlpha: 0.16)
     static let timelineDotBorder = Color.v21Dynamic(light: 0x1E2328, dark: 0xFFFFFF, lightAlpha: 0.25, darkAlpha: 0.24)
 
-    // ========== 分组标题 / 未选中 Tab ==========
-    static let groupTitle = Color(hex: 0x737A84)
-    static let tabInactive = Color(hex: 0x7C838D)
-
-    // ========== 玻璃高光边 ==========
+    static let groupTitle = Color.v21Dynamic(light: 0x6E7380, dark: 0x8E8E93)
+    static let tabInactive = Color.v21Dynamic(light: 0x7C838D, dark: 0x8E8E93)
     static let glassHighlight = Color.v21Dynamic(light: 0xFFFFFF, dark: 0xFFFFFF, lightAlpha: 0.8, darkAlpha: 0.06)
 }
 
-/// 全 App 主题令牌。默认 Blue Purple；其余主题预留给后续设置页选择。
 struct AppThemePalette {
     let name: String
     let accent: Color
@@ -89,31 +76,21 @@ struct AppThemePalette {
     let heroGradient: LinearGradient
     let selectedBackground: Color
 
-    static let bluePurple = AppThemePalette(
-        name: "Blue Purple",
-        accent: Color(hex: 0x4C8DFF),
-        accentSecondary: Color(hex: 0x7651D8),
-        heroGradient: LinearGradient(colors: [Color(hex: 0x317CF5), Color(hex: 0x7651D8)], startPoint: .topLeading, endPoint: .bottomTrailing),
-        selectedBackground: Color(hex: 0x4C8DFF).opacity(0.12)
+    static let mint = AppThemePalette(
+        name: "Mint",
+        accent: V21.brandGreen,
+        accentSecondary: V21.brandGreenDeep,
+        heroGradient: V21.brandGreenGradient,
+        selectedBackground: V21.brandGreen.opacity(0.12)
     )
-    static let graphite = AppThemePalette(name: "Graphite", accent: Color(hex: 0x8D9AA8), accentSecondary: Color(hex: 0x4C5966), heroGradient: LinearGradient(colors: [Color(hex: 0x46515C), Color(hex: 0x1D252D)], startPoint: .topLeading, endPoint: .bottomTrailing), selectedBackground: Color.white.opacity(0.1))
-    static let glacierBlue = AppThemePalette(name: "Glacier Blue", accent: Color(hex: 0x47B6E8), accentSecondary: Color(hex: 0x6688F5), heroGradient: LinearGradient(colors: [Color(hex: 0x42B7E8), Color(hex: 0x6670E8)], startPoint: .topLeading, endPoint: .bottomTrailing), selectedBackground: Color(hex: 0x47B6E8).opacity(0.12))
-    static let emerald = AppThemePalette(name: "Emerald", accent: Color(hex: 0x27C56F), accentSecondary: Color(hex: 0x168B68), heroGradient: LinearGradient(colors: [Color(hex: 0x35C98A), Color(hex: 0x187A75)], startPoint: .topLeading, endPoint: .bottomTrailing), selectedBackground: Color(hex: 0x27C56F).opacity(0.12))
-    static let coral = AppThemePalette(name: "Coral", accent: Color(hex: 0xF07C6C), accentSecondary: Color(hex: 0xC84F7A), heroGradient: LinearGradient(colors: [Color(hex: 0xF08B6C), Color(hex: 0xC85682)], startPoint: .topLeading, endPoint: .bottomTrailing), selectedBackground: Color(hex: 0xF07C6C).opacity(0.12))
 }
 
 enum AppTheme {
-    static let current = AppThemePalette.bluePurple
+    static let current = AppThemePalette.mint
 
     static func palette(named name: String) -> AppThemePalette {
-        switch name {
-        case "Graphite": return .graphite
-        case "Glacier Blue": return .glacierBlue
-        case "Emerald": return .emerald
-        case "Coral": return .coral
-        default: return .bluePurple
-        }
+        .mint
     }
 
-    static let all: [AppThemePalette] = [.bluePurple, .graphite, .glacierBlue, .emerald, .coral]
+    static let all: [AppThemePalette] = [.mint]
 }

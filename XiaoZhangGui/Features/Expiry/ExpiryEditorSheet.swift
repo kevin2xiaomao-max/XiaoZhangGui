@@ -43,8 +43,6 @@ struct ExpiryEditorSheet: View {
                 .padding(.top, V21Layout.spaceLG)
                 .padding(.bottom, 48)
             }
-            .scrollContentBackground(.hidden)
-            .background(V21.background)
             .navigationTitle(item == nil ? "新增临期商品" : "编辑临期商品")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

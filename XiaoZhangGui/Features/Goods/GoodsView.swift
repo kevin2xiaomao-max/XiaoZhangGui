@@ -67,13 +67,12 @@ struct GoodsView: View {
 
                 }
                 .listStyle(.plain)
-                .scrollContentBackground(.hidden)
 
                 V21FAB(systemImage: "plus") {
                     showNewEditor = true
                 }
                 .padding(.trailing, V21Layout.spaceXL)
-                .padding(.bottom, V21Layout.bottomDockContentGap - 30)
+                .padding(.bottom, 16)
             }
         }
         .navigationTitle("临时商品")

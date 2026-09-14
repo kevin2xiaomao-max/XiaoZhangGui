@@ -10,20 +10,21 @@ struct StatusBadge: View {
         var foreground: Color {
             switch self {
             case .neutral: return .secondary
-            case .accent: return Color.accentColor
+            case .accent: return V21.brandGreen
             case .warning: return .orange
-            case .danger: return .red
-            case .success: return .green
+            case .danger: return V21.danger
+            case .success: return V21.brandGreen
             }
         }
     }
 
     var body: some View {
         Text(text)
-            .font(.caption.weight(.medium))
+            .font(.caption2.weight(.medium))
             .foregroundStyle(tone.foreground)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
+            .lineLimit(1)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
             .background(tone.foreground.opacity(0.12), in: Capsule())
     }
 }

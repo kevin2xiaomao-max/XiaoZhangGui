@@ -194,7 +194,7 @@ struct MoneyRecord: Identifiable {
                 title: p.note.isBlank ? "营业额" : p.note,
                 amount: p.amount,
                 date: p.date,
-                source: IncomeSource.from(note: p.note).rawValue,
+                source: RecordSourceLabel.display(performance: p),
                 performance: p,
                 expense: nil
             ))
@@ -206,7 +206,7 @@ struct MoneyRecord: Identifiable {
                 title: e.note.isBlank ? e.category : e.note,
                 amount: e.amount,
                 date: e.date,
-                source: e.category,
+                source: RecordSourceLabel.display(expense: e),
                 performance: nil,
                 expense: e
             ))

@@ -25,12 +25,14 @@ struct CustomerView: View {
             }
             Section {
                 if shown.isEmpty {
-                    AppEmptyState(title: "当前没有配送需求", systemImage: "shippingbox")
+                    AppEmptyState(title: "当前没有配送需求", systemImage: "shippingbox", actionTitle: "新增") {
+                        showNewEditor = true
+                    }
                 } else {
                     ForEach(shown) { request in
                         Button { editingRequest = request } label: {
                             BusinessRow(
-                                title: request.content,
+                                title: request.displayTitle,
                                 subtitle: request.displaySubtitle,
                                 badge: request.statusEnum.rawValue,
                                 badgeTone: request.badgeTone
@@ -48,7 +50,7 @@ struct CustomerView: View {
                                         systemImage: request.statusEnum == .pending ? "bicycle" : "checkmark"
                                     )
                                 }
-                                .tint(.green)
+                                .tint(V21.brandGreen)
                             }
                         }
                         .swipeActions(edge: .leading, allowsFullSwipe: false) {
@@ -67,8 +69,6 @@ struct CustomerView: View {
             }
         }
         .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .background(V21.background)
         .navigationTitle("配送需求")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -102,15 +102,15 @@ struct CustomerView: View {
 extension CustomerRequest {
     var displayCustomerName: String {
         let raw = CustomerDeliveryStorage.decode(customer).legacyCustomer ?? ""
-        let name = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        if name.isEmpty || name.hasPrefix("xzg-delivery-v1:") { return "" }
-        return name
+        return DisplayText.visible(raw)
+    }
+
+    var displayTitle: String {
+        DisplayText.visible(content, fallback: displayCustomerName.isEmpty ? "客户配送" : displayCustomerName)
     }
 
     var displaySubtitle: String {
-        [displayCustomerName, roomOrAddress.trimmingCharacters(in: .whitespacesAndNewlines)]
-            .filter { !$0.isEmpty }
-            .joined(separator: " · ")
+        DisplayText.joined(displayCustomerName, roomOrAddress)
     }
 
     var badgeTone: StatusBadge.Tone {

@@ -17,7 +17,7 @@ struct XiaoZhangGuiApp: App {
                     .id(demo.sessionID)
                     .modelContainer(demo.isEnabled ? DemoCatalog.container : container)
                     .environment(settings)
-                    .tint(AppTheme.palette(named: settings.appThemeName).accent)
+                    .tint(V21.brandGreen)
                     .preferredColorScheme(settings.colorScheme)
                     .task {
                         NotificationManager.requestAuthorization()

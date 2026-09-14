@@ -22,6 +22,10 @@ struct TodoView: View {
         return TodoFilter.grouped(list)
     }
 
+    private var todayCount: Int { TodoFilter.todos(for: .today, in: todos).count }
+    private var doneCount: Int { todos.filter(\.isCompleted).count }
+    private var overdueCount: Int { TodoFilter.todos(for: .overdue, in: todos).count }
+
     var body: some View {
         List {
             Section {
@@ -33,33 +37,32 @@ struct TodoView: View {
 
             if tab == .records {
                 if memos.isEmpty {
-                    AppEmptyState(title: "暂无记录", systemImage: "square.and.pencil")
+                    Section {
+                        AppEmptyState(title: "暂无记录", systemImage: "square.and.pencil", actionTitle: "新增") {
+                            showNewRecord = true
+                        }
+                    }
                 } else {
                     ForEach(memos.sorted { $0.updatedAt > $1.updatedAt }) { memo in
                         BusinessRow(title: memo.title, subtitle: Fmt.shortDateTime(memo.updatedAt))
                     }
                 }
             } else if list.isEmpty {
-                AppEmptyState(title: TodoFilter.emptyText(for: tab), systemImage: "checkmark.circle")
+                Section {
+                    AppEmptyState(title: TodoFilter.emptyText(for: tab), systemImage: "checkmark.circle", actionTitle: "新增") {
+                        showNewEditor = true
+                    }
+                }
             } else {
                 ForEach(groups, id: \.label) { group in
                     Section(group.label) {
                         ForEach(group.items) { todo in
                             Button { editingTodo = todo } label: {
-                                BusinessRow(
-                                    title: todo.title,
-                                    subtitle: todo.dueDate.map { tab == .overdue ? Fmt.monthDayTime($0) : Fmt.time($0) },
-                                    badge: todo.isCompleted ? "完成" : todo.priorityLevel.shortLabel,
-                                    badgeTone: todo.isCompleted ? .success : (todo.priority >= 2 ? .danger : .neutral)
-                                )
+                                TodoCheckRow(todo: todo, showsDate: tab == .overdue) {
+                                    try? TodoRepository(context: context).toggleComplete(todo)
+                                }
                             }
                             .buttonStyle(.plain)
-                            .swipeActions(edge: .leading) {
-                                Button { try? TodoRepository(context: context).toggleComplete(todo) } label: {
-                                    Label(todo.isCompleted ? "恢复" : "完成", systemImage: "checkmark")
-                                }
-                                .tint(.green)
-                            }
                             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                 Button(role: .destructive) { delete(todo) } label: {
                                     Label("删除", systemImage: "trash")
@@ -71,8 +74,6 @@ struct TodoView: View {
             }
         }
         .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .background(V21.background)
         .navigationTitle("待办")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -81,6 +82,18 @@ struct TodoView: View {
                 } label: {
                     Image(systemName: "plus")
                 }
+            }
+            ToolbarItem(placement: .bottomBar) {
+                HStack {
+                    Text("今天 \(todayCount)")
+                    Spacer()
+                    Text("已完成 \(doneCount)")
+                    Spacer()
+                    Text("逾期 \(overdueCount)")
+                }
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
             }
         }
         .sheet(isPresented: $showNewEditor) { TodoEditorSheet(todo: nil) }

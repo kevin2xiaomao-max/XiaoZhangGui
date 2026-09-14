@@ -1,9 +1,6 @@
 import SwiftUI
 import SwiftData
 
-// MARK: - AI 语音页（全屏，Typography 驱动 + 空间波纹 + 波形条）
-// 状态机：Idle → Listening → Recognized → Parsing → Preview → Saving；Error / TextFallback 分支
-
 struct VoiceView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -49,12 +46,13 @@ struct VoiceView: View {
                         dismiss()
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundColor(V21.textTertiary)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.secondary)
                             .frame(width: 36, height: 36)
-                            .background { Circle().fill(V21.surfaceGlass) }
+                            .background(.ultraThinMaterial, in: Circle())
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("关闭")
                 }
                 .padding(.top, 8)
 
@@ -62,49 +60,40 @@ struct VoiceView: View {
 
                 stateTitle(vm)
 
-                Spacer()
-                    .frame(height: 20)
+                Spacer().frame(height: 20)
 
                 transcriptCard(vm)
 
                 if vm.phase == .listening {
-                    Spacer()
-                        .frame(height: 32)
+                    Spacer().frame(height: 24)
                     VoiceWaveform()
                 }
 
-                Spacer()
-                    .frame(height: 40)
+                Spacer().frame(height: 36)
 
                 if vm.isSpeechRecognizerInitialized {
                     centralButton(vm)
-
-                    Spacer()
-                        .frame(height: 16)
-
+                    Spacer().frame(height: 14)
                     hintText(vm)
                 }
 
                 if vm.phase == .preview || vm.phase == .saving {
                     previewSection(vm)
-                        .padding(.top, 32)
+                        .padding(.top, 28)
                 }
 
                 Spacer()
             }
-            .padding(.horizontal, V21Layout.pageMargin)
+            .padding(.horizontal, 20)
         }
     }
 
-    // MARK: - 状态标题
-
     private func stateTitle(_ vm: VoiceViewModel) -> some View {
         let isSaved = vm.didSave
-        return Text(isSaved ? "已保存 ✓" : vm.phase.statusText)
-            .v21Style(.titleSection)
-            .fontWeight(.semibold)
+        return Text(isSaved ? "已保存" : vm.phase.statusText)
+            .font(.title2.weight(.semibold))
             .multilineTextAlignment(.center)
-            .foregroundColor(isSaved ? AppTheme.palette(named: settings.appThemeName).accent : (isError(vm) ? V21.danger : V21.textPrimary))
+            .foregroundStyle(isSaved ? V21.brandGreen : (isError(vm) ? V21.danger : Color.primary))
     }
 
     private func isError(_ vm: VoiceViewModel) -> Bool {
@@ -112,45 +101,33 @@ struct VoiceView: View {
         return false
     }
 
-    // MARK: - 识别文字卡
-
     private func transcriptCard(_ vm: VoiceViewModel) -> some View {
         Group {
             if !vm.transcript.isEmpty || vm.phase == .listening || vm.phase == .textFallback {
-                GlassSurface(radius: V21Layout.radiusLG) {
-                    VStack(spacing: 14) {
-                        fadeLine
-                        if vm.phase == .textFallback {
-                            TextField("例如：明天提醒我进货 500 元的牛奶", text: $manualText, axis: .vertical)
-                                .v21Style(.bodyLarge)
-                                .lineLimit(2...5)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, 4)
-                                .onSubmit { submitManual(vm) }
-                        } else {
-                            Text(vm.transcript.isEmpty ? "请开始说话…" : vm.transcript)
-                                .v21Style(.bodyLarge)
-                                .foregroundColor(vm.transcript.isEmpty ? V21.textTertiary : V21.textPrimary)
-                                .lineSpacing(4)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, 4)
-                        }
-                        fadeLine
+                VStack(spacing: 12) {
+                    if vm.phase == .textFallback {
+                        TextField("例如：明天提醒我进货 500 元的牛奶", text: $manualText, axis: .vertical)
+                            .font(.body)
+                            .lineLimit(2...5)
+                            .multilineTextAlignment(.center)
+                            .onSubmit { submitManual(vm) }
+                    } else {
+                        Text(vm.transcript.isEmpty ? "请开始说话…" : vm.transcript)
+                            .font(.body)
+                            .foregroundStyle(vm.transcript.isEmpty ? Color.secondary : Color.primary)
+                            .lineSpacing(4)
+                            .multilineTextAlignment(.center)
                     }
-                    .padding(20)
-                    .frame(minHeight: 118)
                 }
+                .padding(18)
+                .frame(minHeight: 88, maxWidth: .infinity)
+                .background(V21.surfacePrimary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(Color(.separator).opacity(0.28), lineWidth: 0.5)
+                )
             }
         }
-    }
-
-    private var fadeLine: some View {
-        LinearGradient(
-            colors: [.clear, V21.dividerStrong, .clear],
-            startPoint: .leading,
-            endPoint: .trailing
-        )
-        .frame(height: 1)
     }
 
     private func submitManual(_ vm: VoiceViewModel) {
@@ -159,8 +136,6 @@ struct VoiceView: View {
         manualText = ""
         vm.submitManualText(text)
     }
-
-    // MARK: - 中央按钮
 
     private func centralButton(_ vm: VoiceViewModel) -> some View {
         Button {
@@ -178,16 +153,20 @@ struct VoiceView: View {
         } label: {
             ZStack {
                 Circle()
-                    .fill(AnyShapeStyle(AppTheme.palette(named: settings.appThemeName).heroGradient))
+                    .fill(.ultraThinMaterial)
+                    .frame(width: 84, height: 84)
+                Circle()
+                    .fill(vm.phase == .listening ? V21.danger : V21.brandGreen)
+                    .frame(width: 68, height: 68)
                 Image(systemName: centralIcon(vm))
-                    .font(.system(size: 26, weight: .medium))
-                    .foregroundColor(.white)
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundStyle(.white)
             }
-            .frame(width: 72, height: 72)
+            .frame(width: 84, height: 84)
             .contentShape(Circle())
-            .shadow(color: AppTheme.palette(named: settings.appThemeName).accent.opacity(0.16), radius: 8, y: 4)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(vm.phase == .listening ? "停止" : "开始语音")
     }
 
     private func centralIcon(_ vm: VoiceViewModel) -> String {
@@ -198,8 +177,6 @@ struct VoiceView: View {
         default: return "mic.fill"
         }
     }
-
-    // MARK: - 提示文字
 
     private func hintText(_ vm: VoiceViewModel) -> some View {
         let text: String
@@ -212,19 +189,17 @@ struct VoiceView: View {
         return Group {
             if !text.isEmpty {
                 Text(text)
-                    .v21Style(.labelMedium)
-                    .foregroundColor(V21.textTertiary)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
         }
     }
 
-    // MARK: - 预览区（类型选择 + 保存）
-
     private func previewSection(_ vm: VoiceViewModel) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("选择记录类型")
-                .v21Style(.labelSmall)
-                .foregroundColor(V21.textTertiary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
             HStack(spacing: 6) {
                 ForEach(VoiceRecordType.allCases) { type in
@@ -234,15 +209,15 @@ struct VoiceView: View {
                         Haptic.light()
                     } label: {
                         Text(type.rawValue)
-                            .v21Style(.labelMedium)
-                            .fontWeight(selected ? .semibold : .medium)
-                            .foregroundColor(selected ? AppTheme.palette(named: settings.appThemeName).accent : V21.textSecondary)
+                            .font(.subheadline.weight(selected ? .semibold : .medium))
+                            .foregroundStyle(selected ? V21.brandGreen : Color.primary)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 10)
-                            .background {
+                            .background(V21.surfacePrimary, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .overlay(
                                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .fill(selected ? AnyShapeStyle(V21.surfaceElevated) : AnyShapeStyle(V21.surfaceGlass))
-                            }
+                                    .strokeBorder(selected ? V21.brandGreen.opacity(0.5) : Color(.separator).opacity(0.35), lineWidth: 0.8)
+                            )
                     }
                     .buttonStyle(.plain)
                 }
@@ -254,21 +229,16 @@ struct VoiceView: View {
             } label: {
                 Group {
                     if vm.phase == .saving {
-                        ProgressView()
-                            .tint(.white)
+                        ProgressView().tint(.white)
                     } else {
                         Text("保存记录")
-                            .v21Style(.bodyLarge)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.white)
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(.white)
                     }
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: 50)
-                .background {
-                    RoundedRectangle(cornerRadius: 15, style: .continuous)
-                        .fill(AppTheme.palette(named: settings.appThemeName).heroGradient)
-                }
+                .background(V21.brandGreen, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
             .buttonStyle(.plain)
             .disabled(vm.phase == .saving)
@@ -277,8 +247,6 @@ struct VoiceView: View {
     }
 }
 
-// MARK: - 空间波纹（聆听时）
-
 struct SpatialRipples: View {
     @State private var animate = false
 
@@ -286,7 +254,7 @@ struct SpatialRipples: View {
         ZStack {
             ForEach(0..<3, id: \.self) { index in
                 Circle()
-                    .strokeBorder(V21.timeline.opacity(0.35), lineWidth: 1.5)
+                    .strokeBorder(V21.brandGreen.opacity(0.18), lineWidth: 1.5)
                     .scaleEffect(animate ? 2.6 : 0.4)
                     .opacity(animate ? 0 : 0.5)
                     .animation(
@@ -302,17 +270,14 @@ struct SpatialRipples: View {
     }
 }
 
-// MARK: - 波形条
-
 struct VoiceWaveform: View {
-    @Environment(AppSettings.self) private var settings
     @State private var phase = false
 
     var body: some View {
         HStack(spacing: 4) {
             ForEach(0..<15, id: \.self) { index in
                 Capsule()
-                    .fill(AppTheme.palette(named: settings.appThemeName).accent)
+                    .fill(V21.brandGreen)
                     .frame(width: 3, height: waveHeight(index))
                     .animation(
                         .easeInOut(duration: 0.65)

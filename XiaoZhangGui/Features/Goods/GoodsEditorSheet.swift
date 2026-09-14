@@ -49,8 +49,6 @@ struct GoodsEditorSheet: View {
                 .padding(.top, V21Layout.spaceLG)
                 .padding(.bottom, 48)
             }
-            .scrollContentBackground(.hidden)
-            .background(V21.background)
             .navigationTitle(goods == nil ? "新增商品" : "编辑商品")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

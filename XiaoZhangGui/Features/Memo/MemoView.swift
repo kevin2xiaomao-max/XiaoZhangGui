@@ -46,7 +46,7 @@ struct MemoView: View {
                     showNewEditor = true
                 }
                 .padding(.trailing, V21Layout.spaceXL)
-                .padding(.bottom, V21Layout.bottomDockContentGap - 30)
+                .padding(.bottom, 16)
             }
         }
         .navigationTitle("记录")

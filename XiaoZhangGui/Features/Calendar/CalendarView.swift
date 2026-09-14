@@ -203,7 +203,7 @@ struct CalendarView: View {
             let summary = dayData.customers.prefix(2).map { request in
                 let info = CustomerDeliveryStorage.decode(request.customer)
                 let time = info.deliveryTime.map(Fmt.time) ?? "待配送"
-                let address = request.roomOrAddress.isBlank ? (info.legacyCustomer ?? "客户配送") : request.roomOrAddress
+                let address = DisplayText.visible(request.roomOrAddress, fallback: DisplayText.visible(info.legacyCustomer ?? "", fallback: "客户配送"))
                 return "\(time) \(address)"
             }.joined(separator: " · ")
             items.append(CalendarDetailItem(dotColor: V21.textQuaternary, label: "客户需求", sublabel: summary, rightText: "", rightColor: V21.textPrimary))
