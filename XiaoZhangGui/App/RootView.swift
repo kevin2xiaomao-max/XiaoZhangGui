@@ -11,27 +11,32 @@ struct RootView: View {
 
     var body: some View {
         TabView(selection: $tab) {
-            NavigationStack {
-                HomeView(tab: $tab, showVoice: $showVoice, showsVoiceButton: canInitializeSpeechRecognizer, showQuickRecord: $showQuickRecord)
+            Tab("首页", systemImage: "house") {
+                NavigationStack {
+                    HomeView(tab: $tab, showVoice: $showVoice, showsVoiceButton: canInitializeSpeechRecognizer, showQuickRecord: $showQuickRecord)
+                }
             }
-            .tabItem { Label("首页", systemImage: "house") }
             .tag(AppTab.home)
 
-            NavigationStack { TodoView() }
-                .tabItem { Label("待办", systemImage: "checkmark.circle") }
-                .tag(AppTab.todo)
+            Tab("待办", systemImage: "checkmark.circle") {
+                NavigationStack { TodoView() }
+            }
+            .tag(AppTab.todo)
 
-            Color.clear
-                .tabItem { Label("语音", systemImage: "mic.circle.fill") }
-                .tag(AppTab.voice)
+            Tab("语音", systemImage: "mic.circle.fill") {
+                Color.clear
+            }
+            .tag(AppTab.voice)
 
-            NavigationStack { PerformanceView() }
-                .tabItem { Label("业绩", systemImage: "chart.line.uptrend.xyaxis") }
-                .tag(AppTab.performance)
+            Tab("业绩", systemImage: "chart.line.uptrend.xyaxis") {
+                NavigationStack { PerformanceView() }
+            }
+            .tag(AppTab.performance)
 
-            NavigationStack { ProfileView(tab: $tab, showVoice: $showVoice, showsVoiceButton: canInitializeSpeechRecognizer) }
-                .tabItem { Label("我的", systemImage: "person") }
-                .tag(AppTab.profile)
+            Tab("我的", systemImage: "person") {
+                NavigationStack { ProfileView(tab: $tab, showVoice: $showVoice, showsVoiceButton: canInitializeSpeechRecognizer) }
+            }
+            .tag(AppTab.profile)
         }
         .tint(V21.brandGreen)
         .onChange(of: tab) { oldValue, newValue in

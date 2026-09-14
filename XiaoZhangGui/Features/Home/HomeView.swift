@@ -89,27 +89,110 @@ struct HomeView: View {
     }
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 28) {
+        List {
+            // MARK: 品牌区 + 问候 + 天气 + 头像
+            Section {
+                EmptyView()
+            } header: {
                 header
-                revenue
-                businessCounts
-                handlingList
-                Button {
-                    showQuickRecord = true
-                } label: {
-                    Label("快速记录", systemImage: "square.and.pencil")
-                        .font(.subheadline.weight(.medium))
-                }
-                .buttonStyle(.bordered)
-                .tint(V21.brandGreen)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 12)
-            .padding(.bottom, 28)
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+
+            // MARK: 今日营业额（系统 insetGrouped 自动提供玻璃行背景）
+            Section {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("今日营业额")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    HStack(alignment: .bottom, spacing: 14) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(Fmt.money(summary.revenue))
+                                .font(.system(size: 42, weight: .bold, design: .rounded))
+                                .monospacedDigit()
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.65)
+                            revenueChange
+                        }
+                        Spacer(minLength: 4)
+                        if summary.trend.contains(where: { $0.value > 0 }) {
+                            HomeSparkline(points: summary.trend)
+                                .frame(width: 112, height: 42)
+                        }
+                    }
+                    HStack(spacing: 8) {
+                        Text("本月 \(Fmt.money(monthRevenue))")
+                        Text("目标 \(Fmt.money(monthGoal))")
+                        Spacer(minLength: 4)
+                        Text("\(Int((goalProgress * 100).rounded()))%")
+                            .monospacedDigit()
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    ProgressView(value: goalProgress)
+                        .tint(V21.brandGreen)
+                }
+                .padding(.vertical, 6)
+            }
+            .listRowInsets(EdgeInsets(top: 4, leading: 18, bottom: 4, trailing: 18))
+            .listRowSeparator(.hidden)
+
+            // MARK: 待办 / 配送 / 临期 三宫格
+            Section {
+                HStack(spacing: 0) {
+                    HomeCountButton(value: summary.todos.count, label: "待办") { tab = .todo }
+                    Divider().frame(height: 34)
+                    HomeCountButton(value: summary.deliveries.count, label: "配送") { route = .customer }
+                    Divider().frame(height: 34)
+                    HomeCountButton(value: summary.pendingExpiry.count, label: "临期") { route = .expiry }
+                }
+                .padding(.vertical, 4)
+            }
+            .listRowInsets(EdgeInsets(top: 4, leading: 18, bottom: 4, trailing: 18))
+            .listRowSeparator(.hidden)
+
+            // MARK: 今天需要处理
+            Section {
+                if handlingItems.isEmpty {
+                    Text("今天没有待处理事项")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 16)
+                } else {
+                    ForEach(Array(handlingItems.enumerated()), id: \.element.id) { _, item in
+                        Button { open(item.route) } label: { HomeHandlingRow(item: item) }
+                            .buttonStyle(.plain)
+                    }
+                }
+            } header: {
+                HStack {
+                    Text("今天需要处理").font(.title3.bold())
+                    Spacer()
+                    Button("查看全部") { tab = .todo }
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .textCase(nil)
+                .padding(.horizontal, 18)
+                .padding(.top, 8)
+                .padding(.bottom, 4)
+            }
+
+            // MARK: 快速记录
+            Section {
+                quickRecordButton
+                    .frame(maxWidth: .infinity)
+            }
+            .listRowInsets(EdgeInsets(top: 8, leading: 18, bottom: 8, trailing: 18))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
         }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
         .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
-        .navigationBarHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(item: $route) { destination in
             switch destination {
             case .customer: CustomerView()
@@ -127,6 +210,33 @@ struct HomeView: View {
                 .presentationDragIndicator(.visible)
         }
         .task { weatherModel.loadIfNeeded() }
+    }
+
+    @ViewBuilder
+    private var quickRecordButton: some View {
+        if #available(iOS 26.0, *) {
+            // iOS 26+: Liquid Glass prominent 按钮
+            Button {
+                showQuickRecord = true
+            } label: {
+                Label("快速记录", systemImage: "square.and.pencil")
+                    .font(.subheadline.weight(.medium))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.glassProminent)
+            .tint(V21.brandGreen)
+        } else {
+            // iOS 18+: bordered 按钮
+            Button {
+                showQuickRecord = true
+            } label: {
+                Label("快速记录", systemImage: "square.and.pencil")
+                    .font(.subheadline.weight(.medium))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .tint(V21.brandGreen)
+        }
     }
 
     private var header: some View {
@@ -155,43 +265,9 @@ struct HomeView: View {
                 .font(.subheadline)
                 .foregroundStyle(.tertiary)
         }
-    }
-
-    private var revenue: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("今日营业额")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            HStack(alignment: .bottom, spacing: 14) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(Fmt.money(summary.revenue))
-                        .font(.system(size: 42, weight: .bold, design: .rounded))
-                        .monospacedDigit()
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.65)
-                    revenueChange
-                }
-                Spacer(minLength: 4)
-                if summary.trend.contains(where: { $0.value > 0 }) {
-                    HomeSparkline(points: summary.trend)
-                        .frame(width: 112, height: 42)
-                }
-            }
-            HStack(spacing: 8) {
-                Text("本月 \(Fmt.money(monthRevenue))")
-                Text("目标 \(Fmt.money(monthGoal))")
-                Spacer(minLength: 4)
-                Text("\(Int((goalProgress * 100).rounded()))%")
-                    .monospacedDigit()
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            ProgressView(value: goalProgress)
-                .tint(V21.brandGreen)
-                .scaleEffect(x: 1, y: 0.55, anchor: .center)
-        }
-        .padding(18)
-        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(.horizontal, 20)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
     }
 
     @ViewBuilder
@@ -206,46 +282,6 @@ struct HomeView: View {
             .foregroundStyle(change >= 0 ? V21.brandGreen : Color.red)
         } else {
             Text("暂无昨日对比").font(.footnote).foregroundStyle(.secondary)
-        }
-    }
-
-    private var businessCounts: some View {
-        HStack(spacing: 0) {
-            HomeCountButton(value: summary.todos.count, label: "待办") { tab = .todo }
-            Divider().frame(height: 34)
-            HomeCountButton(value: summary.deliveries.count, label: "配送") { route = .customer }
-            Divider().frame(height: 34)
-            HomeCountButton(value: summary.pendingExpiry.count, label: "临期") { route = .expiry }
-        }
-        .padding(.vertical, 4)
-    }
-
-    private var handlingList: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("今天需要处理").font(.title3.bold())
-                Spacer()
-                Button("查看全部") { tab = .todo }
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            VStack(spacing: 0) {
-                if handlingItems.isEmpty {
-                    Text("今天没有待处理事项")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, 16)
-                } else {
-                    ForEach(Array(handlingItems.enumerated()), id: \.element.id) { index, item in
-                        Button { open(item.route) } label: { HomeHandlingRow(item: item) }
-                            .buttonStyle(.plain)
-                        if index < handlingItems.count - 1 { Divider().padding(.leading, 58) }
-                    }
-                }
-            }
-            .padding(.horizontal, 16)
-            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
     }
 

@@ -52,80 +52,78 @@ struct ProfileView: View {
     }
 
     var body: some View {
-        PageBackground {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("我的")
-                        .v21Style(.titlePage)
-                        .foregroundColor(V21.textPrimary)
-                        .padding(.top, V21Layout.spaceXL)
-                        .padding(.horizontal, V21Layout.pageMargin)
-                        .padding(.bottom, 20)
+        List {
+            // MARK: Hero（头像 + 店主名 + 店铺名）
+            Section {
+                heroCard
+                    .padding(.vertical, 4)
+                    .listRowInsets(EdgeInsets(top: 12, leading: 18, bottom: 12, trailing: 18))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+            }
 
-                    heroCard
+            Section("个性化") {
+                SettingRow(icon: "person.crop.circle", label: "头像与 Emoji", value: settings.avatarImageData == nil ? settings.avatarEmoji : "照片", isLast: false) { avatarDialog = true }
+                SettingRow(icon: "paintpalette", label: "主题颜色", value: settings.appThemeName, isLast: false) { themeDialog = true }
+                SettingRow(icon: "circle.lefthalf.filled", label: "显示模式", value: settings.themeModeLabel, isLast: true) { themeDialog = true }
+            }
 
-                    SettingGroup(title: "个性化") {
-                        SettingRow(icon: "person.crop.circle", label: "头像与 Emoji", value: settings.avatarImageData == nil ? settings.avatarEmoji : "照片", isLast: false) { avatarDialog = true }
-                        SettingRow(icon: "paintpalette", label: "主题颜色", value: settings.appThemeName, isLast: false) { themeDialog = true }
-                        SettingRow(icon: "circle.lefthalf.filled", label: "显示模式", value: settings.themeModeLabel, isLast: true) { themeDialog = true }
+            Section("经营") {
+                SettingRow(icon: "scope", label: "月营业目标", value: Fmt.groupedInt(monthlyGoal), isLast: false) { goalDialog = true }
+                SettingRow(icon: "bell", label: "提醒设置", value: (settings.todoReminderEnabled || settings.expiryReminderEnabled) ? "已开启" : "已关闭", isLast: true) { reminderDialog = true }
+            }
+
+            Section("演示") {
+                SwitchRow(label: "Demo Mode", isLast: !demo.isEnabled, binding: $demo.isEnabled)
+                if demo.isEnabled {
+                    SettingRow(icon: "arrow.clockwise", label: "重置演示数据", value: "独立内存", isLast: true) {
+                        demo.resetDemoData()
+                        showToast("演示数据已重置")
                     }
-
-                    SettingGroup(title: "经营") {
-                        SettingRow(icon: "scope", label: "月营业目标", value: Fmt.groupedInt(monthlyGoal), isLast: false) { goalDialog = true }
-                        SettingRow(icon: "bell", label: "提醒设置", value: (settings.todoReminderEnabled || settings.expiryReminderEnabled) ? "已开启" : "已关闭", isLast: true) { reminderDialog = true }
-                    }
-
-                    SettingGroup(title: "演示") {
-                        SwitchRow(label: "Demo Mode", isLast: !demo.isEnabled, binding: $demo.isEnabled)
-                        if demo.isEnabled {
-                            SettingRow(icon: "arrow.clockwise", label: "重置演示数据", value: "独立内存", isLast: true) {
-                                demo.resetDemoData()
-                                showToast("演示数据已重置")
-                            }
-                        }
-                    }
-
-                    SettingGroup(title: "工具") {
-                        SettingRow(icon: "calendar", label: "日历", value: "", isLast: false) { toolRoute = "calendar" }
-                        SettingRow(icon: "shippingbox", label: "客户配送", value: "", isLast: false) { toolRoute = "customer" }
-                        SettingRow(icon: "clock.badge.exclamationmark", label: "临时商品", value: "", isLast: false) { toolRoute = "expiry" }
-                        SettingRow(icon: "tag", label: "货品", value: "", isLast: true) { toolRoute = "goods" }
-                    }
-
-                    SettingGroup(title: "数据与应用") {
-                        SettingRow(icon: "banknote", label: "营业额记录", value: "\(performances.count) 条", isLast: false) { tab = .performance }
-                        ShareLink(item: exportJSON(), preview: SharePreview("你的小掌柜数据导出")) {
-                            SettingRowCore(icon: "square.and.arrow.down", label: "数据备份", value: "JSON", showChevron: false, isLast: false)
-                        }
-                        .buttonStyle(.plain)
-                        SettingRow(icon: "arrow.clockwise", label: "数据恢复", value: "JSON", isLast: false) { showImporter = true }
-                        SettingRow(icon: "paintbrush", label: "清理缓存", value: "", isLast: false) { clearDialog = true }
-                        SettingRow(icon: "info.circle", label: "关于你的小掌柜", value: "", isLast: false) { aboutDialog = true }
-                        SettingRow(icon: "lock.shield", label: "隐私说明", value: "", isLast: true) { privacyDialog = true }
-                    }
-
-                    Text("v\(appVersion)")
-                        .v21Style(.labelSmall)
-                        .foregroundColor(V21.textQuaternary)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.top, 20)
-                        .padding(.bottom, 8)
                 }
             }
-            .scrollBounceBehavior(.basedOnSize)
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                Color.clear.frame(height: V21Layout.bottomDockContentGap)
+
+            Section("工具") {
+                SettingRow(icon: "calendar", label: "日历", value: "", isLast: false) { toolRoute = "calendar" }
+                SettingRow(icon: "shippingbox", label: "客户配送", value: "", isLast: false) { toolRoute = "customer" }
+                SettingRow(icon: "clock.badge.exclamationmark", label: "临时商品", value: "", isLast: false) { toolRoute = "expiry" }
+                SettingRow(icon: "tag", label: "货品", value: "", isLast: true) { toolRoute = "goods" }
             }
-            .onAppear {
-            }
-            .navigationDestination(item: $toolRoute) { route in
-                switch route {
-                case "calendar": CalendarView()
-                case "customer": CustomerView()
-                case "expiry": ExpiryView()
-                case "goods": GoodsView()
-                default: EmptyView()
+
+            Section("数据与应用") {
+                SettingRow(icon: "banknote", label: "营业额记录", value: "\(performances.count) 条", isLast: false) { tab = .performance }
+                ShareLink(item: exportJSON(), preview: SharePreview("你的小掌柜数据导出")) {
+                    SettingRowCore(icon: "square.and.arrow.down", label: "数据备份", value: "JSON", showChevron: false, isLast: false)
                 }
+                .buttonStyle(.plain)
+                SettingRow(icon: "arrow.clockwise", label: "数据恢复", value: "JSON", isLast: false) { showImporter = true }
+                SettingRow(icon: "paintbrush", label: "清理缓存", value: "", isLast: false) { clearDialog = true }
+                SettingRow(icon: "info.circle", label: "关于你的小掌柜", value: "", isLast: false) { aboutDialog = true }
+                SettingRow(icon: "lock.shield", label: "隐私说明", value: "", isLast: true) { privacyDialog = true }
+            }
+
+            Section {
+                Text("v\(appVersion)")
+                    .v21Style(.labelSmall)
+                    .foregroundColor(V21.textQuaternary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 12)
+            }
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+        }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(V21.background.ignoresSafeArea())
+        .navigationTitle("我的")
+        .navigationBarTitleDisplayMode(.large)
+        .navigationDestination(item: $toolRoute) { route in
+            switch route {
+            case "calendar": CalendarView()
+            case "customer": CustomerView()
+            case "expiry": ExpiryView()
+            case "goods": GoodsView()
+            default: EmptyView()
             }
         }
         .overlay(alignment: .bottom) {
@@ -137,7 +135,7 @@ struct ProfileView: View {
                     .padding(.vertical, 11)
                     .background(Capsule().fill(.ultraThinMaterial))
                     .overlay(Capsule().strokeBorder(V21.dividerStrong, lineWidth: 1))
-                    .padding(.bottom, V21Layout.dockHeight + 34)
+                    .padding(.bottom, 24)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
@@ -199,7 +197,6 @@ struct ProfileView: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, V21Layout.pageMargin)
         .padding(.vertical, 4)
         .contentShape(Rectangle())
         .onTapGesture { shopDialog = true }
@@ -357,28 +354,7 @@ struct ProfileView: View {
     }
 }
 
-// MARK: - 设置分组
-
-private struct SettingGroup<Content: View>: View {
-    let title: String
-    @ViewBuilder var content: () -> Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .v21Style(.labelSmall)
-                .foregroundColor(V21.groupTitle)
-                .padding(.horizontal, V21Layout.pageMargin)
-            GlassSurface(radius: 16) {
-                VStack(spacing: 0) { content() }
-            }
-            .padding(.horizontal, V21Layout.pageMargin)
-        }
-        .padding(.top, 24)
-    }
-}
-
-// MARK: - 设置行
+// MARK: - 设置行（List 行：系统自动提供分割线与 Liquid Glass 背景）
 
 private struct SettingRow: View {
     let icon: String
@@ -432,14 +408,7 @@ private struct SettingRowCore: View {
                     .foregroundColor(V21.textQuaternary)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .overlay(alignment: .bottom) {
-            if !isLast {
-                Rectangle().fill(V21.divider).frame(height: 1)
-                    .padding(.leading, 64)
-            }
-        }
+        .padding(.vertical, 10)
     }
 }
 
@@ -460,14 +429,7 @@ private struct SwitchRow: View {
                 .labelsHidden()
                 .tint(V21.brandGreen)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .overlay(alignment: .bottom) {
-            if !isLast {
-                Rectangle().fill(V21.divider).frame(height: 1)
-                    .padding(.leading, 16)
-            }
-        }
+        .padding(.vertical, 8)
     }
 }
 
@@ -676,18 +638,34 @@ private struct VoiceSettingsSheet: View {
                 .v21Style(.bodySmall)
                 .foregroundColor(V21.textTertiary)
             if showsVoiceButton {
-                Button {
-                    dismiss()
-                    showVoice = true
-                } label: {
-                    Text("测试语音")
-                        .v21Style(.labelLarge)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 13)
-                        .background(RoundedRectangle(cornerRadius: 14).fill(V21.brandGreenGradient))
+                if #available(iOS 26.0, *) {
+                    // iOS 26+: Liquid Glass prominent 按钮
+                    Button {
+                        dismiss()
+                        showVoice = true
+                    } label: {
+                        Text("测试语音")
+                            .v21Style(.labelLarge)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 13)
+                    }
+                    .buttonStyle(.glassProminent)
+                    .tint(AppTheme.palette(named: settings.appThemeName).accent)
+                } else {
+                    // iOS 18+: 自绘品牌渐变按钮
+                    Button {
+                        dismiss()
+                        showVoice = true
+                    } label: {
+                        Text("测试语音")
+                            .v21Style(.labelLarge)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 13)
+                            .background(RoundedRectangle(cornerRadius: 14).fill(V21.brandGreenGradient))
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
             Spacer()
         }

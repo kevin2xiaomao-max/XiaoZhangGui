@@ -10,18 +10,25 @@ struct GlassSurface<Content: View>: View {
     @ViewBuilder var content: () -> Content
 
     var body: some View {
-        content()
-            .background {
-                ZStack {
-                    RoundedRectangle(cornerRadius: radius, style: .continuous).fill(material)
-                    RoundedRectangle(cornerRadius: radius, style: .continuous)
-                        .fill(elevated ? V21.surfaceElevated : V21.surfaceGlass)
+        if #available(iOS 26.0, *) {
+            // iOS 26+: Liquid Glass，自动折射下方内容并随明暗切换
+            content()
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+        } else {
+            // iOS 18+: 兼容回退到静态材质 + 细边框
+            content()
+                .background {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: radius, style: .continuous).fill(material)
+                        RoundedRectangle(cornerRadius: radius, style: .continuous)
+                            .fill(elevated ? V21.surfaceElevated : V21.surfaceGlass)
+                    }
                 }
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .strokeBorder(V21.dividerStrong, lineWidth: 1)
-            }
+                .overlay {
+                    RoundedRectangle(cornerRadius: radius, style: .continuous)
+                        .strokeBorder(V21.dividerStrong, lineWidth: 1)
+                }
+        }
     }
 }
 
@@ -154,21 +161,36 @@ struct V21FAB: View {
     var action: () -> Void
 
     var body: some View {
-        Button {
-            Haptic.medium()
-            action()
-        } label: {
-            Image(systemName: systemImage)
-                .font(.system(size: 22, weight: .medium))
-                .foregroundColor(.white)
-                .frame(width: V21Layout.fabSize, height: V21Layout.fabSize)
-                .background(
-                    RoundedRectangle(cornerRadius: V21Layout.radiusLG, style: .continuous)
-                        .fill(AppTheme.palette(named: settings.appThemeName).heroGradient)
-                )
-                .shadow(color: AppTheme.palette(named: settings.appThemeName).accent.opacity(0.24), radius: 12, x: 0, y: 6)
+        if #available(iOS 26.0, *) {
+            // iOS 26+: Liquid Glass prominent 按钮，自动品牌色 + 玻璃高光
+            Button {
+                Haptic.medium()
+                action()
+            } label: {
+                Image(systemName: systemImage)
+                    .font(.system(size: 22, weight: .medium))
+                    .frame(width: V21Layout.fabSize, height: V21Layout.fabSize)
+            }
+            .buttonStyle(.glassProminent)
+            .tint(AppTheme.palette(named: settings.appThemeName).accent)
+        } else {
+            // iOS 18+: 自绘品牌渐变 + 阴影
+            Button {
+                Haptic.medium()
+                action()
+            } label: {
+                Image(systemName: systemImage)
+                    .font(.system(size: 22, weight: .medium))
+                    .foregroundColor(.white)
+                    .frame(width: V21Layout.fabSize, height: V21Layout.fabSize)
+                    .background(
+                        RoundedRectangle(cornerRadius: V21Layout.radiusLG, style: .continuous)
+                            .fill(AppTheme.palette(named: settings.appThemeName).heroGradient)
+                    )
+                    .shadow(color: AppTheme.palette(named: settings.appThemeName).accent.opacity(0.24), radius: 12, x: 0, y: 6)
+            }
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
     }
 }
 

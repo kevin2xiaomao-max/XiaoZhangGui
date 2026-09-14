@@ -163,7 +163,7 @@ struct VoiceView: View {
     // MARK: - 中央按钮
 
     private func centralButton(_ vm: VoiceViewModel) -> some View {
-        Button {
+        let press: () -> Void = {
             switch vm.phase {
             case .listening:
                 vm.stopListening()
@@ -175,19 +175,34 @@ struct VoiceView: View {
             default:
                 break
             }
-        } label: {
-            ZStack {
-                Circle()
-                    .fill(AnyShapeStyle(AppTheme.palette(named: settings.appThemeName).heroGradient))
-                Image(systemName: centralIcon(vm))
-                    .font(.system(size: 26, weight: .medium))
-                    .foregroundColor(.white)
-            }
-            .frame(width: 72, height: 72)
-            .contentShape(Circle())
-            .shadow(color: AppTheme.palette(named: settings.appThemeName).accent.opacity(0.16), radius: 8, y: 4)
         }
-        .buttonStyle(.plain)
+        return Group {
+            if #available(iOS 26.0, *) {
+                // iOS 26+: Liquid Glass prominent 圆形按钮
+                Button(action: press) {
+                    Image(systemName: centralIcon(vm))
+                        .font(.system(size: 26, weight: .medium))
+                        .frame(width: 72, height: 72)
+                }
+                .buttonStyle(.glassProminent)
+                .tint(AppTheme.palette(named: settings.appThemeName).accent)
+            } else {
+                // iOS 18+: 自绘品牌渐变圆 + 阴影
+                Button(action: press) {
+                    ZStack {
+                        Circle()
+                            .fill(AnyShapeStyle(AppTheme.palette(named: settings.appThemeName).heroGradient))
+                        Image(systemName: centralIcon(vm))
+                            .font(.system(size: 26, weight: .medium))
+                            .foregroundColor(.white)
+                    }
+                    .frame(width: 72, height: 72)
+                    .contentShape(Circle())
+                    .shadow(color: AppTheme.palette(named: settings.appThemeName).accent.opacity(0.16), radius: 8, y: 4)
+                }
+                .buttonStyle(.plain)
+            }
+        }
     }
 
     private func centralIcon(_ vm: VoiceViewModel) -> String {
@@ -248,30 +263,55 @@ struct VoiceView: View {
                 }
             }
 
-            Button {
-                Haptic.medium()
-                vm.save()
-            } label: {
-                Group {
-                    if vm.phase == .saving {
-                        ProgressView()
-                            .tint(.white)
-                    } else {
-                        Text("保存记录")
-                            .v21Style(.bodyLarge)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.white)
+            Group {
+                if #available(iOS 26.0, *) {
+                    // iOS 26+: Liquid Glass prominent 保存按钮
+                    Button {
+                        Haptic.medium()
+                        vm.save()
+                    } label: {
+                        Group {
+                            if vm.phase == .saving {
+                                ProgressView().tint(.white)
+                            } else {
+                                Text("保存记录")
+                                    .v21Style(.bodyLarge)
+                                    .fontWeight(.semibold)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
                     }
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: 50)
-                .background {
-                    RoundedRectangle(cornerRadius: 15, style: .continuous)
-                        .fill(AppTheme.palette(named: settings.appThemeName).heroGradient)
+                    .buttonStyle(.glassProminent)
+                    .tint(AppTheme.palette(named: settings.appThemeName).accent)
+                    .disabled(vm.phase == .saving)
+                } else {
+                    // iOS 18+: 自绘品牌渐变按钮
+                    Button {
+                        Haptic.medium()
+                        vm.save()
+                    } label: {
+                        Group {
+                            if vm.phase == .saving {
+                                ProgressView().tint(.white)
+                            } else {
+                                Text("保存记录")
+                                    .v21Style(.bodyLarge)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.white)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background {
+                            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                                .fill(AppTheme.palette(named: settings.appThemeName).heroGradient)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(vm.phase == .saving)
                 }
             }
-            .buttonStyle(.plain)
-            .disabled(vm.phase == .saving)
             .padding(.top, 8)
         }
     }
