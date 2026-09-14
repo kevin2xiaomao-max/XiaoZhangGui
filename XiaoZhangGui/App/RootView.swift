@@ -1,64 +1,50 @@
 import SwiftUI
 import UIKit
 
-// MARK: - 根视图
-// 4 个 Tab（NavigationStack）+ 自定义 Floating Dock + 中央语音 fullScreenCover
-// 二级页面（备忘/临期/日历/客户/临时商品）在对应 Tab 的 NavigationStack 内 push
-
 @MainActor
 struct RootView: View {
-    @State private var tab: AppTab
+    @State private var tab: AppTab = .home
     @State private var showVoice = false
+    @State private var showQuickRecord = false
     private let canInitializeSpeechRecognizer = SpeechService.canInitializeRecognizer
 
-    init() {
-        _tab = State(initialValue: .home)
-        UITabBar.appearance().isHidden = true
-    }
-
     var body: some View {
-        ZStack(alignment: .bottom) {
-            TabView(selection: $tab) {
-                NavigationStack {
-                    HomeView(
-                        tab: $tab,
-                        showVoice: $showVoice,
-                        showsVoiceButton: canInitializeSpeechRecognizer
-                    )
-                }
-                .tag(AppTab.home)
-
-                NavigationStack {
-                    TodoView()
-                }
-                .tag(AppTab.todo)
-
-                NavigationStack {
-                    PerformanceView()
-                }
-                .tag(AppTab.performance)
-
-                NavigationStack {
-                    ProfileView(
-                        tab: $tab,
-                        showVoice: $showVoice,
-                        showsVoiceButton: canInitializeSpeechRecognizer
-                    )
-                }
-                .tag(AppTab.profile)
-
+        TabView(selection: $tab) {
+            NavigationStack {
+                HomeView(
+                    tab: $tab,
+                    showVoice: $showVoice,
+                    showsVoiceButton: canInitializeSpeechRecognizer,
+                    showQuickRecord: $showQuickRecord
+                )
             }
-            .toolbar(.hidden, for: .tabBar)
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                Color.clear.frame(height: V21Layout.dockHeight + V21Layout.spaceXL)
-            }
+            .tabItem { Label("今日", systemImage: "sun.max") }
+            .tag(AppTab.home)
 
-            FloatingDock(
-                selection: $tab,
-                showsVoiceButton: canInitializeSpeechRecognizer,
-                onVoice: { showVoice = true }
-            )
-            .padding(.bottom, 8)
+            NavigationStack {
+                TodoView()
+            }
+            .tabItem { Label("待办", systemImage: "checkmark.circle") }
+            .tag(AppTab.todo)
+
+            NavigationStack {
+                PerformanceView()
+            }
+            .tabItem { Label("业绩", systemImage: "chart.line.uptrend.xyaxis") }
+            .tag(AppTab.performance)
+
+            NavigationStack {
+                ProfileView(
+                    tab: $tab,
+                    showVoice: $showVoice,
+                    showsVoiceButton: canInitializeSpeechRecognizer
+                )
+            }
+            .tabItem { Label("我的", systemImage: "person") }
+            .tag(AppTab.profile)
+        }
+        .sheet(isPresented: $showQuickRecord) {
+            QuickRecordSheet()
         }
         .fullScreenCover(isPresented: $showVoice) {
             if canInitializeSpeechRecognizer {

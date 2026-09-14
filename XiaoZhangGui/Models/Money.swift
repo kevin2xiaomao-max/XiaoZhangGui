@@ -2,17 +2,33 @@ import Foundation
 import SwiftData
 
 /// 营业额记录（对齐 Android PerformanceEntity：amount/note/date）
-/// 注意：无"门店/美团来源"字段，禁止伪造渠道拆分
+/// 3.0：fingerprint 用于扫呗防重复；空字符串表示手工记录。
 @Model
 final class Performance {
     var amount: Double = 0
     var note: String = ""
     var date: Date = Date()
+    var fingerprint: String = ""
+    var paymentMethod: String = ""
+    var orderNo: String = ""
+    var importSource: String = ""
 
-    init(amount: Double, note: String, date: Date) {
+    init(
+        amount: Double,
+        note: String,
+        date: Date,
+        fingerprint: String = "",
+        paymentMethod: String = "",
+        orderNo: String = "",
+        importSource: String = ""
+    ) {
         self.amount = amount
         self.note = note
         self.date = date
+        self.fingerprint = fingerprint
+        self.paymentMethod = paymentMethod
+        self.orderNo = orderNo
+        self.importSource = importSource
     }
 }
 

@@ -212,35 +212,32 @@ struct CalendarView: View {
     }
 
     private var dayDetail: some View {
-        GlassSurface {
-            VStack(alignment: .leading, spacing: 0) {
-                Text("\(calendar.component(.month, from: selectedDate))月\(calendar.component(.day, from: selectedDate))日 · \(selectedDate.weekdayLabel)")
-                    .v21Style(.titleSmall)
-                    .fontWeight(.semibold)
-                    .foregroundColor(V21.textPrimary)
-                    .padding(.bottom, 12)
+        VStack(alignment: .leading, spacing: 0) {
+            Text("\(calendar.component(.month, from: selectedDate))月\(calendar.component(.day, from: selectedDate))日 · \(selectedDate.weekdayLabel)")
+                .font(.headline)
+                .padding(.bottom, 12)
 
-                if detailItems.isEmpty {
-                    Text("当天暂无经营记录")
-                        .v21Style(.bodyMedium)
-                        .foregroundColor(V21.textTertiary)
-                        .padding(.vertical, 10)
-                } else {
-                    ForEach(Array(detailItems.enumerated()), id: \.offset) { index, item in
-                        if index > 0 { DividerLine() }
-                        CalendarDetailRow(
-                            dotColor: item.dotColor,
-                            label: item.label,
-                            sublabel: item.sublabel,
-                            rightText: item.rightText,
-                            rightColor: item.rightColor
-                        )
-                    }
+            if detailItems.isEmpty {
+                Text("当天暂无经营记录")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 10)
+            } else {
+                ForEach(Array(detailItems.enumerated()), id: \.offset) { index, item in
+                    if index > 0 { DividerLine() }
+                    CalendarDetailRow(
+                        dotColor: item.dotColor,
+                        label: item.label,
+                        sublabel: item.sublabel,
+                        rightText: item.rightText,
+                        rightColor: item.rightColor
+                    )
                 }
             }
-            .padding(18)
         }
-        .padding(.horizontal, V21Layout.pageMargin)
+        .padding(18)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: Tokens.Radius.xl, style: .continuous))
+        .padding(.horizontal, Tokens.Space.page)
     }
 }
 

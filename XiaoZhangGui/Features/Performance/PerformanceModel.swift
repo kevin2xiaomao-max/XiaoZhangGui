@@ -121,11 +121,44 @@ struct TrendPoint: Identifiable {
     let date: Date
 }
 
+enum PerformanceChartPeriod: String, CaseIterable, Identifiable, Hashable {
+    case day = "日"
+    case week = "周"
+    case month = "月"
+
+    var id: String { rawValue }
+
+    var statsPeriod: PerformancePeriod {
+        switch self {
+        case .day: return .today
+        case .week: return .week
+        case .month: return .month
+        }
+    }
+}
+
 enum PerformanceTrend {
     static func last7Days(performances: [Performance], now: Date = Date()) -> [TrendPoint] {
+        points(performances: performances, days: 7, now: now)
+    }
+
+    static func last30Days(performances: [Performance], now: Date = Date()) -> [TrendPoint] {
+        points(performances: performances, days: 30, now: now)
+    }
+
+    static func points(for period: PerformanceChartPeriod, performances: [Performance], now: Date = Date()) -> [TrendPoint] {
+        switch period {
+        case .day, .week:
+            return last7Days(performances: performances, now: now)
+        case .month:
+            return last30Days(performances: performances, now: now)
+        }
+    }
+
+    private static func points(performances: [Performance], days: Int, now: Date) -> [TrendPoint] {
         let cal = Calendar.current
-        return (0..<7).reversed().enumerated().map { index, offset in
-            let date = cal.date(byAdding: .day, value: -offset, to: now.startOfDay) ?? now
+        return (0..<days).reversed().enumerated().map { index, offset in
+            let date = cal.date(byAdding: .day, value: -(days - 1 - index), to: now.startOfDay) ?? now
             let end = date.endOfDay
             let rev = performances.filter { $0.date >= date.startOfDay && $0.date <= end }.reduce(0) { $0 + $1.amount }
             let c = cal.dateComponents([.month, .day], from: date)
@@ -138,6 +171,7 @@ enum PerformanceTrend {
         }
     }
 }
+
 
 /// 合并记录行（营业额 + 支出，按日期倒序）
 struct MoneyRecord: Identifiable {

@@ -69,29 +69,24 @@ struct MemoView: View {
     }
 
     private var searchBar: some View {
-        GlassSurface(radius: 14) {
-            HStack(spacing: 10) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 15))
-                    .foregroundColor(V21.textTertiary)
-                TextField("搜索记录...", text: $searchQuery)
-                    .v21Style(.bodyMedium)
-                    .foregroundColor(V21.textPrimary)
-                if !searchQuery.isEmpty {
-                    Button {
-                        searchQuery = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 14))
-                            .foregroundColor(V21.textQuaternary)
-                    }
-                    .buttonStyle(.plain)
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+            TextField("搜索记录...", text: $searchQuery)
+            if !searchQuery.isEmpty {
+                Button {
+                    searchQuery = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.tertiary)
                 }
+                .buttonStyle(.plain)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 11)
         }
-        .padding(.horizontal, V21Layout.pageMargin)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: Tokens.Radius.lg, style: .continuous))
+        .padding(.horizontal, Tokens.Space.page)
     }
 
     private var filterTabs: some View {
@@ -134,8 +129,7 @@ struct MemoCard: View {
 
     var body: some View {
         Button(action: onEdit) {
-            GlassSurface {
-                VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 0) {
                     if let data = memo.imageData {
                         ImageThumb(imageData: data, size: 80)
                             .frame(maxWidth: .infinity)
@@ -181,9 +175,9 @@ struct MemoCard: View {
                         .buttonStyle(.plain)
                     }
                     .padding(.top, 10)
-                }
-                .padding(16)
             }
+            .padding(16)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: Tokens.Radius.lg, style: .continuous))
         }
         .buttonStyle(.plain)
     }

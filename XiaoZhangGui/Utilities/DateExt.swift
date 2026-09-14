@@ -23,6 +23,10 @@ extension Date {
         Calendar.current.isDateInToday(self)
     }
 
+    var isBeforeToday: Bool {
+        self < startOfDay
+    }
+
     var isTomorrow: Bool {
         Calendar.current.isDateInTomorrow(self)
     }

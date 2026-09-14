@@ -55,7 +55,7 @@ final class AppSettings {
         voiceLanguage = ud.string(forKey: "voice_language") ?? "普通话"
         avatarEmoji = ud.string(forKey: "avatar_emoji") ?? "👨🏻‍💼"
         avatarImageData = ud.data(forKey: "avatar_image_data")
-        appThemeName = ud.string(forKey: "app_theme_name") ?? "Blue Purple"
+        appThemeName = ud.string(forKey: "app_theme_name") ?? "Emerald"
     }
 
     var colorScheme: ColorScheme? {

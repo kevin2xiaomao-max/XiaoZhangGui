@@ -81,6 +81,35 @@ struct PerformanceRepository {
         SnapshotSyncManager.refreshAll(context: context)
     }
 
+    func addImported(_ row: SaobeiParsedRow) throws {
+        context.insert(Performance(
+            amount: row.amount,
+            note: row.paymentMethod.isEmpty ? "扫呗" : "扫呗 · \(row.paymentMethod)",
+            date: row.date,
+            fingerprint: row.fingerprint,
+            paymentMethod: row.paymentMethod,
+            orderNo: row.orderNo,
+            importSource: "saobei"
+        ))
+        try context.save()
+        SnapshotSyncManager.refreshAll(context: context)
+    }
+
+    func importSaobei(_ rows: [SaobeiParsedRow], skippedFailed: Int) throws -> SaobeiImportCommitResult {
+        var inserted = 0
+        var duplicates = 0
+        let existing = Set((try context.fetch(FetchDescriptor<Performance>())).map(\.fingerprint).filter { !$0.isEmpty })
+        for row in rows {
+            if existing.contains(row.fingerprint) {
+                duplicates += 1
+                continue
+            }
+            try addImported(row)
+            inserted += 1
+        }
+        return SaobeiImportCommitResult(inserted: inserted, duplicates: duplicates, skippedFailed: skippedFailed)
+    }
+
     func update(_ performance: Performance) throws {
         try context.save()
         SnapshotSyncManager.refreshAll(context: context)

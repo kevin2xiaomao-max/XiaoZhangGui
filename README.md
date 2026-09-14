@@ -1,5 +1,12 @@
-# 你的小掌柜
+# 你的小掌柜 iOS 3.0
 
-独立的个人经营助手 iOS App，版本 1.1.0。仅包含经营首页、待办、备忘、临期商品、客户配送、日历、业绩、语音和设置功能。
+独立经营助手。本次在 1.1 功能上新增：
 
-本仓库不包含 QDC507、Gateway 或通信代码。使用 GitHub Actions 手动执行构建与 XCTest。
+- 扫呗 CSV / Excel 导入（防重复 fingerprint）
+- 业绩日/周/月趋势（Swift Charts）
+- 快速记录（本地规则写入现有模块）
+- 今日汇总与经营日报
+
+数据仍是本地 SwiftData，不改 Bundle ID / Signing。
+
+开发分支：`ios-dev`

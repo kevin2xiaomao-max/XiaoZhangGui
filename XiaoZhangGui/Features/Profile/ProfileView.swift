@@ -698,7 +698,7 @@ private struct AboutSheet: View {
                                 .foregroundColor(V21.brandGreen)
                         }
                     Text("你的小掌柜").v21Style(.titleLarge)
-                    Text("v\(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.3")")
+                    Text("v\(appVersion)")
                         .v21Style(.bodyMedium)
                         .foregroundColor(V21.textTertiary)
                     Text("生意好帮手，经营管理更轻松")
