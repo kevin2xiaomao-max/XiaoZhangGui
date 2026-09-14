@@ -2,6 +2,7 @@ import XCTest
 import SwiftData
 @testable import XiaoZhangGui
 
+@MainActor
 final class DemoCatalogTests: XCTestCase {
     func testDemoContainerIsMemoryOnlyAndHasRichData() throws {
         let now = Calendar.current.date(from: DateComponents(year: 2026, month: 9, day: 14, hour: 20)) ?? Date()

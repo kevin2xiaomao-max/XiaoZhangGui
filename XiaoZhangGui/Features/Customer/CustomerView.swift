@@ -52,6 +52,8 @@ struct CustomerView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(V21.background)
         .navigationTitle("配送需求")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

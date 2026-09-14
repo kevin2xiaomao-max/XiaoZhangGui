@@ -6,7 +6,7 @@ import SwiftUI
 enum V21Layout {
     // ========== 页面布局 ==========
     static let pageMargin: CGFloat = 24       // 页面左右边距
-    static let bottomDockContentGap: CGFloat = 120 // 内容底部为浮动 Dock 留白
+    static let bottomDockContentGap: CGFloat = 16 // RootView 统一处理 Dock 高度，此处只保留呼吸空间
 
     // ========== Section 间距 ==========
     static let spaceXS: CGFloat = 4
@@ -26,8 +26,8 @@ enum V21Layout {
     static let radiusDock: CGFloat = 28
 
     // ========== 组件尺寸 ==========
-    static let dockHeight: CGFloat = 67
-    static let centralVoiceButton: CGFloat = 53
+    static let dockHeight: CGFloat = 60
+    static let centralVoiceButton: CGFloat = 48
     static let fabSize: CGFloat = 52
     static let listItemMinHeight: CGFloat = 52
     static let quickEntryIconBox: CGFloat = 52

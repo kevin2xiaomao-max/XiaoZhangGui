@@ -71,6 +71,8 @@ struct TodoView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(V21.background)
         .navigationTitle("待办")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

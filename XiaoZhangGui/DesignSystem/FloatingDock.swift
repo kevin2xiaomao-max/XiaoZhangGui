@@ -32,8 +32,6 @@ struct FloatingDock: View {
     @Environment(AppSettings.self) private var settings
     @Environment(\.colorScheme) private var colorScheme
 
-    private let tabs: [AppTab] = [.home, .performance, .todo, .profile]
-
     var body: some View {
         HStack(spacing: 0) {
             dockItem(.home)
@@ -44,19 +42,19 @@ struct FloatingDock: View {
             dockItem(.performance)
             dockItem(.profile)
         }
-        .padding(.horizontal, 5)
-        .frame(height: 67)
+        .padding(.horizontal, 4)
+        .frame(height: V21Layout.dockHeight)
         .background {
             Capsule(style: .continuous)
                 .fill(.ultraThinMaterial)
-                .overlay(Capsule(style: .continuous).fill(Color.white.opacity(0.08)))
+                .overlay(Capsule(style: .continuous).fill(Color.white.opacity(0.05)))
         }
         .overlay {
             Capsule(style: .continuous)
-                .strokeBorder(V21.dividerStrong, lineWidth: 1)
+                .strokeBorder(V21.divider, lineWidth: 0.5)
         }
         .padding(.horizontal, V21Layout.pageMargin)
-        .shadow(color: .black.opacity(0.14), radius: 12, x: 0, y: 5)
+        .shadow(color: .black.opacity(colorScheme == .dark ? 0.22 : 0.07), radius: 8, x: 0, y: 3)
     }
 
     // 普通导航项
@@ -70,10 +68,9 @@ struct FloatingDock: View {
         } label: {
             VStack(spacing: 3) {
                 Image(systemName: tab.icon)
-                    .font(.system(size: 20, weight: .semibold))
-                    .symbolEffect(.bounce, value: selected)
+                    .font(.system(size: 18, weight: .semibold))
                 Text(tab.title)
-                    .font(.system(size: 10, weight: selected ? .semibold : .medium))
+                    .font(.caption2.weight(selected ? .semibold : .regular))
             }
             .foregroundColor(selected ? AppTheme.palette(named: settings.appThemeName).accent : (colorScheme == .dark ? Color.white.opacity(0.62) : V21.tabInactive))
             .background {
@@ -84,9 +81,8 @@ struct FloatingDock: View {
                         .padding(.vertical, -3)
                 }
             }
-            .scaleEffect(selected ? 1.06 : 1.0)
-            .animation(.spring(response: 0.28, dampingFraction: 0.7), value: selected)
             .frame(maxWidth: .infinity)
+            .frame(minHeight: 44)
         }
         .buttonStyle(.plain)
     }
@@ -98,17 +94,17 @@ struct FloatingDock: View {
             onVoice()
         } label: {
             Image(systemName: "mic.fill")
-                .font(.system(size: 22, weight: .semibold))
+                .font(.system(size: 20, weight: .semibold))
                 .foregroundColor(.white)
-                .frame(width: 53, height: 53)
-                .background(Circle().fill(AppTheme.palette(named: settings.appThemeName).heroGradient))
-                .overlay(Circle().fill(.white.opacity(0.08)))
-                .overlay(Circle().strokeBorder(.white.opacity(0.3), lineWidth: 1))
-                .shadow(color: AppTheme.palette(named: settings.appThemeName).accent.opacity(0.28), radius: 8, x: 0, y: 3)
+                .frame(width: V21Layout.centralVoiceButton, height: V21Layout.centralVoiceButton)
+                .background(Circle().fill(AppTheme.palette(named: settings.appThemeName).accent))
+                .overlay(Circle().strokeBorder(.white.opacity(0.25), lineWidth: 0.5))
+                .shadow(color: AppTheme.palette(named: settings.appThemeName).accent.opacity(0.2), radius: 5, x: 0, y: 2)
         }
         .buttonStyle(.plain)
-        .offset(y: -5)
+        .offset(y: -3)
         .frame(maxWidth: .infinity)
+        .accessibilityLabel("语音记录")
     }
 }
 

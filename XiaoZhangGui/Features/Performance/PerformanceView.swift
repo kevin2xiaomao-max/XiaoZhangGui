@@ -83,6 +83,8 @@ struct PerformanceView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(V21.background)
         .navigationTitle("业绩")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

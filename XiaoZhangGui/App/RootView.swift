@@ -36,6 +36,9 @@ struct RootView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                Color.clear.frame(height: V21Layout.dockHeight + 18)
+            }
 
             FloatingDock(
                 selection: $tab,
@@ -43,9 +46,8 @@ struct RootView: View {
             ) {
                 showVoice = true
             }
-            .padding(.bottom, 4)
+            .padding(.bottom, 8)
         }
-        .ignoresSafeArea(.keyboard)
         .sheet(isPresented: $showQuickRecord) {
             QuickRecordSheet()
         }

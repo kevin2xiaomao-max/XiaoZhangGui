@@ -52,12 +52,12 @@ enum V21 {
     static var brandGreenGradient: LinearGradient { AppTheme.palette(named: AppSettings.shared.appThemeName).heroGradient }
 
     // ========== 背景 ==========
-    static let background = Color.v21Dynamic(light: 0xF2F3F5, dark: 0x0A0C0E)
-    static let backgroundSecondary = Color.v21Dynamic(light: 0xE8EAED, dark: 0x0D0F12)
+    static let background = Color.v21Dynamic(light: 0xF3F9F5, dark: 0x0A100D)
+    static let backgroundSecondary = Color.v21Dynamic(light: 0xEAF4EE, dark: 0x0E1712)
 
     // ========== Surface 三级 ==========
-    static let surfacePrimary = Color.v21Dynamic(light: 0xFFFFFF, dark: 0xFFFFFF, lightAlpha: 0.5, darkAlpha: 0.035)
-    static let surfaceGlass = Color.v21Dynamic(light: 0xFFFFFF, dark: 0xFFFFFF, lightAlpha: 0.7, darkAlpha: 0.055)
+    static let surfacePrimary = Color.v21Dynamic(light: 0xFFFFFF, dark: 0xFFFFFF, lightAlpha: 0.92, darkAlpha: 0.055)
+    static let surfaceGlass = Color.v21Dynamic(light: 0xFFFFFF, dark: 0xFFFFFF, lightAlpha: 0.82, darkAlpha: 0.07)
     static let surfaceElevated = Color.v21Dynamic(light: 0xFFFFFF, dark: 0xFFFFFF, lightAlpha: 0.85, darkAlpha: 0.07)
 
     // ========== 文字四级 ==========

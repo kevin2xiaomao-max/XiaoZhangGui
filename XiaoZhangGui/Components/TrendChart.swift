@@ -9,10 +9,7 @@ struct TrendChart: View {
     }
 
     var body: some View {
-        if !hasValues {
-            AppEmptyState(title: "暂无趋势", systemImage: "chart.xyaxis.line", description: "导入扫呗或记一笔营业额后显示")
-                .frame(minHeight: 120)
-        } else {
+        if hasValues {
             Chart(points) { point in
                 AreaMark(
                     x: .value("日期", point.date),
@@ -33,17 +30,17 @@ struct TrendChart: View {
                 AxisMarks(values: .automatic(desiredCount: 4)) { value in
                     AxisGridLine()
                     AxisValueLabel(format: .dateTime.month(.defaultDigits).day(), centered: true)
-                        .font(.caption2)
+                        .font(.caption)
                 }
             }
             .chartYAxis {
                 AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { _ in
                     AxisGridLine()
                     AxisValueLabel()
-                        .font(.caption2)
+                        .font(.caption)
                 }
             }
-            .frame(height: 160)
+            .frame(height: 148)
             .accessibilityLabel("营业额趋势")
         }
     }

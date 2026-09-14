@@ -14,6 +14,6 @@ struct AppEmptyState: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, Tokens.Space.xxl)
+        .padding(.vertical, Tokens.Space.md)
     }
 }

@@ -6,6 +6,7 @@ struct SaobeiImportSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
     @Query private var performances: [Performance]
+    @Bindable private var demo = DemoMode.shared
 
     @State private var parseResult: SaobeiParseResult?
     @State private var errorText: String?
@@ -27,6 +28,30 @@ struct SaobeiImportSheet: View {
         (parseResult?.rows ?? []).filter { existing.contains($0.fingerprint) }.count
     }
 
+    private var isDemoPreview: Bool {
+        demo.isEnabled && parseResult?.sourceFileName == DemoImportPreview.fileName
+    }
+
+    private var fileCount: Int {
+        isDemoPreview ? DemoImportPreview.fileCount : (parseResult?.rows.count ?? 0) + (parseResult?.skipped.count ?? 0)
+    }
+
+    private var validCount: Int {
+        isDemoPreview ? DemoImportPreview.validCount : (parseResult?.rows.filter { $0.isSuccess }.count ?? 0)
+    }
+
+    private var displayDuplicateCount: Int {
+        isDemoPreview ? DemoImportPreview.duplicateCount : duplicateCount
+    }
+
+    private var displayNewCount: Int {
+        isDemoPreview ? DemoImportPreview.insertedCount : newRows.count
+    }
+
+    private var displayAmount: Double {
+        isDemoPreview ? DemoImportPreview.amount : newRows.reduce(0) { $0 + $1.amount }
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -39,6 +64,16 @@ struct SaobeiImportSheet: View {
                     Text("优先 CSV。Excel 会尝试解析；失败时请另存为 CSV。")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                    if demo.isEnabled {
+                        Button {
+                            loadDemoPreview()
+                        } label: {
+                            Label("查看扫呗 Demo 预览", systemImage: "sparkles")
+                        }
+                        Text("演示模式只展示完整流程，确认后也不会写入真实数据库。")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 if isParsing {
@@ -52,10 +87,13 @@ struct SaobeiImportSheet: View {
                 }
 
                 if let parseResult {
-                    Section("预览") {
-                        LabeledContent("可导入", value: "\(newRows.count) 笔")
-                        LabeledContent("重复跳过", value: "\(duplicateCount) 笔")
-                        LabeledContent("未计入", value: "\(parseResult.skipped.count) 笔")
+                    Section("文件概览") {
+                        LabeledContent("文件", value: parseResult.sourceFileName)
+                        LabeledContent("文件记录", value: "\(fileCount) 笔")
+                        LabeledContent("有效交易", value: "\(validCount) 笔")
+                        LabeledContent("重复", value: "\(displayDuplicateCount) 笔")
+                        LabeledContent("新增", value: "\(displayNewCount) 笔")
+                        LabeledContent("新增金额", value: Fmt.money(displayAmount))
                         if !parseResult.errors.isEmpty {
                             Text("\(parseResult.errors.count) 行无法解析")
                                 .foregroundStyle(.orange)
@@ -69,11 +107,11 @@ struct SaobeiImportSheet: View {
                     }
 
                     Section("将写入业绩") {
-                        if newRows.isEmpty {
+                        if displayNewCount == 0 {
                             Text("没有新的成功交易。重复导入不会让营业额翻倍。")
                                 .foregroundStyle(.secondary)
                         } else {
-                            ForEach(newRows.prefix(30)) { row in
+                            ForEach((isDemoPreview ? parseResult.rows : newRows).prefix(5)) { row in
                                 BusinessRow(
                                     title: Fmt.money(row.amount),
                                     subtitle: [Fmt.dateTime(row.date), row.paymentMethod, row.orderNo]
@@ -90,6 +128,10 @@ struct SaobeiImportSheet: View {
                         LabeledContent("新增", value: "\(commitResult.inserted)")
                         LabeledContent("重复", value: "\(commitResult.duplicates)")
                         LabeledContent("未计入", value: "\(commitResult.skippedFailed)")
+                        if demo.isEnabled {
+                            Label("Demo 导入完成，真实数据未发生变化", systemImage: "checkmark.shield")
+                                .foregroundStyle(V21.brandGreen)
+                        }
                     }
                 }
             }
@@ -101,7 +143,7 @@ struct SaobeiImportSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("确认导入") { commit() }
-                        .disabled(newRows.isEmpty)
+                        .disabled(displayNewCount == 0 || commitResult != nil)
                 }
             }
             .fileImporter(
@@ -110,6 +152,9 @@ struct SaobeiImportSheet: View {
                 allowsMultipleSelection: false
             ) { result in
                 handlePick(result)
+            }
+            .task {
+                if demo.isEnabled && parseResult == nil { loadDemoPreview() }
             }
         }
     }
@@ -146,7 +191,20 @@ struct SaobeiImportSheet: View {
         }
     }
 
+    private func loadDemoPreview() {
+        parseResult = DemoImportPreview.parseResult()
+        commitResult = nil
+        errorText = nil
+    }
+
     private func commit() {
+        if demo.isEnabled {
+            commitResult = isDemoPreview
+                ? DemoImportPreview.fakeCommit
+                : SaobeiImportCommitResult(inserted: newRows.count, duplicates: duplicateCount, skippedFailed: parseResult?.skipped.count ?? 0)
+            Haptic.success()
+            return
+        }
         do {
             let result = try PerformanceRepository(context: context)
                 .importSaobei(newRows, skippedFailed: parseResult?.skipped.count ?? 0)

@@ -4,6 +4,7 @@ import SwiftData
 
 /// 演示模式开关。数据走独立内存容器，关闭后立刻回到真实 SwiftData。
 @Observable
+@MainActor
 final class DemoMode {
     static let shared = DemoMode()
     static let userDefaultsKey = "xzg_demo_mode_enabled"
@@ -31,13 +32,13 @@ final class DemoMode {
     }
 }
 
+@MainActor
 enum DemoCatalog {
-    private static let lock = NSLock()
+    static let monthlyRevenue = 68_400.0
+    static let monthlyGoal = 120_000.0
     private static var boxed: ModelContainer?
 
     static var container: ModelContainer {
-        lock.lock()
-        defer { lock.unlock() }
         if let boxed { return boxed }
         let created = makeContainer()
         boxed = created
@@ -45,8 +46,6 @@ enum DemoCatalog {
     }
 
     static func reset() {
-        lock.lock()
-        defer { lock.unlock() }
         boxed = makeContainer()
     }
 
@@ -137,7 +136,7 @@ enum DemoCatalog {
                 completedAt: done ? day(completedOffset ?? dayOffset, hour: hour + 1, minute: 0, from: now) : nil
             ))
         }
-        add("确0认饮料供应商送货", dayOffset: 0, hour: 9, minute: 30, priority: 2, done: true)
+        add("确认饮料供应商送货", dayOffset: 0, hour: 9, minute: 30, priority: 2, done: true)
         add("整理冰柜临期饮料", dayOffset: 0, hour: 11, minute: 0, priority: 1, done: true)
         add("联系可口可乐供应商", dayOffset: 0, hour: 15, minute: 0, priority: 2, done: false)
         add("核对今天配送订单", dayOffset: 0, hour: 18, minute: 30, priority: 1, done: false)

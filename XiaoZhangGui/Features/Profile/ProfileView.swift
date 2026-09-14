@@ -20,6 +20,7 @@ struct ProfileView: View {
     @Query private var goodsList: [Goods]
 
     @Bindable private var settings = AppSettings.shared
+    @Bindable private var demo = DemoMode.shared
 
     @State private var shopDialog = false
     @State private var goalDialog = false
@@ -39,11 +40,15 @@ struct ProfileView: View {
         Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: Date())) ?? Date()
     }
     private var monthlyRevenue: Double {
+        if demo.isEnabled { return DemoCatalog.monthlyRevenue }
         performances.filter { $0.date >= monthStart }.reduce(0) { $0 + $1.amount }
     }
+    private var monthlyGoal: Double {
+        demo.isEnabled ? DemoCatalog.monthlyGoal : settings.monthGoal
+    }
     private var goalProgress: Double {
-        guard settings.monthGoal > 0 else { return 0 }
-        return min(max(monthlyRevenue / settings.monthGoal, 0), 1)
+        guard monthlyGoal > 0 else { return 0 }
+        return min(max(monthlyRevenue / monthlyGoal, 0), 1)
     }
 
     var body: some View {
@@ -66,8 +71,18 @@ struct ProfileView: View {
                     }
 
                     SettingGroup(title: "经营") {
-                        SettingRow(icon: "scope", label: "月营业目标", value: Fmt.groupedInt(settings.monthGoal), isLast: false) { goalDialog = true }
+                        SettingRow(icon: "scope", label: "月营业目标", value: Fmt.groupedInt(monthlyGoal), isLast: false) { goalDialog = true }
                         SettingRow(icon: "bell", label: "提醒设置", value: (settings.todoReminderEnabled || settings.expiryReminderEnabled) ? "已开启" : "已关闭", isLast: true) { reminderDialog = true }
+                    }
+
+                    SettingGroup(title: "演示") {
+                        SwitchRow(label: "Demo Mode", isLast: !demo.isEnabled, binding: $demo.isEnabled)
+                        if demo.isEnabled {
+                            SettingRow(icon: "arrow.clockwise", label: "重置演示数据", value: "独立内存", isLast: true) {
+                                demo.resetDemoData()
+                                showToast("演示数据已重置")
+                            }
+                        }
                     }
 
                     SettingGroup(title: "工具") {
