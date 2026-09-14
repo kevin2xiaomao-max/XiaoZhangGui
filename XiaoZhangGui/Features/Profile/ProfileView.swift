@@ -41,7 +41,7 @@ struct ProfileView: View {
     }
     private var monthlyRevenue: Double {
         if demo.isEnabled { return DemoCatalog.monthlyRevenue }
-        performances.filter { $0.date >= monthStart }.reduce(0) { $0 + $1.amount }
+        return performances.filter { $0.date >= monthStart }.reduce(0) { $0 + $1.amount }
     }
     private var monthlyGoal: Double {
         demo.isEnabled ? DemoCatalog.monthlyGoal : settings.monthGoal

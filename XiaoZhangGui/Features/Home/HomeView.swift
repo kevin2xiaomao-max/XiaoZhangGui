@@ -27,7 +27,7 @@ struct HomeView: View {
 
     private var monthRevenue: Double {
         if demo.isEnabled { return DemoCatalog.monthlyRevenue }
-        performances.filter { $0.date >= Date().startOfMonth && $0.date <= Date().endOfDay }.reduce(0) { $0 + $1.amount }
+        return performances.filter { $0.date >= Date().startOfMonth && $0.date <= Date().endOfDay }.reduce(0) { $0 + $1.amount }
     }
 
     private var monthGoal: Double {
