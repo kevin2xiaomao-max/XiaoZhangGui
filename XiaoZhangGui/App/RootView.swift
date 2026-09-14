@@ -37,7 +37,7 @@ struct RootView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                Color.clear.frame(height: V21Layout.dockHeight + 18)
+                Color.clear.frame(height: V21Layout.dockHeight + 40)
             }
 
             FloatingDock(

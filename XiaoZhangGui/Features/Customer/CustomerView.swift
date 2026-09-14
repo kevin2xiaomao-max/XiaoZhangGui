@@ -28,16 +28,30 @@ struct CustomerView: View {
                     AppEmptyState(title: "当前没有配送需求", systemImage: "shippingbox")
                 } else {
                     ForEach(shown) { request in
-                        CustomerCard(
-                            request: request,
-                            onAdvance: { advance(request) },
-                            onEdit: { editingRequest = request },
-                            onDelete: { deletingRequest = request }
-                        )
+                        Button { editingRequest = request } label: {
+                            BusinessRow(
+                                title: request.content,
+                                subtitle: request.displaySubtitle,
+                                badge: request.statusEnum.rawValue,
+                                badgeTone: request.badgeTone
+                            )
+                        }
+                        .buttonStyle(.plain)
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) { deletingRequest = request } label: {
                                 Label("删除", systemImage: "trash")
                             }
+                            if request.statusEnum != .done {
+                                Button { advance(request) } label: {
+                                    Label(
+                                        request.statusEnum == .pending ? "配送" : "完成",
+                                        systemImage: request.statusEnum == .pending ? "bicycle" : "checkmark"
+                                    )
+                                }
+                                .tint(.green)
+                            }
+                        }
+                        .swipeActions(edge: .leading, allowsFullSwipe: false) {
                             Button {
                                 if let address = request.roomOrAddress.nonEmpty {
                                     UIPasteboard.general.string = address
@@ -46,6 +60,7 @@ struct CustomerView: View {
                             } label: {
                                 Label("复制地址", systemImage: "doc.on.doc")
                             }
+                            .tint(.blue)
                         }
                     }
                 }
@@ -84,45 +99,26 @@ struct CustomerView: View {
     }
 }
 
-struct CustomerCard: View {
-    let request: CustomerRequest
-    var onAdvance: () -> Void
-    var onEdit: () -> Void
-    var onDelete: () -> Void
+extension CustomerRequest {
+    var displayCustomerName: String {
+        let raw = CustomerDeliveryStorage.decode(customer).legacyCustomer ?? ""
+        let name = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if name.isEmpty || name.hasPrefix("xzg-delivery-v1:") { return "" }
+        return name
+    }
 
-    private var statusTone: StatusBadge.Tone {
-        switch request.statusEnum {
+    var displaySubtitle: String {
+        [displayCustomerName, roomOrAddress.trimmingCharacters(in: .whitespacesAndNewlines)]
+            .filter { !$0.isEmpty }
+            .joined(separator: " · ")
+    }
+
+    var badgeTone: StatusBadge.Tone {
+        switch statusEnum {
         case .pending: return .warning
         case .delivering: return .accent
         case .done: return .success
         }
-    }
-
-    var body: some View {
-        Button(action: onEdit) {
-            VStack(alignment: .leading, spacing: 6) {
-                BusinessRow(
-                    title: request.content,
-                    subtitle: [request.customer, request.roomOrAddress].filter { !$0.isEmpty }.joined(separator: " · "),
-                    badge: request.statusEnum.rawValue,
-                    badgeTone: statusTone
-                )
-                HStack {
-                    if !request.phone.isEmpty {
-                        Button("电话") {
-                            if let url = URL(string: "tel:\(request.phone)") { UIApplication.shared.open(url) }
-                        }
-                        .font(.footnote)
-                    }
-                    if request.statusEnum != .done {
-                        Button(request.statusEnum == .pending ? "配送" : "完成", action: onAdvance)
-                            .font(.footnote)
-                    }
-                    Spacer()
-                }
-            }
-        }
-        .buttonStyle(.plain)
     }
 }
 

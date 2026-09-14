@@ -52,7 +52,9 @@ struct PerformanceView: View {
                     yesterday: chartPeriod == .day ? yesterdayRevenue : nil,
                     caption: chartPeriod == .day ? nil : comparisonCaption
                 )
-                TrendChart(points: trend)
+                if trend.contains(where: { $0.value > 0 }) {
+                    TrendChart(points: trend)
+                }
             }
 
             Section("记录") {
@@ -66,7 +68,7 @@ struct PerformanceView: View {
                         } label: {
                             BusinessRow(
                                 title: record.title,
-                                subtitle: [record.source, Fmt.shortDateTime(record.date)].joined(separator: " · "),
+                                subtitle: recordSubtitle(record),
                                 trailing: record.kind == .income ? "+\(Fmt.money(record.amount))" : "-\(Fmt.money(record.amount))",
                                 trailingColor: record.kind == .income ? Color.accentColor : .red,
                                 systemImage: record.kind == .income ? "arrow.down.left" : "arrow.up.right"
@@ -101,6 +103,12 @@ struct PerformanceView: View {
         .sheet(item: $newRecordKind) { MoneyEditorSheet(mode: .new($0)) }
         .sheet(item: $editingPerformance) { MoneyEditorSheet(mode: .editPerformance($0)) }
         .sheet(item: $editingExpense) { MoneyEditorSheet(mode: .editExpense($0)) }
+    }
+
+    private func recordSubtitle(_ record: MoneyRecord) -> String {
+        let time = Fmt.shortDateTime(record.date)
+        if record.source.isEmpty || record.source == "其他" { return time }
+        return "\(record.source) · \(time)"
     }
 
     private var comparisonCaption: String? {
