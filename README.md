@@ -10,3 +10,13 @@
 数据仍是本地 SwiftData，不改 Bundle ID / Signing。
 
 开发分支：`ios-dev`
+
+## 小白签 IPA
+
+GitHub Actions 产出 unsigned IPA Artifact：
+
+- Artifact：`XiaoZhangGui-3.0-IPA`
+- 文件：`XiaoZhangGui-3.0-unsigned.ipa`
+- Payload：`你的小掌柜.app`
+
+用现有「小白签」自行签名后安装到 iPhone。

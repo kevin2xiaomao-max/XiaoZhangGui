@@ -73,7 +73,8 @@ struct ProfileView: View {
                     SettingGroup(title: "工具") {
                         SettingRow(icon: "calendar", label: "日历", value: "", isLast: false) { toolRoute = "calendar" }
                         SettingRow(icon: "shippingbox", label: "客户配送", value: "", isLast: false) { toolRoute = "customer" }
-                        SettingRow(icon: "tag", label: "临时商品", value: "", isLast: true) { toolRoute = "goods" }
+                        SettingRow(icon: "clock.badge.exclamationmark", label: "临时商品", value: "", isLast: false) { toolRoute = "expiry" }
+                        SettingRow(icon: "tag", label: "货品", value: "", isLast: true) { toolRoute = "goods" }
                     }
 
                     SettingGroup(title: "数据与应用") {
@@ -106,6 +107,7 @@ struct ProfileView: View {
                 switch route {
                 case "calendar": CalendarView()
                 case "customer": CustomerView()
+                case "expiry": ExpiryView()
                 case "goods": GoodsView()
                 default: EmptyView()
                 }
@@ -698,7 +700,7 @@ private struct AboutSheet: View {
                                 .foregroundColor(V21.brandGreen)
                         }
                     Text("你的小掌柜").v21Style(.titleLarge)
-                    Text("v\(appVersion)")
+                    Text("v\(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "3.0.0")")
                         .v21Style(.bodyMedium)
                         .foregroundColor(V21.textTertiary)
                     Text("生意好帮手，经营管理更轻松")
@@ -706,17 +708,15 @@ private struct AboutSheet: View {
                         .foregroundColor(V21.textSecondary)
                         .padding(.bottom, 12)
 
-                    aboutSection("本次更新", rows: [
-                        "优化业绩页面与收入趋势",
-                        "修复底部导航遮挡内容",
-                        "优化待办完成状态",
-                        "优化配送需求记录",
-                        "优化语音识别稳定性",
-                        "优化灵动岛 / Live Activity 显示",
-                        "修复部分界面适配问题",
+                    aboutSection("本次更新 3.0", rows: [
+                        "扫呗 CSV / Excel 导入，重复账单自动跳过",
+                        "业绩支持日 / 周 / 月趋势",
+                        "一句话快速记录，写入现有模块",
+                        "今日汇总与经营日报",
+                        "首页 / 业绩 / 待办改用系统列表",
                     ], bullet: true)
 
-                    aboutSection("历史版本", rows: ["V1.0.3", "V1.0.2", "V1.0.1", "V1.0.0"])
+                    aboutSection("历史版本", rows: ["V1.1.0", "V1.0.3", "V1.0.2", "V1.0.1", "V1.0.0"])
                 }
                 .padding(.horizontal, V21Layout.pageMargin)
                 .padding(.top, V21Layout.spaceXL)

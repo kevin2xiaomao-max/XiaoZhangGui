@@ -1,6 +1,6 @@
 import Foundation
 
-struct TodaySummary: Equatable {
+struct TodaySummary {
     let revenue: Double
     let yesterdayRevenue: Double
     let todos: [Todo]

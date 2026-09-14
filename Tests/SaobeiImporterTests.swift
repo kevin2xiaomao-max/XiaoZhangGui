@@ -29,4 +29,16 @@ final class SaobeiImporterTests: XCTestCase {
     func testMissingHeaderFails() {
         XCTAssertThrowsError(try SaobeiCSVParser.parse(text: "foo,bar\n1,2", fileName: "x.csv"))
     }
+
+    func testAmountStripsCurrency() {
+        XCTAssertEqual(SaobeiCSVParser.parseAmount("¥128.00"), 128)
+        XCTAssertEqual(SaobeiCSVParser.parseAmount("1,280.50"), 1280.5)
+        XCTAssertNil(SaobeiCSVParser.parseAmount("0"))
+    }
+
+    func testSuccessStatus() {
+        XCTAssertTrue(SaobeiCSVParser.isSuccess("支付成功"))
+        XCTAssertTrue(SaobeiCSVParser.isSuccess(""))
+        XCTAssertFalse(SaobeiCSVParser.isSuccess("已退款"))
+    }
 }

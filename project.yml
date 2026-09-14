@@ -23,7 +23,6 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.xiaozhanggui.ios
         MARKETING_VERSION: "3.0.0"
-
         CURRENT_PROJECT_VERSION: "1"
         CODE_SIGN_ENTITLEMENTS: XiaoZhangGui/XiaoZhangGui.entitlements
         GENERATE_INFOPLIST_FILE: YES
@@ -49,7 +48,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.xiaozhanggui.ios.widget
-        MARKETING_VERSION: "1.0.0"
+        MARKETING_VERSION: "3.0.0"
         CURRENT_PROJECT_VERSION: "1"
         SKIP_INSTALL: YES
         CODE_SIGN_ENTITLEMENTS: XiaoZhangGuiWidget/XiaoZhangGuiWidgetExtension.entitlements

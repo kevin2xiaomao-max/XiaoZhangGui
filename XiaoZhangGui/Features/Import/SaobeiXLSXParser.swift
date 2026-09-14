@@ -1,5 +1,4 @@
 import Foundation
-import Compression
 
 /// 轻量 xlsx 读取：不解第三方库。失败时提示另存为 CSV。
 enum SaobeiXLSXParser {
@@ -91,9 +90,9 @@ private extension String {
     func decodingXMLEntities() -> String {
         replacingOccurrences(of: "<", with: "<")
             .replacingOccurrences(of: ">", with: ">")
-            .replacingOccurrences(of: "&", with: "&")
             .replacingOccurrences(of: """, with: "\"")
             .replacingOccurrences(of: "&#39;", with: "'")
+            .replacingOccurrences(of: "&", with: "&")
     }
 }
 
