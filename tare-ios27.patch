@@ -1,0 +1,850 @@
+From 99ea05aa02b95040252ada416a9f133d52692aa6 Mon Sep 17 00:00:00 2001
+From: kevin2xiaomao-max <kevin2xiaomao-max@users.noreply.github.com>
+Date: Mon, 14 Sep 2026 14:35:53 +0000
+Subject: [PATCH] feat: iOS App UI/UX Analysis & Optimization
+
+Co-authored-by: traeagent <traeagent@users.noreply.github.com>
+---
+ XiaoZhangGui/App/RootView.swift               |  35 +--
+ XiaoZhangGui/DesignSystem/V21Components.swift |  70 ++++--
+ XiaoZhangGui/Features/Home/HomeView.swift     | 222 ++++++++++--------
+ .../Features/Profile/ProfileView.swift        | 210 ++++++++---------
+ XiaoZhangGui/Features/Voice/VoiceView.swift   | 106 ++++++---
+ project.yml                                   |   4 +-
+ 6 files changed, 364 insertions(+), 283 deletions(-)
+
+diff --git a/XiaoZhangGui/App/RootView.swift b/XiaoZhangGui/App/RootView.swift
+index 22d9d45..0e0dcfe 100644
+--- a/XiaoZhangGui/App/RootView.swift
++++ b/XiaoZhangGui/App/RootView.swift
+@@ -11,27 +11,32 @@ struct RootView: View {
+ 
+     var body: some View {
+         TabView(selection: $tab) {
+-            NavigationStack {
+-                HomeView(tab: $tab, showVoice: $showVoice, showsVoiceButton: canInitializeSpeechRecognizer, showQuickRecord: $showQuickRecord)
++            Tab("首页", systemImage: "house") {
++                NavigationStack {
++                    HomeView(tab: $tab, showVoice: $showVoice, showsVoiceButton: canInitializeSpeechRecognizer, showQuickRecord: $showQuickRecord)
++                }
+             }
+-            .tabItem { Label("首页", systemImage: "house") }
+             .tag(AppTab.home)
+ 
+-            NavigationStack { TodoView() }
+-                .tabItem { Label("待办", systemImage: "checkmark.circle") }
+-                .tag(AppTab.todo)
++            Tab("待办", systemImage: "checkmark.circle") {
++                NavigationStack { TodoView() }
++            }
++            .tag(AppTab.todo)
+ 
+-            Color.clear
+-                .tabItem { Label("语音", systemImage: "mic.circle.fill") }
+-                .tag(AppTab.voice)
++            Tab("语音", systemImage: "mic.circle.fill") {
++                Color.clear
++            }
++            .tag(AppTab.voice)
+ 
+-            NavigationStack { PerformanceView() }
+-                .tabItem { Label("业绩", systemImage: "chart.line.uptrend.xyaxis") }
+-                .tag(AppTab.performance)
++            Tab("业绩", systemImage: "chart.line.uptrend.xyaxis") {
++                NavigationStack { PerformanceView() }
++            }
++            .tag(AppTab.performance)
+ 
+-            NavigationStack { ProfileView(tab: $tab, showVoice: $showVoice, showsVoiceButton: canInitializeSpeechRecognizer) }
+-                .tabItem { Label("我的", systemImage: "person") }
+-                .tag(AppTab.profile)
++            Tab("我的", systemImage: "person") {
++                NavigationStack { ProfileView(tab: $tab, showVoice: $showVoice, showsVoiceButton: canInitializeSpeechRecognizer) }
++            }
++            .tag(AppTab.profile)
+         }
+         .tint(V21.brandGreen)
+         .onChange(of: tab) { oldValue, newValue in
+diff --git a/XiaoZhangGui/DesignSystem/V21Components.swift b/XiaoZhangGui/DesignSystem/V21Components.swift
+index 3a4b0de..8ffcb1a 100644
+--- a/XiaoZhangGui/DesignSystem/V21Components.swift
++++ b/XiaoZhangGui/DesignSystem/V21Components.swift
+@@ -10,18 +10,25 @@ struct GlassSurface<Content: View>: View {
+     @ViewBuilder var content: () -> Content
+ 
+     var body: some View {
+-        content()
+-            .background {
+-                ZStack {
+-                    RoundedRectangle(cornerRadius: radius, style: .continuous).fill(material)
++        if #available(iOS 26.0, *) {
++            // iOS 26+: Liquid Glass，自动折射下方内容并随明暗切换
++            content()
++                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
++        } else {
++            // iOS 18+: 兼容回退到静态材质 + 细边框
++            content()
++                .background {
++                    ZStack {
++                        RoundedRectangle(cornerRadius: radius, style: .continuous).fill(material)
++                        RoundedRectangle(cornerRadius: radius, style: .continuous)
++                            .fill(elevated ? V21.surfaceElevated : V21.surfaceGlass)
++                    }
++                }
++                .overlay {
+                     RoundedRectangle(cornerRadius: radius, style: .continuous)
+-                        .fill(elevated ? V21.surfaceElevated : V21.surfaceGlass)
++                        .strokeBorder(V21.dividerStrong, lineWidth: 1)
+                 }
+-            }
+-            .overlay {
+-                RoundedRectangle(cornerRadius: radius, style: .continuous)
+-                    .strokeBorder(V21.dividerStrong, lineWidth: 1)
+-            }
++        }
+     }
+ }
+ 
+@@ -154,21 +161,36 @@ struct V21FAB: View {
+     var action: () -> Void
+ 
+     var body: some View {
+-        Button {
+-            Haptic.medium()
+-            action()
+-        } label: {
+-            Image(systemName: systemImage)
+-                .font(.system(size: 22, weight: .medium))
+-                .foregroundColor(.white)
+-                .frame(width: V21Layout.fabSize, height: V21Layout.fabSize)
+-                .background(
+-                    RoundedRectangle(cornerRadius: V21Layout.radiusLG, style: .continuous)
+-                        .fill(AppTheme.palette(named: settings.appThemeName).heroGradient)
+-                )
+-                .shadow(color: AppTheme.palette(named: settings.appThemeName).accent.opacity(0.24), radius: 12, x: 0, y: 6)
++        if #available(iOS 26.0, *) {
++            // iOS 26+: Liquid Glass prominent 按钮，自动品牌色 + 玻璃高光
++            Button {
++                Haptic.medium()
++                action()
++            } label: {
++                Image(systemName: systemImage)
++                    .font(.system(size: 22, weight: .medium))
++                    .frame(width: V21Layout.fabSize, height: V21Layout.fabSize)
++            }
++            .buttonStyle(.glassProminent)
++            .tint(AppTheme.palette(named: settings.appThemeName).accent)
++        } else {
++            // iOS 18+: 自绘品牌渐变 + 阴影
++            Button {
++                Haptic.medium()
++                action()
++            } label: {
++                Image(systemName: systemImage)
++                    .font(.system(size: 22, weight: .medium))
++                    .foregroundColor(.white)
++                    .frame(width: V21Layout.fabSize, height: V21Layout.fabSize)
++                    .background(
++                        RoundedRectangle(cornerRadius: V21Layout.radiusLG, style: .continuous)
++                            .fill(AppTheme.palette(named: settings.appThemeName).heroGradient)
++                    )
++                    .shadow(color: AppTheme.palette(named: settings.appThemeName).accent.opacity(0.24), radius: 12, x: 0, y: 6)
++            }
++            .buttonStyle(.plain)
+         }
+-        .buttonStyle(.plain)
+     }
+ }
+ 
+diff --git a/XiaoZhangGui/Features/Home/HomeView.swift b/XiaoZhangGui/Features/Home/HomeView.swift
+index c1c3f37..e29b69e 100644
+--- a/XiaoZhangGui/Features/Home/HomeView.swift
++++ b/XiaoZhangGui/Features/Home/HomeView.swift
+@@ -89,27 +89,110 @@ struct HomeView: View {
+     }
+ 
+     var body: some View {
+-        ScrollView {
+-            LazyVStack(alignment: .leading, spacing: 28) {
++        List {
++            // MARK: 品牌区 + 问候 + 天气 + 头像
++            Section {
++                EmptyView()
++            } header: {
+                 header
+-                revenue
+-                businessCounts
+-                handlingList
+-                Button {
+-                    showQuickRecord = true
+-                } label: {
+-                    Label("快速记录", systemImage: "square.and.pencil")
+-                        .font(.subheadline.weight(.medium))
++            }
++            .listRowInsets(EdgeInsets())
++            .listRowBackground(Color.clear)
++            .listRowSeparator(.hidden)
++
++            // MARK: 今日营业额（系统 insetGrouped 自动提供玻璃行背景）
++            Section {
++                VStack(alignment: .leading, spacing: 10) {
++                    Text("今日营业额")
++                        .font(.subheadline)
++                        .foregroundStyle(.secondary)
++                    HStack(alignment: .bottom, spacing: 14) {
++                        VStack(alignment: .leading, spacing: 6) {
++                            Text(Fmt.money(summary.revenue))
++                                .font(.system(size: 42, weight: .bold, design: .rounded))
++                                .monospacedDigit()
++                                .lineLimit(1)
++                                .minimumScaleFactor(0.65)
++                            revenueChange
++                        }
++                        Spacer(minLength: 4)
++                        if summary.trend.contains(where: { $0.value > 0 }) {
++                            HomeSparkline(points: summary.trend)
++                                .frame(width: 112, height: 42)
++                        }
++                    }
++                    HStack(spacing: 8) {
++                        Text("本月 \(Fmt.money(monthRevenue))")
++                        Text("目标 \(Fmt.money(monthGoal))")
++                        Spacer(minLength: 4)
++                        Text("\(Int((goalProgress * 100).rounded()))%")
++                            .monospacedDigit()
++                    }
++                    .font(.caption)
++                    .foregroundStyle(.secondary)
++                    ProgressView(value: goalProgress)
++                        .tint(V21.brandGreen)
+                 }
+-                .buttonStyle(.bordered)
+-                .tint(V21.brandGreen)
++                .padding(.vertical, 6)
+             }
+-            .padding(.horizontal, 20)
+-            .padding(.top, 12)
+-            .padding(.bottom, 28)
++            .listRowInsets(EdgeInsets(top: 4, leading: 18, bottom: 4, trailing: 18))
++            .listRowSeparator(.hidden)
++
++            // MARK: 待办 / 配送 / 临期 三宫格
++            Section {
++                HStack(spacing: 0) {
++                    HomeCountButton(value: summary.todos.count, label: "待办") { tab = .todo }
++                    Divider().frame(height: 34)
++                    HomeCountButton(value: summary.deliveries.count, label: "配送") { route = .customer }
++                    Divider().frame(height: 34)
++                    HomeCountButton(value: summary.pendingExpiry.count, label: "临期") { route = .expiry }
++                }
++                .padding(.vertical, 4)
++            }
++            .listRowInsets(EdgeInsets(top: 4, leading: 18, bottom: 4, trailing: 18))
++            .listRowSeparator(.hidden)
++
++            // MARK: 今天需要处理
++            Section {
++                if handlingItems.isEmpty {
++                    Text("今天没有待处理事项")
++                        .font(.subheadline)
++                        .foregroundStyle(.secondary)
++                        .frame(maxWidth: .infinity, alignment: .leading)
++                        .padding(.vertical, 16)
++                } else {
++                    ForEach(Array(handlingItems.enumerated()), id: \.element.id) { _, item in
++                        Button { open(item.route) } label: { HomeHandlingRow(item: item) }
++                            .buttonStyle(.plain)
++                    }
++                }
++            } header: {
++                HStack {
++                    Text("今天需要处理").font(.title3.bold())
++                    Spacer()
++                    Button("查看全部") { tab = .todo }
++                        .font(.subheadline)
++                        .foregroundStyle(.secondary)
++                }
++                .textCase(nil)
++                .padding(.horizontal, 18)
++                .padding(.top, 8)
++                .padding(.bottom, 4)
++            }
++
++            // MARK: 快速记录
++            Section {
++                quickRecordButton
++                    .frame(maxWidth: .infinity)
++            }
++            .listRowInsets(EdgeInsets(top: 8, leading: 18, bottom: 8, trailing: 18))
++            .listRowBackground(Color.clear)
++            .listRowSeparator(.hidden)
+         }
++        .listStyle(.insetGrouped)
++        .scrollContentBackground(.hidden)
+         .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
+-        .navigationBarHidden(true)
++        .toolbar(.hidden, for: .navigationBar)
+         .navigationDestination(item: $route) { destination in
+             switch destination {
+             case .customer: CustomerView()
+@@ -129,6 +212,33 @@ struct HomeView: View {
+         .task { weatherModel.loadIfNeeded() }
+     }
+ 
++    @ViewBuilder
++    private var quickRecordButton: some View {
++        if #available(iOS 26.0, *) {
++            // iOS 26+: Liquid Glass prominent 按钮
++            Button {
++                showQuickRecord = true
++            } label: {
++                Label("快速记录", systemImage: "square.and.pencil")
++                    .font(.subheadline.weight(.medium))
++                    .frame(maxWidth: .infinity)
++            }
++            .buttonStyle(.glassProminent)
++            .tint(V21.brandGreen)
++        } else {
++            // iOS 18+: bordered 按钮
++            Button {
++                showQuickRecord = true
++            } label: {
++                Label("快速记录", systemImage: "square.and.pencil")
++                    .font(.subheadline.weight(.medium))
++                    .frame(maxWidth: .infinity)
++            }
++            .buttonStyle(.bordered)
++            .tint(V21.brandGreen)
++        }
++    }
++
+     private var header: some View {
+         VStack(alignment: .leading, spacing: 5) {
+             HStack(alignment: .center, spacing: 10) {
+@@ -155,43 +265,9 @@ struct HomeView: View {
+                 .font(.subheadline)
+                 .foregroundStyle(.tertiary)
+         }
+-    }
+-
+-    private var revenue: some View {
+-        VStack(alignment: .leading, spacing: 10) {
+-            Text("今日营业额")
+-                .font(.subheadline)
+-                .foregroundStyle(.secondary)
+-            HStack(alignment: .bottom, spacing: 14) {
+-                VStack(alignment: .leading, spacing: 6) {
+-                    Text(Fmt.money(summary.revenue))
+-                        .font(.system(size: 42, weight: .bold, design: .rounded))
+-                        .monospacedDigit()
+-                        .lineLimit(1)
+-                        .minimumScaleFactor(0.65)
+-                    revenueChange
+-                }
+-                Spacer(minLength: 4)
+-                if summary.trend.contains(where: { $0.value > 0 }) {
+-                    HomeSparkline(points: summary.trend)
+-                        .frame(width: 112, height: 42)
+-                }
+-            }
+-            HStack(spacing: 8) {
+-                Text("本月 \(Fmt.money(monthRevenue))")
+-                Text("目标 \(Fmt.money(monthGoal))")
+-                Spacer(minLength: 4)
+-                Text("\(Int((goalProgress * 100).rounded()))%")
+-                    .monospacedDigit()
+-            }
+-            .font(.caption)
+-            .foregroundStyle(.secondary)
+-            ProgressView(value: goalProgress)
+-                .tint(V21.brandGreen)
+-                .scaleEffect(x: 1, y: 0.55, anchor: .center)
+-        }
+-        .padding(18)
+-        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
++        .padding(.horizontal, 20)
++        .padding(.top, 12)
++        .padding(.bottom, 8)
+     }
+ 
+     @ViewBuilder
+@@ -209,46 +285,6 @@ struct HomeView: View {
+         }
+     }
+ 
+-    private var businessCounts: some View {
+-        HStack(spacing: 0) {
+-            HomeCountButton(value: summary.todos.count, label: "待办") { tab = .todo }
+-            Divider().frame(height: 34)
+-            HomeCountButton(value: summary.deliveries.count, label: "配送") { route = .customer }
+-            Divider().frame(height: 34)
+-            HomeCountButton(value: summary.pendingExpiry.count, label: "临期") { route = .expiry }
+-        }
+-        .padding(.vertical, 4)
+-    }
+-
+-    private var handlingList: some View {
+-        VStack(alignment: .leading, spacing: 10) {
+-            HStack {
+-                Text("今天需要处理").font(.title3.bold())
+-                Spacer()
+-                Button("查看全部") { tab = .todo }
+-                    .font(.subheadline)
+-                    .foregroundStyle(.secondary)
+-            }
+-            VStack(spacing: 0) {
+-                if handlingItems.isEmpty {
+-                    Text("今天没有待处理事项")
+-                        .font(.subheadline)
+-                        .foregroundStyle(.secondary)
+-                        .frame(maxWidth: .infinity, alignment: .leading)
+-                        .padding(.vertical, 16)
+-                } else {
+-                    ForEach(Array(handlingItems.enumerated()), id: \.element.id) { index, item in
+-                        Button { open(item.route) } label: { HomeHandlingRow(item: item) }
+-                            .buttonStyle(.plain)
+-                        if index < handlingItems.count - 1 { Divider().padding(.leading, 58) }
+-                    }
+-                }
+-            }
+-            .padding(.horizontal, 16)
+-            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+-        }
+-    }
+-
+     private func open(_ destination: HomeItemRoute) {
+         switch destination {
+         case .todo: tab = .todo
+diff --git a/XiaoZhangGui/Features/Profile/ProfileView.swift b/XiaoZhangGui/Features/Profile/ProfileView.swift
+index 8aeae84..373666f 100644
+--- a/XiaoZhangGui/Features/Profile/ProfileView.swift
++++ b/XiaoZhangGui/Features/Profile/ProfileView.swift
+@@ -52,80 +52,78 @@ struct ProfileView: View {
+     }
+ 
+     var body: some View {
+-        PageBackground {
+-            ScrollView {
+-                VStack(alignment: .leading, spacing: 0) {
+-                    Text("我的")
+-                        .v21Style(.titlePage)
+-                        .foregroundColor(V21.textPrimary)
+-                        .padding(.top, V21Layout.spaceXL)
+-                        .padding(.horizontal, V21Layout.pageMargin)
+-                        .padding(.bottom, 20)
+-
+-                    heroCard
+-
+-                    SettingGroup(title: "个性化") {
+-                        SettingRow(icon: "person.crop.circle", label: "头像与 Emoji", value: settings.avatarImageData == nil ? settings.avatarEmoji : "照片", isLast: false) { avatarDialog = true }
+-                        SettingRow(icon: "paintpalette", label: "主题颜色", value: settings.appThemeName, isLast: false) { themeDialog = true }
+-                        SettingRow(icon: "circle.lefthalf.filled", label: "显示模式", value: settings.themeModeLabel, isLast: true) { themeDialog = true }
+-                    }
++        List {
++            // MARK: Hero（头像 + 店主名 + 店铺名）
++            Section {
++                heroCard
++                    .padding(.vertical, 4)
++                    .listRowInsets(EdgeInsets(top: 12, leading: 18, bottom: 12, trailing: 18))
++                    .listRowBackground(Color.clear)
++                    .listRowSeparator(.hidden)
++            }
+ 
+-                    SettingGroup(title: "经营") {
+-                        SettingRow(icon: "scope", label: "月营业目标", value: Fmt.groupedInt(monthlyGoal), isLast: false) { goalDialog = true }
+-                        SettingRow(icon: "bell", label: "提醒设置", value: (settings.todoReminderEnabled || settings.expiryReminderEnabled) ? "已开启" : "已关闭", isLast: true) { reminderDialog = true }
+-                    }
++            Section("个性化") {
++                SettingRow(icon: "person.crop.circle", label: "头像与 Emoji", value: settings.avatarImageData == nil ? settings.avatarEmoji : "照片", isLast: false) { avatarDialog = true }
++                SettingRow(icon: "paintpalette", label: "主题颜色", value: settings.appThemeName, isLast: false) { themeDialog = true }
++                SettingRow(icon: "circle.lefthalf.filled", label: "显示模式", value: settings.themeModeLabel, isLast: true) { themeDialog = true }
++            }
+ 
+-                    SettingGroup(title: "演示") {
+-                        SwitchRow(label: "Demo Mode", isLast: !demo.isEnabled, binding: $demo.isEnabled)
+-                        if demo.isEnabled {
+-                            SettingRow(icon: "arrow.clockwise", label: "重置演示数据", value: "独立内存", isLast: true) {
+-                                demo.resetDemoData()
+-                                showToast("演示数据已重置")
+-                            }
+-                        }
+-                    }
++            Section("经营") {
++                SettingRow(icon: "scope", label: "月营业目标", value: Fmt.groupedInt(monthlyGoal), isLast: false) { goalDialog = true }
++                SettingRow(icon: "bell", label: "提醒设置", value: (settings.todoReminderEnabled || settings.expiryReminderEnabled) ? "已开启" : "已关闭", isLast: true) { reminderDialog = true }
++            }
+ 
+-                    SettingGroup(title: "工具") {
+-                        SettingRow(icon: "calendar", label: "日历", value: "", isLast: false) { toolRoute = "calendar" }
+-                        SettingRow(icon: "shippingbox", label: "客户配送", value: "", isLast: false) { toolRoute = "customer" }
+-                        SettingRow(icon: "clock.badge.exclamationmark", label: "临时商品", value: "", isLast: false) { toolRoute = "expiry" }
+-                        SettingRow(icon: "tag", label: "货品", value: "", isLast: true) { toolRoute = "goods" }
++            Section("演示") {
++                SwitchRow(label: "Demo Mode", isLast: !demo.isEnabled, binding: $demo.isEnabled)
++                if demo.isEnabled {
++                    SettingRow(icon: "arrow.clockwise", label: "重置演示数据", value: "独立内存", isLast: true) {
++                        demo.resetDemoData()
++                        showToast("演示数据已重置")
+                     }
++                }
++            }
+ 
+-                    SettingGroup(title: "数据与应用") {
+-                        SettingRow(icon: "banknote", label: "营业额记录", value: "\(performances.count) 条", isLast: false) { tab = .performance }
+-                        ShareLink(item: exportJSON(), preview: SharePreview("你的小掌柜数据导出")) {
+-                            SettingRowCore(icon: "square.and.arrow.down", label: "数据备份", value: "JSON", showChevron: false, isLast: false)
+-                        }
+-                        .buttonStyle(.plain)
+-                        SettingRow(icon: "arrow.clockwise", label: "数据恢复", value: "JSON", isLast: false) { showImporter = true }
+-                        SettingRow(icon: "paintbrush", label: "清理缓存", value: "", isLast: false) { clearDialog = true }
+-                        SettingRow(icon: "info.circle", label: "关于你的小掌柜", value: "", isLast: false) { aboutDialog = true }
+-                        SettingRow(icon: "lock.shield", label: "隐私说明", value: "", isLast: true) { privacyDialog = true }
+-                    }
++            Section("工具") {
++                SettingRow(icon: "calendar", label: "日历", value: "", isLast: false) { toolRoute = "calendar" }
++                SettingRow(icon: "shippingbox", label: "客户配送", value: "", isLast: false) { toolRoute = "customer" }
++                SettingRow(icon: "clock.badge.exclamationmark", label: "临时商品", value: "", isLast: false) { toolRoute = "expiry" }
++                SettingRow(icon: "tag", label: "货品", value: "", isLast: true) { toolRoute = "goods" }
++            }
+ 
+-                    Text("v\(appVersion)")
+-                        .v21Style(.labelSmall)
+-                        .foregroundColor(V21.textQuaternary)
+-                        .frame(maxWidth: .infinity, alignment: .center)
+-                        .padding(.top, 20)
+-                        .padding(.bottom, 8)
++            Section("数据与应用") {
++                SettingRow(icon: "banknote", label: "营业额记录", value: "\(performances.count) 条", isLast: false) { tab = .performance }
++                ShareLink(item: exportJSON(), preview: SharePreview("你的小掌柜数据导出")) {
++                    SettingRowCore(icon: "square.and.arrow.down", label: "数据备份", value: "JSON", showChevron: false, isLast: false)
+                 }
++                .buttonStyle(.plain)
++                SettingRow(icon: "arrow.clockwise", label: "数据恢复", value: "JSON", isLast: false) { showImporter = true }
++                SettingRow(icon: "paintbrush", label: "清理缓存", value: "", isLast: false) { clearDialog = true }
++                SettingRow(icon: "info.circle", label: "关于你的小掌柜", value: "", isLast: false) { aboutDialog = true }
++                SettingRow(icon: "lock.shield", label: "隐私说明", value: "", isLast: true) { privacyDialog = true }
+             }
+-            .scrollBounceBehavior(.basedOnSize)
+-            .safeAreaInset(edge: .bottom, spacing: 0) {
+-                Color.clear.frame(height: V21Layout.bottomDockContentGap)
+-            }
+-            .onAppear {
++
++            Section {
++                Text("v\(appVersion)")
++                    .v21Style(.labelSmall)
++                    .foregroundColor(V21.textQuaternary)
++                    .frame(maxWidth: .infinity, alignment: .center)
++                    .padding(.vertical, 12)
+             }
+-            .navigationDestination(item: $toolRoute) { route in
+-                switch route {
+-                case "calendar": CalendarView()
+-                case "customer": CustomerView()
+-                case "expiry": ExpiryView()
+-                case "goods": GoodsView()
+-                default: EmptyView()
+-                }
++            .listRowBackground(Color.clear)
++            .listRowSeparator(.hidden)
++        }
++        .listStyle(.insetGrouped)
++        .scrollContentBackground(.hidden)
++        .background(V21.background.ignoresSafeArea())
++        .navigationTitle("我的")
++        .navigationBarTitleDisplayMode(.large)
++        .navigationDestination(item: $toolRoute) { route in
++            switch route {
++            case "calendar": CalendarView()
++            case "customer": CustomerView()
++            case "expiry": ExpiryView()
++            case "goods": GoodsView()
++            default: EmptyView()
+             }
+         }
+         .overlay(alignment: .bottom) {
+@@ -137,7 +135,7 @@ struct ProfileView: View {
+                     .padding(.vertical, 11)
+                     .background(Capsule().fill(.ultraThinMaterial))
+                     .overlay(Capsule().strokeBorder(V21.dividerStrong, lineWidth: 1))
+-                    .padding(.bottom, V21Layout.dockHeight + 34)
++                    .padding(.bottom, 24)
+                     .transition(.move(edge: .bottom).combined(with: .opacity))
+             }
+         }
+@@ -199,7 +197,6 @@ struct ProfileView: View {
+             }
+             .buttonStyle(.plain)
+         }
+-        .padding(.horizontal, V21Layout.pageMargin)
+         .padding(.vertical, 4)
+         .contentShape(Rectangle())
+         .onTapGesture { shopDialog = true }
+@@ -357,28 +354,7 @@ struct ProfileView: View {
+     }
+ }
+ 
+-// MARK: - 设置分组
+-
+-private struct SettingGroup<Content: View>: View {
+-    let title: String
+-    @ViewBuilder var content: () -> Content
+-
+-    var body: some View {
+-        VStack(alignment: .leading, spacing: 8) {
+-            Text(title)
+-                .v21Style(.labelSmall)
+-                .foregroundColor(V21.groupTitle)
+-                .padding(.horizontal, V21Layout.pageMargin)
+-            GlassSurface(radius: 16) {
+-                VStack(spacing: 0) { content() }
+-            }
+-            .padding(.horizontal, V21Layout.pageMargin)
+-        }
+-        .padding(.top, 24)
+-    }
+-}
+-
+-// MARK: - 设置行
++// MARK: - 设置行（List 行：系统自动提供分割线与 Liquid Glass 背景）
+ 
+ private struct SettingRow: View {
+     let icon: String
+@@ -432,14 +408,7 @@ private struct SettingRowCore: View {
+                     .foregroundColor(V21.textQuaternary)
+             }
+         }
+-        .padding(.horizontal, 16)
+-        .padding(.vertical, 14)
+-        .overlay(alignment: .bottom) {
+-            if !isLast {
+-                Rectangle().fill(V21.divider).frame(height: 1)
+-                    .padding(.leading, 64)
+-            }
+-        }
++        .padding(.vertical, 10)
+     }
+ }
+ 
+@@ -460,14 +429,7 @@ private struct SwitchRow: View {
+                 .labelsHidden()
+                 .tint(V21.brandGreen)
+         }
+-        .padding(.horizontal, 16)
+-        .padding(.vertical, 12)
+-        .overlay(alignment: .bottom) {
+-            if !isLast {
+-                Rectangle().fill(V21.divider).frame(height: 1)
+-                    .padding(.leading, 16)
+-            }
+-        }
++        .padding(.vertical, 8)
+     }
+ }
+ 
+@@ -676,18 +638,34 @@ private struct VoiceSettingsSheet: View {
+                 .v21Style(.bodySmall)
+                 .foregroundColor(V21.textTertiary)
+             if showsVoiceButton {
+-                Button {
+-                    dismiss()
+-                    showVoice = true
+-                } label: {
+-                    Text("测试语音")
+-                        .v21Style(.labelLarge)
+-                        .foregroundColor(.white)
+-                        .frame(maxWidth: .infinity)
+-                        .padding(.vertical, 13)
+-                        .background(RoundedRectangle(cornerRadius: 14).fill(V21.brandGreenGradient))
++                if #available(iOS 26.0, *) {
++                    // iOS 26+: Liquid Glass prominent 按钮
++                    Button {
++                        dismiss()
++                        showVoice = true
++                    } label: {
++                        Text("测试语音")
++                            .v21Style(.labelLarge)
++                            .frame(maxWidth: .infinity)
++                            .padding(.vertical, 13)
++                    }
++                    .buttonStyle(.glassProminent)
++                    .tint(AppTheme.palette(named: settings.appThemeName).accent)
++                } else {
++                    // iOS 18+: 自绘品牌渐变按钮
++                    Button {
++                        dismiss()
++                        showVoice = true
++                    } label: {
++                        Text("测试语音")
++                            .v21Style(.labelLarge)
++                            .foregroundColor(.white)
++                            .frame(maxWidth: .infinity)
++                            .padding(.vertical, 13)
++                            .background(RoundedRectangle(cornerRadius: 14).fill(V21.brandGreenGradient))
++                    }
++                    .buttonStyle(.plain)
+                 }
+-                .buttonStyle(.plain)
+             }
+             Spacer()
+         }
+diff --git a/XiaoZhangGui/Features/Voice/VoiceView.swift b/XiaoZhangGui/Features/Voice/VoiceView.swift
+index a868707..339068f 100644
+--- a/XiaoZhangGui/Features/Voice/VoiceView.swift
++++ b/XiaoZhangGui/Features/Voice/VoiceView.swift
+@@ -163,7 +163,7 @@ struct VoiceView: View {
+     // MARK: - 中央按钮
+ 
+     private func centralButton(_ vm: VoiceViewModel) -> some View {
+-        Button {
++        let press: () -> Void = {
+             switch vm.phase {
+             case .listening:
+                 vm.stopListening()
+@@ -175,19 +175,34 @@ struct VoiceView: View {
+             default:
+                 break
+             }
+-        } label: {
+-            ZStack {
+-                Circle()
+-                    .fill(AnyShapeStyle(AppTheme.palette(named: settings.appThemeName).heroGradient))
+-                Image(systemName: centralIcon(vm))
+-                    .font(.system(size: 26, weight: .medium))
+-                    .foregroundColor(.white)
++        }
++        return Group {
++            if #available(iOS 26.0, *) {
++                // iOS 26+: Liquid Glass prominent 圆形按钮
++                Button(action: press) {
++                    Image(systemName: centralIcon(vm))
++                        .font(.system(size: 26, weight: .medium))
++                        .frame(width: 72, height: 72)
++                }
++                .buttonStyle(.glassProminent)
++                .tint(AppTheme.palette(named: settings.appThemeName).accent)
++            } else {
++                // iOS 18+: 自绘品牌渐变圆 + 阴影
++                Button(action: press) {
++                    ZStack {
++                        Circle()
++                            .fill(AnyShapeStyle(AppTheme.palette(named: settings.appThemeName).heroGradient))
++                        Image(systemName: centralIcon(vm))
++                            .font(.system(size: 26, weight: .medium))
++                            .foregroundColor(.white)
++                    }
++                    .frame(width: 72, height: 72)
++                    .contentShape(Circle())
++                    .shadow(color: AppTheme.palette(named: settings.appThemeName).accent.opacity(0.16), radius: 8, y: 4)
++                }
++                .buttonStyle(.plain)
+             }
+-            .frame(width: 72, height: 72)
+-            .contentShape(Circle())
+-            .shadow(color: AppTheme.palette(named: settings.appThemeName).accent.opacity(0.16), radius: 8, y: 4)
+         }
+-        .buttonStyle(.plain)
+     }
+ 
+     private func centralIcon(_ vm: VoiceViewModel) -> String {
+@@ -248,30 +263,55 @@ struct VoiceView: View {
+                 }
+             }
+ 
+-            Button {
+-                Haptic.medium()
+-                vm.save()
+-            } label: {
+-                Group {
+-                    if vm.phase == .saving {
+-                        ProgressView()
+-                            .tint(.white)
+-                    } else {
+-                        Text("保存记录")
+-                            .v21Style(.bodyLarge)
+-                            .fontWeight(.semibold)
+-                            .foregroundColor(.white)
++            Group {
++                if #available(iOS 26.0, *) {
++                    // iOS 26+: Liquid Glass prominent 保存按钮
++                    Button {
++                        Haptic.medium()
++                        vm.save()
++                    } label: {
++                        Group {
++                            if vm.phase == .saving {
++                                ProgressView().tint(.white)
++                            } else {
++                                Text("保存记录")
++                                    .v21Style(.bodyLarge)
++                                    .fontWeight(.semibold)
++                            }
++                        }
++                        .frame(maxWidth: .infinity)
++                        .frame(height: 50)
+                     }
+-                }
+-                .frame(maxWidth: .infinity)
+-                .frame(height: 50)
+-                .background {
+-                    RoundedRectangle(cornerRadius: 15, style: .continuous)
+-                        .fill(AppTheme.palette(named: settings.appThemeName).heroGradient)
++                    .buttonStyle(.glassProminent)
++                    .tint(AppTheme.palette(named: settings.appThemeName).accent)
++                    .disabled(vm.phase == .saving)
++                } else {
++                    // iOS 18+: 自绘品牌渐变按钮
++                    Button {
++                        Haptic.medium()
++                        vm.save()
++                    } label: {
++                        Group {
++                            if vm.phase == .saving {
++                                ProgressView().tint(.white)
++                            } else {
++                                Text("保存记录")
++                                    .v21Style(.bodyLarge)
++                                    .fontWeight(.semibold)
++                                    .foregroundColor(.white)
++                            }
++                        }
++                        .frame(maxWidth: .infinity)
++                        .frame(height: 50)
++                        .background {
++                            RoundedRectangle(cornerRadius: 15, style: .continuous)
++                                .fill(AppTheme.palette(named: settings.appThemeName).heroGradient)
++                        }
++                    }
++                    .buttonStyle(.plain)
++                    .disabled(vm.phase == .saving)
+                 }
+             }
+-            .buttonStyle(.plain)
+-            .disabled(vm.phase == .saving)
+             .padding(.top, 8)
+         }
+     }
+diff --git a/project.yml b/project.yml
+index 28d7f01..7fe082e 100644
+--- a/project.yml
++++ b/project.yml
+@@ -2,14 +2,14 @@ name: XiaoZhangGui
+ options:
+   bundleIdPrefix: com.xiaozhanggui
+   deploymentTarget:
+-    iOS: "17.0"
++    iOS: "18.0"
+   developmentLanguage: zh-Hans
+   createIntermediateGroups: true
+ settings:
+   base:
+     SWIFT_VERSION: "5.0"
+     TARGETED_DEVICE_FAMILY: 1
+-    IPHONEOS_DEPLOYMENT_TARGET: "17.0"
++    IPHONEOS_DEPLOYMENT_TARGET: "18.0"
+     DEVELOPMENT_TEAM: ""
+     CODE_SIGN_STYLE: Automatic
+ targets:
+-- 
+2.43.0
+
