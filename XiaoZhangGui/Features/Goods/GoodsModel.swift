@@ -59,9 +59,9 @@ enum GoodsState {
 
     var color: Color {
         switch self {
-        case .expired: return V21.danger
-        case .expiringSoon, .lowStock: return V21.warning
-        case .normal: return V21.brandGreen
+        case .expired: return V32.danger
+        case .expiringSoon, .lowStock: return V32.amber
+        case .normal: return V32.brand
         }
     }
 

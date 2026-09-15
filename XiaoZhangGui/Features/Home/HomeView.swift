@@ -516,7 +516,7 @@ private struct AvatarPickerSheet: View {
         }
         .scrollIndicators(.hidden)
         .v32PageBackground()
-        .v32Sheet([.medium, .large])
+        .v32Sheet([.medium])
         .photosPicker(isPresented: $showPhotoPicker, selection: $selectedItem, matching: .images)
         .onChange(of: selectedItem) { _, item in
             guard let item else { return }

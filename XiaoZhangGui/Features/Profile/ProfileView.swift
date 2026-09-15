@@ -100,7 +100,7 @@ struct ProfileView: View {
                     .foregroundStyle(V32.textPrimary)
                     .padding(.horizontal, 18)
                     .padding(.vertical, 11)
-                    .background(Capsule().fill(V32.card).shadow(color: Color.black.opacity(0.12), radius: 10, y: 4))
+                    .background(Capsule().fill(V32.card).shadow(color: V32.cardOutline, radius: 10, y: 4))
                     .padding(.bottom, 12)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }

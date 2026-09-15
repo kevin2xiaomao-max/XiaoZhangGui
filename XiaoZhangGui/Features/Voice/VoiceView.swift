@@ -107,10 +107,10 @@ struct VoiceView: View {
         let tint: Color
         if vm.didSave {
             text = "已记录"
-            tint = V21.brandGreen
+            tint = V32.brand
         } else if case .error = vm.phase {
             text = "出错了，点击重试"
-            tint = V21.danger
+            tint = V32.danger
         } else {
             text = vm.phase.statusText
             tint = Color.primary
@@ -142,7 +142,7 @@ struct VoiceView: View {
                 break
             }
         }
-        let tint = vm.phase == .listening ? V21.danger : V21.brandGreen
+        let tint = vm.phase == .listening ? V32.danger : V32.brand
         let size = V21Layout.centralVoiceButton // 60pt
 
         return Group {
@@ -249,7 +249,7 @@ struct VoiceView: View {
                         .frame(height: 44)
                     }
                     .buttonStyle(.glassProminent)
-                    .tint(V21.brandGreen)
+                    .tint(V32.brand)
                     .disabled(vm.phase == .saving)
                 } else {
                     Button {
@@ -267,7 +267,7 @@ struct VoiceView: View {
                         }
                         .frame(maxWidth: .infinity)
                         .frame(height: 44)
-                        .background(V21.brandGreen, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .background(V32.brand, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
                     .buttonStyle(.plain)
                     .disabled(vm.phase == .saving)
@@ -318,7 +318,7 @@ struct VoiceView: View {
         HStack(spacing: 8) {
             Image(systemName: icon)
                 .font(.caption)
-                .foregroundStyle(V21.brandGreen)
+                .foregroundStyle(V32.brand)
                 .frame(width: 18)
             Text(label)
                 .foregroundStyle(.secondary)
@@ -341,7 +341,7 @@ struct CompactVoiceWaveform: View {
             ForEach(0..<15, id: \.self) { index in
                 let height = computeHeight(index: index)
                 Capsule()
-                    .fill(V21.brandGreen.opacity(0.7))
+                    .fill(V32.brand.opacity(0.7))
                     .frame(width: 2.5, height: height)
                     .animation(
                         .easeInOut(duration: 0.55)
@@ -375,7 +375,7 @@ struct SpatialRipples: View {
         ZStack {
             ForEach(0..<3, id: \.self) { index in
                 Circle()
-                    .strokeBorder(V21.brandGreen.opacity(0.18), lineWidth: 1.5)
+                    .strokeBorder(V32.brand.opacity(0.18), lineWidth: 1.5)
                     .scaleEffect(animate ? 2.6 : 0.4)
                     .opacity(animate ? 0 : 0.5)
                     .animation(

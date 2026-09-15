@@ -24,10 +24,10 @@ enum ExpiryGroup {
 
     var color: Color {
         switch self {
-        case .expired, .urgent3: return V21.danger
-        case .urgent7: return V21.warning
-        case .safe30: return V21.brandGreen
-        case .later, .returned: return V21.textTertiary
+        case .expired, .urgent3: return V32.danger
+        case .urgent7: return V32.amber
+        case .safe30: return V32.brand
+        case .later, .returned: return V32.textTertiary
         }
     }
 
@@ -89,10 +89,10 @@ enum ExpiryBadge {
     }
 
     static func color(for item: ExpiryItem) -> Color {
-        if item.status == .returned { return V21.textTertiary }
+        if item.status == .returned { return V32.textTertiary }
         let days = item.daysLeft()
-        if days <= 3 { return V21.danger }
-        if days <= 7 { return V21.warning }
-        return V21.brandGreen
+        if days <= 3 { return V32.danger }
+        if days <= 7 { return V32.amber }
+        return V32.brand
     }
 }

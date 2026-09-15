@@ -77,7 +77,7 @@ struct WeatherDetailSheet: View {
         }
         .scrollIndicators(.hidden)
         .v32PageBackground()
-        .v32Sheet([.medium, .large])
+        .v32Sheet([.medium])
     }
 
     private var header: some View {

@@ -18,7 +18,7 @@ struct TrendChart: View {
                     x: .value("日期", point.date),
                     y: .value("营业额", point.value)
                 )
-                .foregroundStyle(onHero ? V32.brandOnHero : V21.brandGreen)
+                .foregroundStyle(onHero ? V32.brandOnHero : V32.brand)
                 .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
                 .interpolationMethod(.catmullRom)
             }
