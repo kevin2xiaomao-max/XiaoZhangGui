@@ -2,6 +2,8 @@ import SwiftUI
 import SwiftData
 import PhotosUI
 
+// MARK: - 待办（V32）：仅负责 Todo 生命周期管理
+
 struct TodoView: View {
     @Environment(\.modelContext) private var context
     @Query private var todos: [Todo]
@@ -27,83 +29,168 @@ struct TodoView: View {
     private var overdueCount: Int { TodoFilter.todos(for: .overdue, in: todos).count }
 
     var body: some View {
-        List {
-            Section {
-                Picker("范围", selection: $tab) {
-                    ForEach(TodoTab.allCases) { Text($0.rawValue).tag($0) }
-                }
-                .pickerStyle(.segmented)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                header
+                if tab != .records { statsCard }
+                content
             }
-
-            if tab != .records {
-                Section {
-                    HStack {
-                        Label("待办 \(todayCount)", systemImage: "sun.max")
-                        Spacer()
-                        Label("已完成 \(doneCount)", systemImage: "checkmark.circle")
-                        Spacer()
-                        Label("逾期 \(overdueCount)", systemImage: "exclamationmark.circle")
-                            .foregroundStyle(overdueCount > 0 ? V21.danger : .secondary)
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                }
-                .listRowSeparator(.hidden)
-            }
-
-            if tab == .records {
-                if memos.isEmpty {
-                    Section {
-                        AppEmptyState(title: "暂无记录", systemImage: "square.and.pencil", actionTitle: "新增") {
-                            showNewRecord = true
-                        }
-                    }
-                } else {
-                    ForEach(memos.sorted { $0.updatedAt > $1.updatedAt }) { memo in
-                        BusinessRow(title: memo.title, subtitle: Fmt.shortDateTime(memo.updatedAt))
-                    }
-                }
-            } else if list.isEmpty {
-                Section {
-                    AppEmptyState(title: TodoFilter.emptyText(for: tab), systemImage: "checkmark.circle", actionTitle: "新增") {
-                        showNewEditor = true
-                    }
-                }
-            } else {
-                ForEach(groups, id: \.label) { group in
-                    Section(group.label) {
-                        ForEach(group.items) { todo in
-                            Button { editingTodo = todo } label: {
-                                TodoCheckRow(todo: todo, showsDate: tab == .overdue) {
-                                    try? TodoRepository(context: context).toggleComplete(todo)
-                                }
-                            }
-                            .buttonStyle(.plain)
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button(role: .destructive) { delete(todo) } label: {
-                                    Label("删除", systemImage: "trash")
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            .padding(.horizontal, V32Layout.pageMargin)
+            .padding(.top, 8)
+            .padding(.bottom, V32Layout.bottomPad)
         }
-        .listStyle(.insetGrouped)
-        .bottomDockPadding()
-        .navigationTitle("待办")
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    if tab == .records { showNewRecord = true } else { showNewEditor = true }
-                } label: {
-                    Image(systemName: "plus")
-                }
-            }
-        }
+        .scrollIndicators(.hidden)
+        .v32PageBackground()
+        .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showNewEditor) { TodoEditorSheet(todo: nil) }
         .sheet(isPresented: $showNewRecord) { RecordEditorSheet() }
         .sheet(item: $editingTodo) { TodoEditorSheet(todo: $0) }
+    }
+
+    // MARK: 顶部
+
+    private var header: some View {
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("待办")
+                    .v32Text(.pageTitle)
+                    .foregroundStyle(V32.textPrimary)
+                Text("一件件来，不慌")
+                    .v32Text(.subhead)
+                    .foregroundStyle(V32.textTertiary)
+            }
+            Spacer()
+            Button {
+                if tab == .records { showNewRecord = true } else { showNewEditor = true }
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: V32Layout.toolCircle, height: V32Layout.toolCircle)
+                    .background(Circle().fill(V32.hero))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(tab == .records ? "新增记录" : "新增待办")
+        }
+    }
+
+    // MARK: 分段胶囊
+
+    private var statsCard: some View {
+        VStack(spacing: 14) {
+            V32SegmentedPicker(tabs: TodoTab.allCases.map(\.rawValue), selectionIndex: Binding(
+                get: { TodoTab.allCases.firstIndex(of: tab) ?? 0 },
+                set: { tab = TodoTab.allCases[$0] }
+            ))
+
+            HStack(spacing: 8) {
+                statCell(value: todayCount, label: "待办", icon: "sun.max", tint: V32.brand)
+                statDivider
+                statCell(value: doneCount, label: "已完成", icon: "checkmark.circle", tint: V32.textSecondary)
+                statDivider
+                statCell(value: overdueCount, label: "逾期", icon: "exclamationmark.circle",
+                         tint: overdueCount > 0 ? V32.amber : V32.textTertiary)
+            }
+        }
+    }
+
+    private var statDivider: some View {
+        Rectangle().fill(V32.divider).frame(width: 1, height: 30)
+    }
+
+    private func statCell(value: Int, label: String, icon: String, tint: Color) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .semibold))
+            VStack(alignment: .leading, spacing: 1) {
+                Text("\(value)")
+                    .v32Text(.metricSmall)
+                    .foregroundStyle(V32.textPrimary)
+                    .monospacedDigit()
+                Text(label)
+                    .v32Text(.caption)
+                    .foregroundStyle(V32.textTertiary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .foregroundStyle(tint)
+    }
+
+    // MARK: 内容
+
+    @ViewBuilder
+    private var content: some View {
+        if tab == .records {
+            recordsContent
+        } else if list.isEmpty {
+            V32Card {
+                V32EmptyState(
+                    systemName: "checkmark.circle",
+                    title: TodoFilter.emptyText(for: tab),
+                    message: nil
+                )
+                .padding(.vertical, 8)
+            }
+        } else {
+            ForEach(groups, id: \.label) { group in
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(group.label)
+                        .v32Text(.caption)
+                        .foregroundStyle(V32.textTertiary)
+                        .padding(.leading, 4)
+                    V32Card(padding: 4) {
+                        VStack(spacing: 0) {
+                            ForEach(Array(group.items.enumerated()), id: \.element.persistentModelID) { index, todo in
+                                if index > 0 {
+                                    Rectangle().fill(V32.divider).frame(height: 1).padding(.leading, 48)
+                                }
+                                TodoListRow(
+                                    todo: todo,
+                                    isOverdueTab: tab == .overdue,
+                                    onToggle: { try? TodoRepository(context: context).toggleComplete(todo) },
+                                    onEdit: { editingTodo = todo },
+                                    onDelete: { delete(todo) }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var recordsContent: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if memos.isEmpty {
+                V32Card {
+                    V32EmptyState(systemName: "note.text", title: "暂无记录", message: nil)
+                        .padding(.vertical, 8)
+                }
+            } else {
+                V32Card(padding: 4) {
+                    VStack(spacing: 0) {
+                        ForEach(Array(memos.sorted { $0.updatedAt > $1.updatedAt }.enumerated()), id: \.element.persistentModelID) { index, memo in
+                            if index > 0 { Rectangle().fill(V32.divider).frame(height: 1).padding(.leading, 48) }
+                            HStack(spacing: 12) {
+                                V32IconBubble(systemName: "note.text", tone: .neutral, size: 34, icon: 15)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(memo.title)
+                                        .v32Text(.title)
+                                        .foregroundStyle(V32.textPrimary)
+                                        .lineLimit(2)
+                                    Text(Fmt.shortDateTime(memo.updatedAt))
+                                        .v32Text(.caption)
+                                        .foregroundStyle(V32.textTertiary)
+                                }
+                                Spacer()
+                            }
+                            .padding(.horizontal, 12)
+                            .frame(minHeight: 54)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private func delete(_ todo: Todo) {
@@ -111,6 +198,102 @@ struct TodoView: View {
         try? TodoRepository(context: context).delete(todo)
     }
 }
+
+// MARK: - 分段选择器（V32 胶囊）
+
+struct V32SegmentedPicker: View {
+    let tabs: [String]
+    @Binding var selectionIndex: Int
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(tabs.indices, id: \.self) { index in
+                Button {
+                    withAnimation(.easeOut(duration: 0.16)) { selectionIndex = index }
+                    Haptic.light()
+                } label: {
+                    Text(tabs[index])
+                        .v32Text(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(index == selectionIndex ? V32.textPrimary : V32.textTertiary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(
+                            Capsule().fill(index == selectionIndex ? V32.card : Color.clear)
+                        )
+                        .overlay(
+                            Capsule().strokeBorder(index == selectionIndex ? V32.cardOutline : Color.clear, lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(4)
+        .background(Capsule().fill(V32.pageBGSecondary))
+    }
+}
+
+// MARK: - 待办行
+
+private struct TodoListRow: View {
+    let todo: Todo
+    let isOverdueTab: Bool
+    let onToggle: () -> Void
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            V32Checkbox(checked: todo.isCompleted, action: onToggle)
+            Button(action: onEdit) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(DisplayText.visible(todo.title, fallback: "待办事项"))
+                        .v32Text(.title)
+                        .foregroundStyle(todo.isCompleted ? V32.textTertiary : V32.textPrimary)
+                        .strikethrough(todo.isCompleted, color: V32.textQuaternary)
+                        .lineLimit(2)
+                    Text(subtitle)
+                        .v32Text(.caption)
+                        .foregroundStyle(todo.priority >= TodoPriority.high.rawValue && !todo.isCompleted ? V32.amber : V32.textTertiary)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Text(timeText)
+                .v32Text(.caption)
+                .foregroundStyle(isOverdueTab ? V32.amber : V32.textTertiary)
+                .lineLimit(1)
+            Button(action: onDelete) {
+                Image(systemName: "trash")
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundStyle(V32.textQuaternary)
+                    .frame(width: 30, height: 30)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("删除待办")
+        }
+        .padding(.horizontal, 12)
+        .frame(minHeight: 56)
+    }
+
+    private var subtitle: String {
+        let detail = DisplayText.visible(todo.detail)
+        if !detail.isEmpty { return detail }
+        return todo.priorityLevel.label
+    }
+
+    private var timeText: String {
+        guard let due = todo.dueDate else { return "待安排" }
+        if due.isToday { return Fmt.time(due) }
+        return Fmt.monthDayTime(due)
+    }
+}
+
+// MARK: - 新增记录 Sheet（功能保留，T11 统一 V32 外观）
 
 private struct RecordEditorSheet: View {
     @Environment(\.modelContext) private var context
