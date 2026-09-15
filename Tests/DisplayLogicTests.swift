@@ -38,7 +38,7 @@ final class DisplayLogicTests: XCTestCase {
     }
 
     @MainActor
-    func testInboxCapsAtFiveAndRanksUrgentFirst() throws {
+    func testInboxCapsAtFourAndRanksUrgentFirst() throws {
         let now = Calendar.current.date(from: DateComponents(year: 2026, month: 9, day: 14, hour: 20)) ?? Date()
         let container = DemoCatalog.makeContainer(now: now)
         let context = ModelContext(container)
@@ -46,10 +46,57 @@ final class DisplayLogicTests: XCTestCase {
         let customers = try context.fetch(FetchDescriptor<CustomerRequest>())
         let expiry = try context.fetch(FetchDescriptor<ExpiryItem>())
         let summary = TodaySummary.build(performances: [], todos: todos, customers: customers, expiryItems: expiry, now: now)
-        let items = HomeInbox.items(todos: summary.todos, deliveries: summary.deliveries, expiryItems: summary.pendingExpiry)
-        XCTAssertLessThanOrEqual(items.count, 5)
+        let items = HomeInbox.items(todos: summary.todos, deliveries: summary.deliveries, expiryItems: summary.pendingExpiry, limit: 4)
+        XCTAssertLessThanOrEqual(items.count, 4)
         XCTAssertFalse(items.contains { DisplayText.isEncoded($0.title) || DisplayText.isEncoded($0.subtitle) })
         XCTAssertEqual(items.first?.route, .expiry)
+        // 排序稳定：按 rank 升序
+        let ranks = items.map(\.rank)
+        XCTAssertEqual(ranks, ranks.sorted())
+    }
+
+    @MainActor
+    func testInboxExcludesStripDeliveriesButKeepsOthers() throws {
+        let now = Calendar.current.date(from: DateComponents(year: 2026, month: 9, day: 14, hour: 20)) ?? Date()
+        let container = DemoCatalog.makeContainer(now: now)
+        let context = ModelContext(container)
+        let todos = try context.fetch(FetchDescriptor<Todo>())
+        let customers = try context.fetch(FetchDescriptor<CustomerRequest>())
+        let expiry = try context.fetch(FetchDescriptor<ExpiryItem>())
+        let summary = TodaySummary.build(performances: [], todos: todos, customers: customers, expiryItems: expiry, now: now)
+
+        // 与 HomeView.topDeliveries 同口径：配送中优先 -> 待处理按更新时间，最多 2 单
+        let strip = Array(summary.deliveries.sorted { lhs, rhs in
+            if lhs.statusEnum != rhs.statusEnum {
+                return lhs.statusEnum == .delivering && rhs.statusEnum != .delivering
+            }
+            return lhs.updatedAt > rhs.updatedAt
+        }.prefix(2))
+        let stripIDs = Set(strip.map { "delivery-\($0.notificationID)" })
+
+        let all = HomeInbox.items(todos: summary.todos, deliveries: summary.deliveries,
+                                  expiryItems: summary.pendingExpiry, limit: 4)
+        let filtered = HomeInbox.items(todos: summary.todos, deliveries: summary.deliveries,
+                                       expiryItems: summary.pendingExpiry, limit: 4,
+                                       excludingDeliveryIDs: stripIDs)
+
+        // 横卡配送不重复出现在今日事项
+        XCTAssertFalse(filtered.contains { stripIDs.contains($0.id) })
+        // 总数仍 <=4
+        XCTAssertLessThanOrEqual(filtered.count, 4)
+        // demo 有多个待处理配送：未在横卡的其它配送仍保留可入列
+        XCTAssertFalse(summary.deliveries.isEmpty)
+        let nonStrip = summary.deliveries.filter { !stripIDs.contains("delivery-\($0.notificationID)") }
+        XCTAssertFalse(nonStrip.isEmpty)
+
+        // 全部配送 ID 排除后今日事项不再出现客户路由；且 todo/临期项不丢失（超集关系）
+        let allDeliveryIDs = Set(summary.deliveries.map { "delivery-\($0.notificationID)" })
+        let noDeliveries = HomeInbox.items(todos: summary.todos, deliveries: summary.deliveries,
+                                          expiryItems: summary.pendingExpiry, limit: 4,
+                                          excludingDeliveryIDs: allDeliveryIDs)
+        XCTAssertFalse(noDeliveries.contains { $0.route == .customer })
+        let nonDeliveryInAll = Set(all.filter { $0.route != .customer }.map(\.id))
+        XCTAssertTrue(nonDeliveryInAll.isSubset(of: Set(noDeliveries.map(\.id))))
     }
 
     private func date(hour: Int) -> Date {

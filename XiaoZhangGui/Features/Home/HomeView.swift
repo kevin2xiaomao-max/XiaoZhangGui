@@ -12,6 +12,7 @@ struct HomeView: View {
     let showsVoiceButton: Bool
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(AppSettings.self) private var settings
     @Bindable private var demo = DemoMode.shared
     @Query private var todos: [Todo]
@@ -45,7 +46,11 @@ struct HomeView: View {
     }
 
     private var handlingItems: [HomeInboxItem] {
-        HomeInbox.items(todos: summary.todos, deliveries: summary.deliveries, expiryItems: summary.pendingExpiry, limit: 4)
+        // 已在横卡展示的配送从今日事项去重；未在横卡的其它待处理配送仍可入列（Q4 定稿）
+        let stripIDs = Set(topDeliveries.map { "delivery-\($0.notificationID)" })
+        return HomeInbox.items(todos: summary.todos, deliveries: summary.deliveries,
+                               expiryItems: summary.pendingExpiry, limit: 4,
+                               excludingDeliveryIDs: stripIDs)
     }
 
     /// 配送中优先、待处理其次，最多 2 张横滑小卡
@@ -63,10 +68,13 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: V32Layout.sectionGap) {
                 header
                 heroCard
+                    .modifier(V32HomeEntrance(delay: 0, reduceMotion: reduceMotion))
                 if !topDeliveries.isEmpty {
                     deliverySection
+                        .modifier(V32HomeEntrance(delay: 0.04, reduceMotion: reduceMotion))
                 }
                 todaySection
+                    .modifier(V32HomeEntrance(delay: 0.08, reduceMotion: reduceMotion))
             }
             .padding(.horizontal, V32Layout.pageMargin)
             .padding(.top, 8)
@@ -193,6 +201,11 @@ struct HomeView: View {
                             .foregroundStyle(V32.textOnHero)
                             .lineLimit(1)
                             .minimumScaleFactor(0.5)
+                            .contentTransition(.numericText(value: summary.revenue))
+                            .animation(
+                                V32Motion.animation(V32Motion.resolve(.numeric, reduceMotion: reduceMotion)),
+                                value: summary.revenue
+                            )
                         revenueChange
                     }
                     Spacer(minLength: 8)
@@ -267,11 +280,21 @@ struct HomeView: View {
                 HStack(spacing: V32Layout.cardGap) {
                     ForEach(topDeliveries, id: \.persistentModelID) { request in
                         DeliveryCard(request: request)
+                            .frame(width: deliveryCardWidth)
                             .onTapGesture { route = .customer }
                     }
                 }
+                .scrollTargetLayout()
             }
+            .scrollTargetBehavior(.viewAligned)
         }
+    }
+
+    /// 横卡宽度：按屏宽计算，静止时自然露出下一张约 15%~20%（含 cardGap）。
+    /// 不使用固定 248；不写死机型数值。
+    private var deliveryCardWidth: CGFloat {
+        let content = UIScreen.main.bounds.width - V32Layout.pageMargin * 2
+        return max(220, (content - V32Layout.cardGap) / 1.175)
     }
 
     // MARK: 今日事项（≤4，动作摘要）
@@ -340,6 +363,25 @@ struct HomeView: View {
 
 private enum HomeRoute: Hashable { case customer, expiry }
 
+// MARK: - 首页首次出现轻入场（opacity + y 8，standard；Reduce Motion 仅短淡入、无位移）
+
+private struct V32HomeEntrance: ViewModifier {
+    let delay: Double
+    let reduceMotion: Bool
+    @State private var appeared = false
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(appeared ? 1 : 0)
+            .offset(y: reduceMotion ? 0 : (appeared ? 0 : 8))
+            .animation(
+                V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion))?.delay(delay),
+                value: appeared
+            )
+            .onAppear { if !appeared { appeared = true } }
+    }
+}
+
 // MARK: - 配送横滑小卡
 
 private struct DeliveryCard: View {
@@ -375,7 +417,6 @@ private struct DeliveryCard: View {
                 }
                 .foregroundStyle(V32.textTertiary)
             }
-            .frame(width: V32Layout.hCardWidth, alignment: .leading)
         }
     }
 }

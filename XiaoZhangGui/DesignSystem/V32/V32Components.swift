@@ -466,6 +466,7 @@ struct V32ProgressBar: View {
     /// 0...1
     let progress: Double
     var onHero: Bool = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         GeometryReader { geo in
@@ -475,6 +476,8 @@ struct V32ProgressBar: View {
                 Capsule()
                     .fill(onHero ? V32.brandOnHero : V32.brand)
                     .frame(width: max(4, geo.size.width * min(max(progress, 0), 1)))
+                    // 进度变化 softSpring；Reduce Motion 直切（nil），不动 width/scale，组件内建（FR-21.7）
+                    .animation(V32Motion.progressWidth(reduceMotion: reduceMotion), value: progress)
             }
         }
         .frame(height: 7)

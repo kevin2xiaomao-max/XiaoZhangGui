@@ -38,7 +38,4 @@ enum V32Layout {
     // 头像
     static let avatarSmall: CGFloat = 38
     static let avatarLarge: CGFloat = 64
-
-    // 横向卡片
-    static let hCardWidth: CGFloat = 248
 }

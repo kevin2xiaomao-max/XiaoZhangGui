@@ -110,7 +110,8 @@ enum HomeInbox {
         todos: [Todo],
         deliveries: [CustomerRequest],
         expiryItems: [ExpiryItem],
-        limit: Int = 5
+        limit: Int = 4,
+        excludingDeliveryIDs: Set<String> = []
     ) -> [HomeInboxItem] {
         var items: [HomeInboxItem] = []
 
@@ -131,10 +132,12 @@ enum HomeInbox {
         }
 
         for item in deliveries {
+            let inboxID = "delivery-\(item.notificationID)"
+            if excludingDeliveryIDs.contains(inboxID) { continue }
             let delivering = item.statusEnum == .delivering
             items.append(
                 HomeInboxItem(
-                    id: "delivery-\(item.notificationID)",
+                    id: inboxID,
                     date: item.updatedAt,
                     rank: delivering ? 2 : 3,
                     time: delivering ? "配送中" : "配送",

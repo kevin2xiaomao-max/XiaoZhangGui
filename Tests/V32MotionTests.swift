@@ -45,4 +45,11 @@ final class V32MotionTests: XCTestCase {
         XCTAssertNotNil(V32Motion.animation(.interactiveSpring))
         XCTAssertNotNil(V32Motion.animation(.quick))
     }
+
+    func testProgressWidthIsSpringThenInstantUnderReduceMotion() {
+        // Reduce Motion 关闭：宽度 softSpring（非 nil）
+        XCTAssertNotNil(V32Motion.progressWidth(reduceMotion: false))
+        // Reduce Motion 开启：必须直切（nil），绝不短动画动 width
+        XCTAssertNil(V32Motion.progressWidth(reduceMotion: true))
+    }
 }

@@ -62,6 +62,12 @@ enum V32Motion {
         }
     }
 
+    /// 进度条宽度专用：Reduce Motion 关闭时 softSpring；开启时必须直切（nil），
+    /// 不能用短动画去动 width/scale/spring。短淡入只能单独作用于 opacity。
+    static func progressWidth(reduceMotion: Bool) -> Animation? {
+        reduceMotion ? nil : softSpring
+    }
+
     /// 由解析结果取 Animation；.none 返回 nil（调用方传 withAnimation(nil) 即立即应用）。
     static func animation(_ resolved: Resolved) -> Animation? {
         switch resolved {
