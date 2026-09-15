@@ -4,7 +4,6 @@ import PhotosUI
 // MARK: - 图片选择/预览组件（PhotosPicker → Data，配合 @Attribute(.externalStorage)）
 
 struct PhotoPickerField: View {
-    @Environment(AppSettings.self) private var settings
     let imageData: Data?
     var onChange: (Data?) -> Void
 
@@ -17,7 +16,7 @@ struct PhotoPickerField: View {
                     .resizable()
                     .scaledToFill()
                     .frame(width: 64, height: 64)
-                    .clipShape(RoundedRectangle(cornerRadius: V21Layout.radiusMD, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: V32Radius.inset, style: .continuous))
                     .overlay(alignment: .topTrailing) {
                         Button {
                             onChange(nil)
@@ -34,14 +33,11 @@ struct PhotoPickerField: View {
             PhotosPicker(selection: $pickerItem, matching: .images) {
                 Label(imageData == nil ? "添加图片" : "更换图片", systemImage: "photo.badge.plus")
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(AppTheme.palette(named: settings.appThemeName).accent)
+                    .foregroundStyle(V32.brand)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
                     .background {
-                        Capsule(style: .continuous).fill(V21.surfaceGlass)
-                    }
-                    .overlay {
-                        Capsule(style: .continuous).strokeBorder(V21.dividerStrong, lineWidth: 1)
+                        Capsule(style: .continuous).fill(V32.brandSoft)
                     }
             }
             .onChange(of: pickerItem) { _, item in

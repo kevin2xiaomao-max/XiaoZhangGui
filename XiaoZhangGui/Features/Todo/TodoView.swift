@@ -302,28 +302,52 @@ private struct RecordEditorSheet: View {
     @State private var imageData: Data?
     @State private var selectedItem: PhotosPickerItem?
 
+    private var canSave: Bool {
+        !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("记录内容") {
-                    TextField("记下这件事", text: $content, axis: .vertical)
-                        .lineLimit(4...8)
-                    PhotosPicker(selection: $selectedItem, matching: .images) {
-                        Label("添加图片（可选）", systemImage: "photo")
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                header
+                VStack(alignment: .leading, spacing: 10) {
+                    V32SectionHeader("记录内容")
+                    V32Card {
+                        TextField("记下这件事", text: $content, axis: .vertical)
+                            .v32Text(.body)
+                            .foregroundStyle(V32.textPrimary)
+                            .tint(V32.brand)
+                            .lineLimit(4...8)
                     }
                 }
-            }
-            .navigationTitle("新增记录")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") { save() }
-                        .disabled(content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                VStack(alignment: .leading, spacing: 10) {
+                    V32SectionHeader("图片")
+                    V32Card { PhotoPickerField(imageData: imageData) { imageData = $0 } }
                 }
+                V32PrimaryButton(title: "保存", systemName: "checkmark") { save() }
+                    .disabled(!canSave)
+                    .opacity(canSave ? 1 : 0.5)
             }
-            .onChange(of: selectedItem) { _, item in
-                Task { imageData = try? await item?.loadTransferable(type: Data.self) }
+            .padding(.horizontal, V32Layout.pageMargin)
+            .padding(.top, 14)
+            .padding(.bottom, V32Layout.bottomPad)
+        }
+        .scrollIndicators(.hidden)
+        .v32PageBackground()
+        .v32Sheet([.medium, .large])
+        .onChange(of: selectedItem) { _, item in
+            Task { imageData = try? await item?.loadTransferable(type: Data.self) }
+        }
+    }
+
+    private var header: some View {
+        ZStack {
+            Text("新增记录").v32Text(.headline).foregroundStyle(V32.textPrimary)
+            HStack {
+                Button("取消") { dismiss() }
+                    .v32Text(.body)
+                    .foregroundStyle(V32.textTertiary)
+                Spacer()
             }
         }
     }

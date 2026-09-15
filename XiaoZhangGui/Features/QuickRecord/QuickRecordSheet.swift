@@ -11,49 +11,92 @@ struct QuickRecordSheet: View {
     private let parser = LocalQuickRecordParser()
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    TextField("例如：今天营业额2680", text: $text, axis: .vertical)
-                        .lineLimit(3...6)
-                        .onChange(of: text) { _, value in
-                            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-                            draft = trimmed.isEmpty ? nil : parser.parse(trimmed)
-                        }
-                } header: {
-                    Text("一句话")
-                } footer: {
-                    Text("本地规则识别，写入现有待办 / 配送 / 临时商品 / 业绩 / 记录。")
-                }
-
-                if let draft {
-                    Section("识别结果") {
-                        LabeledContent("类型", value: kindLabel(draft.kind))
-                        LabeledContent("摘要", value: draft.summary)
-                        if let amount = draft.amount {
-                            LabeledContent("金额", value: Fmt.money(amount))
-                        }
-                        if let date = draft.date {
-                            LabeledContent("时间", value: Fmt.dateTime(date))
-                        }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                header
+                inputCard
+                if let draft { resultCard(draft) }
+                if let savedMessage {
+                    HStack {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(V32.brand)
+                        Text(savedMessage).v32Text(.body).foregroundStyle(V32.textSecondary)
                     }
                 }
-
-                if let savedMessage {
-                    Section { Text(savedMessage).foregroundStyle(.secondary) }
-                }
+                V32PrimaryButton(title: "写入", systemName: "square.and.pencil") { commit() }
+                    .disabled(draft == nil)
+                    .opacity(draft == nil ? 0.5 : 1)
             }
-            .navigationTitle("快速记录")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("写入") { commit() }
-                        .disabled(draft == nil)
+            .padding(.horizontal, V32Layout.pageMargin)
+            .padding(.top, 14)
+            .padding(.bottom, V32Layout.bottomPad)
+        }
+        .scrollIndicators(.hidden)
+        .v32PageBackground()
+        .v32Sheet([.medium, .large])
+    }
+
+    private var header: some View {
+        ZStack {
+            Text("快速记录").v32Text(.headline).foregroundStyle(V32.textPrimary)
+            HStack {
+                Button("取消") { dismiss() }
+                    .v32Text(.body)
+                    .foregroundStyle(V32.textTertiary)
+                Spacer()
+            }
+        }
+    }
+
+    private var inputCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            V32SectionHeader("一句话")
+            V32Card {
+                TextField("例如：今天营业额2680", text: $text, axis: .vertical)
+                    .v32Text(.body)
+                    .foregroundStyle(V32.textPrimary)
+                    .tint(V32.brand)
+                    .lineLimit(3...6)
+            }
+            Text("本地规则识别，写入现有待办 / 配送 / 临时商品 / 业绩 / 记录。")
+                .v32Text(.caption)
+                .foregroundStyle(V32.textTertiary)
+        }
+    }
+
+    private func resultCard(_ draft: QuickRecordDraft) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            V32SectionHeader("识别结果")
+            V32Card {
+                VStack(spacing: 0) {
+                    resultRow("类型", value: kindLabel(draft.kind))
+                    divider
+                    resultRow("摘要", value: draft.summary)
+                    if let amount = draft.amount {
+                        divider
+                        resultRow("金额", value: Fmt.money(amount))
+                    }
+                    if let date = draft.date {
+                        divider
+                        resultRow("时间", value: Fmt.dateTime(date))
+                    }
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+    }
+
+    private func resultRow(_ label: String, value: String) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label).v32Text(.subhead).foregroundStyle(V32.textTertiary)
+            Spacer(minLength: 12)
+            Text(value).v32Text(.body).foregroundStyle(V32.textPrimary)
+                .multilineTextAlignment(.trailing)
+        }
+        .padding(.vertical, 10)
+    }
+
+    private var divider: some View {
+        Rectangle().fill(V32.divider).frame(height: 1)
     }
 
     private func kindLabel(_ kind: QuickRecordKind) -> String {

@@ -1,8 +1,8 @@
 import SwiftUI
 import SwiftData
 
-// MARK: - 日历页（V2.1：月份导航 + 状态点月历 + 当日聚合详情）
-// 语义对齐 Android CalendarScreen；聚合 营业额/待办/临期/客户需求
+// MARK: - 日历页（V32：月份导航 + 状态点月历 + 当日聚合详情；整月能力保留）
+// 聚合 营业额/待办/临期/客户需求；派生层 CalendarAgenda 零改动
 
 struct CalendarView: View {
     @Query private var todos: [Todo]
@@ -35,37 +35,24 @@ struct CalendarView: View {
     }
 
     var body: some View {
-        PageBackground {
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 0) {
-                    titleSection
-                    monthNavigator
-                    weekdayHeader
-                        .padding(.top, 8)
-                    monthGrid
-                        .padding(.top, 4)
-                    dayDetail
-                        .padding(.top, V21Layout.spaceXXL)
-
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: V32Layout.sectionGap) {
+                V32PageHeader("日历", subtitle: "营业额 · 待办 · 临期 · 客户需求一览")
+                monthNavigator
+                V32Card {
+                    VStack(spacing: 4) {
+                        weekdayHeader
+                        monthGrid
+                    }
                 }
+                dayDetail
             }
-            .bottomDockPadding()
+            .padding(.horizontal, V32Layout.pageMargin)
+            .padding(.top, 8)
+            .padding(.bottom, V32Layout.bottomPad)
         }
-        .navigationTitle("日历")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-
-    private var titleSection: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("日历")
-                .v21Style(.titlePage)
-                .foregroundColor(V21.textPrimary)
-            Text("营业额 · 待办 · 临期 · 客户需求一览")
-                .v21Style(.bodyMedium)
-                .foregroundColor(V21.textTertiary)
-        }
-        .padding(.top, 12)
-        .padding(.horizontal, V21Layout.pageMargin)
+        .v32PageBackground()
+        .toolbar(.hidden, for: .navigationBar)
     }
 
     // MARK: - 月份导航
@@ -77,16 +64,13 @@ struct CalendarView: View {
             }
             Spacer()
             Text(currentMonth, format: .dateTime.year().month(.wide).locale(Locale(identifier: "zh_CN")))
-                .v21Style(.titleLarge)
-                .fontWeight(.semibold)
-                .foregroundColor(V21.textPrimary)
+                .v32Text(.section)
+                .foregroundStyle(V32.textPrimary)
             Spacer()
             monthButton("chevron.right") {
                 currentMonth = calendar.date(byAdding: .month, value: 1, to: currentMonth) ?? currentMonth
             }
         }
-        .padding(.horizontal, V21Layout.pageMargin)
-        .padding(.vertical, 8)
     }
 
     private func monthButton(_ icon: String, action: @escaping () -> Void) -> some View {
@@ -95,17 +79,11 @@ struct CalendarView: View {
             action()
         } label: {
             Image(systemName: icon)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(V21.textTertiary)
-                .frame(width: 32, height: 32)
-                .background {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(V21.surfaceGlass)
-                }
-                .overlay {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(V21.dividerStrong, lineWidth: 1)
-                }
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(V32.textSecondary)
+                .frame(width: 36, height: 36)
+                .background(Circle().fill(V32.card))
+                .overlay(Circle().strokeBorder(V32.cardOutline, lineWidth: 1))
         }
         .buttonStyle(.plain)
     }
@@ -116,14 +94,12 @@ struct CalendarView: View {
         HStack(spacing: 2) {
             ForEach(["日", "一", "二", "三", "四", "五", "六"], id: \.self) { day in
                 Text(day)
-                    .v21Style(.labelSmall)
-                    .fontWeight(.semibold)
-                    .foregroundColor(V21.textTertiary)
+                    .v32Text(.caption)
+                    .foregroundStyle(V32.textTertiary)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
+                    .padding(.vertical, 6)
             }
         }
-        .padding(.horizontal, 20)
     }
 
     private var monthGrid: some View {
@@ -154,7 +130,6 @@ struct CalendarView: View {
                 }
             }
         }
-        .padding(.horizontal, 20)
     }
 
     /// 当月网格日期（首尾补 nil 空位，总格数为 7 的倍数）
@@ -179,26 +154,26 @@ struct CalendarView: View {
         var items: [CalendarDetailItem] = []
         if !dayData.revenues.isEmpty || !dayData.expenses.isEmpty {
             items.append(CalendarDetailItem(
-                dotColor: V21.brandGreen,
+                dotColor: V32.brand,
                 label: "营业额 / 收支",
                 sublabel: "收入 \(dayData.revenues.count) 笔 · 支出 \(dayData.expenses.count) 笔",
                 rightText: "¥\(Fmt.groupedInt(dayData.revenueTotal))",
-                rightColor: V21.brandGreen
+                rightColor: V32.brand
             ))
         }
         if !dayData.todos.isEmpty {
             let summary = dayData.todos.prefix(2).map { todo in
                 "\(todo.dueDate.map(Fmt.time) ?? "—") \(todo.title)"
             }.joined(separator: " · ")
-            items.append(CalendarDetailItem(dotColor: V21.info, label: "待办事项", sublabel: summary, rightText: "", rightColor: V21.textPrimary))
+            items.append(CalendarDetailItem(dotColor: V32.info, label: "待办事项", sublabel: summary, rightText: "", rightColor: V32.textPrimary))
         }
         if !dayData.memos.isEmpty {
             let summary = dayData.memos.prefix(2).map(\.title).joined(separator: " · ")
-            items.append(CalendarDetailItem(dotColor: V21.textTertiary, label: "记录", sublabel: summary, rightText: "", rightColor: V21.textPrimary))
+            items.append(CalendarDetailItem(dotColor: V32.textTertiary, label: "记录", sublabel: summary, rightText: "", rightColor: V32.textPrimary))
         }
         if !dayData.expiry.isEmpty {
             let summary = dayData.expiry.prefix(2).map { "\($0.name) ×\($0.quantity)" }.joined(separator: " · ")
-            items.append(CalendarDetailItem(dotColor: V21.warning, label: "临期提醒", sublabel: summary, rightText: "", rightColor: V21.textPrimary))
+            items.append(CalendarDetailItem(dotColor: V32.amber, label: "临期提醒", sublabel: summary, rightText: "", rightColor: V32.textPrimary))
         }
         if !dayData.customers.isEmpty {
             let summary = dayData.customers.prefix(2).map { request in
@@ -207,42 +182,44 @@ struct CalendarView: View {
                 let address = DisplayText.visible(request.roomOrAddress, fallback: DisplayText.visible(info.legacyCustomer ?? "", fallback: "客户配送"))
                 return "\(time) \(address)"
             }.joined(separator: " · ")
-            items.append(CalendarDetailItem(dotColor: V21.textQuaternary, label: "客户需求", sublabel: summary, rightText: "", rightColor: V21.textPrimary))
+            items.append(CalendarDetailItem(dotColor: V32.neutral, label: "客户需求", sublabel: summary, rightText: "", rightColor: V32.textPrimary))
         }
         return items
     }
 
     private var dayDetail: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 12) {
             Text("\(calendar.component(.month, from: selectedDate))月\(calendar.component(.day, from: selectedDate))日 · \(selectedDate.weekdayLabel)")
-                .font(.headline)
-                .padding(.bottom, 12)
+                .v32Text(.headline)
+                .foregroundStyle(V32.textPrimary)
 
-            if detailItems.isEmpty {
-                Text("当天暂无经营记录")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 10)
-            } else {
-                ForEach(Array(detailItems.enumerated()), id: \.offset) { index, item in
-                    if index > 0 { DividerLine() }
-                    CalendarDetailRow(
-                        dotColor: item.dotColor,
-                        label: item.label,
-                        sublabel: item.sublabel,
-                        rightText: item.rightText,
-                        rightColor: item.rightColor
-                    )
+            V32Card {
+                if detailItems.isEmpty {
+                    Text("当天暂无经营记录")
+                        .v32Text(.subhead)
+                        .foregroundStyle(V32.textTertiary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                } else {
+                    VStack(spacing: 0) {
+                        ForEach(Array(detailItems.enumerated()), id: \.offset) { index, item in
+                            if index > 0 { Rectangle().fill(V32.divider).frame(height: 1) }
+                            CalendarDetailRow(
+                                dotColor: item.dotColor,
+                                label: item.label,
+                                sublabel: item.sublabel,
+                                rightText: item.rightText,
+                                rightColor: item.rightColor
+                            )
+                        }
+                    }
                 }
             }
         }
-        .padding(18)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: V21Layout.radiusXL, style: .continuous))
-        .padding(.horizontal, V21Layout.pageMargin)
     }
 }
 
-// MARK: - 日期格（今日绿底 / 选中玻璃底 + 描边 / 状态点）
+// MARK: - 日期格（今日墨绿实心 / 选中卡片色 + 描边 / 状态点）
 
 struct CalendarDayCell: View {
     let date: Date
@@ -259,18 +236,18 @@ struct CalendarDayCell: View {
         Button(action: onTap) {
             VStack(spacing: 2) {
                 Text("\(dayNumber)")
-                    .v21Style(.bodySmall)
+                    .v32Text(.subhead)
                     .fontWeight(isToday ? .bold : .medium)
-                    .foregroundColor(
-                        isToday ? .white :
-                        (isSelected ? V21.textPrimary : V21.textSecondary)
+                    .foregroundStyle(
+                        isToday ? Color.white :
+                        (isSelected ? V32.textPrimary : V32.textSecondary)
                     )
                 HStack(spacing: 2) {
-                    if flags.hasRevenue { EventDot(color: V21.brandGreen) }
-                    if flags.hasTodo { EventDot(color: V21.info) }
-                    if flags.hasExpiry { EventDot(color: V21.warning) }
-                    if flags.hasCustomer { EventDot(color: V21.textQuaternary) }
-                    if flags.hasMemo { EventDot(color: V21.textTertiary) }
+                    if flags.hasRevenue { EventDot(color: V32.brand) }
+                    if flags.hasTodo { EventDot(color: V32.info) }
+                    if flags.hasExpiry { EventDot(color: V32.amber) }
+                    if flags.hasCustomer { EventDot(color: V32.neutral) }
+                    if flags.hasMemo { EventDot(color: V32.textTertiary) }
                 }
                 .frame(height: 4)
             }
@@ -279,15 +256,15 @@ struct CalendarDayCell: View {
             .background {
                 ZStack {
                     if isToday {
-                        Circle().fill(V21.brandGreen)
+                        Circle().fill(V32.hero)
                     } else if isSelected {
-                        Circle().fill(V21.surfaceElevated)
+                        Circle().fill(V32.cardElevated)
                     }
                 }
             }
             .overlay {
                 if isSelected && !isToday {
-                    Circle().strokeBorder(V21.dividerHighlight, lineWidth: 1)
+                    Circle().strokeBorder(V32.brand.opacity(0.55), lineWidth: 1.2)
                 }
             }
             .contentShape(Circle())
@@ -303,7 +280,7 @@ struct CalendarDayCell: View {
     }
 }
 
-// MARK: - 详情行 + 分割线
+// MARK: - 详情行
 
 private struct CalendarDetailItem {
     let dotColor: Color
@@ -313,7 +290,7 @@ private struct CalendarDetailItem {
     let rightColor: Color
 }
 
-struct CalendarDetailRow: View {
+private struct CalendarDetailRow: View {
     let dotColor: Color
     let label: String
     let sublabel: String
@@ -321,32 +298,25 @@ struct CalendarDetailRow: View {
     let rightColor: Color
 
     var body: some View {
-        HStack {
+        HStack(spacing: 10) {
             Circle().fill(dotColor).frame(width: 8, height: 8)
             VStack(alignment: .leading, spacing: 2) {
                 Text(label)
-                    .v21Style(.bodyMedium)
-                    .fontWeight(.medium)
-                    .foregroundColor(V21.textPrimary)
+                    .v32Text(.title)
+                    .foregroundStyle(V32.textPrimary)
                 Text(sublabel)
-                    .v21Style(.labelSmall)
-                    .foregroundColor(V21.textTertiary)
+                    .v32Text(.caption)
+                    .foregroundStyle(V32.textTertiary)
+                    .lineLimit(1)
             }
-            Spacer()
+            Spacer(minLength: 8)
             if !rightText.isEmpty {
                 Text(rightText)
-                    .v21Style(.titleSmall)
-                    .fontWeight(.semibold)
-                    .foregroundColor(rightColor)
+                    .v32Text(.headline)
+                    .foregroundStyle(rightColor)
             }
         }
-        .padding(.vertical, 10)
-    }
-}
-
-struct DividerLine: View {
-    var body: some View {
-        Rectangle().fill(V21.divider).frame(height: 1)
+        .padding(.vertical, 12)
     }
 }
 

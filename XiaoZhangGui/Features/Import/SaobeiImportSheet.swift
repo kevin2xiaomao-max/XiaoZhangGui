@@ -53,108 +53,217 @@ struct SaobeiImportSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    Button {
-                        showPicker = true
-                    } label: {
-                        Label("选择扫呗导出文件", systemImage: "square.and.arrow.down")
-                    }
-                    Text("优先 CSV。Excel 会尝试解析；失败时请另存为 CSV。")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    if demo.isEnabled {
-                        Button {
-                            loadDemoPreview()
-                        } label: {
-                            Label("查看扫呗 Demo 预览", systemImage: "sparkles")
-                        }
-                        Text("演示模式只展示完整流程，确认后也不会写入真实数据库。")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                if isParsing {
-                    Section { ProgressView("正在解析…") }
-                }
-
-                if let errorText {
-                    Section("无法导入") {
-                        Text(errorText).foregroundStyle(.red)
-                    }
-                }
-
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                header
+                pickerCard
+                if isParsing { parsingCard }
+                if let errorText { errorCard(errorText) }
                 if let parseResult {
-                    Section("文件概览") {
-                        LabeledContent("文件", value: parseResult.sourceFileName)
-                        LabeledContent("文件记录", value: "\(fileCount) 笔")
-                        LabeledContent("有效交易", value: "\(validCount) 笔")
-                        LabeledContent("重复", value: "\(displayDuplicateCount) 笔")
-                        LabeledContent("新增", value: "\(displayNewCount) 笔")
-                        LabeledContent("新增金额", value: Fmt.money(displayAmount))
-                        if !parseResult.errors.isEmpty {
-                            Text("\(parseResult.errors.count) 行无法解析")
-                                .foregroundStyle(.orange)
-                        }
-                    }
+                    overviewCard(parseResult)
+                    if !parseResult.errors.isEmpty { errorsCard(parseResult.errors) }
+                    newRowsCard
+                }
+                if let commitResult { resultCard(commitResult) }
+                V32PrimaryButton(title: "确认导入", systemName: "tray.and.arrow.down") { commit() }
+                    .disabled(displayNewCount == 0 || commitResult != nil)
+                    .opacity((displayNewCount == 0 || commitResult != nil) ? 0.5 : 1)
+            }
+            .padding(.horizontal, V32Layout.pageMargin)
+            .padding(.top, 14)
+            .padding(.bottom, V32Layout.bottomPad)
+        }
+        .scrollIndicators(.hidden)
+        .v32PageBackground()
+        .v32Sheet([.large])
+        .fileImporter(
+            isPresented: $showPicker,
+            allowedContentTypes: Self.allowedTypes,
+            allowsMultipleSelection: false
+        ) { result in
+            handlePick(result)
+        }
+        .task {
+            if demo.isEnabled && parseResult == nil { loadDemoPreview() }
+        }
+    }
 
-                    if !parseResult.errors.isEmpty {
-                        Section("错误行") {
-                            ForEach(parseResult.errors.prefix(20), id: \.self) { Text($0).font(.footnote) }
-                        }
-                    }
+    private var header: some View {
+        ZStack {
+            Text("扫呗导入").v32Text(.headline).foregroundStyle(V32.textPrimary)
+            HStack {
+                Button("关闭") { dismiss() }
+                    .v32Text(.body)
+                    .foregroundStyle(V32.textTertiary)
+                Spacer()
+            }
+        }
+    }
 
-                    Section("将写入业绩") {
-                        if displayNewCount == 0 {
-                            Text("没有新的成功交易。重复导入不会让营业额翻倍。")
-                                .foregroundStyle(.secondary)
-                        } else {
-                            ForEach((isDemoPreview ? parseResult.rows : newRows).prefix(5)) { row in
-                                BusinessRow(
-                                    title: Fmt.money(row.amount),
-                                    subtitle: [Fmt.dateTime(row.date), row.paymentMethod, row.orderNo]
-                                        .filter { !$0.isEmpty }
-                                        .joined(separator: " · ")
-                                )
+    private var pickerCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            V32SecondaryButton(title: "选择扫呗导出文件", systemName: "square.and.arrow.down") {
+                showPicker = true
+            }
+            Text("优先 CSV。Excel 会尝试解析；失败时请另存为 CSV。")
+                .v32Text(.caption)
+                .foregroundStyle(V32.textTertiary)
+            if demo.isEnabled {
+                Button {
+                    loadDemoPreview()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "sparkles")
+                        Text("查看扫呗 Demo 预览").v32Text(.subhead)
+                    }
+                    .foregroundStyle(V32.brand)
+                }
+                .buttonStyle(.plain)
+                Text("演示模式只展示完整流程，确认后也不会写入真实数据库。")
+                    .v32Text(.caption)
+                    .foregroundStyle(V32.textTertiary)
+            }
+        }
+    }
+
+    private var parsingCard: some View {
+        V32Card {
+            HStack(spacing: 10) {
+                ProgressView().tint(V32.brand)
+                Text("正在解析…").v32Text(.body).foregroundStyle(V32.textSecondary)
+            }
+        }
+    }
+
+    private func errorCard(_ text: String) -> some View {
+        V32Card {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(V32.danger)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("无法导入").v32Text(.headline).foregroundStyle(V32.textPrimary)
+                    Text(text).v32Text(.subhead).foregroundStyle(V32.textSecondary)
+                }
+                Spacer()
+            }
+        }
+    }
+
+    private func overviewCard(_ result: SaobeiParseResult) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            V32SectionHeader("文件概览")
+            V32Card {
+                VStack(spacing: 0) {
+                    overviewRow("文件", value: result.sourceFileName)
+                    divider
+                    overviewRow("文件记录", value: "\(fileCount) 笔")
+                    divider
+                    overviewRow("有效交易", value: "\(validCount) 笔")
+                    divider
+                    overviewRow("重复", value: "\(displayDuplicateCount) 笔")
+                    divider
+                    overviewRow("新增", value: "\(displayNewCount) 笔")
+                    divider
+                    overviewRow("新增金额", value: Fmt.money(displayAmount), highlight: true)
+                    if !result.errors.isEmpty {
+                        divider
+                        HStack {
+                            Text("\(result.errors.count) 行无法解析")
+                                .v32Text(.subhead)
+                                .foregroundStyle(V32.amber)
+                            Spacer()
+                        }
+                        .padding(.vertical, 10)
+                    }
+                }
+            }
+        }
+    }
+
+    private func overviewRow(_ label: String, value: String, highlight: Bool = false) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label).v32Text(.subhead).foregroundStyle(V32.textTertiary)
+            Spacer(minLength: 12)
+            Text(value)
+                .v32Text(highlight ? .headline : .body)
+                .foregroundStyle(highlight ? V32.brand : V32.textPrimary)
+                .multilineTextAlignment(.trailing)
+        }
+        .padding(.vertical, 10)
+    }
+
+    private var divider: some View {
+        Rectangle().fill(V32.divider).frame(height: 1)
+    }
+
+    private func errorsCard(_ errors: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            V32SectionHeader("错误行")
+            V32Card {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(Array(errors.prefix(20).enumerated()), id: \.offset) { _, line in
+                        Text(line)
+                            .v32Text(.caption)
+                            .foregroundStyle(V32.textSecondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+        }
+    }
+
+    private var newRowsCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            V32SectionHeader("将写入业绩")
+            V32Card {
+                if displayNewCount == 0 {
+                    Text("没有新的成功交易。重复导入不会让营业额翻倍。")
+                        .v32Text(.subhead)
+                        .foregroundStyle(V32.textTertiary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 8)
+                } else {
+                    VStack(spacing: 0) {
+                        ForEach(Array((isDemoPreview ? (parseResult?.rows ?? []) : newRows).prefix(5).enumerated()), id: \.offset) { index, row in
+                            if index > 0 { divider }
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(Fmt.money(row.amount))
+                                    .v32Text(.headline)
+                                    .foregroundStyle(V32.textPrimary)
+                                Text([Fmt.dateTime(row.date), row.paymentMethod, row.orderNo]
+                                    .filter { !$0.isEmpty }
+                                    .joined(separator: " · "))
+                                    .v32Text(.caption)
+                                    .foregroundStyle(V32.textTertiary)
+                                    .lineLimit(1)
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 10)
                         }
                     }
                 }
+            }
+        }
+    }
 
-                if let commitResult {
-                    Section("导入结果") {
-                        LabeledContent("新增", value: "\(commitResult.inserted)")
-                        LabeledContent("重复", value: "\(commitResult.duplicates)")
-                        LabeledContent("未计入", value: "\(commitResult.skippedFailed)")
-                        if demo.isEnabled {
-                            Label("Demo 导入完成，真实数据未发生变化", systemImage: "checkmark.shield")
-                                .foregroundStyle(V21.brandGreen)
-                        }
+    private func resultCard(_ result: SaobeiImportCommitResult) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            V32SectionHeader("导入结果")
+            V32Card {
+                VStack(spacing: 0) {
+                    overviewRow("新增", value: "\(result.inserted)")
+                    divider
+                    overviewRow("重复", value: "\(result.duplicates)")
+                    divider
+                    overviewRow("未计入", value: "\(result.skippedFailed)")
+                    if demo.isEnabled {
+                        divider
+                        Label("Demo 导入完成，真实数据未发生变化", systemImage: "checkmark.shield")
+                            .v32Text(.subhead)
+                            .foregroundStyle(V32.brand)
+                            .padding(.vertical, 10)
                     }
                 }
-            }
-            .navigationTitle("扫呗导入")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("确认导入") { commit() }
-                        .disabled(displayNewCount == 0 || commitResult != nil)
-                }
-            }
-            .fileImporter(
-                isPresented: $showPicker,
-                allowedContentTypes: Self.allowedTypes,
-                allowsMultipleSelection: false
-            ) { result in
-                handlePick(result)
-            }
-            .task {
-                if demo.isEnabled && parseResult == nil { loadDemoPreview() }
             }
         }
     }

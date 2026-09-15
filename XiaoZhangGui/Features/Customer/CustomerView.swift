@@ -187,14 +187,6 @@ extension CustomerRequest {
     var displaySubtitle: String {
         DisplayText.joined(displayCustomerName, roomOrAddress)
     }
-
-    var badgeTone: StatusBadge.Tone {
-        switch statusEnum {
-        case .pending: return .warning
-        case .delivering: return .accent
-        case .done: return .success
-        }
-    }
 }
 
 enum CustomerFilter: String, CaseIterable, Identifiable, Hashable {

@@ -468,38 +468,74 @@ private struct HomeAvatar: View {
 // MARK: - 头像选择 Sheet（功能保留）
 
 private struct AvatarPickerSheet: View {
+    @Environment(\.dismiss) private var dismiss
     let settings: AppSettings
     @Binding var selectedItem: PhotosPickerItem?
     @State private var customEmoji = ""
     private let emojis = ["😀", "😎", "🥰", "🐼", "🐶", "🏪", "☕️"]
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("选择 Emoji") {
-                    HStack(spacing: 8) {
-                        ForEach(emojis, id: \.self) { emoji in
-                            Button(emoji) { settings.avatarImageData = nil; settings.avatarEmoji = emoji }
-                                .font(.title2)
-                                .frame(minWidth: 40, minHeight: 44)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                header
+                VStack(alignment: .leading, spacing: 10) {
+                    V32SectionHeader("选择 Emoji")
+                    V32Card {
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 5), spacing: 10) {
+                            ForEach(emojis, id: \.self) { emoji in
+                                Button {
+                                    settings.avatarImageData = nil
+                                    settings.avatarEmoji = emoji
+                                    Haptic.light()
+                                } label: {
+                                    Text(emoji)
+                                        .font(.system(size: 22))
+                                        .frame(width: 48, height: 48)
+                                        .background(
+                                            Circle().fill(settings.avatarImageData == nil && settings.avatarEmoji == emoji
+                                                         ? V32.brandSoft : V32.pageBGSecondary)
+                                        )
+                                }
+                                .buttonStyle(.plain)
+                            }
                         }
                     }
-                    TextField("自定义 Emoji", text: $customEmoji)
-                        .onSubmit(addEmoji)
-                }
-                Section {
-                    PhotosPicker(selection: $selectedItem, matching: .images) {
-                        Label("从相册选择", systemImage: "photo")
+                    V32Card {
+                        TextField("自定义 Emoji", text: $customEmoji)
+                            .v32Text(.body)
+                            .foregroundStyle(V32.textPrimary)
+                            .tint(V32.brand)
+                            .onSubmit(addEmoji)
                     }
                 }
+                V32SecondaryButton(title: "从相册选择", systemName: "photo") { showPhotoPicker = true }
             }
-            .navigationTitle("我的头像")
-            .navigationBarTitleDisplayMode(.inline)
-            .onChange(of: selectedItem) { _, item in
-                guard let item else { return }
-                Task {
-                    if let data = try? await item.loadTransferable(type: Data.self) { settings.avatarImageData = data }
-                }
+            .padding(.horizontal, V32Layout.pageMargin)
+            .padding(.top, 14)
+            .padding(.bottom, V32Layout.bottomPad)
+        }
+        .scrollIndicators(.hidden)
+        .v32PageBackground()
+        .v32Sheet([.medium, .large])
+        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedItem, matching: .images)
+        .onChange(of: selectedItem) { _, item in
+            guard let item else { return }
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self) { settings.avatarImageData = data }
+            }
+        }
+    }
+
+    @State private var showPhotoPicker = false
+
+    private var header: some View {
+        ZStack {
+            Text("我的头像").v32Text(.headline).foregroundStyle(V32.textPrimary)
+            HStack {
+                Button("完成") { dismiss() }
+                    .v32Text(.body)
+                    .foregroundStyle(V32.textTertiary)
+                Spacer()
             }
         }
     }
