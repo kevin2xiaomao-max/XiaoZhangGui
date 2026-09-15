@@ -10,59 +10,82 @@ struct ExpiryView: View {
     private var stats: ExpiryStats { ExpiryStats(items: items) }
 
     var body: some View {
-        List {
-            Section {
-                HStack(spacing: Tokens.Space.sm) {
-                    ExpiryStatCard(count: stats.urgentCount, label: "3天内到期", color: .red)
-                    ExpiryStatCard(count: stats.warningCount, label: "7天内到期", color: .orange)
-                    ExpiryStatCard(count: stats.safeCount, label: "30天内到期", color: .green)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                V32PageHeader("临期提醒") {
+                    V32ToolButton(systemName: "plus") { showNewEditor = true }
                 }
-                .listRowInsets(EdgeInsets(top: 8, leading: Tokens.Space.page, bottom: 8, trailing: Tokens.Space.page))
-                .listRowBackground(Color.clear)
-            }
-            if items.isEmpty {
-                AppEmptyState(title: "暂无临期商品", systemImage: "shippingbox")
-            } else {
-                ForEach(stats.groups, id: \.group.label) { bucket in
-                    Section(bucket.group.label) {
-                        ForEach(bucket.items) { item in
-                            Button { editingItem = item } label: {
-                                BusinessRow(
-                                    title: "\(item.name) ×\(item.quantity)",
-                                    subtitle: "到期 \(Fmt.formatDate(item.expiryDate))",
-                                    badge: item.status.rawValue,
-                                    badgeTone: item.daysLeft() <= 1 ? .danger : .warning
-                                )
-                            }
-                            .buttonStyle(.plain)
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                Button(role: .destructive) { delete(item) } label: {
-                                    Label("删除", systemImage: "trash")
-                                }
-                                Button { toggleReturn(item) } label: {
-                                    if item.status == .returned {
-                                        Label("恢复", systemImage: "arrow.counterclockwise")
-                                    } else {
-                                        Label("退货", systemImage: "arrow.uturn.left")
+                statCard
+                if items.isEmpty {
+                    V32Card {
+                        V32EmptyState(systemName: "shippingbox", title: "暂无临期商品", message: nil)
+                            .padding(.vertical, 8)
+                    }
+                } else {
+                    ForEach(stats.groups, id: \.group.label) { bucket in
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(bucket.group.label)
+                                .v32Text(.caption)
+                                .foregroundStyle(V32.textTertiary)
+                                .padding(.leading, 4)
+                            V32Card(padding: 4) {
+                                VStack(spacing: 0) {
+                                    ForEach(Array(bucket.items.enumerated()), id: \.element.persistentModelID) { index, item in
+                                        if index > 0 { Rectangle().fill(V32.divider).frame(height: 1).padding(.leading, 48) }
+                                        ExpiryRow(
+                                            item: item,
+                                            group: bucket.group,
+                                            onEdit: { editingItem = item },
+                                            onToggleReturn: { toggleReturn(item) },
+                                            onDelete: { delete(item) }
+                                        )
                                     }
                                 }
-                                .tint(.orange)
                             }
                         }
                     }
                 }
             }
+            .padding(.horizontal, V32Layout.pageMargin)
+            .padding(.top, 8)
+            .padding(.bottom, V32Layout.bottomPad)
         }
-        .listStyle(.insetGrouped)
-        .bottomDockPadding()
-        .navigationTitle("临期提醒")
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { showNewEditor = true } label: { Image(systemName: "plus") }
-            }
-        }
+        .scrollIndicators(.hidden)
+        .v32PageBackground()
+        .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showNewEditor) { ExpiryEditorSheet(item: nil) }
         .sheet(item: $editingItem) { ExpiryEditorSheet(item: $0) }
+    }
+
+    // MARK: 三格统计
+
+    private var statCard: some View {
+        V32Card {
+            HStack(spacing: 8) {
+                statCell(count: stats.urgentCount, label: "3天内到期", color: V32.danger)
+                statDivider
+                statCell(count: stats.warningCount, label: "7天内到期", color: V32.amber)
+                statDivider
+                statCell(count: stats.safeCount, label: "30天内到期", color: V32.brand)
+            }
+        }
+    }
+
+    private var statDivider: some View {
+        Rectangle().fill(V32.divider).frame(width: 1, height: 36)
+    }
+
+    private func statCell(count: Int, label: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("\(count)")
+                .v32Text(.metric)
+                .foregroundStyle(color)
+                .monospacedDigit()
+            Text(label)
+                .v32Text(.caption)
+                .foregroundStyle(V32.textTertiary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func delete(_ item: ExpiryItem) {
@@ -71,27 +94,84 @@ struct ExpiryView: View {
     }
 
     private func toggleReturn(_ item: ExpiryItem) {
+        Haptic.light()
         try? ExpiryRepository(context: context).toggleReturn(item)
     }
 }
 
-struct ExpiryStatCard: View {
-    let count: Int
-    let label: String
-    let color: Color
+// MARK: - 临期行
+
+private struct ExpiryRow: View {
+    let item: ExpiryItem
+    let group: ExpiryGroup
+    let onEdit: () -> Void
+    let onToggleReturn: () -> Void
+    let onDelete: () -> Void
+
+    private var tone: V32BubbleTone {
+        switch group {
+        case .expired, .urgent3: return .danger
+        case .urgent7: return .amber
+        case .safe30: return .brand
+        case .later, .returned: return .neutral
+        }
+    }
+
+    private var badgeStatus: V32Status {
+        switch group {
+        case .expired, .urgent3: return .expiry
+        case .urgent7: return .expiry
+        case .safe30: return .done
+        case .later: return .pending
+        case .returned: return .done
+        }
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text("\(count)")
-                .font(.title2.weight(.semibold))
-                .foregroundStyle(color)
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                V32IconBubble(systemName: "clock.badge.exclamationmark", tone: tone, size: 34, icon: 15)
+                Button(action: onEdit) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("\(item.name) ×\(item.quantity)")
+                            .v32Text(.title)
+                            .foregroundStyle(V32.textPrimary)
+                            .lineLimit(2)
+                        Text("到期 \(Fmt.formatDate(item.expiryDate))")
+                            .v32Text(.caption)
+                            .foregroundStyle(V32.textTertiary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                V32StatusPill(text: ExpiryBadge.text(for: item), status: badgeStatus)
+            }
+            HStack(spacing: 6) {
+                Spacer().frame(width: 46)
+                Button(action: onToggleReturn) {
+                    Label(item.status == .returned ? "恢复" : "退货",
+                          systemImage: item.status == .returned ? "arrow.counterclockwise" : "arrow.uturn.left")
+                        .v32Text(.pill)
+                        .foregroundStyle(V32.amber)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Capsule().fill(V32.amberSoft))
+                        .labelStyle(.titleAndIcon)
+                }
+                .buttonStyle(.plain)
+                Button(action: onDelete) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(V32.textQuaternary)
+                        .frame(width: 30, height: 30)
+                        .background(Circle().fill(V32.pageBGSecondary))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("删除")
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: V21Layout.radiusMD, style: .continuous))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
     }
 }

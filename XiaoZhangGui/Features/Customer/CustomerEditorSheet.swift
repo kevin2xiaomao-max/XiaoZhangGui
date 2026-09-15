@@ -1,11 +1,10 @@
 import SwiftUI
 
-// MARK: - 配送需求新增/编辑 Sheet
+// MARK: - 配送需求新增/编辑 Sheet（V32）
 
 struct CustomerEditorSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
-    @Environment(AppSettings.self) private var settings
 
     /// nil = 新增
     let request: CustomerRequest?
@@ -25,122 +24,117 @@ struct CustomerEditorSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: V21Layout.spaceXL) {
-                    contentField
-                    field("配送地址 / 别墅地址", placeholder: "例：清泉八街24号", text: $roomOrAddress)
-                    field("联系电话（选填）", placeholder: "请输入联系电话", text: $phone)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                header
+                contentCard
+                addressCard
+                timeCard
+                noteCard
+                imageCard
+                V32PrimaryButton(title: "保存", systemName: "checkmark") { save() }
+                    .disabled(!canSave)
+                    .opacity(canSave ? 1 : 0.5)
+            }
+            .padding(.horizontal, V32Layout.pageMargin)
+            .padding(.top, 14)
+            .padding(.bottom, V32Layout.bottomPad)
+        }
+        .scrollIndicators(.hidden)
+        .v32PageBackground()
+        .v32Sheet([.large])
+        .onAppear(perform: initializeIfNeeded)
+    }
+
+    private var header: some View {
+        ZStack {
+            Text(request == nil ? "新增配送需求" : "编辑配送需求")
+                .v32Text(.headline)
+                .foregroundStyle(V32.textPrimary)
+            HStack {
+                Button("取消") { dismiss() }
+                    .v32Text(.body)
+                    .foregroundStyle(V32.textTertiary)
+                Spacer()
+            }
+        }
+    }
+
+    private var contentCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            V32SectionHeader("购买内容")
+            V32Card {
+                TextField("例：矿泉水2箱、啤酒10瓶、纸巾2包", text: $content, axis: .vertical)
+                    .v32Text(.body)
+                    .foregroundStyle(V32.textPrimary)
+                    .tint(V32.brand)
+                    .lineLimit(3...6)
+            }
+        }
+    }
+
+    private var addressCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            V32SectionHeader("地址与联系")
+            V32Card {
+                VStack(alignment: .leading, spacing: 12) {
+                    TextField("配送地址 / 别墅地址，例：清泉八街24号", text: $roomOrAddress)
+                        .v32Text(.body)
+                        .foregroundStyle(V32.textPrimary)
+                        .tint(V32.brand)
+                    Rectangle().fill(V32.divider).frame(height: 1)
+                    TextField("联系电话（选填）", text: $phone)
+                        .v32Text(.body)
+                        .foregroundStyle(V32.textSecondary)
+                        .tint(V32.brand)
                         .keyboardType(.phonePad)
-                    deliveryTimeSection
-                    noteField
-                    imageSection
-                }
-                .padding(.horizontal, V21Layout.pageMargin)
-                .padding(.top, V21Layout.spaceLG)
-                .padding(.bottom, 48)
-            }
-            .navigationTitle(request == nil ? "新增配送需求" : "编辑配送需求")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
-                        .foregroundColor(V21.textTertiary)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") { save() }
-                        .fontWeight(.semibold)
-                        .foregroundColor(canSave ? AppTheme.palette(named: settings.appThemeName).accent : V21.textQuaternary)
-                        .disabled(!canSave)
                 }
             }
-            .onAppear(perform: initializeIfNeeded)
         }
     }
 
-    private func field(_ label: String, placeholder: String, text: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(label)
-                .v21Style(.labelLarge)
-                .foregroundColor(V21.textTertiary)
-            TextField(placeholder, text: text)
-                .v21Style(.bodyLarge)
-                .foregroundColor(V21.textPrimary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background {
-                    RoundedRectangle(cornerRadius: V21Layout.radiusMD, style: .continuous)
-                        .fill(V21.surfaceGlass)
+    private var timeCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            V32SectionHeader("配送时间")
+            V32Card {
+                VStack(spacing: 12) {
+                    HStack {
+                        Text("设置配送时间")
+                            .v32Text(.title)
+                            .foregroundStyle(V32.textPrimary)
+                        Spacer()
+                        Toggle("", isOn: $hasDeliveryTime)
+                            .labelsHidden()
+                            .tint(V32.brand)
+                    }
+                    if hasDeliveryTime {
+                        Rectangle().fill(V32.divider).frame(height: 1)
+                        DatePicker("送达时间", selection: $deliveryTime)
+                            .v32Text(.title)
+                            .tint(V32.brand)
+                    }
                 }
-                .overlay {
-                    RoundedRectangle(cornerRadius: V21Layout.radiusMD, style: .continuous)
-                        .strokeBorder(V21.dividerStrong, lineWidth: 1)
-                }
-        }
-    }
-
-    private var contentField: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("购买内容")
-                .v21Style(.labelLarge)
-                .foregroundColor(V21.textTertiary)
-            TextField("例：矿泉水2箱、啤酒10瓶、纸巾2包", text: $content, axis: .vertical)
-                .v21Style(.bodyMedium)
-                .foregroundColor(V21.textPrimary)
-                .lineLimit(3...6)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background {
-                    RoundedRectangle(cornerRadius: V21Layout.radiusMD, style: .continuous)
-                        .fill(V21.surfaceGlass)
-                }
-                .overlay {
-                    RoundedRectangle(cornerRadius: V21Layout.radiusMD, style: .continuous)
-                        .strokeBorder(V21.dividerStrong, lineWidth: 1)
-                }
-        }
-    }
-
-    private var deliveryTimeSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Toggle("配送时间（选填）", isOn: $hasDeliveryTime)
-                .v21Style(.labelLarge)
-            if hasDeliveryTime {
-                DatePicker("送达时间", selection: $deliveryTime)
-                    .datePickerStyle(.compact)
             }
         }
-        .foregroundColor(V21.textPrimary)
-        .padding(14)
-        .background {
-            RoundedRectangle(cornerRadius: V21Layout.radiusMD, style: .continuous)
-                .fill(V21.surfaceGlass)
+    }
+
+    private var noteCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            V32SectionHeader("备注")
+            V32Card {
+                TextField("例：到了打电话 / 放门口 / 晚上8点送", text: $note, axis: .vertical)
+                    .v32Text(.body)
+                    .foregroundStyle(V32.textSecondary)
+                    .tint(V32.brand)
+                    .lineLimit(2...5)
+            }
         }
     }
 
-    private var noteField: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("备注（选填）")
-                .v21Style(.labelLarge)
-                .foregroundColor(V21.textTertiary)
-            TextField("例：到了打电话 / 放门口 / 晚上8点送", text: $note, axis: .vertical)
-                .v21Style(.bodyMedium)
-                .lineLimit(2...5)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background {
-                    RoundedRectangle(cornerRadius: V21Layout.radiusMD, style: .continuous)
-                        .fill(V21.surfaceGlass)
-                }
-        }
-    }
-
-    private var imageSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("图片（可选）")
-                .v21Style(.labelLarge)
-                .foregroundColor(V21.textTertiary)
-            PhotoPickerField(imageData: imageData) { imageData = $0 }
+    private var imageCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            V32SectionHeader("图片")
+            V32Card { PhotoPickerField(imageData: imageData) { imageData = $0 } }
         }
     }
 

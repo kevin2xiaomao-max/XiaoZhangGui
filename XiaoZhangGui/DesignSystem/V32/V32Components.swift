@@ -4,6 +4,128 @@ import SwiftUI
 // 基准：已确认的首页/日程设计稿。白卡细描边少阴影、深墨绿 hero、
 // 圆形勾选、浅底图标泡、点式状态胶囊、大留白大圆角。
 
+// MARK: 二级页头（返回 + 标题 + 右侧操作）
+
+struct V32PageHeader<Trailing: View>: View {
+    let title: String
+    var subtitle: String?
+    @ViewBuilder var trailing: Trailing
+    @Environment(\.dismiss) private var dismiss
+
+    init(_ title: String, subtitle: String? = nil, @ViewBuilder trailing: () -> Trailing = { EmptyView() }) {
+        self.title = title
+        self.subtitle = subtitle
+        self.trailing = trailing()
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 10) {
+            Button { dismiss() } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(V32.textPrimary)
+                    .frame(width: V32Layout.toolCircle, height: V32Layout.toolCircle)
+                    .background(Circle().fill(V32.pageBGSecondary))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("返回")
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .v32Text(.pageTitle)
+                    .foregroundStyle(V32.textPrimary)
+                    .lineLimit(1)
+                if let subtitle {
+                    Text(subtitle)
+                        .v32Text(.caption)
+                        .foregroundStyle(V32.textTertiary)
+                }
+            }
+            Spacer(minLength: 8)
+            trailing
+        }
+    }
+}
+
+// MARK: 深色圆形工具钮（页头加号等）
+
+struct V32ToolButton: View {
+    let systemName: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: V32Layout.toolCircle, height: V32Layout.toolCircle)
+                .background(Circle().fill(V32.hero))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: 搜索框
+
+struct V32SearchField: View {
+    let placeholder: String
+    @Binding var text: String
+
+    var body: some View {
+        V32Card(padding: 0) {
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(V32.textTertiary)
+                TextField(placeholder, text: $text)
+                    .v32Text(.body)
+                    .foregroundStyle(V32.textPrimary)
+                    .tint(V32.brand)
+                if !text.isEmpty {
+                    Button { text = "" } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 15))
+                            .foregroundStyle(V32.textQuaternary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 14)
+            .frame(minHeight: 46)
+        }
+    }
+}
+
+// MARK: 横向分类胶囊条
+
+struct V32PillBar: View {
+    let items: [String]
+    @Binding var selection: String
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(items, id: \.self) { item in
+                    let selected = selection == item
+                    Button {
+                        withAnimation(.easeOut(duration: 0.15)) { selection = item }
+                        Haptic.light()
+                    } label: {
+                        Text(item)
+                            .v32Text(.caption)
+                            .fontWeight(selected ? .bold : .regular)
+                            .foregroundStyle(selected ? V32.brand : V32.textSecondary)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(Capsule().fill(selected ? V32.brandSoft : V32.pageBGSecondary))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.vertical, 2)
+        }
+    }
+}
+
 // MARK: 普通卡片
 
 struct V32Card<Content: View>: View {

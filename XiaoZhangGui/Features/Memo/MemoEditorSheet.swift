@@ -1,11 +1,10 @@
 import SwiftUI
 
-// MARK: - 备忘新增/编辑 Sheet（标题 ≤100 / 内容 ≤2000 / 图片）
+// MARK: - 备忘新增/编辑 Sheet（V32；标题 ≤100 / 内容 ≤2000 / 图片）
 
 struct MemoEditorSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
-    @Environment(AppSettings.self) private var settings
 
     /// nil = 新增
     let memo: Memo?
@@ -21,84 +20,69 @@ struct MemoEditorSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: V21Layout.spaceXL) {
-                    titleField
-                    contentField
-                    imageSection
-                }
-                .padding(.horizontal, V21Layout.pageMargin)
-                .padding(.top, V21Layout.spaceLG)
-                .padding(.bottom, 48)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                header
+                titleCard
+                contentCard
+                imageCard
+                V32PrimaryButton(title: "保存", systemName: "checkmark") { save() }
+                    .disabled(!canSave)
+                    .opacity(canSave ? 1 : 0.5)
             }
-            .navigationTitle(memo == nil ? "新增记录" : "编辑记录")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
-                        .foregroundColor(V21.textTertiary)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") { save() }
-                        .fontWeight(.semibold)
-                        .foregroundColor(canSave ? AppTheme.palette(named: settings.appThemeName).accent : V21.textQuaternary)
-                        .disabled(!canSave)
-                }
+            .padding(.horizontal, V32Layout.pageMargin)
+            .padding(.top, 14)
+            .padding(.bottom, V32Layout.bottomPad)
+        }
+        .scrollIndicators(.hidden)
+        .v32PageBackground()
+        .v32Sheet([.medium, .large])
+        .onAppear(perform: initializeIfNeeded)
+    }
+
+    private var header: some View {
+        ZStack {
+            Text(memo == nil ? "新增记录" : "编辑记录")
+                .v32Text(.headline)
+                .foregroundStyle(V32.textPrimary)
+            HStack {
+                Button("取消") { dismiss() }
+                    .v32Text(.body)
+                    .foregroundStyle(V32.textTertiary)
+                Spacer()
             }
-            .onAppear(perform: initializeIfNeeded)
         }
     }
 
-    private var titleField: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("标题")
-                .v21Style(.labelLarge)
-                .foregroundColor(V21.textTertiary)
-            TextField("记录标题", text: $title)
-                .v21Style(.bodyLarge)
-                .foregroundColor(V21.textPrimary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background {
-                    RoundedRectangle(cornerRadius: V21Layout.radiusMD, style: .continuous)
-                        .fill(V21.surfaceGlass)
-                }
-                .overlay {
-                    RoundedRectangle(cornerRadius: V21Layout.radiusMD, style: .continuous)
-                        .strokeBorder(V21.dividerStrong, lineWidth: 1)
-                }
+    private var titleCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            V32SectionHeader("标题")
+            V32Card {
+                TextField("记录标题", text: $title)
+                    .v32Text(.headline)
+                    .foregroundStyle(V32.textPrimary)
+                    .tint(V32.brand)
+            }
         }
     }
 
-    private var contentField: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("内容")
-                .v21Style(.labelLarge)
-                .foregroundColor(V21.textTertiary)
-            TextField("记点什么…", text: $content, axis: .vertical)
-                .v21Style(.bodyMedium)
-                .foregroundColor(V21.textPrimary)
-                .lineLimit(4...8)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background {
-                    RoundedRectangle(cornerRadius: V21Layout.radiusMD, style: .continuous)
-                        .fill(V21.surfaceGlass)
-                }
-                .overlay {
-                    RoundedRectangle(cornerRadius: V21Layout.radiusMD, style: .continuous)
-                        .strokeBorder(V21.dividerStrong, lineWidth: 1)
-                }
+    private var contentCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            V32SectionHeader("内容")
+            V32Card {
+                TextField("记点什么…", text: $content, axis: .vertical)
+                    .v32Text(.body)
+                    .foregroundStyle(V32.textSecondary)
+                    .tint(V32.brand)
+                    .lineLimit(4...8)
+            }
         }
     }
 
-    private var imageSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("图片（可选）")
-                .v21Style(.labelLarge)
-                .foregroundColor(V21.textTertiary)
-            PhotoPickerField(imageData: imageData) { imageData = $0 }
+    private var imageCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            V32SectionHeader("图片")
+            V32Card { PhotoPickerField(imageData: imageData) { imageData = $0 } }
         }
     }
 

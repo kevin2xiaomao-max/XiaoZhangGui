@@ -1,11 +1,10 @@
 import SwiftUI
 
-// MARK: - 临期商品新增/编辑 Sheet（名称/数量/到期日期/提前提醒/备注/图片 + 退货/恢复）
+// MARK: - 临期商品新增/编辑 Sheet（V32）
 
 struct ExpiryEditorSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
-    @Environment(AppSettings.self) private var settings
 
     /// nil = 新增
     let item: ExpiryItem?
@@ -29,92 +28,78 @@ struct ExpiryEditorSheet: View {
     private static let remindOptions = [3, 7, 15]
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: V21Layout.spaceXL) {
-                    nameField
-                    quantityField
-                    expirySection
-                    remindSection
-                    noteField
-                    imageSection
-                }
-                .padding(.horizontal, V21Layout.pageMargin)
-                .padding(.top, V21Layout.spaceLG)
-                .padding(.bottom, 48)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                header
+                nameCard
+                quantityCard
+                expiryCard
+                remindCard
+                noteCard
+                imageCard
+                V32PrimaryButton(title: "保存", systemName: "checkmark") { save() }
+                    .disabled(!canSave)
+                    .opacity(canSave ? 1 : 0.5)
             }
-            .navigationTitle(item == nil ? "新增临期商品" : "编辑临期商品")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
-                        .foregroundColor(V21.textTertiary)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") { save() }
-                        .fontWeight(.semibold)
-                        .foregroundColor(canSave ? AppTheme.palette(named: settings.appThemeName).accent : V21.textQuaternary)
-                        .disabled(!canSave)
-                }
-            }
-            .onAppear(perform: initializeIfNeeded)
+            .padding(.horizontal, V32Layout.pageMargin)
+            .padding(.top, 14)
+            .padding(.bottom, V32Layout.bottomPad)
         }
+        .scrollIndicators(.hidden)
+        .v32PageBackground()
+        .v32Sheet([.large])
+        .onAppear(perform: initializeIfNeeded)
     }
 
-    private var nameField: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("商品名称")
-                .v21Style(.labelLarge)
-                .foregroundColor(V21.textTertiary)
-            TextField("例如：牛奶 250ml", text: $name)
-                .v21Style(.bodyLarge)
-                .foregroundColor(V21.textPrimary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background {
-                    RoundedRectangle(cornerRadius: V21Layout.radiusMD, style: .continuous)
-                        .fill(V21.surfaceGlass)
-                }
-                .overlay {
-                    RoundedRectangle(cornerRadius: V21Layout.radiusMD, style: .continuous)
-                        .strokeBorder(V21.dividerStrong, lineWidth: 1)
-                }
-        }
-    }
-
-    private var quantityField: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("数量")
-                .v21Style(.labelLarge)
-                .foregroundColor(V21.textTertiary)
-            Stepper(value: Binding(
-                get: { max(quantity, 1) },
-                set: { quantityText = String($0) }
-            ), in: 1...9999) {
-                TextField("1", text: $quantityText)
-                    .keyboardType(.numberPad)
-                    .v21Style(.bodyLarge)
-                    .foregroundColor(V21.textPrimary)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background {
-                RoundedRectangle(cornerRadius: V21Layout.radiusMD, style: .continuous)
-                    .fill(V21.surfaceGlass)
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: V21Layout.radiusMD, style: .continuous)
-                    .strokeBorder(V21.dividerStrong, lineWidth: 1)
+    private var header: some View {
+        ZStack {
+            Text(item == nil ? "新增临期商品" : "编辑临期商品")
+                .v32Text(.headline)
+                .foregroundStyle(V32.textPrimary)
+            HStack {
+                Button("取消") { dismiss() }
+                    .v32Text(.body)
+                    .foregroundStyle(V32.textTertiary)
+                Spacer()
             }
         }
     }
 
-    private var expirySection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("到期日期")
-                .v21Style(.labelLarge)
-                .foregroundColor(V21.textTertiary)
-            GlassSurface {
+    private var nameCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            V32SectionHeader("商品名称")
+            V32Card {
+                TextField("例如：牛奶 250ml", text: $name)
+                    .v32Text(.body)
+                    .foregroundStyle(V32.textPrimary)
+                    .tint(V32.brand)
+            }
+        }
+    }
+
+    private var quantityCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            V32SectionHeader("数量")
+            V32Card {
+                Stepper(value: Binding(
+                    get: { max(quantity, 1) },
+                    set: { quantityText = String($0) }
+                ), in: 1...9999) {
+                    TextField("1", text: $quantityText)
+                        .v32Text(.headline)
+                        .foregroundStyle(V32.textPrimary)
+                        .tint(V32.brand)
+                        .keyboardType(.numberPad)
+                }
+                .tint(V32.brand)
+            }
+        }
+    }
+
+    private var expiryCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            V32SectionHeader("到期日期")
+            V32Card {
                 DatePicker(
                     "到期",
                     selection: $expiryDate,
@@ -122,74 +107,40 @@ struct ExpiryEditorSheet: View {
                     displayedComponents: .date
                 )
                 .datePickerStyle(.graphical)
-                .font(.system(size: 15, weight: .medium))
-                .padding(12)
+                .tint(V32.brand)
             }
         }
     }
 
-    private var remindSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("提前提醒")
-                .v21Style(.labelLarge)
-                .foregroundColor(V21.textTertiary)
-            HStack(spacing: 6) {
-                ForEach(Self.remindOptions, id: \.self) { days in
-                    let selected = remindDays == days
-                    Button {
-                        remindDays = days
-                        Haptic.light()
-                    } label: {
-                        Text("\(days) 天")
-                            .font(.system(size: 13, weight: selected ? .semibold : .medium))
-                            .foregroundColor(selected ? V21.textPrimary : V21.tabInactive)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background {
-                                Capsule(style: .continuous)
-                                    .fill(selected ? AnyShapeStyle(V21.surfaceElevated) : AnyShapeStyle(.clear))
-                            }
-                            .overlay {
-                                if selected {
-                                    Capsule(style: .continuous)
-                                        .strokeBorder(V21.dividerStrong, lineWidth: 1)
-                                }
-                            }
-                    }
-                    .buttonStyle(.plain)
-                }
-                Spacer()
+    private var remindCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            V32SectionHeader("提前提醒")
+            V32SegmentedPicker(
+                tabs: Self.remindOptions.map { "\($0) 天" },
+                selectionIndex: Binding(
+                    get: { Self.remindOptions.firstIndex(of: remindDays) ?? 1 },
+                    set: { remindDays = Self.remindOptions[$0] }
+                )
+            )
+        }
+    }
+
+    private var noteCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            V32SectionHeader("备注")
+            V32Card {
+                TextField("供应商、批次等", text: $note)
+                    .v32Text(.body)
+                    .foregroundStyle(V32.textSecondary)
+                    .tint(V32.brand)
             }
         }
     }
 
-    private var noteField: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("备注（可选）")
-                .v21Style(.labelLarge)
-                .foregroundColor(V21.textTertiary)
-            TextField("供应商、批次等", text: $note)
-                .v21Style(.bodyMedium)
-                .foregroundColor(V21.textPrimary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background {
-                    RoundedRectangle(cornerRadius: V21Layout.radiusMD, style: .continuous)
-                        .fill(V21.surfaceGlass)
-                }
-                .overlay {
-                    RoundedRectangle(cornerRadius: V21Layout.radiusMD, style: .continuous)
-                        .strokeBorder(V21.dividerStrong, lineWidth: 1)
-                }
-        }
-    }
-
-    private var imageSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("图片（可选）")
-                .v21Style(.labelLarge)
-                .foregroundColor(V21.textTertiary)
-            PhotoPickerField(imageData: imageData) { imageData = $0 }
+    private var imageCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            V32SectionHeader("图片")
+            V32Card { PhotoPickerField(imageData: imageData) { imageData = $0 } }
         }
     }
 

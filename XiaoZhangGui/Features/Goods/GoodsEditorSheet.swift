@@ -1,11 +1,10 @@
 import SwiftUI
 
-// MARK: - 临时商品新增/编辑 Sheet（名称/分类/条码/库存/价格/日期/保质期/备注/图片）
+// MARK: - 临时商品新增/编辑 Sheet（V32）
 
 struct GoodsEditorSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
-    @Environment(AppSettings.self) private var settings
 
     /// nil = 新增
     let goods: Goods?
@@ -31,236 +30,207 @@ struct GoodsEditorSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: V21Layout.spaceXL) {
-                    nameField
-                    categorySection
-                    barcodeField
-                    stockSection
-                    priceSection
-                    productionSection
-                    shelfLifeField
-                    expirySection
-                    noteField
-                    imageSection
-                }
-                .padding(.horizontal, V21Layout.pageMargin)
-                .padding(.top, V21Layout.spaceLG)
-                .padding(.bottom, 48)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                header
+                nameCard
+                categoryCard
+                barcodeCard
+                stockCard
+                priceCard
+                productionCard
+                shelfLifeCard
+                expiryCard
+                noteCard
+                imageCard
+                V32PrimaryButton(title: "保存", systemName: "checkmark") { save() }
+                    .disabled(!canSave)
+                    .opacity(canSave ? 1 : 0.5)
             }
-            .navigationTitle(goods == nil ? "新增商品" : "编辑商品")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
-                        .foregroundColor(V21.textTertiary)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") { save() }
-                        .fontWeight(.semibold)
-                        .foregroundColor(canSave ? AppTheme.palette(named: settings.appThemeName).accent : V21.textQuaternary)
-                        .disabled(!canSave)
-                }
-            }
-            .onAppear(perform: initializeIfNeeded)
+            .padding(.horizontal, V32Layout.pageMargin)
+            .padding(.top, 14)
+            .padding(.bottom, V32Layout.bottomPad)
         }
+        .scrollIndicators(.hidden)
+        .v32PageBackground()
+        .v32Sheet([.large])
+        .onAppear(perform: initializeIfNeeded)
     }
 
-    // MARK: - 输入区块
-
-    private var nameField: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("商品名称")
-                .v21Style(.labelLarge)
-                .foregroundColor(V21.textTertiary)
-            TextField("例如：农夫山泉 550ml", text: $name)
-                .v21Style(.bodyLarge)
-                .foregroundColor(V21.textPrimary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background { editorBackground }
-        }
-    }
-
-    private var categorySection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("分类")
-                .v21Style(.labelLarge)
-                .foregroundColor(V21.textTertiary)
-            HStack(spacing: 6) {
-                ForEach(GoodsCategory.known, id: \.self) { item in
-                    let selected = category == item
-                    Button {
-                        category = item
-                        Haptic.light()
-                    } label: {
-                        Text(item)
-                            .font(.system(size: 13, weight: selected ? .semibold : .medium))
-                            .foregroundColor(selected ? V21.textPrimary : V21.tabInactive)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background {
-                                Capsule(style: .continuous)
-                                    .fill(selected ? AnyShapeStyle(V21.surfaceElevated) : AnyShapeStyle(.clear))
-                            }
-                            .overlay {
-                                if selected {
-                                    Capsule(style: .continuous)
-                                        .strokeBorder(V21.dividerStrong, lineWidth: 1)
-                                }
-                            }
-                    }
-                    .buttonStyle(.plain)
-                }
+    private var header: some View {
+        ZStack {
+            Text(goods == nil ? "新增商品" : "编辑商品")
+                .v32Text(.headline)
+                .foregroundStyle(V32.textPrimary)
+            HStack {
+                Button("取消") { dismiss() }
+                    .v32Text(.body)
+                    .foregroundStyle(V32.textTertiary)
                 Spacer()
             }
         }
     }
 
-    private var barcodeField: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("条码（可选）")
-                .v21Style(.labelLarge)
-                .foregroundColor(V21.textTertiary)
-            TextField("扫码或输入", text: $barcode)
-                .keyboardType(.numbersAndPunctuation)
-                .v21Style(.bodyLarge)
-                .foregroundColor(V21.textPrimary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background { editorBackground }
+    private var nameCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            V32SectionHeader("商品名称")
+            V32Card {
+                TextField("例如：农夫山泉 550ml", text: $name)
+                    .v32Text(.body)
+                    .foregroundStyle(V32.textPrimary)
+                    .tint(V32.brand)
+            }
         }
     }
 
-    private var stockSection: some View {
-        HStack(spacing: 12) {
-            numberField("当前库存", text: $stockText)
-            numberField("最低库存", text: $minStockText)
+    private var categoryCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            V32SectionHeader("分类")
+            V32SegmentedPicker(
+                tabs: GoodsCategory.known,
+                selectionIndex: Binding(
+                    get: { GoodsCategory.known.firstIndex(of: category) ?? GoodsCategory.known.count - 1 },
+                    set: { category = GoodsCategory.known[$0] }
+                )
+            )
         }
     }
 
-    private var priceSection: some View {
-        HStack(spacing: 12) {
-            numberField("进货价", text: $purchaseText, decimal: true)
-            numberField("销售价", text: $saleText, decimal: true)
+    private var barcodeCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            V32SectionHeader("条码")
+            V32Card {
+                TextField("扫码或输入（可选）", text: $barcode)
+                    .v32Text(.body)
+                    .foregroundStyle(V32.textPrimary)
+                    .tint(V32.brand)
+                    .keyboardType(.numbersAndPunctuation)
+            }
         }
     }
 
-    private var productionSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("生产日期（可选）")
-                .v21Style(.labelLarge)
-                .foregroundColor(V21.textTertiary)
-            GlassSurface {
-                VStack(spacing: 0) {
-                    Toggle("设置生产日期", isOn: $hasProductionDate.animation(.easeOut(duration: 0.15)))
-                        .tint(AppTheme.palette(named: settings.appThemeName).accent)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 12)
+    private var stockCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            V32SectionHeader("库存")
+            V32Card {
+                HStack(spacing: 12) {
+                    numberField("当前库存", text: $stockText)
+                    Rectangle().fill(V32.divider).frame(width: 1, height: 36)
+                    numberField("最低库存", text: $minStockText)
+                }
+            }
+        }
+    }
+
+    private var priceCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            V32SectionHeader("价格")
+            V32Card {
+                HStack(spacing: 12) {
+                    numberField("进货价", text: $purchaseText, decimal: true)
+                    Rectangle().fill(V32.divider).frame(width: 1, height: 36)
+                    numberField("销售价", text: $saleText, decimal: true)
+                }
+            }
+        }
+    }
+
+    private var productionCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            V32SectionHeader("生产日期")
+            V32Card {
+                VStack(spacing: 12) {
+                    toggleRow("设置生产日期", isOn: $hasProductionDate)
                     if hasProductionDate {
-                        Divider().overlay(V21.divider)
+                        Rectangle().fill(V32.divider).frame(height: 1)
                         DatePicker("生产日期", selection: $productionDate, displayedComponents: .date)
-                            .datePickerStyle(.compact)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .font(.system(size: 15, weight: .medium))
+                            .v32Text(.title)
+                            .tint(V32.brand)
                     }
                 }
             }
         }
     }
 
-    private var shelfLifeField: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("保质期（天，可选）")
-                .v21Style(.labelLarge)
-                .foregroundColor(V21.textTertiary)
-            TextField("如 365", text: $shelfLifeText)
-                .keyboardType(.numberPad)
-                .v21Style(.bodyLarge)
-                .foregroundColor(V21.textPrimary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background { editorBackground }
+    private var shelfLifeCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            V32SectionHeader("保质期")
+            V32Card {
+                TextField("保质期天数，如 365（可选）", text: $shelfLifeText)
+                    .v32Text(.body)
+                    .foregroundStyle(V32.textPrimary)
+                    .tint(V32.brand)
+                    .keyboardType(.numberPad)
+            }
         }
     }
 
-    private var expirySection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("到期日期（可选）")
-                .v21Style(.labelLarge)
-                .foregroundColor(V21.textTertiary)
-            GlassSurface {
-                VStack(spacing: 0) {
-                    Toggle("设置到期日期", isOn: $hasExpiryDate.animation(.easeOut(duration: 0.15)))
-                        .tint(AppTheme.palette(named: settings.appThemeName).accent)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 12)
+    private var expiryCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            V32SectionHeader("到期日期")
+            V32Card {
+                VStack(spacing: 12) {
+                    toggleRow("设置到期日期", isOn: $hasExpiryDate)
                     if hasExpiryDate {
-                        Divider().overlay(V21.divider)
+                        Rectangle().fill(V32.divider).frame(height: 1)
                         DatePicker("到期日期", selection: $expiryDate, in: Date()..., displayedComponents: .date)
-                            .datePickerStyle(.compact)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .font(.system(size: 15, weight: .medium))
+                            .v32Text(.title)
+                            .tint(V32.brand)
                     }
                 }
             }
         }
     }
 
-    private var noteField: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("备注（可选）")
-                .v21Style(.labelLarge)
-                .foregroundColor(V21.textTertiary)
-            TextField("备注", text: $note, axis: .vertical)
-                .v21Style(.bodyMedium)
-                .foregroundColor(V21.textPrimary)
-                .lineLimit(2...4)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background { editorBackground }
+    private var noteCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            V32SectionHeader("备注")
+            V32Card {
+                TextField("备注（可选）", text: $note, axis: .vertical)
+                    .v32Text(.body)
+                    .foregroundStyle(V32.textSecondary)
+                    .tint(V32.brand)
+                    .lineLimit(2...4)
+            }
         }
     }
 
-    private var imageSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("商品图片（可选）")
-                .v21Style(.labelLarge)
-                .foregroundColor(V21.textTertiary)
-            PhotoPickerField(imageData: imageData) { imageData = $0 }
+    private var imageCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            V32SectionHeader("商品图片")
+            V32Card { PhotoPickerField(imageData: imageData) { imageData = $0 } }
         }
     }
 
-    // MARK: - 复用样式
+    // MARK: 复用
 
-    private var editorBackground: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: V21Layout.radiusMD, style: .continuous)
-                .fill(V21.surfaceGlass)
-            RoundedRectangle(cornerRadius: V21Layout.radiusMD, style: .continuous)
-                .strokeBorder(V21.dividerStrong, lineWidth: 1)
+    private func toggleRow(_ title: String, isOn: Binding<Bool>) -> some View {
+        HStack {
+            Text(title)
+                .v32Text(.title)
+                .foregroundStyle(V32.textPrimary)
+            Spacer()
+            Toggle("", isOn: isOn)
+                .labelsHidden()
+                .tint(V32.brand)
         }
     }
 
     private func numberField(_ label: String, text: Binding<String>, decimal: Bool = false) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 4) {
             Text(label)
-                .v21Style(.labelLarge)
-                .foregroundColor(V21.textTertiary)
+                .v32Text(.caption)
+                .foregroundStyle(V32.textTertiary)
             TextField(decimal ? "0.00" : "0", text: text)
+                .v32Text(.headline)
+                .foregroundStyle(V32.textPrimary)
+                .tint(V32.brand)
                 .keyboardType(decimal ? .decimalPad : .numberPad)
-                .v21Style(.bodyLarge)
-                .foregroundColor(V21.textPrimary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background { editorBackground }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    // MARK: - 逻辑
+    // MARK: 逻辑
 
     private func initializeIfNeeded() {
         guard !isInitialized else { return }
