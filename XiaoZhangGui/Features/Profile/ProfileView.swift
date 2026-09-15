@@ -100,7 +100,7 @@ struct ProfileView: View {
             }
 
             Section("数据与应用") {
-                settingsButton("banknote", "营业额记录", "\(performances.count) 条") { tab = .performance }
+                settingsButton("banknote", "营业额记录", "\(performances.count) 条") { toolRoute = "performance" }
                 ShareLink(item: exportJSON(), preview: SharePreview("你的小掌柜数据导出")) {
                     settingsLabel("square.and.arrow.down", "数据备份", "JSON")
                 }
@@ -126,6 +126,7 @@ struct ProfileView: View {
         .navigationDestination(item: $toolRoute) { route in
             switch route {
             case "calendar": CalendarView()
+            case "performance": PerformanceView()
             case "customer": CustomerView()
             case "expiry": ExpiryView()
             case "goods": GoodsView()

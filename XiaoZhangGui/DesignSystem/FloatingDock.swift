@@ -3,12 +3,12 @@ import SwiftUI
 // MARK: - 系统 Tab 标识
 
 enum AppTab: Hashable {
-    case home, todo, voice, performance, profile
+    case home, schedule, voice, todo, profile
 
     var title: String {
         switch self {
         case .home: return "首页"
-        case .performance: return "业绩"
+        case .schedule: return "日程"
         case .todo: return "待办"
         case .voice: return "语音"
         case .profile: return "我的"
@@ -18,7 +18,7 @@ enum AppTab: Hashable {
     var icon: String {
         switch self {
         case .home: return "house.fill"
-        case .performance: return "chart.line.uptrend.xyaxis"
+        case .schedule: return "calendar"
         case .todo: return "checkmark"
         case .voice: return "mic.circle.fill"
         case .profile: return "person.fill"

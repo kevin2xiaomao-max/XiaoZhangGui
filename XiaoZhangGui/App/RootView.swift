@@ -16,16 +16,16 @@ struct RootView: View {
                     HomeView(tab: $tab, showVoice: $showVoice, showsVoiceButton: canInitializeSpeechRecognizer)
                 }
             }
-            Tab("待办", systemImage: "checkmark.circle", value: AppTab.todo) {
-                NavigationStack { TodoView() }
+            Tab("日程", systemImage: "calendar", value: AppTab.schedule) {
+                NavigationStack { ScheduleView() }
             }
             Tab("语音", systemImage: "mic.fill", value: AppTab.voice, role: voiceTabRole) {
                 Color.clear
                     .accessibilityHidden(true)
                     .accessibilityLabel("语音")
             }
-            Tab("业绩", systemImage: "chart.line.uptrend.xyaxis", value: AppTab.performance) {
-                NavigationStack { PerformanceView() }
+            Tab("待办", systemImage: "checkmark.circle", value: AppTab.todo) {
+                NavigationStack { TodoView() }
             }
             Tab("我的", systemImage: "person", value: AppTab.profile) {
                 NavigationStack {
@@ -33,7 +33,7 @@ struct RootView: View {
                 }
             }
         }
-        .tint(V21.brandGreen)
+        .tint(V32.brand)
         .onChange(of: tab) { oldValue, newValue in
             if newValue == .voice {
                 guard canInitializeSpeechRecognizer else {
