@@ -38,7 +38,7 @@ struct TodoView: View {
             if tab != .records {
                 Section {
                     HStack {
-                        Label("今天 \(todayCount)", systemImage: "sun.max")
+                        Label("待办 \(todayCount)", systemImage: "sun.max")
                         Spacer()
                         Label("已完成 \(doneCount)", systemImage: "checkmark.circle")
                         Spacer()

@@ -9,7 +9,11 @@ import ActivityKit
 enum LiveActivityManager {
     /// App 进入前台时调用：启动/复用今日活动
     static func startIfNeeded(snapshot: BusinessSnapshot) {
-        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        let enabled = ActivityAuthorizationInfo().areActivitiesEnabled
+        #if DEBUG
+        print("[LiveActivity] areActivitiesEnabled = \(enabled)")
+        #endif
+        guard enabled else { return }
         let attributes = BusinessActivityAttributes(dayStart: Date().startOfDay)
 
         // 结束不属于今天的遗留活动（跨天清理）
@@ -21,10 +25,19 @@ enum LiveActivityManager {
             update(with: snapshot)
             return
         }
-        _ = try? Activity.request(
-            attributes: attributes,
-            content: .init(state: state(from: snapshot), staleDate: Calendar.current.date(byAdding: .day, value: 1, to: Date().startOfDay))
-        )
+        do {
+            let activity = try Activity.request(
+                attributes: attributes,
+                content: .init(state: state(from: snapshot), staleDate: Calendar.current.date(byAdding: .day, value: 1, to: Date().startOfDay))
+            )
+            #if DEBUG
+            print("[LiveActivity] Activity.request 成功, id = \(activity.id)")
+            #endif
+        } catch {
+            #if DEBUG
+            print("[LiveActivity] Activity.request 失败: \(error.localizedDescription) (\(error))")
+            #endif
+        }
     }
 
     /// 快照变化时调用

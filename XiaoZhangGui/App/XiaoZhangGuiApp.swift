@@ -21,6 +21,13 @@ struct XiaoZhangGuiApp: App {
                     .preferredColorScheme(settings.colorScheme)
                     .task {
                         NotificationManager.requestAuthorization()
+                        // 首次启动即构建当日快照并尝试创建 Live Activity，
+                        // 不依赖 scenePhase 的 onChange
+                        let contextContainer = demo.isEnabled ? DemoCatalog.container : container
+                        let snapshot = SnapshotSyncManager.buildSnapshot(context: ModelContext(contextContainer))
+                        snapshot.save()
+                        WidgetCenter.shared.reloadAllTimelines()
+                        LiveActivityManager.startIfNeeded(snapshot: snapshot)
                     }
             } else {
                 ContentUnavailableView(
