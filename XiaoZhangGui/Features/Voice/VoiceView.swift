@@ -9,15 +9,17 @@ struct VoiceView: View {
     @State private var manualText = ""
 
     var body: some View {
-        if let vm = viewModel {
-            content(vm)
-                .onAppear {
-                    guard vm.isSpeechRecognizerInitialized else { return }
-                    vm.beginListening()
+        Group {
+            if let vm = viewModel {
+                content(vm)
+                    .onAppear {
+                        guard vm.isSpeechRecognizerInitialized else { return }
+                        vm.beginListening()
+                    }
+            } else {
+                Color.clear.onAppear {
+                    viewModel = VoiceViewModel(context: context)
                 }
-        } else {
-            Color.clear.onAppear {
-                viewModel = VoiceViewModel(context: context)
             }
         }
         .onChange(of: viewModel?.didSave ?? false) { _, saved in
