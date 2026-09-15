@@ -140,4 +140,38 @@ final class ScheduleAgendaTests: XCTestCase {
         XCTAssertTrue(ScheduleAgenda.hasClock(todayAt(0, 5)))
         XCTAssertTrue(ScheduleAgenda.hasClock(todayAt(22, 30)))
     }
+    // MARK: b27 T20：已完成 Todo 纯派生分类
+
+    func testCompletedTodosClassifiedTimedAlldayNonTodayNoDuplicate() {
+        let timedDone = Todo(title: "已完成定时", dueDate: todayAt(15, 30), isCompleted: true)
+        let dayDone = Todo(title: "已完成全天", dueDate: todayStart, isCompleted: true)
+        let noDateDone = Todo(title: "已完成无日期", isCompleted: true)
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: todayStart)!
+        let otherDayDone = Todo(title: "昨天已完成", dueDate: yesterday, isCompleted: true)
+
+        let result = ScheduleAgenda.completedTodosForDay(
+            [timedDone, dayDone, noDateDone, otherDayDone],
+            date: todayStart,
+            calendar: calendar
+        )
+
+        // 已完成 + 真实钟点 -> timed
+        XCTAssertEqual(result.timed.count, 1)
+        switch result.timed[0] {
+        case .todo(let t): XCTAssertEqual(t.title, "已完成定时")
+        case .delivery: XCTFail("已完成 Todo 不应是 delivery")
+        }
+        // 已完成 + 日期级/无日期 -> all-day
+        XCTAssertEqual(Set(result.allDay.map(\.title)), ["已完成全天", "已完成无日期"])
+        // 非当天已完成不混入当天
+        XCTAssertFalse(result.allDay.contains { $0.title == "昨天已完成" })
+        XCTAssertFalse(result.timed.contains {
+            if case .todo(let t) = $0 { return t.title == "昨天已完成" }
+            return false
+        })
+        // 不产生重复项
+        let timedIDs = Set(result.timed.map(\.id))
+        let allDayIDs = Set(result.allDay.map { "todo-\($0.notificationID)" })
+        XCTAssertTrue(timedIDs.isDisjoint(with: allDayIDs))
+    }
 }

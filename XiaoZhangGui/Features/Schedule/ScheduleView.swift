@@ -13,6 +13,7 @@ struct ScheduleView: View {
     @Query private var memos: [Memo]
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectedDate = Date()
     @State private var expandedExpiry: Set<String> = []
 
@@ -36,7 +37,16 @@ struct ScheduleView: View {
 
     private var scheduleDay: ScheduleDay {
         let undated = todos.filter { !$0.isCompleted && $0.dueDate == nil }
-        return ScheduleAgenda.make(from: dayData, undatedTodos: undated)
+        var day = ScheduleAgenda.make(from: dayData, undatedTodos: undated)
+        // b27 T20：已完成项保留在时间线/全天区，分类逻辑在 ScheduleAgenda 纯函数内（可单测）；
+        // 不改 CalendarAgenda.dayData / eventFlags 口径。
+        let done = ScheduleAgenda.completedTodosForDay(
+            todos.filter(\.isCompleted), date: selectedDate, calendar: calendar
+        )
+        day.timedEvents += done.timed
+        day.timedEvents.sort { $0.date < $1.date }
+        day.allDay.todos += done.allDay
+        return day
     }
 
     var body: some View {
@@ -50,7 +60,7 @@ struct ScheduleView: View {
             }
             .padding(.horizontal, V32Layout.pageMargin)
             .padding(.top, 8)
-            .animation(.easeOut(duration: 0.18), value: selectedDate)
+            .animation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion)), value: selectedDate)
         }
         .scrollIndicators(.hidden)
         .v32PageBackground()
@@ -212,14 +222,21 @@ struct ScheduleView: View {
         }
     }
 
+    private func isCompletedTodo(_ event: ScheduleEvent) -> Bool {
+        if case .todo(let todo) = event { return todo.isCompleted }
+        return false
+    }
+
     private func timelineCard(_ event: ScheduleEvent, chevron: Bool) -> some View {
-        V32Card {
+        let done = isCompletedTodo(event)
+        return V32Card {
             HStack(spacing: 12) {
                 eventIcon(event)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(eventTitle(event))
                         .v32Text(.title)
-                        .foregroundStyle(V32.textPrimary)
+                        .foregroundStyle(done ? V32.textTertiary : V32.textPrimary)
+                        .strikethrough(done, color: V32.textQuaternary)
                         .lineLimit(2)
                     Text(eventSubtitle(event))
                         .v32Text(.caption)
@@ -301,8 +318,9 @@ struct ScheduleView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(DisplayText.visible(todo.title, fallback: "待办事项"))
                     .v32Text(.title)
-                    .foregroundStyle(V32.textPrimary)
-                if todo.priority >= TodoPriority.high.rawValue {
+                    .foregroundStyle(todo.isCompleted ? V32.textTertiary : V32.textPrimary)
+                    .strikethrough(todo.isCompleted, color: V32.textQuaternary)
+                if todo.priority >= TodoPriority.high.rawValue && !todo.isCompleted {
                     Text("高优先级")
                         .v32Text(.caption)
                         .foregroundStyle(V32.amber)
@@ -346,7 +364,7 @@ struct ScheduleView: View {
 
         return VStack(spacing: 0) {
             Button {
-                withAnimation(.easeOut(duration: 0.18)) {
+                withAnimation(reduceMotion ? nil : V32Motion.softSpring) {
                     if isExpanded { expandedExpiry.remove(item.notificationID) } else { expandedExpiry.insert(item.notificationID) }
                 }
             } label: {

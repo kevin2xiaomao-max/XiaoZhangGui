@@ -6,6 +6,7 @@ import PhotosUI
 
 struct TodoView: View {
     @Environment(\.modelContext) private var context
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query private var todos: [Todo]
     @Query private var memos: [Memo]
 
@@ -13,10 +14,16 @@ struct TodoView: View {
     @State private var showNewEditor = false
     @State private var showNewRecord = false
     @State private var editingTodo: Todo?
+    @State private var togglingIDs: Set<PersistentIdentifier> = []
+    /// 完成瞬间本地暂留的行：数据已写库，但视觉上留约 0.3s 做 fade/收缩后再移出（T21）
+    @State private var finishingIDs: Set<PersistentIdentifier> = []
 
     private var list: [Todo] {
         if tab == .records { return [] }
-        return TodoFilter.todos(for: tab, in: todos)
+        let base = TodoFilter.todos(for: tab, in: todos)
+        let finishing = todos.filter { finishingIDs.contains($0.persistentModelID) }
+        var seen = Set(base.map(\.persistentModelID))
+        return base + finishing.filter { seen.insert($0.persistentModelID).inserted }
     }
 
     private var groups: [(label: String, items: [Todo])] {
@@ -147,7 +154,8 @@ struct TodoView: View {
                                 TodoListRow(
                                     todo: todo,
                                     isOverdueTab: tab == .overdue,
-                                    onToggle: { try? TodoRepository(context: context).toggleComplete(todo) },
+                                    isFinishing: finishingIDs.contains(todo.persistentModelID),
+                                    onToggle: { toggle(todo) },
                                     onEdit: { editingTodo = todo },
                                     onDelete: { delete(todo) }
                                 )
@@ -193,6 +201,24 @@ struct TodoView: View {
         }
     }
 
+    /// 立即写库；动画只做视觉，不延迟业务保存。防重复点击：动画窗口内忽略同一项。
+    private func toggle(_ todo: Todo) {
+        let pid = todo.persistentModelID
+        guard !togglingIDs.contains(pid) else { return }
+        togglingIDs.insert(pid)
+        finishingIDs.insert(pid)
+        Haptic.light()
+        withAnimation(V32Motion.animation(V32Motion.resolve(.spring, reduceMotion: reduceMotion))) {
+            try? TodoRepository(context: context).toggleComplete(todo)
+        }
+        // 数据已立即写库；仅视觉层暂留行 ~0.3s 后让其淡出移出
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            finishingIDs.remove(pid)
+            togglingIDs.remove(pid)
+        }
+    }
+
     private func delete(_ todo: Todo) {
         Haptic.warning()
         try? TodoRepository(context: context).delete(todo)
@@ -209,7 +235,7 @@ struct V32SegmentedPicker: View {
         HStack(spacing: 4) {
             ForEach(tabs.indices, id: \.self) { index in
                 Button {
-                    withAnimation(.easeOut(duration: 0.16)) { selectionIndex = index }
+                    withAnimation(V32Motion.quick) { selectionIndex = index }
                     Haptic.light()
                 } label: {
                     Text(tabs[index])
@@ -238,9 +264,11 @@ struct V32SegmentedPicker: View {
 private struct TodoListRow: View {
     let todo: Todo
     let isOverdueTab: Bool
+    var isFinishing = false
     let onToggle: () -> Void
     let onEdit: () -> Void
     let onDelete: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: 12) {
@@ -278,6 +306,9 @@ private struct TodoListRow: View {
         }
         .padding(.horizontal, 12)
         .frame(minHeight: 56)
+        .opacity(isFinishing ? 0 : 1)
+        .scaleEffect(isFinishing && !reduceMotion ? 0.97 : 1)
+        .transition(.opacity.combined(with: reduceMotion ? .identity : .scale(scale: 0.98)))
     }
 
     private var subtitle: String {

@@ -51,8 +51,8 @@ struct ScheduleDaySummary {
 
 struct ScheduleDay {
     let date: Date
-    let timedEvents: [ScheduleEvent]
-    let allDay: ScheduleAllDay
+    var timedEvents: [ScheduleEvent]
+    var allDay: ScheduleAllDay
     let summary: ScheduleDaySummary
 
     var isEmpty: Bool {
@@ -117,5 +117,34 @@ enum ScheduleAgenda {
             allDay: allDay,
             summary: ScheduleDaySummary(revenue: data.revenueTotal, expense: data.expenseTotal)
         )
+    }
+
+    /// b27 T20：把「当天的已完成 Todo」纯派生分类为 timed / all-day。
+    /// 只看传入数据，不读数据库、不改 CalendarAgenda.dayData / eventFlags 口径。
+    /// - 有真实钟点且与 selectedDate 同日 → timed
+    /// - 日期级（00:00）且同日 → all-day
+    /// - 无 dueDate → 仅当 selectedDate 是今天时进 all-day
+    /// - 非当天一律不返回（不混入）；同一项只落一个桶，不重复
+    static func completedTodosForDay(
+        _ completedTodos: [Todo],
+        date selectedDate: Date,
+        calendar: Calendar = .current
+    ) -> (timed: [ScheduleEvent], allDay: [Todo]) {
+        var timed: [ScheduleEvent] = []
+        var allDay: [Todo] = []
+        for todo in completedTodos {
+            if let due = todo.dueDate {
+                if hasClock(due) {
+                    if calendar.isDate(due, inSameDayAs: selectedDate) {
+                        timed.append(.todo(todo))
+                    }
+                } else if calendar.isDate(due, inSameDayAs: selectedDate) {
+                    allDay.append(todo)
+                }
+            } else if calendar.isDate(selectedDate, inSameDayAs: Date()) {
+                allDay.append(todo)
+            }
+        }
+        return (timed, allDay)
     }
 }

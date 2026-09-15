@@ -146,19 +146,25 @@ private struct CustomerRow: View {
                 .buttonStyle(.plain)
                 V32StatusPill(text: request.statusEnum.rawValue, status: status)
             }
-            HStack(spacing: 6) {
-                Spacer().frame(width: 46)
-                if !request.roomOrAddress.isEmpty {
-                    rowActionButton("doc.on.doc", tint: V32.info) { onCopyAddress(request) }
+            // 行内只保留主状态操作；复制/删除等次级动作进 contextMenu（T19）
+            if request.statusEnum != .done {
+                HStack(spacing: 6) {
+                    Spacer().frame(width: 46)
+                    Spacer()
+                    rowActionButton(request.statusEnum == .pending ? "bicycle" : "checkmark",
+                                    tint: V32.brand, action: onAdvance)
                 }
-                if request.statusEnum != .done {
-                    rowActionButton(request.statusEnum == .pending ? "bicycle" : "checkmark", tint: V32.brand, action: onAdvance)
-                }
-                rowActionButton("trash", tint: V32.textQuaternary, action: onDelete)
             }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
+        .contextMenu {
+            Button("编辑") { onEdit() }
+            if request.roomOrAddress.nonEmpty != nil {
+                Button("复制地址") { onCopyAddress(request) }
+            }
+            Button("删除", role: .destructive) { onDelete() }
+        }
     }
 
     private func rowActionButton(_ systemName: String, tint: Color, action: @escaping () -> Void) -> some View {

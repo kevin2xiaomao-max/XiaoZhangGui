@@ -218,6 +218,7 @@ enum V32Status {
 struct V32StatusPill: View {
     let text: String
     let status: V32Status
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: 5) {
@@ -231,6 +232,10 @@ struct V32StatusPill: View {
         .padding(.vertical, 5)
         .foregroundStyle(status.text)
         .background(Capsule().fill(status.background))
+        // 状态变化 crossfade + 轻微 scale（0.96→1，quick）；Reduce Motion 仅 crossfade（T19）
+        .id(status)
+        .transition(.opacity.combined(with: reduceMotion ? .identity : .scale(scale: 0.96)))
+        .animation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion)), value: status)
     }
 }
 
@@ -356,6 +361,7 @@ struct V32SectionAction: View {
 struct V32Checkbox: View {
     let checked: Bool
     var action: (() -> Void)?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Button {
@@ -370,6 +376,8 @@ struct V32Checkbox: View {
                     Image(systemName: "checkmark")
                         .font(.system(size: 13, weight: .heavy))
                         .foregroundStyle(.white)
+                        .scaleEffect(reduceMotion ? 1 : 0.85)
+                        .opacity(checked ? 1 : 0)
                 }
             }
             .frame(width: V32Layout.checkbox, height: V32Layout.checkbox)
@@ -377,6 +385,8 @@ struct V32Checkbox: View {
         }
         .buttonStyle(.plain)
         .disabled(action == nil)
+        // 圆→勾 quick；Reduce Motion 无 scale，仅短淡入（T21）
+        .animation(V32Motion.animation(V32Motion.resolve(.spring, reduceMotion: reduceMotion)), value: checked)
     }
 }
 
