@@ -84,6 +84,31 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
 
+      - name: iPhone 17 Air 窄屏编译校验（无该设备时回退 iPhone 17）
+        id: aircheck
+        run: |
+          set -euo pipefail
+          # v3.2 AC-9：为 iPhone 17 Air 窄屏旗舰做一次模拟器编译校验。
+          # 当前 xcode-27 runner 镜像设备列表为 iPhone 17 / 17 Pro / 17 Pro Max / 17e，
+          # 暂无 iPhone 17 Air；选最接近的窄屏旗舰 iPhone 17（6.1"）作为替代目标并记录。
+          AIR_NAME=""
+          for cand in "iPhone 17 Air" "iPhone 17"; do
+            if xcrun simctl list devices available | grep -F "$cand (" >/dev/null; then
+              AIR_NAME="$cand"
+              break
+            fi
+          done
+          test -n "$AIR_NAME"
+          echo "name=$AIR_NAME" >> "$GITHUB_OUTPUT"
+          echo "窄屏校验模拟器: $AIR_NAME"
+          xcodebuild build \
+            -project XiaoZhangGui.xcodeproj \
+            -scheme XiaoZhangGui \
+            -destination "platform=iOS Simulator,name=$AIR_NAME" \
+            -derivedDataPath build/SimulatorAir \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+
       - name: Device generic unsigned build + IPA
         shell: bash
         run: |
