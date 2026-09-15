@@ -5,6 +5,7 @@ struct TrendChart: View {
     let points: [TrendPoint]
     var height: CGFloat = 56
     var showsAxis: Bool = false
+    var onHero: Bool = false
 
     private var hasValues: Bool {
         points.contains { $0.value > 0 }
@@ -17,7 +18,7 @@ struct TrendChart: View {
                     x: .value("日期", point.date),
                     y: .value("营业额", point.value)
                 )
-                .foregroundStyle(V21.brandGreen)
+                .foregroundStyle(onHero ? V32.brandOnHero : V21.brandGreen)
                 .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
                 .interpolationMethod(.catmullRom)
             }

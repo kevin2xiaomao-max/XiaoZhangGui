@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftData
 
-// MARK: - 记收入/记支出 编辑器（sheet）
+// MARK: - 记收入/记支出 编辑器（V32 sheet）
 
 struct MoneyEditorSheet: View {
     enum Mode {
@@ -14,12 +14,13 @@ struct MoneyEditorSheet: View {
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
-    @Environment(AppSettings.self) private var settings
 
     @State private var amountText = ""
     @State private var note = ""
     @State private var category = "其他"
     @State private var date = Date()
+
+    private let expenseCategories = ["进货", "房租", "水电", "人工", "其他"]
 
     private var kind: MoneyRecord.Kind {
         switch mode {
@@ -45,57 +46,93 @@ struct MoneyEditorSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    HStack(spacing: 6) {
-                        Text("¥")
-                            .font(.system(size: 28, weight: .bold))
-                            .foregroundColor(AppTheme.palette(named: settings.appThemeName).accent)
-                        TextField("0.00", text: $amountText)
-                            .font(.system(size: 40, weight: .bold))
-                            .keyboardType(.decimalPad)
-                            .foregroundColor(V21.textPrimary)
-                    }
-                    .padding(.vertical, 6)
-                    .listRowBackground(Color.clear)
-                }
-
-                Section {
-                    TextField(
-                        kind == .income ? "备注（选填）" : "备注（选填，如：进了两箱可乐）",
-                        text: $note,
-                        prompt: Text(kind == .income ? "备注（选填）" : "备注（选填）")
-                    )
-                    .foregroundColor(V21.textPrimary)
-
-                    if kind == .expense {
-                        Picker("分类", selection: $category) {
-                            ForEach(["进货", "房租", "水电", "人工", "其他"], id: \.self) { Text($0) }
-                        }
-                    }
-
-                    DatePicker("日期", selection: $date, displayedComponents: .date)
-                } header: {
-                    Text("明细")
-                }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                header
+                amountCard
+                detailCard
+                if kind == .expense { categoryCard }
+                V32PrimaryButton(title: "保存", systemName: "checkmark") { save() }
+                    .disabled(amount == nil)
+                    .opacity(amount == nil ? 0.5 : 1)
             }
-            .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
-                        .foregroundColor(V21.textTertiary)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") { save() }
-                        .fontWeight(.semibold)
-                        .disabled(amount == nil)
-                }
-            }
-            .onAppear(perform: loadEditing)
+            .padding(.horizontal, V32Layout.pageMargin)
+            .padding(.top, 14)
+            .padding(.bottom, V32Layout.bottomPad)
         }
-        .presentationDetents([.medium, .large])
+        .scrollIndicators(.hidden)
+        .v32PageBackground()
+        .v32Sheet([.medium, .large])
+        .onAppear(perform: loadEditing)
+    }
+
+    // MARK: 头部
+
+    private var header: some View {
+        ZStack {
+            Text(title)
+                .v32Text(.headline)
+                .foregroundStyle(V32.textPrimary)
+            HStack {
+                Button("取消") { dismiss() }
+                    .v32Text(.body)
+                    .foregroundStyle(V32.textTertiary)
+                Spacer()
+            }
+        }
+    }
+
+    // MARK: 金额
+
+    private var amountCard: some View {
+        V32HeroCard {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("¥")
+                    .font(.system(size: 26, weight: .bold, design: .rounded))
+                    .foregroundStyle(V32.brandOnHero)
+                TextField("0.00", text: $amountText)
+                    .font(V32Font.heroMoney)
+                    .foregroundStyle(V32.textOnHero)
+                    .tint(V32.brandOnHero)
+                    .keyboardType(.decimalPad)
+                    .minimumScaleFactor(0.5)
+            }
+        }
+    }
+
+    // MARK: 明细
+
+    private var detailCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            V32SectionHeader("明细")
+            V32Card {
+                VStack(alignment: .leading, spacing: 12) {
+                    TextField(kind == .income ? "备注（选填）" : "备注（选填，如：进了两箱可乐）", text: $note)
+                        .v32Text(.body)
+                        .foregroundStyle(V32.textPrimary)
+                        .tint(V32.brand)
+                    Rectangle().fill(V32.divider).frame(height: 1)
+                    DatePicker("日期", selection: $date, displayedComponents: .date)
+                        .v32Text(.title)
+                        .tint(V32.brand)
+                }
+            }
+        }
+    }
+
+    // MARK: 分类
+
+    private var categoryCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            V32SectionHeader("分类")
+            V32SegmentedPicker(
+                tabs: expenseCategories,
+                selectionIndex: Binding(
+                    get: { expenseCategories.firstIndex(of: category) ?? expenseCategories.count - 1 },
+                    set: { category = expenseCategories[$0] }
+                )
+            )
+        }
     }
 
     private func loadEditing() {

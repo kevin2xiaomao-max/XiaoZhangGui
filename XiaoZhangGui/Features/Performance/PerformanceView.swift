@@ -3,6 +3,7 @@ import SwiftData
 
 struct PerformanceView: View {
     @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
     @Query private var performances: [Performance]
     @Query private var expenses: [Expense]
     @State private var showImport = false
@@ -43,121 +44,158 @@ struct PerformanceView: View {
     }
 
     var body: some View {
-        List {
-            Section {
-                hero
-                metricRow
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                header
+                heroCard
+                metricsCard
+                recordsSection
             }
-
-            Section("最近交易") {
-                if records.isEmpty {
-                    AppEmptyState(title: "暂无记录", systemImage: "tray", actionTitle: "记一笔") {
-                        newRecordKind = .income
-                    }
-                } else {
-                    ForEach(Array(records.prefix(12))) { record in
-                        Button {
-                            if let value = record.performance { editingPerformance = value }
-                            if let value = record.expense { editingExpense = value }
-                        } label: {
-                            PerformanceRecordRow(record: record)
-                        }
-                        .buttonStyle(.plain)
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            Button(role: .destructive) { deleteRecord(record) } label: {
-                                Label("删除", systemImage: "trash")
-                            }
-                        }
-                    }
-                }
-            }
+            .padding(.horizontal, V32Layout.pageMargin)
+            .padding(.top, 8)
+            .padding(.bottom, V32Layout.bottomPad)
         }
-        .listStyle(.insetGrouped)
-        .bottomDockPadding()
-        .navigationTitle("业绩")
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Button("记收入") { newRecordKind = .income }
-                    Button("记支出") { newRecordKind = .expense }
-                    Button("扫呗导入", systemImage: "square.and.arrow.down") { showImport = true }
-                } label: {
-                    Image(systemName: "plus")
-                }
-            }
-        }
+        .scrollIndicators(.hidden)
+        .v32PageBackground()
+        .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showImport) { SaobeiImportSheet() }
         .sheet(item: $newRecordKind) { MoneyEditorSheet(mode: .new($0)) }
         .sheet(item: $editingPerformance) { MoneyEditorSheet(mode: .editPerformance($0)) }
         .sheet(item: $editingExpense) { MoneyEditorSheet(mode: .editExpense($0)) }
     }
 
-    private var hero: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("今日营业额")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            HStack(alignment: .bottom, spacing: 12) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(Fmt.money(todayRevenue))
-                        .font(.system(size: 34, weight: .bold, design: .rounded))
-                        .foregroundStyle(.primary)
-                        .monospacedDigit()
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.55)
-                    if let change = changePercent {
-                        Label {
-                            Text("\(String(format: "%.1f", abs(change)))% 较昨日")
-                        } icon: {
-                            Image(systemName: change >= 0 ? "arrow.up.right" : "arrow.down.right")
-                        }
-                        .font(.footnote.weight(.medium))
-                        .foregroundStyle(change >= 0 ? V21.brandGreen : V21.danger)
-                    } else {
-                        Text("暂无昨日对比")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                Spacer(minLength: 4)
-                TrendChart(points: trend, height: 42)
-                    .frame(width: 96)
+    // MARK: 顶部
+
+    private var header: some View {
+        HStack(alignment: .center) {
+            Button { dismiss() } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(V32.textPrimary)
+                    .frame(width: V32Layout.toolCircle, height: V32Layout.toolCircle)
+                    .background(Circle().fill(V32.pageBGSecondary))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("返回")
+            Text("经营数据")
+                .v32Text(.pageTitle)
+                .foregroundStyle(V32.textPrimary)
+                .padding(.leading, 4)
+            Spacer()
+            Menu {
+                Button("记收入") { newRecordKind = .income }
+                Button("记支出") { newRecordKind = .expense }
+                Button("扫呗导入", systemImage: "square.and.arrow.down") { showImport = true }
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: V32Layout.toolCircle, height: V32Layout.toolCircle)
+                    .background(Circle().fill(V32.hero))
             }
         }
-        .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 8, trailing: 16))
-        .listRowSeparator(.hidden)
     }
 
-    private var metricRow: some View {
-        HStack(spacing: 8) {
-            metricCell(title: "昨日", value: yesterdayRevenue)
-            metricCell(title: "本月", value: monthRevenue)
-            metricCell(title: "本年", value: yearRevenue)
+    // MARK: Hero
+
+    private var heroCard: some View {
+        V32HeroCard {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("今日营业额")
+                    .v32Text(.subhead)
+                    .foregroundStyle(V32.textOnHeroSecondary)
+                HStack(alignment: .bottom, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(Fmt.money(todayRevenue))
+                            .font(V32Font.heroMoney)
+                            .foregroundStyle(V32.textOnHero)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.55)
+                        changeBadge
+                    }
+                    Spacer(minLength: 4)
+                    TrendChart(points: trend, height: 48, onHero: true)
+                        .frame(width: 104)
+                }
+            }
         }
-        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 12, trailing: 16))
-        .listRowSeparator(.hidden)
-        .listRowBackground(Color.clear)
     }
 
-    private func metricCell(title: String, value: Double) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text(Fmt.money(value))
-                .font(.subheadline.weight(.semibold).monospacedDigit())
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
+    @ViewBuilder
+    private var changeBadge: some View {
+        if let change = changePercent {
+            HStack(spacing: 4) {
+                Image(systemName: change >= 0 ? "arrow.up.right" : "arrow.down.right")
+                    .font(.system(size: 10, weight: .bold))
+                Text("\(String(format: "%.1f", abs(change)))% 较昨日")
+                    .v32Text(.pill)
+            }
+            .foregroundStyle(change >= 0 ? V32.brandOnHero : V32.amberOnHero)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .background(
+                Capsule().fill((change >= 0 ? V32.brandOnHero : V32.amberOnHero).opacity(0.16))
+            )
+        } else {
+            Text("暂无昨日对比")
+                .v32Text(.pill)
+                .foregroundStyle(V32.textOnHeroSecondary)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(V21.surfacePrimary, in: RoundedRectangle(cornerRadius: V21Layout.radiusMD, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: V21Layout.radiusMD, style: .continuous)
-                .strokeBorder(Color(.separator).opacity(0.28), lineWidth: 0.5)
-        )
+    }
+
+    // MARK: 指标
+
+    private var metricsCard: some View {
+        V32Card {
+            HStack(spacing: 8) {
+                V32MetricCell(label: "昨日", value: Fmt.money(yesterdayRevenue))
+                metricDivider
+                V32MetricCell(label: "本月", value: Fmt.money(monthRevenue))
+                metricDivider
+                V32MetricCell(label: "本年", value: Fmt.money(yearRevenue))
+            }
+        }
+    }
+
+    private var metricDivider: some View {
+        Rectangle().fill(V32.divider).frame(width: 1, height: 36)
+    }
+
+    // MARK: 最近交易
+
+    private var recordsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("最近交易")
+                .v32Text(.caption)
+                .foregroundStyle(V32.textTertiary)
+                .padding(.leading, 4)
+            if records.isEmpty {
+                V32Card {
+                    VStack(spacing: 12) {
+                        V32EmptyState(systemName: "tray", title: "暂无记录", message: nil)
+                        V32PrimaryButton(title: "记一笔", systemName: "plus") { newRecordKind = .income }
+                            .padding(.horizontal, 24)
+                    }
+                    .padding(.vertical, 8)
+                }
+            } else {
+                V32Card(padding: 4) {
+                    VStack(spacing: 0) {
+                        ForEach(Array(records.prefix(12).enumerated()), id: \.element.id) { index, record in
+                            if index > 0 { Rectangle().fill(V32.divider).frame(height: 1).padding(.leading, 48) }
+                            PerformanceRecordRow(
+                                record: record,
+                                onEdit: {
+                                    if let value = record.performance { editingPerformance = value }
+                                    if let value = record.expense { editingExpense = value }
+                                },
+                                onDelete: { deleteRecord(record) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private func deleteRecord(_ record: MoneyRecord) {
@@ -169,30 +207,45 @@ struct PerformanceView: View {
 
 private struct PerformanceRecordRow: View {
     let record: MoneyRecord
+    let onEdit: () -> Void
+    let onDelete: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
-            sourceMark
-            VStack(alignment: .leading, spacing: 2) {
-                Text(DisplayText.visible(record.title, fallback: record.kind == .income ? "营业额" : "支出"))
-                    .font(.body)
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+            V32IconBubble(systemName: iconName, tone: bubbleTone, size: 34, icon: 14)
+            Button(action: onEdit) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(DisplayText.visible(record.title, fallback: record.kind == .income ? "营业额" : "支出"))
+                        .v32Text(.title)
+                        .foregroundStyle(V32.textPrimary)
+                        .lineLimit(1)
+                    Text(subtitle)
+                        .v32Text(.caption)
+                        .foregroundStyle(V32.textTertiary)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
-            Spacer(minLength: 8)
+            .buttonStyle(.plain)
+
             Text(record.kind == .income ? "+\(Fmt.money(record.amount))" : "-\(Fmt.money(record.amount))")
-                .font(.body.weight(.medium).monospacedDigit())
-                .foregroundStyle(record.kind == .income ? V21.brandGreen : V21.danger)
+                .v32Text(.title)
+                .foregroundStyle(record.kind == .income ? V32.brand : V32.danger)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
+            Button(action: onDelete) {
+                Image(systemName: "trash")
+                    .font(.system(size: 14))
+                    .foregroundStyle(V32.textQuaternary)
+                    .frame(width: 30, height: 30)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("删除记录")
         }
-        .padding(.vertical, 4)
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
+        .padding(.horizontal, 12)
+        .frame(minHeight: 56)
     }
 
     private var subtitle: String {
@@ -202,15 +255,13 @@ private struct PerformanceRecordRow: View {
         return "\(source) · \(time)"
     }
 
-    private var sourceMark: some View {
-        ZStack {
-            Circle().fill(record.kind == .income ? V21.brandGreen.opacity(0.14) : V21.danger.opacity(0.12))
-            Image(systemName: record.source == "扫呗" ? "qrcode" : (record.kind == .income ? "plus" : "minus"))
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(record.kind == .income ? V21.brandGreen : V21.danger)
-        }
-        .frame(width: 32, height: 32)
-        .accessibilityHidden(true)
+    private var iconName: String {
+        record.source == "扫呗" ? "qrcode" : (record.kind == .income ? "arrow.down.left" : "arrow.up.right")
+    }
+
+    private var bubbleTone: V32BubbleTone {
+        if record.source == "扫呗" { return .neutral }
+        return record.kind == .income ? .brand : .danger
     }
 }
 
