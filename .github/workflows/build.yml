@@ -103,6 +103,15 @@ jobs:
           echo "built app: ${app:-<empty>}"
           test -n "${app:-}"
           test -d "$app"
+          test -f "$app/Info.plist"
+
+          # 版本信息以构建产物 Info.plist 为准，文件名带构建号与 commit，防止装错旧包
+          SHORT_SHA="$(git rev-parse --short=7 HEAD)"
+          MARKETING_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Info.plist")"
+          CURRENT_PROJECT_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app/Info.plist")"
+          test -n "$MARKETING_VERSION"
+          test -n "$CURRENT_PROJECT_VERSION"
+          IPA="XiaoZhangGui-${MARKETING_VERSION}-b${CURRENT_PROJECT_VERSION}-${SHORT_SHA}.ipa"
 
           rm -rf ipa ipa-check
           mkdir -p ipa/Payload
@@ -110,10 +119,9 @@ jobs:
 
           (
             cd ipa
-            zip -qry ../XiaoZhangGui-3.1.0-Demo.ipa Payload
+            zip -qry "../$IPA" Payload
           )
 
-          IPA=XiaoZhangGui-3.1.0-Demo.ipa
           test -f "$IPA"
           test -s "$IPA"
           unzip -t "$IPA"
@@ -137,10 +145,20 @@ jobs:
           unzip -l "$IPA" | head -n 40
           echo "IPA validation PASS"
 
-      - name: 上传 3.1.0 Demo IPA
+          echo "Version: $MARKETING_VERSION"
+          echo "Build: $CURRENT_PROJECT_VERSION"
+          echo "Commit: $SHORT_SHA"
+          echo "IPA filename: $IPA"
+
+          echo "XZG_VERSION=$MARKETING_VERSION" >> "$GITHUB_ENV"
+          echo "XZG_BUILD=$CURRENT_PROJECT_VERSION" >> "$GITHUB_ENV"
+          echo "XZG_COMMIT=$SHORT_SHA" >> "$GITHUB_ENV"
+          echo "IPA_FILENAME=$IPA" >> "$GITHUB_ENV"
+
+      - name: 上传版本化 IPA
         uses: actions/upload-artifact@v4
         with:
-          name: XiaoZhangGui-3.1.0-Demo-IPA
-          path: XiaoZhangGui-3.1.0-Demo.ipa
+          name: XiaoZhangGui-${{ env.XZG_VERSION }}-b${{ env.XZG_BUILD }}-${{ env.XZG_COMMIT }}-IPA
+          path: ${{ env.IPA_FILENAME }}
           if-no-files-found: error
           retention-days: 14
