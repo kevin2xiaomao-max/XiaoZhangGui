@@ -13,7 +13,7 @@ struct RootView: View {
         TabView(selection: $tab) {
             Tab("首页", systemImage: "house", value: AppTab.home) {
                 NavigationStack {
-                    HomeView(tab: $tab, showVoice: $showVoice, showsVoiceButton: canInitializeSpeechRecognizer)
+                    HomeView(tab: $tab, showVoice: $showVoice, showQuickRecord: $showQuickRecord, showsVoiceButton: canInitializeSpeechRecognizer)
                 }
             }
             Tab("日程", systemImage: "calendar", value: AppTab.schedule) {

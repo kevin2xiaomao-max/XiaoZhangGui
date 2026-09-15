@@ -67,6 +67,7 @@ enum V32 {
     static let textPrimary = Color.v32Dynamic(light: 0x232623, dark: 0xF2F0E9)
     static let textSecondary = Color.v32Dynamic(light: 0x60655E, dark: 0xB8BDB4)
     static let textTertiary = Color.v32Dynamic(light: 0x94988F, dark: 0x898F87)
+    static let textQuaternary = Color.v32Dynamic(light: 0xAFB3AA, dark: 0x6B7169)
 
     /// hero 深底上的主文本
     static let textOnHero = Color.v32Dynamic(light: 0xFFFFFF, dark: 0xEDF3EE)
