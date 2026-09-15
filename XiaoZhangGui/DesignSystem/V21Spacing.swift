@@ -7,8 +7,10 @@ enum V21Layout {
     // ========== 页面布局 ==========
     /// 页面左右边距（统一 20pt）
     static let pageMargin: CGFloat = 20
-    /// 列表底部额外呼吸空间（给 Tab Bar + 独立语音按钮留位置）
-    static let bottomContentPadding: CGFloat = 120
+    /// 列表底部呼吸空间：系统 Tab Bar 已自带 safe area，
+    /// 这里只加少量间距避免最后一项贴 Tab Bar 太近。
+    /// 注意：不能用 Spacer + safeAreaInset，否则会产生可滚动空白。
+    static let bottomContentPadding: CGFloat = 24
     
     // ========== Section 间距 ==========
     static let spaceXS: CGFloat = 4
@@ -32,10 +34,10 @@ enum V21Layout {
     static let fabSize: CGFloat = 48
     /// FAB 内部图标尺寸
     static let fabIconSize: CGFloat = 18
-    /// 独立语音主按钮视觉直径（60pt，56-68pt 区间内）
-    static let centralVoiceButton: CGFloat = 60
+    /// 独立语音主按钮视觉直径（52pt，更紧凑）
+    static let centralVoiceButton: CGFloat = 52
     /// 语音按钮内部麦克风图标尺寸
-    static let voiceButtonIconSize: CGFloat = 22
+    static let voiceButtonIconSize: CGFloat = 20
     /// 列表项最小高度
     static let listItemMinHeight: CGFloat = 52
     /// 快速入口图标框尺寸

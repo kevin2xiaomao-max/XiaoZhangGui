@@ -74,6 +74,8 @@ struct TodayStatsWidget: Widget {
                 .containerBackground(for: .widget) {
                     Color(white: 0.08).opacity(entry.snapshot == nil ? 0.0 : 1.0)
                 }
+                // 锁屏点击直达语音快速记录（iOS 安全限制下打开 App 后用户再点一次麦克风）
+                .widgetURL(URL(string: "xzg://voice"))
         }
         .configurationDisplayName("今日经营")
         .description("今日营业额、待办数量、临期提醒和下一件事")

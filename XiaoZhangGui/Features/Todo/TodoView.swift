@@ -35,6 +35,22 @@ struct TodoView: View {
                 .pickerStyle(.segmented)
             }
 
+            if tab != .records {
+                Section {
+                    HStack {
+                        Label("今天 \(todayCount)", systemImage: "sun.max")
+                        Spacer()
+                        Label("已完成 \(doneCount)", systemImage: "checkmark.circle")
+                        Spacer()
+                        Label("逾期 \(overdueCount)", systemImage: "exclamationmark.circle")
+                            .foregroundStyle(overdueCount > 0 ? V21.danger : .secondary)
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+                .listRowSeparator(.hidden)
+            }
+
             if tab == .records {
                 if memos.isEmpty {
                     Section {
@@ -83,18 +99,6 @@ struct TodoView: View {
                 } label: {
                     Image(systemName: "plus")
                 }
-            }
-            ToolbarItem(placement: .bottomBar) {
-                HStack {
-                    Text("今天 \(todayCount)")
-                    Spacer()
-                    Text("已完成 \(doneCount)")
-                    Spacer()
-                    Text("逾期 \(overdueCount)")
-                }
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
             }
         }
         .sheet(isPresented: $showNewEditor) { TodoEditorSheet(todo: nil) }

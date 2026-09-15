@@ -141,6 +141,13 @@ final class VoiceViewModel {
                 )
             case .memo:
                 try MemoRepository(context: context).add(title: draft.title, content: draft.original)
+            case .customer:
+                try CustomerRepository(context: context).add(
+                    customer: draft.customerName ?? "客户",
+                    roomOrAddress: "",
+                    phone: "",
+                    content: draft.goodsName.map { "\($0) × \(draft.quantity ?? 1)" } ?? draft.original
+                )
             case .todo:
                 try TodoRepository(context: context).add(
                     title: draft.title,

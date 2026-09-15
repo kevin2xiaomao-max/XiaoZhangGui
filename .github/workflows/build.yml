@@ -110,10 +110,10 @@ jobs:
 
           (
             cd ipa
-            zip -qry ../XiaoZhangGui-3.0.1-Demo.ipa Payload
+            zip -qry ../XiaoZhangGui-3.1.0-Demo.ipa Payload
           )
 
-          IPA=XiaoZhangGui-3.0.1-Demo.ipa
+          IPA=XiaoZhangGui-3.1.0-Demo.ipa
           test -f "$IPA"
           test -s "$IPA"
           unzip -t "$IPA"
@@ -137,10 +137,10 @@ jobs:
           unzip -l "$IPA" | head -n 40
           echo "IPA validation PASS"
 
-      - name: 上传 3.0.1 Demo IPA
+      - name: 上传 3.1.0 Demo IPA
         uses: actions/upload-artifact@v4
         with:
-          name: XiaoZhangGui-3.0.1-Demo-IPA
-          path: XiaoZhangGui-3.0.1-Demo.ipa
+          name: XiaoZhangGui-3.1.0-Demo-IPA
+          path: XiaoZhangGui-3.1.0-Demo.ipa
           if-no-files-found: error
           retention-days: 14

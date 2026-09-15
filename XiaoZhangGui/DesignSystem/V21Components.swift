@@ -172,21 +172,21 @@ struct EmptyStateView: View {
 }
 
 // MARK: - 统一底部安全区 Padding
-// 解决系统 Tab Bar + 独立语音按钮遮挡长列表底部内容的问题
+// 解决系统 Tab Bar 遮挡长列表最后一项的问题。
+// 使用 safeAreaPadding 而非 safeAreaInset+Spacer：
+// 后者会把 Spacer 变成可滚动内容，短页面产生无意义空白。
 
 struct BottomContentPaddingModifier: ViewModifier {
     let padding: CGFloat
     func body(content: Content) -> some View {
         content
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                Spacer(minLength: padding)
-            }
+            .safeAreaPadding(.bottom, padding)
     }
 }
 
 extension View {
     /// 给 List/ScrollView 添加统一的底部呼吸空间，
-    /// 确保最后一项内容不会被 Tab Bar + 独立语音按钮遮挡。
+    /// 确保最后一项内容不会被 Tab Bar 遮挡，且不产生可滚动空白。
     func bottomDockPadding(_ padding: CGFloat = V21Layout.bottomContentPadding) -> some View {
         modifier(BottomContentPaddingModifier(padding: padding))
     }

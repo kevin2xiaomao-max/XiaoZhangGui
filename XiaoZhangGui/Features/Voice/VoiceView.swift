@@ -33,56 +33,69 @@ struct VoiceView: View {
 
     private func content(_ vm: VoiceViewModel) -> some View {
         VStack(spacing: 0) {
-            // 顶部关闭按钮（小，不抢视觉）
+            // 顶部：状态文字 + 关闭（一行，紧凑）
             HStack {
+                stateTitle(vm)
                 Spacer()
                 Button {
                     vm.reset()
                     dismiss()
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.secondary)
-                        .frame(width: 32, height: 32)
+                        .frame(width: 28, height: 28)
                         .background(.ultraThinMaterial, in: Circle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("关闭")
             }
             .padding(.horizontal, 16)
-            .padding(.top, 8)
-
-            // 状态文字（居中，简洁）
-            stateTitle(vm)
-                .padding(.top, 4)
-
-            // 转写/波形区
-            Group {
-                if vm.phase == .listening || vm.phase == .textFallback || !vm.transcript.isEmpty {
-                    transcriptOrWave(vm)
-                }
-            }
             .padding(.top, 10)
-            .padding(.horizontal, 20)
 
-            Spacer(minLength: 0)
-
-            // 主语音按钮（紧凑 60pt）
-            centralButton(vm)
-                .padding(.bottom, 6)
-
-            // 提示文字（简洁）
-            hintText(vm)
-                .padding(.bottom, 4)
-
-            // 预览/保存区
+            // 聆听 / 转写区
             if vm.phase == .preview || vm.phase == .saving {
                 previewSection(vm)
-                    .padding(.horizontal, 20)
-                    .padding(.top, 8)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 10)
                     .padding(.bottom, 12)
             } else {
-                Spacer(minLength: 12)
+                Group {
+                    if vm.phase == .textFallback {
+                        TextField("例如：明天下午三点联系饮料供应商", text: $manualText, axis: .vertical)
+                            .font(.body)
+                            .lineLimit(2...3)
+                            .multilineTextAlignment(.center)
+                            .onSubmit { submitManual(vm) }
+                            .padding(10)
+                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    } else if !vm.transcript.isEmpty {
+                        Text(vm.transcript)
+                            .font(.body)
+                            .foregroundStyle(.primary)
+                            .lineLimit(3)
+                            .multilineTextAlignment(.center)
+                            .padding(10)
+                            .frame(maxWidth: .infinity)
+                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    } else {
+                        CompactVoiceWaveform()
+                            .frame(height: 20)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+
+                Spacer(minLength: 0)
+
+                // 主语音按钮
+                centralButton(vm)
+                    .padding(.top, 4)
+
+                hintText(vm)
+                    .padding(.top, 4)
+                    .padding(.bottom, 10)
             }
         }
     }
@@ -106,36 +119,6 @@ struct VoiceView: View {
             .font(.headline)
             .multilineTextAlignment(.center)
             .foregroundStyle(tint)
-    }
-
-    private func transcriptOrWave(_ vm: VoiceViewModel) -> some View {
-        Group {
-            if vm.phase == .textFallback {
-                TextField("例如：明天提醒我进货 500 元的牛奶", text: $manualText, axis: .vertical)
-                    .font(.body)
-                    .lineLimit(2...4)
-                    .multilineTextAlignment(.center)
-                    .onSubmit { submitManual(vm) }
-                    .padding(10)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            } else if !vm.transcript.isEmpty {
-                // 识别中 / 有结果 → 显示转写文字在小卡片里
-                Text(vm.transcript)
-                    .font(.body)
-                    .foregroundStyle(Color.primary)
-                    .lineLimit(3)
-                    .multilineTextAlignment(.center)
-                    .padding(10)
-                    .frame(maxWidth: .infinity)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            } else {
-                // 正在聆听但还没有文字 → 轻量波形
-                CompactVoiceWaveform()
-                    .frame(height: 20)
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal, 20)
-            }
-        }
     }
 
     private func submitManual(_ vm: VoiceViewModel) {
@@ -221,33 +204,33 @@ struct VoiceView: View {
     }
 
     private func previewSection(_ vm: VoiceViewModel) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("选择记录类型")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 10) {
+            // 识别文字作为主要信息
+            Text(vm.transcript.isEmpty ? "（未识别到文字）" : vm.transcript)
+                .font(.body.weight(.medium))
+                .foregroundStyle(.primary)
+                .lineLimit(4)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(10)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-            HStack(spacing: 6) {
-                ForEach(VoiceRecordType.allCases) { type in
-                    let selected = vm.recordType == type
-                    Button {
-                        vm.recordType = type
-                        Haptic.light()
-                    } label: {
-                        Text(type.rawValue)
-                            .font(.subheadline.weight(selected ? .semibold : .medium))
-                            .foregroundStyle(selected ? V21.brandGreen : Color.primary)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 8)
-                            .background(V21.surfacePrimary, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .strokeBorder(selected ? V21.brandGreen.opacity(0.5) : Color(.separator).opacity(0.35), lineWidth: 0.8)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                }
+            // 解析结果（紧凑字段展示）
+            if let draft = vm.draft {
+                parsedFields(draft)
             }
 
+            // 类型选择（系统 segmented，紧凑）
+            Picker("类型", selection: Binding(
+                get: { vm.recordType },
+                set: { vm.recordType = $0; Haptic.light() }
+            )) {
+                ForEach(VoiceRecordType.allCases) { type in
+                    Text(type.rawValue).tag(type)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            // 保存按钮
             Group {
                 if #available(iOS 26.0, *) {
                     Button {
@@ -258,7 +241,7 @@ struct VoiceView: View {
                             if vm.phase == .saving {
                                 ProgressView().tint(.white)
                             } else {
-                                Text("保存记录")
+                                Text("保存")
                                     .font(.body.weight(.semibold))
                             }
                         }
@@ -277,7 +260,7 @@ struct VoiceView: View {
                             if vm.phase == .saving {
                                 ProgressView().tint(.white)
                             } else {
-                                Text("保存记录")
+                                Text("保存")
                                     .font(.body.weight(.semibold))
                                     .foregroundStyle(.white)
                             }
@@ -290,7 +273,60 @@ struct VoiceView: View {
                     .disabled(vm.phase == .saving)
                 }
             }
-            .padding(.top, 4)
+        }
+    }
+
+    @ViewBuilder
+    private func parsedFields(_ draft: VoiceDraft) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            switch draft.type {
+            case .revenue, .expense:
+                if let amount = draft.amount {
+                    fieldRow(label: "金额", value: "¥\(Fmt.money(amount))", icon: "yensign.circle")
+                }
+            case .expiry:
+                fieldRow(label: "商品", value: draft.title, icon: "shippingbox")
+                if let days = draft.expiryDays {
+                    fieldRow(label: "临期", value: "还有 \(days) 天", icon: "exclamationmark.triangle")
+                }
+            case .customer:
+                if let customer = draft.customerName {
+                    fieldRow(label: "客户", value: customer, icon: "person")
+                }
+                if let goods = draft.goodsName {
+                    fieldRow(label: "商品", value: goods, icon: "cart")
+                }
+                if let qty = draft.quantity {
+                    fieldRow(label: "数量", value: "\(qty)", icon: "number")
+                }
+            case .memo:
+                fieldRow(label: "备忘", value: draft.detail, icon: "note.text")
+            case .todo:
+                fieldRow(label: "事项", value: draft.title, icon: "checkmark.circle")
+            }
+            if let due = draft.dueAt {
+                fieldRow(label: "时间", value: Fmt.monthDayTime(due), icon: "clock")
+            }
+        }
+        .font(.subheadline)
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private func fieldRow(label: String, value: String, icon: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.caption)
+                .foregroundStyle(V21.brandGreen)
+                .frame(width: 18)
+            Text(label)
+                .foregroundStyle(.secondary)
+                .frame(width: 36, alignment: .leading)
+            Text(value)
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+            Spacer(minLength: 0)
         }
     }
 }

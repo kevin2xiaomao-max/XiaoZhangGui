@@ -34,6 +34,7 @@ enum VoiceRecordType: String, CaseIterable, Identifiable {
     case expense = "支出"
     case memo = "记录"
     case expiry = "临期退货"
+    case customer = "客户配送"
 
     var id: String { rawValue }
 }
@@ -47,6 +48,9 @@ struct VoiceDraft {
     var amount: Double?
     var dueAt: Date?
     var expiryDays: Int?
+    var customerName: String?
+    var quantity: Int?
+    var goodsName: String?
     var original: String
 }
 
@@ -66,6 +70,9 @@ enum VoiceParser {
             || value.contains("进货")
             || value.contains("过期")
             || value.contains("临期")
+            || value.contains("配送")
+            || value.contains("客户")
+            || value.contains("送")
         return asksWeather && !hasRecordIntent
     }
 
@@ -75,14 +82,23 @@ enum VoiceParser {
         let amount = parseAmount(value)
         let due = parseDueTime(value)
         let days: Int?
-        if let match = value.firstMatch(of: /还有([\d一二两三四五六七八九十百千]+)天/) {
-            days = ChineseNumber.parse(String(match.1))
+        if let regex = try? NSRegularExpression(pattern: #"还有([\d一二两三四五六七八九十百千]+)天"#),
+           let match = regex.firstMatch(in: value, range: NSRange(value.startIndex..., in: value)),
+           let range = Range(match.range(at: 1), in: value) {
+            days = ChineseNumber.parse(String(value[range]))
+        } else if let regex = try? NSRegularExpression(pattern: #"([\d一二两三四五六七八九十百千]+)天后"#),
+                  let match = regex.firstMatch(in: value, range: NSRange(value.startIndex..., in: value)),
+                  let range = Range(match.range(at: 1), in: value) {
+            days = ChineseNumber.parse(String(value[range]))
         } else {
             days = nil
         }
+        let quantity = parseQuantity(value)
+        let customerName = parseCustomerName(value)
+        let goodsName = parseGoodsName(value, type: type)
 
         let cleaned = value
-            .replacing(/^(记一下|提醒我|今天|明天|上午|下午|三点|十点)+/, with: "")
+            .replacing(/^(记一下|提醒我|今天|明天|后天|上午|下午|晚上|三点|十点|送|送到)+/, with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         let title: String
@@ -102,6 +118,19 @@ enum VoiceParser {
         case .memo:
             title = "语音记录"
             detail = value
+        case .customer:
+            if let goodsName, !goodsName.isEmpty {
+                title = goodsName
+            } else if !cleaned.isEmpty {
+                title = cleaned
+            } else {
+                title = value
+            }
+            var parts: [String] = []
+            if let customerName { parts.append(customerName) }
+            if let quantity { parts.append("\(quantity) 件") }
+            if let due { parts.append(Fmt.monthDayTime(due)) }
+            detail = parts.isEmpty ? value : parts.joined(separator: " · ")
         case .todo:
             title = cleaned.isEmpty ? value : cleaned
             detail = due.map { Fmt.monthDayTime($0) } ?? value
@@ -114,50 +143,129 @@ enum VoiceParser {
             amount: amount,
             dueAt: due,
             expiryDays: days,
+            customerName: customerName,
+            quantity: quantity,
+            goodsName: goodsName,
             original: value
         )
     }
 
     private static func detectType(_ value: String) -> VoiceRecordType {
         if value.contains("进货") || value.contains("支出") || value.contains("花了") { return .expense }
-        if value.contains("营业额") || value.contains("收入") { return .revenue }
-        if value.contains("过期") || value.contains("临期") { return .expiry }
+        if value.contains("营业额") || value.contains("收入") || value.contains("卖了") || value.contains("收款") || value.contains("入账") { return .revenue }
+        if value.contains("过期") || value.contains("临期") || value.contains("到期") { return .expiry }
+        // 客户配送：含「送」且有数量/客户名，或明确配送词
+        let hasDeliveryWord = value.contains("配送") || value.contains("送货") || value.contains("送到") || value.contains("客户")
+        let hasSendWithQuantity = value.contains("送") && (parseQuantity(value) != nil || parseCustomerName(value) != nil)
+        if hasDeliveryWord || hasSendWithQuantity { return .customer }
         if value.contains("记一下") || value.contains("备忘") || value.contains("客人") { return .memo }
         return .todo
+    }
+
+    /// 数量：N箱/件/瓶/袋/个/份 或 两箱
+    static func parseQuantity(_ text: String) -> Int? {
+        if let regex = try? NSRegularExpression(pattern: #"(\d+)\s*(箱|件|瓶|袋|个|份|条|盒)"#),
+           let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+           let range = Range(match.range(at: 1), in: text) {
+            return Int(text[range])
+        }
+        if let regex = try? NSRegularExpression(pattern: #"([一二两三四五六七八九十]+)\s*(箱|件|瓶|袋|个|份|条|盒)"#),
+           let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+           let range = Range(match.range(at: 1), in: text) {
+            return ChineseNumber.parse(String(text[range]))
+        }
+        return nil
+    }
+
+    /// 客户名：常见称呼（X姐/X哥/X老板/X总/XX店/XX别墅）
+    static func parseCustomerName(_ text: String) -> String? {
+        if let regex = try? NSRegularExpression(pattern: #"[\u4e00-\u9fa5]{1,4}(姐|哥|老板|总|姨|叔|婶|女士|先生)"#),
+           let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+           let range = Range(match.range, in: text) {
+            return String(text[range])
+        }
+        if let regex = try? NSRegularExpression(pattern: #"[\u4e00-\u9fa5A-Za-z0-9]{1,8}(店|别墅|房)"#),
+           let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+           let range = Range(match.range, in: text) {
+            return String(text[range])
+        }
+        return nil
+    }
+
+    /// 商品名：客户配送语境下，去掉客户名/时间/数量/动词后的剩余
+    static func parseGoodsName(_ text: String, type: VoiceRecordType) -> String? {
+        guard type == .customer else { return nil }
+        var s = text
+        for token in ["今天", "明天", "后天", "上午", "下午", "晚上", "配送", "送货", "送到", "送", "客户", "给", "帮"] {
+            s = s.replacingOccurrences(of: token, with: " ")
+        }
+        // 去掉数量词
+        s = s.replacingOccurrences(of: #"\d+\s*(箱|件|瓶|袋|个|份|条|盒)"#, with: " ", options: .regularExpression)
+        s = s.replacingOccurrences(of: #"[一二两三四五六七八九十]+\s*(箱|件|瓶|袋|个|份|条|盒)"#, with: " ", options: .regularExpression)
+        // 去掉客户名
+        if let name = parseCustomerName(text) {
+            s = s.replacingOccurrences(of: name, with: " ")
+        }
+        let trimmed = s.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     /// 金额：优先阿拉伯数字，其次中文数字
     static func parseAmount(_ text: String) -> Double? {
         let cleaned = text.replacingOccurrences(of: ",", with: "")
-        if let match = cleaned.firstMatch(of: /(\d+(?:\.\d+)?)/) {
-            return Double(match.1)
+        if let regex = try? NSRegularExpression(pattern: #"(\d+(?:\.\d+)?)"#),
+           let match = regex.firstMatch(in: cleaned, range: NSRange(cleaned.startIndex..., in: cleaned)),
+           let range = Range(match.range(at: 1), in: cleaned) {
+            return Double(cleaned[range])
         }
-        if let match = cleaned.firstMatch(of: /[零一二两三四五六七八九十百千万]+/) {
-            if let number = ChineseNumber.parse(String(match.0)) {
-                return Double(number)
-            }
+        if let regex = try? NSRegularExpression(pattern: #"[零一二两三四五六七八九十百千万]+"#),
+           let match = regex.firstMatch(in: cleaned, range: NSRange(cleaned.startIndex..., in: cleaned)),
+           let range = Range(match.range, in: cleaned),
+           let number = ChineseNumber.parse(String(cleaned[range])) {
+            return Double(number)
         }
         return nil
     }
 
-    /// 截止时间：今天/明天 + 简单时间词（语义对齐 Android）
+    /// 截止时间：今天/明天/后天 + 上午/下午/晚上 X点
     static func parseDueTime(_ text: String) -> Date? {
-        guard text.contains("今天") || text.contains("明天") else { return nil }
         let cal = Calendar.current
-        let day = cal.date(byAdding: .day, value: text.contains("明天") ? 1 : 0, to: Date()) ?? Date()
-        let hour: Int?
-        if text.contains("下午三点") {
-            hour = 15
-        } else if text.contains("十点") {
-            hour = 10
-        } else if let match = text.firstMatch(of: /([0-9]{1,2})点/) {
-            hour = Int(match.1)
-        } else if text.contains("提醒我") || text.contains("待办") {
-            hour = 9
-        } else {
-            hour = nil
+        var day = Date()
+        var matchedDay = false
+        if text.contains("今天") { day = Date(); matchedDay = true }
+        if text.contains("明天") { day = cal.date(byAdding: .day, value: 1, to: Date()) ?? Date(); matchedDay = true }
+        if text.contains("后天") { day = cal.date(byAdding: .day, value: 2, to: Date()) ?? Date(); matchedDay = true }
+
+        // 解析时间：上午/下午/晚上 + X点，或直接 X点
+        var hour: Int? = nil
+        let period: String?
+        if text.contains("下午") || text.contains("晚上") { period = "pm" }
+        else if text.contains("上午") { period = "am" }
+        else { period = nil }
+
+        if let regex = try? NSRegularExpression(pattern: #"([0-9]{1,2})点"#),
+           let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+           let range = Range(match.range(at: 1), in: text) {
+            hour = Int(text[range])
+        } else if let regex = try? NSRegularExpression(pattern: #"([一二两三四五六七八九十]+)点"#),
+                  let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+                  let range = Range(match.range(at: 1), in: text) {
+            hour = ChineseNumber.parse(String(text[range]))
+        } else if text.contains("中午") {
+            hour = 12
         }
-        guard let hour, (0...23).contains(hour) else { return nil }
-        return cal.date(bySettingHour: hour, minute: 0, second: 0, of: day)
+
+        if var hour {
+            if period == "pm" && hour < 12 { hour += 12 }
+            if period == "am" && hour == 12 { hour = 0 }
+            guard (0...23).contains(hour) else { return nil }
+            return cal.date(bySettingHour: hour, minute: 0, second: 0, of: day)
+        }
+
+        // 没有具体时间但有日期
+        if matchedDay {
+            return cal.startOfDay(for: day)
+        }
+        return nil
     }
 }

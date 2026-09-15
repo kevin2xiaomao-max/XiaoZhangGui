@@ -7,7 +7,6 @@ struct HomeView: View {
     @Binding var tab: AppTab
     @Binding var showVoice: Bool
     let showsVoiceButton: Bool
-    @Binding var showQuickRecord: Bool
 
     @Environment(AppSettings.self) private var settings
     @Bindable private var demo = DemoMode.shared
@@ -113,12 +112,12 @@ struct HomeView: View {
 
             Section {
                 if handlingItems.isEmpty {
-                    AppEmptyState(title: "今天没有待处理事项", systemImage: "checkmark.circle", actionTitle: "记一笔") {
-                        showQuickRecord = true
+                    AppEmptyState(title: "今天没有待处理事项", systemImage: "checkmark.circle", actionTitle: "语音记一笔") {
+                        showVoice = true
                     }
                     .padding(.vertical, 8)
                 } else {
-                    ForEach(handlingItems) { item in
+                    ForEach(handlingItems.prefix(5)) { item in
                         Button { open(item.route) } label: { HomeHandlingRow(item: item) }
                             .buttonStyle(.plain)
                     }
@@ -129,21 +128,15 @@ struct HomeView: View {
                         .font(.title3.weight(.semibold))
                         .foregroundStyle(.primary)
                     Spacer()
-                    Button("查看全部") { tab = .todo }
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .buttonStyle(.plain)
+                    if handlingItems.count > 5 {
+                        Button("查看全部") { tab = .todo }
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .buttonStyle(.plain)
+                    }
                 }
                 .textCase(nil)
             }
-
-            Section {
-                quickRecordButton
-                    .frame(maxWidth: .infinity)
-            }
-            .listRowInsets(EdgeInsets(top: 8, leading: 18, bottom: 8, trailing: 18))
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
@@ -151,16 +144,6 @@ struct HomeView: View {
         .bottomDockPadding()
         .navigationTitle("你的小掌柜")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showQuickRecord = true
-                } label: {
-                    Image(systemName: "square.and.pencil")
-                }
-                .accessibilityLabel("快速记录")
-            }
-        }
         .navigationDestination(item: $route) { destination in
             switch destination {
             case .customer: CustomerView()
@@ -178,31 +161,6 @@ struct HomeView: View {
                 .presentationDragIndicator(.visible)
         }
         .task { weatherModel.loadIfNeeded() }
-    }
-
-    @ViewBuilder
-    private var quickRecordButton: some View {
-        if #available(iOS 26.0, *) {
-            Button {
-                showQuickRecord = true
-            } label: {
-                Label("快速记录", systemImage: "square.and.pencil")
-                    .font(.subheadline.weight(.medium))
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.glassProminent)
-            .tint(V21.brandGreen)
-        } else {
-            Button {
-                showQuickRecord = true
-            } label: {
-                Label("快速记录", systemImage: "square.and.pencil")
-                    .font(.subheadline.weight(.medium))
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-            .tint(V21.brandGreen)
-        }
     }
 
     private var header: some View {
