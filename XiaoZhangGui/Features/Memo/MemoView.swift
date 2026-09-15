@@ -50,10 +50,10 @@ struct MemoView: View {
             }
             .padding(.horizontal, V32Layout.pageMargin)
             .padding(.top, 8)
-            .padding(.bottom, V32Layout.bottomPad)
         }
         .scrollIndicators(.hidden)
         .v32PageBackground()
+        .v32PageBottomInset()
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showNewEditor) {
             MemoEditorSheet(memo: nil)

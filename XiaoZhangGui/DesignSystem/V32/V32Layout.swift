@@ -8,6 +8,9 @@ enum V32Layout {
     static let sectionGap: CGFloat = 26
     static let cardGap: CGFloat = 12
     static let bottomPad: CGFloat = 28
+    /// 页面底部呼吸间距（b27 T16）：叠加在系统安全区之上的设计间距；
+    /// 不是机型 safe-area 测量值，Home Indicator / 浮动 Tab 高度一律由系统在运行时提供。
+    static let pageBottomBreathing: CGFloat = 12
 
     // 卡片内边距
     static let cardPad: CGFloat = 16

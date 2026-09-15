@@ -50,11 +50,11 @@ struct ScheduleView: View {
             }
             .padding(.horizontal, V32Layout.pageMargin)
             .padding(.top, 8)
-            .padding(.bottom, V32Layout.bottomPad)
             .animation(.easeOut(duration: 0.18), value: selectedDate)
         }
         .scrollIndicators(.hidden)
         .v32PageBackground()
+        .v32PageBottomInset()
         .toolbar(.hidden, for: .navigationBar)
     }
 
