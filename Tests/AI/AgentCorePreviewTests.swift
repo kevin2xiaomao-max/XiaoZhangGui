@@ -17,7 +17,8 @@ final class AgentCorePreviewTests: XCTestCase {
         XCTAssertEqual(a.source, "美团")
         let messages = await agent.messages()
         XCTAssertEqual(messages.map(\.role), [.user, .assistant])
-        XCTAssertEqual((await pending.pending()).count, 1)
+        let pendingCount = await pending.pending().count
+        XCTAssertEqual(pendingCount, 1)
     }
 
     func testTodoExemplar() async {
@@ -50,7 +51,8 @@ final class AgentCorePreviewTests: XCTestCase {
         let result = await agent.send("今天美团680")
         let id = try XCTUnwrap(result.proposal?.id)
 
-        let updated = try XCTUnwrap(await agent.confirm(proposalID: id))
+        let confirmed = await agent.confirm(proposalID: id)
+        let updated = try XCTUnwrap(confirmed)
         XCTAssertTrue(updated.previewAcknowledged)
         XCTAssertEqual(updated.status, .pending, "预览态确认后仍不应标记已执行")
         XCTAssertNotNil(updated.resultText)
@@ -58,7 +60,8 @@ final class AgentCorePreviewTests: XCTestCase {
         let entries = await journal.entries()
         XCTAssertTrue(entries.allSatisfy { $0.status != "executed" }, "Foundation 不允许出现 executed 记录")
         // 待确认仍在（未被当作已保存移除）
-        XCTAssertEqual((await pending.pending()).count, 1)
+        let pendingCount = await pending.pending().count
+        XCTAssertEqual(pendingCount, 1)
     }
 
     // MARK: 普通聊天不出卡
@@ -112,7 +115,8 @@ final class AgentCorePreviewTests: XCTestCase {
         let result = await agent.send("明天下两箱可乐")
         let id = try XCTUnwrap(result.proposal?.id)
         await agent.cancel(proposalID: id)
-        XCTAssertTrue((await pending.pending()).isEmpty)
+        let remaining = await pending.pending()
+        XCTAssertTrue(remaining.isEmpty)
     }
 
     func testModifyReturnsOriginalUserText() async throws {

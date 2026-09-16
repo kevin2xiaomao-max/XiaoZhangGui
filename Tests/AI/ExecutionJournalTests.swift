@@ -14,15 +14,18 @@ final class ExecutionJournalTests: XCTestCase {
         let entries = await journal.entries()
         XCTAssertEqual(entries.count, 1)
         XCTAssertEqual(entries.first?.fingerprint, "fp-a")
-        XCTAssertTrue(await journal.has(callID: "call_1"))
+        let hasCall = await journal.has(callID: "call_1")
+        XCTAssertTrue(hasCall)
     }
 
     func testFingerprintUsedOnlyWhenExecuted() async {
         let journal = InMemoryExecutionJournal()
         await journal.append(entry("call_1", fingerprint: "fp-a", status: "pending"))
-        XCTAssertFalse(await journal.isFingerprintUsed("fp-a"))
+        let usedBefore = await journal.isFingerprintUsed("fp-a")
+        XCTAssertFalse(usedBefore)
         await journal.append(entry("call_2", fingerprint: "fp-a", status: "executed"))
-        XCTAssertTrue(await journal.isFingerprintUsed("fp-a"))
+        let usedAfter = await journal.isFingerprintUsed("fp-a")
+        XCTAssertTrue(usedAfter)
     }
 
     func testFileJournalPersistsAndRecoversFromCorruption() async throws {
@@ -34,12 +37,15 @@ final class ExecutionJournalTests: XCTestCase {
         await journal.append(entry("call_1", fingerprint: "fp-a", status: "executed"))
 
         let reopened = FileExecutionJournal(directory: dir)
-        XCTAssertTrue(await reopened.has(callID: "call_1"))
-        XCTAssertTrue(await reopened.isFingerprintUsed("fp-a"))
+        let reopenedHas = await reopened.has(callID: "call_1")
+        XCTAssertTrue(reopenedHas)
+        let reopenedUsed = await reopened.isFingerprintUsed("fp-a")
+        XCTAssertTrue(reopenedUsed)
 
         let url = dir.appendingPathComponent("execution-journal.json")
         try Data("broken".utf8).write(to: url)
         let recovered = FileExecutionJournal(directory: dir)
-        XCTAssertTrue(await recovered.entries().isEmpty)
+        let recoveredEntries = await recovered.entries()
+        XCTAssertTrue(recoveredEntries.isEmpty)
     }
 }

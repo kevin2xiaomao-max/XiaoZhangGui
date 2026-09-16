@@ -30,9 +30,11 @@ final class PendingActionStoreTests: XCTestCase {
         let store = InMemoryPendingActionStore()
         let p = proposal()
         await store.upsert(p)
-        XCTAssertEqual(await store.proposal(id: p.id)?.id, p.id)
+        let fetchedID = await store.proposal(id: p.id)?.id
+        XCTAssertEqual(fetchedID, p.id)
         await store.remove(id: p.id)
-        XCTAssertNil(await store.proposal(id: p.id))
+        let afterRemove = await store.proposal(id: p.id)
+        XCTAssertNil(afterRemove)
     }
 
     func testFileStoreSurvivesRecreationAndCorruption() async throws {
@@ -45,12 +47,14 @@ final class PendingActionStoreTests: XCTestCase {
         await store.upsert(p)
 
         let reopened = FilePendingActionStore(directory: dir)
-        XCTAssertEqual(await reopened.proposal(id: p.id)?.id, p.id)
+        let reopenedID = await reopened.proposal(id: p.id)?.id
+        XCTAssertEqual(reopenedID, p.id)
 
         // 损坏文件 → 空集合，不崩
         let url = dir.appendingPathComponent("pending-actions.json")
         try Data("@@@".utf8).write(to: url)
         let recovered = FilePendingActionStore(directory: dir)
-        XCTAssertTrue(await recovered.pending().isEmpty)
+        let recoveredPending = await recovered.pending()
+        XCTAssertTrue(recoveredPending.isEmpty)
     }
 }
