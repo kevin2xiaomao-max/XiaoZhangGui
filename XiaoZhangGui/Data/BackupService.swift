@@ -222,7 +222,7 @@ enum BackupService {
                     title: reader.string("title"),
                     detail: reader.string("detail"),
                     dueDate: reader.date("dueDate"),
-                    priority: reader.int("priority"),
+                    priority: reader.int("priority") ?? 0,
                     imageData: reader.image("imageBase64"),
                     isCompleted: reader.bool("isCompleted"),
                     createdAt: reader.date("createdAt") ?? exportedAt,
