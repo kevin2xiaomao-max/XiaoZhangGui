@@ -70,17 +70,17 @@ final class SnapshotSafetyTests: XCTestCase {
 
         // 失败路径：commit(nil) 不得覆盖
         SnapshotSyncManager.commit(snapshot: nil)
-        let retained = BusinessSnapshot.load()
-        XCTAssertEqual(retained?.todayRevenue, 888, accuracy: 0.001)
-        XCTAssertEqual(retained?.todayTodoCount, 7)
-        XCTAssertEqual(retained?.deliveringCustomerCount, 3)
+        let retained = try XCTUnwrap(BusinessSnapshot.load())
+        XCTAssertEqual(retained.todayRevenue, 888, accuracy: 0.001)
+        XCTAssertEqual(retained.todayTodoCount, 7)
+        XCTAssertEqual(retained.deliveringCustomerCount, 3)
 
         // 成功路径：commit(非 nil) 正常覆盖
         var fresh = BusinessSnapshot()
         fresh.todayRevenue = 123
         SnapshotSyncManager.commit(snapshot: fresh)
-        let updated = BusinessSnapshot.load()
-        XCTAssertEqual(updated?.todayRevenue, 123, accuracy: 0.001)
+        let updated = try XCTUnwrap(BusinessSnapshot.load())
+        XCTAssertEqual(updated.todayRevenue, 123, accuracy: 0.001)
 
         // 还原，避免污染后续测试
         defaults.removeObject(forKey: BusinessSnapshot.storageKey)

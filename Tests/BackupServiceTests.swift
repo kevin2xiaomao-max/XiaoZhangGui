@@ -117,8 +117,9 @@ final class BackupServiceTests: XCTestCase {
         XCTAssertEqual(perf.importSource, "saobei")
 
         let expenses = try rctx.fetch(FetchDescriptor<Expense>())
-        XCTAssertEqual(expenses.first?.category, "其他")
-        XCTAssertEqual(expenses.first?.amount, 20, accuracy: 0.001)
+        let expense = try XCTUnwrap(expenses.first)
+        XCTAssertEqual(expense.category, "其他")
+        XCTAssertEqual(expense.amount, 20, accuracy: 0.001)
 
         let items = try rctx.fetch(FetchDescriptor<ExpiryItem>())
         XCTAssertEqual(items.count, 2)
