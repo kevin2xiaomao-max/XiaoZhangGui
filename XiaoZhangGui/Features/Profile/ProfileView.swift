@@ -20,10 +20,13 @@ struct ProfileView: View {
 
     @Bindable private var settings = AppSettings.shared
     @Bindable private var demo = DemoMode.shared
+    @Environment(ThemeStore.self) private var themeStore
 
     @State private var shopDialog = false
     @State private var goalDialog = false
     @State private var themeDialog = false
+    @State private var accentSheet = false
+    @State private var backgroundSheet = false
     @State private var voiceDialog = false
     @State private var reminderDialog = false
     @State private var aboutDialog = false
@@ -105,6 +108,8 @@ struct ProfileView: View {
         .sheet(isPresented: $shopDialog) { ShopEditSheet() }
         .sheet(isPresented: $goalDialog) { GoalEditSheet() }
         .sheet(isPresented: $themeDialog) { ThemeChoiceSheet() }
+        .sheet(isPresented: $accentSheet) { AccentThemeSheet() }
+        .sheet(isPresented: $backgroundSheet) { BackgroundThemeSheet() }
         .sheet(isPresented: $voiceDialog) {
             VoiceSettingsSheet(showVoice: $showVoice, showsVoiceButton: showsVoiceButton)
         }
@@ -198,6 +203,16 @@ struct ProfileView: View {
             ProfileRow(icon: "circle.lefthalf.filled", tone: .info,
                        title: "显示模式", value: settings.themeModeLabel) {
                 themeDialog = true
+            }
+            divider
+            ProfileRow(icon: "paintpalette", tone: .brand,
+                       title: "主题色", value: themeStore.accentTheme.displayName) {
+                accentSheet = true
+            }
+            divider
+            ProfileRow(icon: "square.on.square", tone: .neutral,
+                       title: "背景风格", value: themeStore.backgroundTheme.displayName) {
+                backgroundSheet = true
             }
         }
     }
@@ -658,6 +673,113 @@ private struct ThemeChoiceSheet: View {
                     }
                 }
             }
+        }
+    }
+}
+
+// MARK: - 主题色选择（b28 T25）
+
+@MainActor
+private struct AccentThemeSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(ThemeStore.self) private var themeStore
+
+    var body: some View {
+        V32SheetChrome("主题色", doneTitle: "关闭", onDone: { dismiss() }) {
+            V32Card(padding: 4) {
+                VStack(spacing: 0) {
+                    ForEach(Array(AccentTheme.allCases.enumerated()), id: \.element.rawValue) { index, theme in
+                        if index > 0 {
+                            Rectangle().fill(V32.divider).frame(height: 1).padding(.leading, 52)
+                        }
+                        Button {
+                            themeStore.setAccent(theme)
+                            Haptic.light()
+                            dismiss()
+                        } label: {
+                            HStack(spacing: 12) {
+                                Circle()
+                                    .fill(theme.palette.accent)
+                                    .frame(width: 28, height: 28)
+                                    .overlay(Circle().strokeBorder(V32.cardOutline, lineWidth: 1))
+                                Text(theme.displayName)
+                                    .v32Text(.title)
+                                    .foregroundStyle(V32.textPrimary)
+                                Spacer()
+                                if themeStore.accentTheme == theme {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundStyle(V32.brand)
+                                }
+                            }
+                            .padding(.horizontal, 12)
+                            .frame(minHeight: 54)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            Text("主题色仅影响点缀色（按钮、图标、选中态）。Hero 深墨绿与临期 / 危险色固定不变。")
+                .v32Text(.caption)
+                .foregroundStyle(V32.textTertiary)
+                .padding(.horizontal, 4)
+        }
+    }
+}
+
+// MARK: - 背景风格选择（b28 T25）
+
+@MainActor
+private struct BackgroundThemeSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(ThemeStore.self) private var themeStore
+
+    var body: some View {
+        V32SheetChrome("背景风格", doneTitle: "关闭", onDone: { dismiss() }) {
+            V32Card(padding: 4) {
+                VStack(spacing: 0) {
+                    ForEach(Array(BackgroundTheme.allCases.enumerated()), id: \.element.rawValue) { index, theme in
+                        if index > 0 {
+                            Rectangle().fill(V32.divider).frame(height: 1).padding(.leading, 52)
+                        }
+                        Button {
+                            themeStore.setBackground(theme)
+                            Haptic.light()
+                            dismiss()
+                        } label: {
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    Circle().fill(theme.palette.pageBG)
+                                    Circle().fill(theme.palette.card)
+                                        .frame(width: 18, height: 18)
+                                    Circle().fill(theme.palette.pageBGSecondary)
+                                        .frame(width: 8, height: 8)
+                                }
+                                .frame(width: 28, height: 28)
+                                .overlay(Circle().strokeBorder(V32.cardOutline, lineWidth: 1))
+                                Text(theme.displayName)
+                                    .v32Text(.title)
+                                    .foregroundStyle(V32.textPrimary)
+                                Spacer()
+                                if themeStore.backgroundTheme == theme {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundStyle(V32.brand)
+                                }
+                            }
+                            .padding(.horizontal, 12)
+                            .frame(minHeight: 54)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            Text("背景风格影响页面底色、卡片、分割线与中性文本。主题切换即时全局生效。")
+                .v32Text(.caption)
+                .foregroundStyle(V32.textTertiary)
+                .padding(.horizontal, 4)
         }
     }
 }
