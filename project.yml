@@ -35,10 +35,11 @@ targets:
         INFOPLIST_KEY_UIUserInterfaceStyle: Automatic
         INFOPLIST_KEY_NSSupportsLiveActivities: YES
         # P0-1：天气 API Key 注入链
-        # GitHub Secret XZG_WEATHER_API_KEY → CI xcodebuild 传入同名 build setting →
-        # 生成的 Info.plist XZGWeatherAPIKey → WeatherConfiguration.current()
-        # 本地未设置该变量时展开为空串，行为同未配置（绝不把 Key 写进仓库）。
-        INFOPLIST_KEY_XZGWeatherAPIKey: $(XZG_WEATHER_API_KEY)
+        # GitHub Secret XZG_WEATHER_API_KEY → CI xcodebuild 直接覆盖
+        # INFOPLIST_KEY_XZGWeatherAPIKey build setting → 生成的 Info.plist
+        # XZGWeatherAPIKey → WeatherConfiguration.current()。
+        # 仓库内默认空串（本地未配置即未配置）；绝不把 Key 写进仓库。
+        INFOPLIST_KEY_XZGWeatherAPIKey: ""
         INFOPLIST_KEY_CFBundleURLTypes:
           - CFBundleURLName: com.xiaozhanggui.ios
             CFBundleURLSchemes:

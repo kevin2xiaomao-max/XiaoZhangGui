@@ -72,7 +72,7 @@ jobs:
             -scheme XiaoZhangGui \
             -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
             -derivedDataPath build/Simulator \
-            XZG_WEATHER_API_KEY="${{ secrets.XZG_WEATHER_API_KEY }}" \
+            INFOPLIST_KEY_XZGWeatherAPIKey="${{ secrets.XZG_WEATHER_API_KEY }}" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
 
@@ -84,7 +84,7 @@ jobs:
             -scheme XiaoZhangGui \
             -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
             -derivedDataPath build/Simulator \
-            XZG_WEATHER_API_KEY="${{ secrets.XZG_WEATHER_API_KEY }}" \
+            INFOPLIST_KEY_XZGWeatherAPIKey="${{ secrets.XZG_WEATHER_API_KEY }}" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
 
@@ -110,7 +110,7 @@ jobs:
             -scheme XiaoZhangGui \
             -destination "platform=iOS Simulator,name=$AIR_NAME" \
             -derivedDataPath build/SimulatorAir \
-            XZG_WEATHER_API_KEY="${{ secrets.XZG_WEATHER_API_KEY }}" \
+            INFOPLIST_KEY_XZGWeatherAPIKey="${{ secrets.XZG_WEATHER_API_KEY }}" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
 
@@ -124,7 +124,7 @@ jobs:
             -destination 'generic/platform=iOS' \
             -configuration Release \
             -derivedDataPath build/Device \
-            XZG_WEATHER_API_KEY="${{ secrets.XZG_WEATHER_API_KEY }}" \
+            INFOPLIST_KEY_XZGWeatherAPIKey="${{ secrets.XZG_WEATHER_API_KEY }}" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
