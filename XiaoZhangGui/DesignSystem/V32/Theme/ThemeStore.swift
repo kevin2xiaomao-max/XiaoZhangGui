@@ -94,6 +94,10 @@ final class ThemeStore {
     /// - Returns: 失败时返回 error 描述，成功返回 nil
     @discardableResult
     func applyWallpaperImage(data: Data, effect: WallpaperEffect, maskStrength: WallpaperMaskStrength) -> String? {
+        // P2-1：先记录旧文件名。新壁纸成功落盘并切换配置前，绝不删除任何旧文件——
+        // 处理失败时旧壁纸必须原样保留（配置仍指向旧文件）。
+        let previousFileName = wallpaper.imageFileName
+
         // 1. 降采样
         guard let jpegData = ImageCodec.downscaled(data: data, maxDimension: 2048, quality: 0.84) else {
             return "图片降采样失败"
@@ -115,7 +119,7 @@ final class ThemeStore {
                 print("壁纸预渲染模糊版本失败：\(error.localizedDescription)")
             }
         }
-        // 4. 更新配置
+        // 4. 更新配置（此刻起当前壁纸已是新文件）
         let config = WallpaperConfig(
             isEnabled: true,
             imageFileName: fileName,
@@ -123,6 +127,13 @@ final class ThemeStore {
             maskStrength: maskStrength
         )
         setWallpaper(config)
+
+        // 5. P2-1：新壁纸已生效，再清理上一张壁纸的原图 / blurred 文件。
+        // 只删除配置中记录的明确文件名（不扫描目录），且绝不删除当前文件。
+        if let previousFileName, previousFileName != fileName {
+            WallpaperStorage.deleteFile(fileName: previousFileName)
+            WallpaperStorage.deleteFile(fileName: WallpaperStorage.blurredFileName(for: previousFileName))
+        }
         return nil
     }
 

@@ -50,10 +50,12 @@ struct HomeView: View {
                                excludingDeliveryIDs: stripIDs)
     }
 
-    /// P1-2：今日已完成计数（Todo + 配送），有完成项才在首页底部显示入口
+    /// P1-1：今日已完成计数（Todo + 配送），与日程「当天完成」共用 ScheduleAgenda 同一口径：
+    /// Todo 按 completedAt、配送按 done+updatedAt 归属当天，点进日程每项都可追踪。
     private var todayCompletedCount: Int {
-        let doneTodos = todos.filter { $0.isCompleted && ($0.completedAt?.isToday == true) }.count
-        let doneDeliveries = customers.filter { $0.statusEnum == .done && $0.updatedAt.isToday }.count
+        let now = Date()
+        let doneTodos = ScheduleAgenda.completedTodos(todos.filter(\.isCompleted), on: now).count
+        let doneDeliveries = ScheduleAgenda.completedDeliveries(customers, on: now).count
         return doneTodos + doneDeliveries
     }
 

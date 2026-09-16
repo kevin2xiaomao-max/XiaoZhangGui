@@ -143,11 +143,13 @@ final class ScheduleAgendaTests: XCTestCase {
     // MARK: b27 T20：已完成 Todo 纯派生分类
 
     func testCompletedTodosClassifiedTimedAlldayNonTodayNoDuplicate() {
+        // P1-1：完成归属按 completedAt 判定（无 completedAt 的历史项仅查看今天时归入）
         let timedDone = Todo(title: "已完成定时", dueDate: todayAt(15, 30), isCompleted: true)
         let dayDone = Todo(title: "已完成全天", dueDate: todayStart, isCompleted: true)
         let noDateDone = Todo(title: "已完成无日期", isCompleted: true)
         let yesterday = calendar.date(byAdding: .day, value: -1, to: todayStart)!
-        let otherDayDone = Todo(title: "昨天已完成", dueDate: yesterday, isCompleted: true)
+        let otherDayDone = Todo(title: "昨天已完成", dueDate: yesterday, isCompleted: true,
+                                createdAt: yesterday, completedAt: yesterday)
 
         let result = ScheduleAgenda.completedTodosForDay(
             [timedDone, dayDone, noDateDone, otherDayDone],

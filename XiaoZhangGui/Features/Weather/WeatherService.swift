@@ -42,6 +42,8 @@ protocol WeatherProviding: Sendable {
 /// location.name。
 struct WeatherAPIProvider: WeatherProviding {
     let configuration: WeatherConfiguration
+    /// 允许注入 URLSession（单元测试用 stub URLProtocol 模拟 WeatherAPI 响应）
+    var session: URLSession = .shared
 
     func fetchCurrentWeather() async throws -> WeatherSnapshot {
         guard configuration.isConfigured else { throw WeatherServiceError.notConfigured }
@@ -64,7 +66,7 @@ struct WeatherAPIProvider: WeatherProviding {
         let data: Data
         let response: URLResponse
         do {
-            (data, response) = try await URLSession.shared.data(for: request)
+            (data, response) = try await session.data(for: request)
         } catch {
             throw WeatherServiceError.requestFailed
         }
@@ -83,6 +85,9 @@ struct WeatherAPIProvider: WeatherProviding {
             feelsLike: payload.current.feelslikeC,
             condition: payload.current.condition.text,
             conditionCode: payload.current.condition.text,
+            // P1-2：GPS 定位成功时 configuration.city 传空串 → 使用 API 返回的真实城市名，
+            // 不允许「天气数据是中山的、标题还写恩平」；
+            // 仅定位失败走默认配置（city=恩平）时才用配置城市。
             city: configuration.city.isEmpty ? payload.location.name : configuration.city,
             precipitationProbability: day?.dailyChanceOfRain.map { Double($0) / 100.0 },
             maxTemperature: day?.maxtempC,
@@ -228,9 +233,11 @@ final class WeatherViewModel {
             let lat = location.coordinate.latitude
             let lon = location.coordinate.longitude
             if lastUsedCoordinates?.latitude != lat || lastUsedCoordinates?.longitude != lon {
+                // P1-2：GPS 成功后城市名传空串，由 WeatherAPIProvider 采用 API 返回的
+                // 真实 location.name；配置里的「恩平」只在定位失败 fallback 时才使用。
                 let resolved = WeatherConfiguration(
                     apiKey: baseConfiguration.apiKey,
-                    city: baseConfiguration.city,
+                    city: "",
                     latitude: lat,
                     longitude: lon
                 )

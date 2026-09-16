@@ -38,14 +38,30 @@ struct ScheduleView: View {
     private var scheduleDay: ScheduleDay {
         let undated = todos.filter { !$0.isCompleted && $0.dueDate == nil }
         var day = ScheduleAgenda.make(from: dayData, undatedTodos: undated)
-        // b27 T20：已完成项保留在时间线/全天区，分类逻辑在 ScheduleAgenda 纯函数内（可单测）；
+        // P1-1：已完成项按 completedAt 归属当天（与首页「今日已完成」同一事实源），
+        // 分类逻辑在 ScheduleAgenda 纯函数内（可单测）；
         // 不改 CalendarAgenda.dayData / eventFlags 口径。
         let done = ScheduleAgenda.completedTodosForDay(
             todos.filter(\.isCompleted), date: selectedDate, calendar: calendar
         )
         day.timedEvents += done.timed
+
+        // P1-1：补齐「当天完成、但配送时间不在今天」的 done 配送（去重 dayData 已收录项），
+        // 保证首页今日完成计数点进来后每一项都能在当天日程追踪到。
+        let existingDeliveryIDs = Set(
+            day.timedEvents.map(\.id)
+            + day.allDay.deliveries.map { "delivery-\($0.notificationID)" }
+        )
+        let doneDeliveries = ScheduleAgenda.completedDeliveriesForDay(
+            customers,
+            date: selectedDate,
+            alreadyIncludedIDs: existingDeliveryIDs,
+            calendar: calendar
+        )
+        day.timedEvents += doneDeliveries.timed
         day.timedEvents.sort { $0.date < $1.date }
         day.allDay.todos += done.allDay
+        day.allDay.deliveries += doneDeliveries.allDay
         return day
     }
 

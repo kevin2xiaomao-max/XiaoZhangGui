@@ -104,18 +104,50 @@ struct PerformanceRepository {
         SnapshotSyncManager.refreshAll(context: context)
     }
 
+    /// 批量导入扫呗记录。
+    /// P1-3：
+    /// - 同时防「数据库已有重复」与「同一文件内部重复」——每接受一条立即把 fingerprint
+    ///   回写本轮 seen Set，后续相同行（含文件内孪生行）只计 duplicates 不落库。
+    /// - 批量 insert → 一次 context.save() → 一次 Snapshot/Widget/Live Activity 刷新，
+    ///   不再逐行 save / 逐行刷新。
     func importSaobei(_ rows: [SaobeiParsedRow], skippedFailed: Int) throws -> SaobeiImportCommitResult {
         var inserted = 0
         var duplicates = 0
-        let existing = Set((try context.fetch(FetchDescriptor<Performance>())).map(\.fingerprint).filter { !$0.isEmpty })
+        var seen = Set(
+            (try context.fetch(FetchDescriptor<Performance>()))
+                .map(\.fingerprint)
+                .filter { !$0.isEmpty }
+        )
+        var accepted: [Performance] = []
+        accepted.reserveCapacity(rows.count)
+
         for row in rows {
-            if existing.contains(row.fingerprint) {
+            if !row.fingerprint.isEmpty, seen.contains(row.fingerprint) {
                 duplicates += 1
                 continue
             }
-            try addImported(row)
+            // P0-3：扫呗导入按 paymentMethod 派生 incomeSource
+            let source = IncomeSource.from(note: row.paymentMethod)
+            accepted.append(Performance(
+                amount: row.amount,
+                note: row.paymentMethod.isEmpty ? "扫呗" : "扫呗 · \(row.paymentMethod)",
+                date: row.date,
+                fingerprint: row.fingerprint,
+                paymentMethod: row.paymentMethod,
+                orderNo: row.orderNo,
+                importSource: "saobei",
+                incomeSource: source.rawValue
+            ))
+            seen.insert(row.fingerprint)
             inserted += 1
         }
+
+        guard !accepted.isEmpty else {
+            return SaobeiImportCommitResult(inserted: 0, duplicates: duplicates, skippedFailed: skippedFailed)
+        }
+        accepted.forEach { context.insert($0) }
+        try context.save() // 单次落库
+        SnapshotSyncManager.refreshAll(context: context) // 单次 Snapshot / Widget / Live Activity
         return SaobeiImportCommitResult(inserted: inserted, duplicates: duplicates, skippedFailed: skippedFailed)
     }
 

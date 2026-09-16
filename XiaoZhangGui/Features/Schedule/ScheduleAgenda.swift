@@ -119,12 +119,42 @@ enum ScheduleAgenda {
         )
     }
 
-    /// b27 T20：把「当天的已完成 Todo」纯派生分类为 timed / all-day。
+    // MARK: - 「当天完成」口径（P1-1：首页「今日已完成」与日程共用同一事实源）
+    //
+    // 产品规则：
+    // - Todo：isCompleted 且 completedAt 落在当天。
+    //   completedAt 缺失的历史数据（toggleComplete 现总会写入）仅在查看「今天」时归入，
+    //   非今天不猜测归属，避免旧数据污染任意历史日。
+    // - Customer：status == .done 且 updatedAt 落在当天（每次状态流转都更新 updatedAt）。
+    // 首页计数与日程当天明细必须由这两个函数派生，保证数字点进去对得上。
+
+    static func completedTodos(
+        _ completedTodos: [Todo],
+        on date: Date,
+        calendar: Calendar = .current
+    ) -> [Todo] {
+        completedTodos.filter { todo in
+            if let completedAt = todo.completedAt {
+                return calendar.isDate(completedAt, inSameDayAs: date)
+            }
+            return calendar.isDate(date, inSameDayAs: Date())
+        }
+    }
+
+    static func completedDeliveries(
+        _ customers: [CustomerRequest],
+        on date: Date,
+        calendar: Calendar = .current
+    ) -> [CustomerRequest] {
+        customers.filter {
+            $0.statusEnum == .done && calendar.isDate($0.updatedAt, inSameDayAs: date)
+        }
+    }
+
+    /// 把「当天完成的 Todo」（按 completedAt 归属）分类为 timed / all-day 展示。
     /// 只看传入数据，不读数据库、不改 CalendarAgenda.dayData / eventFlags 口径。
-    /// - 有真实钟点且与 selectedDate 同日 → timed
-    /// - 日期级（00:00）且同日 → all-day
-    /// - 无 dueDate → 仅当 selectedDate 是今天时进 all-day
-    /// - 非当天一律不返回（不混入）；同一项只落一个桶，不重复
+    /// 展示分桶仍按 dueDate 形态：有真实钟点且与 selectedDate 同日 → timed，其余 → all-day。
+    /// 同一项只落一个桶，不重复。
     static func completedTodosForDay(
         _ completedTodos: [Todo],
         date selectedDate: Date,
@@ -132,17 +162,38 @@ enum ScheduleAgenda {
     ) -> (timed: [ScheduleEvent], allDay: [Todo]) {
         var timed: [ScheduleEvent] = []
         var allDay: [Todo] = []
-        for todo in completedTodos {
-            if let due = todo.dueDate {
-                if hasClock(due) {
-                    if calendar.isDate(due, inSameDayAs: selectedDate) {
-                        timed.append(.todo(todo))
-                    }
-                } else if calendar.isDate(due, inSameDayAs: selectedDate) {
-                    allDay.append(todo)
-                }
-            } else if calendar.isDate(selectedDate, inSameDayAs: Date()) {
+        for todo in completedTodos(completedTodos, on: selectedDate, calendar: calendar) {
+            if let due = todo.dueDate,
+               hasClock(due),
+               calendar.isDate(due, inSameDayAs: selectedDate) {
+                timed.append(.todo(todo))
+            } else {
                 allDay.append(todo)
+            }
+        }
+        return (timed, allDay)
+    }
+
+    /// 「当天完成的配送」（按 updatedAt 归属）中，尚未出现在当天时间线/全天区的部分。
+    /// dayData 已按 deliveryTime/createdAt 收录当天配送（含 done），这里只补齐
+    /// 「今天完成、但配送时间不在今天」的单，避免与既有列表重复。
+    /// - 配送时间为真实钟点且在当天 → timed；其余（无时间/他天时间）→ allDay
+    static func completedDeliveriesForDay(
+        _ customers: [CustomerRequest],
+        date selectedDate: Date,
+        alreadyIncludedIDs: Set<String>,
+        calendar: Calendar = .current
+    ) -> (timed: [ScheduleEvent], allDay: [CustomerRequest]) {
+        var timed: [ScheduleEvent] = []
+        var allDay: [CustomerRequest] = []
+        for request in completedDeliveries(customers, on: selectedDate, calendar: calendar)
+        where !alreadyIncludedIDs.contains("delivery-\(request.notificationID)") {
+            if let deliveryTime = CustomerDeliveryStorage.decode(request.customer).deliveryTime,
+               hasClock(deliveryTime),
+               calendar.isDate(deliveryTime, inSameDayAs: selectedDate) {
+                timed.append(.delivery(request, date: deliveryTime))
+            } else {
+                allDay.append(request)
             }
         }
         return (timed, allDay)
