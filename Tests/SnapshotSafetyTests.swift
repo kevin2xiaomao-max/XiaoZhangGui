@@ -18,13 +18,15 @@ final class SnapshotSafetyTests: XCTestCase {
         let ctx = container.mainContext
         let cal = Calendar.current
         let now = Date()
-        let todayThree = cal.date(bySettingHour: 15, minute: 0, second: 0, of: now)!
+        // 用「当前时间 +1 小时」作为下一条待办，保证它在任何执行时刻都位于未来，
+        // 不依赖固定钟点（修复 CI UTC 17:xx 执行时 15:00 已过导致的顺序相关 flaky）。
+        let futureDue = Date(timeIntervalSinceNow: 3600)
         let yesterday = cal.date(byAdding: .day, value: -1, to: cal.startOfDay(for: now))!
         let inThreeDays = cal.date(byAdding: .day, value: 3, to: cal.startOfDay(for: now))!
 
-        ctx.insert(Todo(title: "盘点进货", dueDate: todayThree, priority: 1))          // 今日待办
+        ctx.insert(Todo(title: "盘点进货", dueDate: futureDue, priority: 1))          // 下一条（未来）
         ctx.insert(Todo(title: "昨日逾期", dueDate: yesterday, priority: 0))          // 逾期
-        ctx.insert(Todo(title: "已完成", dueDate: todayThree, isCompleted: true,
+        ctx.insert(Todo(title: "已完成", dueDate: futureDue, isCompleted: true,
                         completedAt: now))                                            // 不计待办
         ctx.insert(Performance(amount: 100, note: "门店", date: now,
                                incomeSource: IncomeSource.store.rawValue))
@@ -37,7 +39,9 @@ final class SnapshotSafetyTests: XCTestCase {
 
         let snapshot = try XCTUnwrap(SnapshotSyncManager.buildSnapshot(context: ctx))
         XCTAssertEqual(snapshot.todayRevenue, 150, accuracy: 0.001)
-        XCTAssertEqual(snapshot.todayTodoCount, 1)
+        // 今日待办数按执行时刻的日历实时计算（跨午夜边界也成立）
+        let expectedTodayCount = cal.isDateInToday(futureDue) ? 1 : 0
+        XCTAssertEqual(snapshot.todayTodoCount, expectedTodayCount)
         XCTAssertEqual(snapshot.overdueTodoCount, 1)
         XCTAssertEqual(snapshot.urgentExpiryCount, 1)
         XCTAssertEqual(snapshot.nextExpiryName, "鲜奶")
