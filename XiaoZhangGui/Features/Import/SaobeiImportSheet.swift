@@ -284,18 +284,25 @@ struct SaobeiImportSheet: View {
             errorText = error.localizedDescription
         case .success(let urls):
             guard let url = urls.first else { return }
+            // P0-1：原 defer 在 switch case 块结束就执行，isParsing 立即被设回 false，
+            // UI 几乎不显示「正在解析」；且同步 parse 阻塞 main thread。
+            // 改用 Task @MainActor 异步解析，让 UI 状态变化先渲染再执行重活。
             isParsing = true
-            let accessed = url.startAccessingSecurityScopedResource()
-            defer {
-                if accessed { url.stopAccessingSecurityScopedResource() }
+            let importer = importer
+            let fileName = url.lastPathComponent
+            Task { @MainActor in
+                let accessed = url.startAccessingSecurityScopedResource()
+                defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+                do {
+                    let data = try Data(contentsOf: url)
+                    let parsed = try importer.parse(data: data, fileName: fileName)
+                    parseResult = parsed
+                    errorText = nil
+                } catch {
+                    parseResult = nil
+                    errorText = error.localizedDescription
+                }
                 isParsing = false
-            }
-            do {
-                let data = try Data(contentsOf: url)
-                parseResult = try importer.parse(data: data, fileName: url.lastPathComponent)
-            } catch {
-                parseResult = nil
-                errorText = error.localizedDescription
             }
         }
     }
