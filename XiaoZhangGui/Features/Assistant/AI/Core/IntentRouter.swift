@@ -46,7 +46,7 @@ struct IntentRouter {
         // 2) 营业额：含来源 / 收款语义，且（有金额 或 有明确收款动作词）
         //    只有来源词没有金额（如“美团怎么开店”）不当成记账，交给后续分类 / worldChat
         let revenueActionCues = ["营业额", "营收", "收入", "卖了", "收款", "入账", "到账"]
-        if revenueKeywords.contains(where: { text.contains($0) }),
+        if Self.revenueKeywords.contains(where: { text.contains($0) }),
            hasAmount(text) || revenueActionCues.contains(where: { text.contains($0) }) {
             return .businessAction(.recordRevenue)
         }
@@ -57,7 +57,7 @@ struct IntentRouter {
         }
 
         // 4) 备忘（“记一下供应商周五来”）先于待办
-        if memoKeywords.contains(where: { text.contains($0) }) {
+        if Self.memoKeywords.contains(where: { text.contains($0) }) {
             return .businessAction(.createMemo)
         }
 
@@ -87,7 +87,7 @@ struct IntentRouter {
     }
 
     func isDelivery(_ text: String) -> Bool {
-        let hasVerb = text.contains("送") || deliveryKeywords.contains(where: { text.contains($0) })
+        let hasVerb = text.contains("送") || Self.deliveryKeywords.contains(where: { text.contains($0) })
         guard hasVerb else { return false }
         // “给302送…” / “送…到302” / 含 室|房|号
         if text.contains("给"), let _ = firstRoomNumber(in: text) { return true }
@@ -95,7 +95,7 @@ struct IntentRouter {
            text.range(of: #"\d{2,5}\s*(室|房|号|栋|单元)"#, options: .regularExpression) != nil {
             return true
         }
-        if deliveryKeywords.contains(where: { text.contains($0) }) { return true }
+        if Self.deliveryKeywords.contains(where: { text.contains($0) }) { return true }
         return false
     }
 
@@ -117,7 +117,7 @@ struct IntentRouter {
     }
 
     private func classifyQuery(_ text: String) -> IntentKind? {
-        let asks = queryKeywords.contains(where: { text.contains($0) })
+        let asks = Self.queryKeywords.contains(where: { text.contains($0) })
         let looksQuestion = asks || text.hasSuffix("吗")
         guard looksQuestion else { return nil }
         if text.contains("营业额") || text.contains("卖了") || text.contains("收入") || text.contains("营收") {
