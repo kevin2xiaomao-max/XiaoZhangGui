@@ -45,7 +45,7 @@ enum SaobeiXLSXParser {
         guard let xml = String(data: data, encoding: .utf8) else { return [] }
         var rows: [Int: [Int: String]] = [:]
         let pattern = try? NSRegularExpression(
-            pattern: "<c[^>]*r=\"([A-Z]+)(\\d+)\"[^>]*?(?:t=\"([^\"]+)\")?[^>]*>[\\s\\S]*?<v>([\\s\\S]*?)</v>",
+            pattern: "<c[^>]*r=\"([A-Z]+)(\\d+)\"[^>]*?(?:\\s*t=\"([^\"]+)\")?[^>]*>[\\s\\S]*?<v>([\\s\\S]*?)</v>",
             options: []
         )
         let ns = xml as NSString
