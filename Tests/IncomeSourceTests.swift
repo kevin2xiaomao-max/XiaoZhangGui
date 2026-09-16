@@ -94,9 +94,9 @@ final class IncomeSourceTests: XCTestCase {
         let meituanItem = summaries.first { $0.source == .meituan }
         let otherItem = summaries.first { $0.source == .other }
 
-        XCTAssertEqual(storeItem?.amount, 100, accuracy: 0.001)
-        XCTAssertEqual(meituanItem?.amount, 50, accuracy: 0.001)
-        XCTAssertEqual(otherItem?.amount, 0)
+        XCTAssertEqual(storeItem?.amount ?? 0, 100, accuracy: 0.001)
+        XCTAssertEqual(meituanItem?.amount ?? 0, 50, accuracy: 0.001)
+        XCTAssertEqual(otherItem?.amount ?? 0, 0)
 
         // 比例合计为 1
         let totalRatio = summaries.map(\.ratio).reduce(0, +)
