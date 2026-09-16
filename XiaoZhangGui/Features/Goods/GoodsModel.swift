@@ -57,7 +57,7 @@ enum GoodsState {
         }
     }
 
-    var color: Color {
+    @MainActor var color: Color {
         switch self {
         case .expired: return V32.danger
         case .expiringSoon, .lowStock: return V32.amber

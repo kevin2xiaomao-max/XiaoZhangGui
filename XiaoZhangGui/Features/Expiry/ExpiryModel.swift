@@ -22,7 +22,7 @@ enum ExpiryGroup {
         }
     }
 
-    var color: Color {
+    @MainActor var color: Color {
         switch self {
         case .expired, .urgent3: return V32.danger
         case .urgent7: return V32.amber
@@ -88,7 +88,7 @@ enum ExpiryBadge {
         return days >= 0 ? "还剩 \(days) 天" : "已过期 \(-days) 天"
     }
 
-    static func color(for item: ExpiryItem) -> Color {
+    @MainActor static func color(for item: ExpiryItem) -> Color {
         if item.status == .returned { return V32.textTertiary }
         let days = item.daysLeft()
         if days <= 3 { return V32.danger }

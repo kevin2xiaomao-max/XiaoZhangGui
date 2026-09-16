@@ -382,6 +382,7 @@ struct ProfileView: View {
 
 // MARK: - 设置行
 
+@MainActor
 private struct ProfileRow: View {
     let icon: String
     var tone: V32BubbleTone = .neutral
@@ -401,6 +402,7 @@ private struct ProfileRow: View {
     }
 }
 
+@MainActor
 struct ProfileRowLabel: View {
     let icon: String
     var tone: V32BubbleTone = .neutral
@@ -435,6 +437,7 @@ struct ProfileRowLabel: View {
     }
 }
 
+@MainActor
 private struct ProfileToggleRow: View {
     let icon: String
     var tone: V32BubbleTone = .neutral

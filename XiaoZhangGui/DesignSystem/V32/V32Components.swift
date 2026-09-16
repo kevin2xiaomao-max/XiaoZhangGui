@@ -128,6 +128,7 @@ struct V32PillBar: View {
 
 // MARK: 普通卡片
 
+@MainActor
 struct V32Card<Content: View>: View {
     var padding: CGFloat = V32Layout.cardPad
     var fill: Color = V32.card
@@ -184,6 +185,7 @@ struct V32HeroCard<Content: View>: View {
 
 // MARK: 状态胶囊
 
+@MainActor
 enum V32Status {
     case pending      // 待处理（中性灰）
     case delivering   // 配送中（品牌绿）
@@ -241,6 +243,7 @@ struct V32StatusPill: View {
 
 // MARK: 图标泡
 
+@MainActor
 enum V32BubbleTone {
     case brand, amber, danger, info, neutral
 
@@ -264,6 +267,7 @@ enum V32BubbleTone {
     }
 }
 
+@MainActor
 struct V32IconBubble: View {
     let systemName: String
     var tone: V32BubbleTone = .brand
