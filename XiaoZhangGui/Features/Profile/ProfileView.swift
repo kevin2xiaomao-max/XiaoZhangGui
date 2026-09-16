@@ -1,7 +1,6 @@
 import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
-import PhotosUI
 
 // MARK: - 我的（V32）：个人头部 + 经营数据入口 + 分组设置
 
@@ -32,8 +31,6 @@ struct ProfileView: View {
     @State private var clearDialog = false
     @State private var showImporter = false
     @State private var toast: String?
-    @State private var avatarDialog = false
-    @State private var avatarItem: PhotosPickerItem?
     @State private var toolRoute: String?
 
     private var monthlyGoal: Double {
@@ -106,7 +103,6 @@ struct ProfileView: View {
             }
         }
         .sheet(isPresented: $shopDialog) { ShopEditSheet() }
-        .sheet(isPresented: $avatarDialog) { AvatarProfileSheet(settings: settings, selectedItem: $avatarItem) }
         .sheet(isPresented: $goalDialog) { GoalEditSheet() }
         .sheet(isPresented: $themeDialog) { ThemeChoiceSheet() }
         .sheet(isPresented: $voiceDialog) {
@@ -131,19 +127,23 @@ struct ProfileView: View {
         }
     }
 
-    // MARK: 个人头部
+    // MARK: 店铺信息 Row（轻量，无头像）
 
     private var profileHero: some View {
         Button { shopDialog = true } label: {
             V32HeroCard {
-                HStack(spacing: 14) {
-                    avatar(size: 56)
+                HStack(spacing: 12) {
+                    Image(systemName: "storefront.fill")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(V32.brandOnHero)
+                        .frame(width: 40, height: 40)
+                        .background(Circle().fill(V32.brandOnHero.opacity(0.18)))
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(DisplayText.visible(settings.ownerName, fallback: "老板"))
+                        Text(DisplayText.visible(settings.shopName, fallback: "我的小店"))
                             .v32Text(.section)
                             .foregroundStyle(V32.textOnHero)
                             .lineLimit(1)
-                        Text("\(DisplayText.visible(settings.shopName, fallback: "我的小店")) · 你的小掌柜")
+                        Text("\(DisplayText.visible(settings.ownerName, fallback: "老板")) · 你的小掌柜")
                             .v32Text(.subhead)
                             .foregroundStyle(V32.textOnHeroSecondary)
                             .lineLimit(1)
@@ -195,12 +195,6 @@ struct ProfileView: View {
 
     private var personalSection: some View {
         settingsGroup("个性化") {
-            ProfileRow(icon: "person.crop.circle", tone: .neutral,
-                       title: "头像与 Emoji",
-                       value: settings.avatarImageData == nil ? settings.avatarEmoji : "照片") {
-                avatarDialog = true
-            }
-            divider
             ProfileRow(icon: "circle.lefthalf.filled", tone: .info,
                        title: "显示模式", value: settings.themeModeLabel) {
                 themeDialog = true
@@ -287,19 +281,6 @@ struct ProfileView: View {
                 VStack(spacing: 0) { content() }
             }
         }
-    }
-
-    private func avatar(size: CGFloat) -> some View {
-        Group {
-            if let data = settings.avatarImageData, let image = UIImage(data: data) {
-                Image(uiImage: image).resizable().scaledToFill()
-            } else {
-                Text(settings.avatarEmoji).font(.system(size: size * 0.5))
-            }
-        }
-        .frame(width: size, height: size)
-        .background(Circle().fill(V32.brandOnHero.opacity(0.18)))
-        .clipShape(Circle())
     }
 
     private var appVersion: String {
@@ -626,54 +607,6 @@ private struct ReminderSettingsSheet: View {
                     ProfileToggleRow(icon: "bell", tone: .brand, title: "待办提醒", isOn: $settings.todoReminderEnabled)
                     Rectangle().fill(V32.divider).frame(height: 1).padding(.leading, 48)
                     ProfileToggleRow(icon: "clock.badge.exclamationmark", tone: .amber, title: "临期退货提醒", isOn: $settings.expiryReminderEnabled)
-                }
-            }
-        }
-    }
-}
-
-// MARK: - 头像
-
-private struct AvatarProfileSheet: View {
-    @Bindable var settings: AppSettings
-    @Binding var selectedItem: PhotosPickerItem?
-    @Environment(\.dismiss) private var dismiss
-    private let emojis = ["👨🏻‍💼", "👩🏻‍💼", "🧑🏻‍🍳", "😎", "🐱", "🐼", "🏪", "☕️"]
-    var body: some View {
-        V32SheetChrome("个性头像", doneTitle: "关闭", onDone: { dismiss() }) {
-            V32Card {
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 14) {
-                    ForEach(emojis, id: \.self) { emoji in
-                        Button {
-                            settings.avatarEmoji = emoji
-                            settings.avatarImageData = nil
-                            Haptic.light()
-                            dismiss()
-                        } label: {
-                            Text(emoji)
-                                .font(.system(size: 30))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 10)
-                                .background(Circle().fill(V32.pageBGSecondary))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-            PhotosPicker(selection: $selectedItem, matching: .images) {
-                Label("从相册选择头像", systemImage: "photo.on.rectangle")
-                    .v32Text(.body)
-                    .foregroundStyle(V32.brand)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 13)
-                    .background(Capsule().fill(V32.brandSoft))
-            }
-            .onChange(of: selectedItem) { _, item in
-                Task {
-                    if let data = try? await item?.loadTransferable(type: Data.self) {
-                        settings.avatarImageData = data
-                        dismiss()
-                    }
                 }
             }
         }
