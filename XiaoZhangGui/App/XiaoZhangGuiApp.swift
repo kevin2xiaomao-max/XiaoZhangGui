@@ -8,6 +8,7 @@ struct XiaoZhangGuiApp: App {
 
     @State private var settings = AppSettings.shared
     @State private var demo = DemoMode.shared
+    @State private var themeStore = ThemeStore.shared
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
@@ -17,6 +18,7 @@ struct XiaoZhangGuiApp: App {
                     .id(demo.sessionID)
                     .modelContainer(demo.isEnabled ? DemoCatalog.container : container)
                     .environment(settings)
+                    .environment(themeStore)
                     .tint(V32.brand)
                     .preferredColorScheme(settings.colorScheme)
                     .task {
