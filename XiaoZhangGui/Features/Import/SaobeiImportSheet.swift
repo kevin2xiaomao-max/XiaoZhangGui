@@ -105,7 +105,7 @@ struct SaobeiImportSheet: View {
             V32SecondaryButton(title: "选择扫呗导出文件", systemName: "square.and.arrow.down") {
                 showPicker = true
             }
-            Text("优先 CSV。Excel 会尝试解析；失败时请另存为 CSV。")
+            Text("支持 CSV / XLSX。旧版 XLS 请另存为 XLSX 或 CSV。")
                 .v32Text(.caption)
                 .foregroundStyle(V32.textTertiary)
             if demo.isEnabled {
@@ -272,7 +272,7 @@ struct SaobeiImportSheet: View {
         var types: [UTType] = [.commaSeparatedText, .plainText, .data]
         if let csv = UTType(filenameExtension: "csv") { types.append(csv) }
         if let xlsx = UTType(filenameExtension: "xlsx") { types.append(xlsx) }
-        if let xls = UTType(filenameExtension: "xls") { types.append(xls) }
+        // P3-5：去掉 .xls（旧二进制格式不伪装支持）
         return types
     }
 

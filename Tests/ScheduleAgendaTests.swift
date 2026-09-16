@@ -174,4 +174,43 @@ final class ScheduleAgendaTests: XCTestCase {
         let allDayIDs = Set(result.allDay.map { "todo-\($0.notificationID)" })
         XCTAssertTrue(timedIDs.isDisjoint(with: allDayIDs))
     }
+
+    // MARK: P1-4：已完成配送在日程可追踪（CalendarAgenda→ScheduleAgenda 不过滤 status）
+
+    func testDoneDeliveryRetainedInTimedEvents() {
+        let payload = CustomerDeliveryStorage.encode(
+            existingValue: "王姐", deliveryTime: todayAt(10), note: ""
+        )
+        let doneDelivery = CustomerRequest(
+            customer: payload, roomOrAddress: "", phone: "",
+            content: "矿泉水", status: CustomerStatus.done.rawValue,
+            createdAt: todayStart, updatedAt: todayAt(10)
+        )
+        let day = ScheduleAgenda.make(
+            from: makeDayData(customers: [doneDelivery])
+        )
+        // done 配送应保留在 timedEvents
+        XCTAssertEqual(day.timedEvents.count, 1)
+        switch day.timedEvents[0] {
+        case .delivery(let request, _):
+            XCTAssertEqual(request.statusEnum, .done, "done 配送应保留在时间线")
+        case .todo:
+            XCTFail("应为 done 配送")
+        }
+    }
+
+    func testDoneDeliveryRetainedInAllDay() {
+        // 无 deliveryTime 的 done 配送应保留在 allDay.deliveries
+        let doneDelivery = CustomerRequest(
+            customer: "李老板", roomOrAddress: "", phone: "",
+            content: "香烟", status: CustomerStatus.done.rawValue,
+            createdAt: todayStart, updatedAt: todayStart
+        )
+        let day = ScheduleAgenda.make(
+            from: makeDayData(customers: [doneDelivery])
+        )
+        XCTAssertTrue(day.timedEvents.isEmpty, "无 deliveryTime 不应进定时")
+        XCTAssertEqual(day.allDay.deliveries.count, 1, "done 配送应保留在全天")
+        XCTAssertEqual(day.allDay.deliveries.first?.statusEnum, .done)
+    }
 }

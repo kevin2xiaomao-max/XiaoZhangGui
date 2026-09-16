@@ -227,8 +227,14 @@ struct ScheduleView: View {
         return false
     }
 
+    /// P1-4：已完成配送在日程时间线同样弱化
+    private func isCompletedDelivery(_ event: ScheduleEvent) -> Bool {
+        if case .delivery(let request, _) = event { return request.statusEnum == .done }
+        return false
+    }
+
     private func timelineCard(_ event: ScheduleEvent, chevron: Bool) -> some View {
-        let done = isCompletedTodo(event)
+        let done = isCompletedTodo(event) || isCompletedDelivery(event)
         return V32Card {
             HStack(spacing: 12) {
                 eventIcon(event)
@@ -277,11 +283,14 @@ struct ScheduleView: View {
                             allDayTodoRow(todo)
                         }
                         ForEach(scheduleDay.allDay.deliveries, id: \.persistentModelID) { request in
+                            let done = request.statusEnum == .done
                             NavigationLink { CustomerView() } label: {
                                 iconRow(
-                                    icon: "box.truck.fill", tone: .brand,
+                                    icon: done ? "checkmark.circle.fill" : "box.truck.fill",
+                                    tone: done ? .neutral : .brand,
                                     title: request.displayTitle,
-                                    subtitle: request.displaySubtitle.isEmpty ? "客户配送" : request.displaySubtitle
+                                    subtitle: request.displaySubtitle.isEmpty ? "客户配送" : request.displaySubtitle,
+                                    done: done
                                 )
                             }
                             .buttonStyle(.plain)
@@ -332,13 +341,14 @@ struct ScheduleView: View {
         .frame(minHeight: 54)
     }
 
-    private func iconRow(icon: String, tone: V32BubbleTone, title: String, subtitle: String) -> some View {
+    private func iconRow(icon: String, tone: V32BubbleTone, title: String, subtitle: String, done: Bool = false) -> some View {
         HStack(spacing: 12) {
             V32IconBubble(systemName: icon, tone: tone, size: 34, icon: 15)
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .v32Text(.title)
-                    .foregroundStyle(V32.textPrimary)
+                    .foregroundStyle(done ? V32.textTertiary : V32.textPrimary)
+                    .strikethrough(done, color: V32.textQuaternary)
                     .lineLimit(2)
                 if !subtitle.isEmpty {
                     Text(subtitle)

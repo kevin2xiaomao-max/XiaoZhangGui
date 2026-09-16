@@ -3,10 +3,7 @@ import Foundation
 /// 轻量 xlsx 读取：不解第三方库。失败时提示另存为 CSV。
 enum SaobeiXLSXParser {
     static func parse(data: Data, fileName: String) throws -> SaobeiParseResult {
-        if let csvText = SaobeiCSVParser.decodeText(data),
-           csvText.contains("交易") || csvText.contains("金额") {
-            return try SaobeiCSVParser.parse(text: csvText, fileName: fileName)
-        }
+        // P3-2：删除 CSV fallback——禁止 CSV 改后缀冒充 XLSX
         guard data.starts(with: [0x50, 0x4b, 0x03, 0x04]) else {
             throw SaobeiImportError.unsupportedExcel("无法识别 Excel 格式，请在扫呗里另存为 CSV")
         }
@@ -154,7 +151,11 @@ protocol SaobeiFileImporting {
 struct SaobeiImporter: SaobeiFileImporting {
     func parse(data: Data, fileName: String) throws -> SaobeiParseResult {
         let lower = fileName.lowercased()
-        if lower.hasSuffix(".xlsx") || lower.hasSuffix(".xls") || data.starts(with: [0x50, 0x4b, 0x03, 0x04]) {
+        // P3-5：.xls 是旧二进制格式（≠.xlsx ZIP/XML），不伪装支持
+        if lower.hasSuffix(".xls") && !lower.hasSuffix(".xlsx") {
+            throw SaobeiImportError.unsupportedExcel("暂不支持旧版 XLS，请另存为 XLSX 或 CSV")
+        }
+        if lower.hasSuffix(".xlsx") || data.starts(with: [0x50, 0x4b, 0x03, 0x04]) {
             return try SaobeiXLSXParser.parse(data: data, fileName: fileName)
         }
         return try SaobeiCSVParser.parse(data: data, fileName: fileName)

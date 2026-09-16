@@ -5,10 +5,12 @@ struct CustomerView: View {
     @Environment(\.modelContext) private var context
     @Query private var requests: [CustomerRequest]
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var filter: CustomerFilter = .all
     @State private var showNewEditor = false
     @State private var editingRequest: CustomerRequest?
     @State private var deletingRequest: CustomerRequest?
+    @State private var showDoneToast = false
 
     private var shown: [CustomerRequest] {
         let list = filter == .all ? requests : requests.filter { $0.statusEnum == filter.status }
@@ -25,7 +27,11 @@ struct CustomerView: View {
                     tabs: CustomerFilter.allCases.map(\.rawValue),
                     selectionIndex: Binding(
                         get: { CustomerFilter.allCases.firstIndex(of: filter) ?? 0 },
-                        set: { filter = CustomerFilter.allCases[$0] }
+                        set: {
+                            withAnimation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion))) {
+                                filter = CustomerFilter.allCases[$0]
+                            }
+                        }
                     )
                 )
                 if shown.isEmpty {
@@ -49,6 +55,7 @@ struct CustomerView: View {
                                     onAdvance: { advance(request) },
                                     onDelete: { deletingRequest = request }
                                 )
+                                .transition(.opacity.combined(with: .scale(scale: 0.98)))
                             }
                         }
                     }
@@ -61,6 +68,18 @@ struct CustomerView: View {
         .v32PageBackground()
         .v32PageBottomInset()
         .toolbar(.hidden, for: .navigationBar)
+        .overlay(alignment: .bottom) {
+            if showDoneToast {
+                Text("✓ 已完成配送")
+                    .v32Text(.subhead)
+                    .foregroundStyle(Color.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(Capsule().fill(V32.hero))
+                    .padding(.bottom, V32Layout.bottomPad + 12)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
         .sheet(isPresented: $showNewEditor) { CustomerEditorSheet(request: nil) }
         .sheet(item: $editingRequest) { CustomerEditorSheet(request: $0) }
         .confirmationDialog(
@@ -80,8 +99,17 @@ struct CustomerView: View {
     }
 
     private func advance(_ request: CustomerRequest) {
-        Haptic.light()
+        let willComplete = request.statusEnum == .delivering
         try? CustomerRepository(context: context).advanceStatus(request)
+        if willComplete {
+            Haptic.success()
+            withAnimation(V32Motion.softSpring) { showDoneToast = true }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                withAnimation(V32Motion.softSpring) { showDoneToast = false }
+            }
+        } else {
+            Haptic.light()
+        }
     }
 
     private func copyAddress(_ request: CustomerRequest) {

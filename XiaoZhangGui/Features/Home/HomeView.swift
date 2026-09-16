@@ -53,6 +53,13 @@ struct HomeView: View {
                                excludingDeliveryIDs: stripIDs)
     }
 
+    /// P1-2：今日已完成计数（Todo + 配送），有完成项才在首页底部显示入口
+    private var todayCompletedCount: Int {
+        let doneTodos = todos.filter { $0.isCompleted && ($0.completedAt?.isToday == true) }.count
+        let doneDeliveries = customers.filter { $0.statusEnum == .done && $0.updatedAt.isToday }.count
+        return doneTodos + doneDeliveries
+    }
+
     /// 配送中优先、待处理其次，最多 2 张横滑小卡
     private var topDeliveries: [CustomerRequest] {
         Array(summary.deliveries.sorted { lhs, rhs in
@@ -341,6 +348,29 @@ struct HomeView: View {
                         }
                     }
                 }
+            }
+
+            // P1-2：有完成项才显示，点击跳日程当天
+            if todayCompletedCount > 0 {
+                Button {
+                    tab = .schedule
+                    Haptic.light()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text("今日已完成 \(todayCompletedCount) 项")
+                            .v32Text(.subhead)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .foregroundStyle(V32.brand)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
         }
     }
