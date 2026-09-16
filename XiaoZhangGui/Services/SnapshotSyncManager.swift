@@ -30,22 +30,35 @@ enum SnapshotSyncManager {
 
     // MARK: - 快照计算（对齐 HomeStats 口径）
 
+    /// 快照所需的四类源数据（集中为一个值，便于注入失败路径做单元测试）
+    struct SnapshotSource {
+        let todos: [Todo]
+        let performances: [Performance]
+        let expiryItems: [ExpiryItem]
+        let customers: [CustomerRequest]
+    }
+
     /// 任一 fetch 失败即返回 nil；调用方必须保留旧快照，不得用空快照覆盖。
     static func buildSnapshot(context: ModelContext) -> BusinessSnapshot? {
-        do {
-            let todos = try context.fetch(FetchDescriptor<Todo>())
-            let performances = try context.fetch(FetchDescriptor<Performance>())
-            let expiryItems = try context.fetch(FetchDescriptor<ExpiryItem>())
-            let customers = try context.fetch(FetchDescriptor<CustomerRequest>())
-            return makeSnapshot(
-                todos: todos,
-                performances: performances,
-                expiryItems: expiryItems,
-                customers: customers
+        buildSnapshot {
+            try SnapshotSource(
+                todos: context.fetch(FetchDescriptor<Todo>()),
+                performances: context.fetch(FetchDescriptor<Performance>()),
+                expiryItems: context.fetch(FetchDescriptor<ExpiryItem>()),
+                customers: context.fetch(FetchDescriptor<CustomerRequest>())
             )
-        } catch {
-            return nil
         }
+    }
+
+    /// 可注入数据源的构建入口：source 抛错时返回 nil（失败路径可确定性单测）。
+    static func buildSnapshot(fetchingSource: () throws -> SnapshotSource) -> BusinessSnapshot? {
+        guard let source = try? fetchingSource() else { return nil }
+        return makeSnapshot(
+            todos: source.todos,
+            performances: source.performances,
+            expiryItems: source.expiryItems,
+            customers: source.customers
+        )
     }
 
     /// 纯计算（无数据库访问），由 buildSnapshot 调用，也便于单元测试。

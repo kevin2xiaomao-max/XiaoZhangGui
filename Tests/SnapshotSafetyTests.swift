@@ -45,15 +45,12 @@ final class SnapshotSafetyTests: XCTestCase {
         XCTAssertEqual(snapshot.nextTodoTitle, "盘点进货")
     }
 
-    func testBuildSnapshotReturnsNilWhenFetchFails() throws {
-        // 用「不包含任何业务模型」的空 schema 容器：fetch 已知模型必然失败，
-        // buildSnapshot 必须返回 nil（而不是吞错后返回全 0 空快照）
-        let emptySchema = Schema([])
-        let config = ModelConfiguration(schema: emptySchema, isStoredInMemoryOnly: true)
-        guard let container = try? ModelContainer(for: emptySchema, configurations: [config]) else {
-            throw XCTSkip("当前 SDK 不允许构造空 Schema 容器")
-        }
-        XCTAssertNil(SnapshotSyncManager.buildSnapshot(context: ModelContext(container)))
+    func testBuildSnapshotReturnsNilWhenFetchFails() {
+        // 数据源抛错（模拟 SwiftData 查询失败）：必须返回 nil，
+        // 而不是吞错后返回全 0 空快照让上层误存
+        struct FetchFailure: Error {}
+        let snapshot = SnapshotSyncManager.buildSnapshot { throw FetchFailure() }
+        XCTAssertNil(snapshot)
     }
 
     func testCommitNilKeepsPreviousSnapshot() throws {

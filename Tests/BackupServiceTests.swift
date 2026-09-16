@@ -75,8 +75,10 @@ final class BackupServiceTests: XCTestCase {
         let payload = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         XCTAssertEqual(payload?["version"] as? Int, BackupService.formatVersion)
         let records = payload?["records"] as? [[String: Any]]
-        XCTAssertEqual(records?.count, 9)
-        let todoRecord = records?.first { $0["type"] as? String == "todo" }
+        XCTAssertEqual(records?.count, 10)
+        let todoRecord = records?.first {
+            $0["type"] as? String == "todo" && $0["title"] as? String == "进货"
+        }
         XCTAssertEqual(todoRecord?["isCompleted"] as? Bool, true)
         XCTAssertNotNil(todoRecord?["completedAt"])
         XCTAssertNotNil(todoRecord?["imageBase64"])
@@ -85,7 +87,7 @@ final class BackupServiceTests: XCTestCase {
         let restored = try makeEmptyContainer()
         let rctx = restored.mainContext
         let count = try BackupService.restore(context: rctx, from: data)
-        XCTAssertEqual(count, 9)
+        XCTAssertEqual(count, 10)
 
         // MARK: 语义一致性断言
         let todos = try rctx.fetch(FetchDescriptor<Todo>())

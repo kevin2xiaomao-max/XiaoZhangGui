@@ -70,31 +70,36 @@ enum BackupService {
     ) throws -> Data {
         var records: [[String: Any]] = []
 
+        // 注意：记录字典必须是 [String: Any] 且逐个 if let 装入 Optional 字段。
+        // 不能用 [String: Any?] 整体字面量——那会产生双层 Swift Optional，
+        // JSONSerialization 无法可靠序列化，会静默丢字段。
         for todo in todos {
-            records.append(sanitize([
+            var d: [String: Any] = [
                 "type": "todo",
                 "title": todo.title,
                 "detail": todo.detail,
-                "dueDate": todo.dueDate.map { millis($0) },
                 "priority": todo.priority,
                 "isCompleted": todo.isCompleted,
-                "completedAt": todo.completedAt.map { millis($0) },
                 "createdAt": millis(todo.createdAt),
-                "imageBase64": todo.imageData?.base64EncodedString(),
-            ]))
+            ]
+            if let dueDate = todo.dueDate { d["dueDate"] = millis(dueDate) }
+            if let completedAt = todo.completedAt { d["completedAt"] = millis(completedAt) }
+            if let image = todo.imageData { d["imageBase64"] = image.base64EncodedString() }
+            records.append(d)
         }
         for memo in memos {
-            records.append(sanitize([
+            var d: [String: Any] = [
                 "type": "memo",
                 "title": memo.title,
                 "content": memo.content,
                 "createdAt": millis(memo.createdAt),
                 "updatedAt": millis(memo.updatedAt),
-                "imageBase64": memo.imageData?.base64EncodedString(),
-            ]))
+            ]
+            if let image = memo.imageData { d["imageBase64"] = image.base64EncodedString() }
+            records.append(d)
         }
         for performance in performances {
-            records.append(sanitize([
+            records.append([
                 "type": "performance",
                 "amount": performance.amount,
                 "note": performance.note,
@@ -104,36 +109,37 @@ enum BackupService {
                 "orderNo": performance.orderNo,
                 "importSource": performance.importSource,
                 "incomeSource": performance.incomeSource,
-            ]))
+            ])
         }
         for expense in expenses {
-            records.append(sanitize([
+            records.append([
                 "type": "expense",
                 "amount": expense.amount,
                 "category": expense.category,
                 "note": expense.note,
                 "date": millis(expense.date),
                 "createdAt": millis(expense.createdAt),
-            ]))
+            ])
         }
         for item in expiryItems {
-            records.append(sanitize([
+            var d: [String: Any] = [
                 "type": "expiry",
                 "name": item.name,
                 "category": item.category,
                 "quantity": item.quantity,
-                "productionDate": item.productionDate.map { millis($0) },
                 "expiryDate": millis(item.expiryDate),
                 "remindDaysBefore": item.remindDaysBefore,
                 "note": item.note,
                 "returnStatus": item.returnStatus,
-                "returnedAt": item.returnedAt.map { millis($0) },
                 "createdAt": millis(item.createdAt),
-                "imageBase64": item.imageData?.base64EncodedString(),
-            ]))
+            ]
+            if let productionDate = item.productionDate { d["productionDate"] = millis(productionDate) }
+            if let returnedAt = item.returnedAt { d["returnedAt"] = millis(returnedAt) }
+            if let image = item.imageData { d["imageBase64"] = image.base64EncodedString() }
+            records.append(d)
         }
         for request in customers {
-            records.append(sanitize([
+            var d: [String: Any] = [
                 "type": "customer",
                 // customer 字段内含 deliveryTime / note 的编码串（CustomerDeliveryStorage），
                 // 必须随备份恢复，配送时间才能 round-trip
@@ -144,11 +150,12 @@ enum BackupService {
                 "status": request.status,
                 "createdAt": millis(request.createdAt),
                 "updatedAt": millis(request.updatedAt),
-                "imageBase64": request.imageData?.base64EncodedString(),
-            ]))
+            ]
+            if let image = request.imageData { d["imageBase64"] = image.base64EncodedString() }
+            records.append(d)
         }
         for item in goods {
-            records.append(sanitize([
+            var d: [String: Any] = [
                 "type": "goods",
                 "name": item.name,
                 "category": item.category,
@@ -157,14 +164,15 @@ enum BackupService {
                 "minStock": item.minStock,
                 "purchasePrice": item.purchasePrice,
                 "salePrice": item.salePrice,
-                "productionDate": item.productionDate.map { millis($0) },
                 "shelfLifeDays": item.shelfLifeDays,
-                "expiryDate": item.expiryDate.map { millis($0) },
                 "note": item.note,
                 "createdAt": millis(item.createdAt),
                 "updatedAt": millis(item.updatedAt),
-                "imageBase64": item.imageData?.base64EncodedString(),
-            ]))
+            ]
+            if let productionDate = item.productionDate { d["productionDate"] = millis(productionDate) }
+            if let expiryDate = item.expiryDate { d["expiryDate"] = millis(expiryDate) }
+            if let image = item.imageData { d["imageBase64"] = image.base64EncodedString() }
+            records.append(d)
         }
 
         let payload: [String: Any] = [
@@ -334,11 +342,6 @@ enum BackupService {
 
     private static func millis(_ date: Date) -> NSNumber {
         NSNumber(value: date.timeIntervalSince1970 * 1000)
-    }
-
-    /// 剔除 nil（NSNull），保证 JSONSerialization 只收到合法对象
-    private static func sanitize(_ dict: [String: Any?]) -> [String: Any] {
-        dict.compactMapValues { $0 }
     }
 }
 
