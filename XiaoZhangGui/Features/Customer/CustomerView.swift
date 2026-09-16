@@ -27,9 +27,9 @@ struct CustomerView: View {
                     tabs: CustomerFilter.allCases.map(\.rawValue),
                     selectionIndex: Binding(
                         get: { CustomerFilter.allCases.firstIndex(of: filter) ?? 0 },
-                        set: {
+                        set: { newValue in
                             withAnimation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion))) {
-                                filter = CustomerFilter.allCases[$0]
+                                filter = CustomerFilter.allCases[newValue]
                             }
                         }
                     )
