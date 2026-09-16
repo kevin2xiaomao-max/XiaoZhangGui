@@ -83,6 +83,67 @@ final class ThemeStore {
     func disableWallpaper() {
         setWallpaper(.disabled)
     }
+
+    // MARK: - T27 壁纸 apply / clear / load
+
+    /// 应用壁纸：降采样 → 预渲染模糊版 → 落盘 → 更新配置
+    /// - Parameters:
+    ///   - data: 原始图 Data（来自 PhotosPicker / fileImporter）
+    ///   - effect: 效果档
+    ///   - maskStrength: 遮罩强度
+    /// - Returns: 失败时返回 error 描述，成功返回 nil
+    @discardableResult
+    func applyWallpaperImage(data: Data, effect: WallpaperEffect, maskStrength: WallpaperMaskStrength) -> String? {
+        // 1. 降采样
+        guard let jpegData = ImageCodec.downscaled(data: data, maxDimension: 2048, quality: 0.84) else {
+            return "图片降采样失败"
+        }
+        // 2. 落盘原文件
+        let fileName: String
+        do {
+            fileName = try WallpaperStorage.saveJPEGData(jpegData)
+        } catch {
+            return "壁纸文件落盘失败：\(error.localizedDescription)"
+        }
+        // 3. 预渲染模糊版本（仅当 effect=blurred 或保险起见都生成）
+        let blurredName = WallpaperStorage.blurredFileName(for: fileName)
+        if let blurredData = ImageCodec.prerenderBlurred(data: data, blurRadius: 28, maxDimension: 1280, quality: 0.78) {
+            do {
+                try WallpaperStorage.saveJPEGData(blurredData, fileName: blurredName)
+            } catch {
+                // 预渲染失败不阻塞，V32WallpaperBackground 会回退到 .blur
+                print("壁纸预渲染模糊版本失败：\(error.localizedDescription)")
+            }
+        }
+        // 4. 更新配置
+        let config = WallpaperConfig(
+            isEnabled: true,
+            imageFileName: fileName,
+            effect: effect,
+            maskStrength: maskStrength
+        )
+        setWallpaper(config)
+        return nil
+    }
+
+    /// 清除当前壁纸（删除磁盘文件 + 配置置空）
+    func clearWallpaper() {
+        if let fileName = wallpaper.imageFileName {
+            WallpaperStorage.deleteFile(fileName: fileName)
+            let blurred = WallpaperStorage.blurredFileName(for: fileName)
+            WallpaperStorage.deleteFile(fileName: blurred)
+        }
+        disableWallpaper()
+    }
+
+    /// 仅更新效果/遮罩档（保留图片文件名）
+    func updateWallpaperOptions(effect: WallpaperEffect, maskStrength: WallpaperMaskStrength) {
+        guard wallpaper.isEnabled else { return }
+        var config = wallpaper
+        config.effect = effect
+        config.maskStrength = maskStrength
+        setWallpaper(config)
+    }
 }
 
 /// 旧 app_theme_name → 新 (Accent, Background) 映射（spec Migration 章节）

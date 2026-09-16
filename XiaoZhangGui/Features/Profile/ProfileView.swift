@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import PhotosUI
 import UniformTypeIdentifiers
 
 // MARK: - 我的（V32）：个人头部 + 经营数据入口 + 分组设置
@@ -27,6 +28,7 @@ struct ProfileView: View {
     @State private var themeDialog = false
     @State private var accentSheet = false
     @State private var backgroundSheet = false
+    @State private var wallpaperSheet = false
     @State private var voiceDialog = false
     @State private var reminderDialog = false
     @State private var aboutDialog = false
@@ -110,6 +112,7 @@ struct ProfileView: View {
         .sheet(isPresented: $themeDialog) { ThemeChoiceSheet() }
         .sheet(isPresented: $accentSheet) { AccentThemeSheet() }
         .sheet(isPresented: $backgroundSheet) { BackgroundThemeSheet() }
+        .sheet(isPresented: $wallpaperSheet) { WallpaperSheet() }
         .sheet(isPresented: $voiceDialog) {
             VoiceSettingsSheet(showVoice: $showVoice, showsVoiceButton: showsVoiceButton)
         }
@@ -213,6 +216,12 @@ struct ProfileView: View {
             ProfileRow(icon: "square.on.square", tone: .neutral,
                        title: "背景风格", value: themeStore.backgroundTheme.displayName) {
                 backgroundSheet = true
+            }
+            divider
+            ProfileRow(icon: "photo", tone: .amber,
+                       title: "壁纸",
+                       value: themeStore.wallpaper.isEnabled ? "已设置" : "未设置") {
+                wallpaperSheet = true
             }
         }
     }
@@ -781,6 +790,308 @@ private struct BackgroundThemeSheet: View {
                 .foregroundStyle(V32.textTertiary)
                 .padding(.horizontal, 4)
         }
+    }
+}
+
+// MARK: - 壁纸设置（b28 T27）
+
+@MainActor
+private struct WallpaperSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(ThemeStore.self) private var themeStore
+    @State private var selectedItem: PhotosPickerItem?
+    @State private var showFileImporter = false
+    @State private var processing = false
+    @State private var error: String?
+
+    var body: some View {
+        V32SheetChrome("壁纸", doneTitle: "关闭", onDone: { dismiss() }) {
+            // 预览
+            previewCard
+
+            // 选择来源
+            V32Card {
+                VStack(spacing: 10) {
+                    PhotosPicker(selection: $selectedItem, matching: .images) {
+                        HStack(spacing: 10) {
+                            V32IconBubble(systemName: "photo.on.rectangle", tone: .brand, size: 30, icon: 14)
+                            Text("从相册选择")
+                                .v32Text(.title)
+                                .foregroundStyle(V32.textPrimary)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(V32.textQuaternary)
+                        }
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(processing)
+
+                    Rectangle().fill(V32.divider).frame(height: 1).padding(.leading, 48)
+                    Button {
+                        showFileImporter = true
+                    } label: {
+                        HStack(spacing: 10) {
+                            V32IconBubble(systemName: "folder", tone: .info, size: 30, icon: 14)
+                            Text("从文件选择")
+                                .v32Text(.title)
+                                .foregroundStyle(V32.textPrimary)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(V32.textQuaternary)
+                        }
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(processing)
+                }
+            }
+
+            // 效果档
+            if themeStore.wallpaper.isEnabled {
+                effectSection
+                maskSection
+                deleteButton
+            }
+
+            if let error {
+                Text(error)
+                    .v32Text(.caption)
+                    .foregroundStyle(V32.danger)
+                    .padding(.horizontal, 4)
+            }
+
+            Text("壁纸降采样后落盘到 Application Support，原图不会保留。深色模式自动增强遮罩。")
+                .v32Text(.caption)
+                .foregroundStyle(V32.textTertiary)
+                .padding(.horizontal, 4)
+        }
+        .onChange(of: selectedItem) { _, item in
+            handlePhotosItem(item)
+        }
+        .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.image]) { result in
+            handleFileResult(result)
+        }
+    }
+
+    private var previewCard: some View {
+        V32Card {
+            Group {
+                if themeStore.wallpaper.isEnabled,
+                   let fileName = themeStore.wallpaper.imageFileName,
+                   let data = WallpaperStorage.loadData(fileName: fileName),
+                   let uiImage = UIImage(data: data) {
+                    ZStack {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(height: 140)
+                            .clipped()
+                        Color.black.opacity(themeStore.wallpaper.maskStrength == .strong ? 0.6 : 0.35)
+                        Text("当前壁纸 · \(effectLabel) · \(maskLabel)")
+                            .v32Text(.caption)
+                            .foregroundStyle(.white)
+                    }
+                } else {
+                    VStack(spacing: 8) {
+                        Image(systemName: "photo")
+                            .font(.system(size: 36))
+                            .foregroundStyle(V32.textQuaternary)
+                        Text("未设置壁纸")
+                            .v32Text(.subhead)
+                            .foregroundStyle(V32.textTertiary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 140)
+                }
+            }
+        }
+    }
+
+    private var effectSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("效果")
+                .v32Text(.caption)
+                .foregroundStyle(V32.textTertiary)
+                .padding(.leading, 4)
+            V32Card(padding: 4) {
+                VStack(spacing: 0) {
+                    ForEach(Array(WallpaperEffect.allCases.enumerated()), id: \.element.rawValue) { index, effect in
+                        if index > 0 {
+                            Rectangle().fill(V32.divider).frame(height: 1).padding(.leading, 48)
+                        }
+                        Button {
+                            themeStore.updateWallpaperOptions(effect: effect, maskStrength: themeStore.wallpaper.maskStrength)
+                            Haptic.light()
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: effectIcon(effect))
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(V32.textSecondary)
+                                    .frame(width: 24)
+                                Text(effectLabel(effect))
+                                    .v32Text(.body)
+                                    .foregroundStyle(V32.textPrimary)
+                                Spacer()
+                                if themeStore.wallpaper.effect == effect {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundStyle(V32.brand)
+                                }
+                            }
+                            .padding(.horizontal, 12)
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    private var maskSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("遮罩强度")
+                .v32Text(.caption)
+                .foregroundStyle(V32.textTertiary)
+                .padding(.leading, 4)
+            V32Card(padding: 4) {
+                VStack(spacing: 0) {
+                    ForEach(Array(WallpaperMaskStrength.allCases.enumerated()), id: \.element.rawValue) { index, mask in
+                        if index > 0 {
+                            Rectangle().fill(V32.divider).frame(height: 1).padding(.leading, 48)
+                        }
+                        Button {
+                            themeStore.updateWallpaperOptions(effect: themeStore.wallpaper.effect, maskStrength: mask)
+                            Haptic.light()
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: maskIcon(mask))
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(V32.textSecondary)
+                                    .frame(width: 24)
+                                Text(maskLabel(mask))
+                                    .v32Text(.body)
+                                    .foregroundStyle(V32.textPrimary)
+                                Spacer()
+                                if themeStore.wallpaper.maskStrength == mask {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundStyle(V32.brand)
+                                }
+                            }
+                            .padding(.horizontal, 12)
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    private var deleteButton: some View {
+        V32SecondaryButton(title: "删除壁纸", systemName: "trash") {
+            themeStore.clearWallpaper()
+            Haptic.light()
+        }
+    }
+
+    private var effectLabel: String { effectLabel(themeStore.wallpaper.effect) }
+    private var maskLabel: String { maskLabel(themeStore.wallpaper.maskStrength) }
+
+    private func effectLabel(_ e: WallpaperEffect) -> String {
+        switch e {
+        case .original: return "原图"
+        case .soft: return "柔和"
+        case .blurred: return "模糊"
+        }
+    }
+    private func effectIcon(_ e: WallpaperEffect) -> String {
+        switch e {
+        case .original: return "sun.max"
+        case .soft: return "circle.lefthalf.filled"
+        case .blurred: return "circle.dashed"
+        }
+    }
+    private func maskLabel(_ m: WallpaperMaskStrength) -> String {
+        switch m {
+        case .light: return "轻"
+        case .medium: return "中"
+        case .strong: return "强"
+        }
+    }
+    private func maskIcon(_ m: WallpaperMaskStrength) -> String {
+        switch m {
+        case .light: return "circle"
+        case .medium: return "circle.fill"
+        case .strong: return "circle.large.fill"
+        }
+    }
+
+    // MARK: - 图片处理
+
+    private func handlePhotosItem(_ item: PhotosPickerItem?) {
+        guard let item else { return }
+        processing = true
+        error = nil
+        Task {
+            do {
+                guard let data = try await item.loadTransferable(type: Data.self) else {
+                    await MainActor.run {
+                        self.error = "无法读取所选图片"
+                        self.processing = false
+                    }
+                    return
+                }
+                await applyImageData(data)
+            } catch {
+                await MainActor.run {
+                    self.error = "图片加载失败：\(error.localizedDescription)"
+                    self.processing = false
+                }
+            }
+        }
+    }
+
+    private func handleFileResult(_ result: Result<URL, Error>) {
+        processing = true
+        error = nil
+        switch result {
+        case .success(let url):
+            let accessed = url.startAccessingSecurityScopedResource()
+            defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+            guard let data = try? Data(contentsOf: url) else {
+                self.error = "无法读取所选文件"
+                self.processing = false
+                return
+            }
+            applyImageData(data)
+        case .failure(let err):
+            self.error = "文件选择失败：\(err.localizedDescription)"
+            self.processing = false
+        }
+    }
+
+    @MainActor
+    private func applyImageData(_ data: Data) {
+        let failure = themeStore.applyWallpaperImage(
+            data: data,
+            effect: themeStore.wallpaper.effect,
+            maskStrength: themeStore.wallpaper.maskStrength
+        )
+        if let failure {
+            self.error = failure
+        } else {
+            Haptic.success()
+        }
+        self.processing = false
     }
 }
 

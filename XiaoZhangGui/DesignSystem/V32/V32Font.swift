@@ -60,14 +60,31 @@ private struct V32TextModifier: ViewModifier {
     }
 }
 
+/// b28 T27：壁纸启用时页面底色改为透明，让 RootView 底层 V32WallpaperBackground 透出
+/// 壁纸禁用时保持 b27 行为：背景 = V32.pageBG
+@MainActor
+private struct V32PageBackgroundModifier: ViewModifier {
+    @Environment(ThemeStore.self) private var themeStore
+
+    func body(content: Content) -> some View {
+        if themeStore.wallpaper.isEnabled {
+            content.background(Color.clear.ignoresSafeArea())
+        } else {
+            content.background(V32.pageBG.ignoresSafeArea())
+        }
+    }
+}
+
 extension View {
     func v32Text(_ style: V32TextStyle) -> some View {
         modifier(V32TextModifier(style: style))
     }
 
-    /// 统一 V32 页面底色（暖灰白 / 暖深灰）
+    /// 统一 V32 页面底色：
+    /// - 壁纸启用：透明（让 RootView 底层 V32WallpaperBackground 透出）
+    /// - 壁纸禁用：V32.pageBG（保持 b27 行为）
     func v32PageBackground() -> some View {
-        background(V32.pageBG.ignoresSafeArea())
+        modifier(V32PageBackgroundModifier())
     }
 
     /// Sheet 统一圆角与拖拽指示器（detents 由调用方按场景指定）
