@@ -156,13 +156,13 @@ enum ScheduleAgenda {
     /// 展示分桶仍按 dueDate 形态：有真实钟点且与 selectedDate 同日 → timed，其余 → all-day。
     /// 同一项只落一个桶，不重复。
     static func completedTodosForDay(
-        _ completedTodos: [Todo],
+        _ todos: [Todo],
         date selectedDate: Date,
         calendar: Calendar = .current
     ) -> (timed: [ScheduleEvent], allDay: [Todo]) {
         var timed: [ScheduleEvent] = []
         var allDay: [Todo] = []
-        for todo in completedTodos(completedTodos, on: selectedDate, calendar: calendar) {
+        for todo in completedTodos(todos, on: selectedDate, calendar: calendar) {
             if let due = todo.dueDate,
                hasClock(due),
                calendar.isDate(due, inSameDayAs: selectedDate) {
