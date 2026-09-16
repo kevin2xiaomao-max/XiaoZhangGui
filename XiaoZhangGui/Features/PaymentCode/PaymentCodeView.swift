@@ -246,7 +246,7 @@ private struct PaymentCodeEditorSheet: View {
     }
 
     var body: some View {
-        V32SheetChrome(navigationTitle, detents: [.large], doneTitle: "关闭", onDone: { dismiss() }) {
+        PaymentCodeSheetChrome(navigationTitle, detents: [.large], doneTitle: "关闭", onDone: { dismiss() }) {
             previewCard
             if editingCode == nil {
                 kindPicker
@@ -449,5 +449,55 @@ private struct PaymentCodeEditorSheet: View {
         } catch {
             errorMessage = "保存失败，请重试"
         }
+    }
+}
+
+// MARK: - 收款码 Sheet 容器（对齐 V32SheetChrome 视觉；不改动 Profile 私有组件）
+
+@MainActor
+private struct PaymentCodeSheetChrome<Content: View>: View {
+    let title: String
+    var detents: Set<PresentationDetent> = [.medium]
+    var doneTitle: String = "完成"
+    let onDone: (() -> Void)?
+    @ViewBuilder var content: Content
+
+    init(_ title: String,
+         detents: Set<PresentationDetent> = [.medium],
+         doneTitle: String = "完成",
+         onDone: (() -> Void)? = nil,
+         @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.detents = detents
+        self.doneTitle = doneTitle
+        self.onDone = onDone
+        self.content = content()
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                ZStack {
+                    Text(title)
+                        .v32Text(.headline)
+                        .foregroundStyle(V32.textPrimary)
+                    HStack {
+                        Spacer()
+                        if let onDone {
+                            Button(doneTitle, action: onDone)
+                                .v32Text(.body)
+                                .foregroundStyle(V32.brand)
+                        }
+                    }
+                }
+                content
+            }
+            .padding(.horizontal, V32Layout.pageMargin)
+            .padding(.top, 14)
+            .padding(.bottom, V32Layout.bottomPad)
+        }
+        .scrollIndicators(.hidden)
+        .v32PageBackground()
+        .v32Sheet(detents)
     }
 }
