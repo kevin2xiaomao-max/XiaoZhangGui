@@ -9,10 +9,10 @@ final class AgentCorePreviewTests: XCTestCase {
     func testRevenueExemplarProducesPreviewCard() async {
         let (agent, _, pending, _) = AITestFactory.preview()
         let result = await agent.send("今天美团680")
-        let proposal = try? XCTUnwrap(result.proposal)
-        XCTAssertEqual(proposal??.call.name, .recordRevenue)
-        XCTAssertTrue(proposal??.isPreviewOnly ?? false)
-        guard case .recordRevenue(let a) = proposal??.call.arguments else { return XCTFail() }
+        guard let proposal = result.proposal else { return XCTFail("应生成 ActionProposal") }
+        XCTAssertEqual(proposal.call.name, .recordRevenue)
+        XCTAssertTrue(proposal.isPreviewOnly)
+        guard case .recordRevenue(let a) = proposal.call.arguments else { return XCTFail() }
         XCTAssertEqual(a.amount, 680)
         XCTAssertEqual(a.source, "美团")
         let messages = await agent.messages()
@@ -35,9 +35,9 @@ final class AgentCorePreviewTests: XCTestCase {
     func testDeliveryExemplar() async {
         let (agent, _, _, _) = AITestFactory.preview()
         let result = await agent.send("今晚8点给302送两箱怡宝")
-        let proposal = try? XCTUnwrap(result.proposal)
-        XCTAssertEqual(proposal??.call.name, .createDelivery)
-        guard case .createDelivery(let a) = proposal??.call.arguments else { return XCTFail() }
+        guard let proposal = result.proposal else { return XCTFail("应生成 ActionProposal") }
+        XCTAssertEqual(proposal.call.name, .createDelivery)
+        guard case .createDelivery(let a) = proposal.call.arguments else { return XCTFail() }
         XCTAssertEqual(a.customer, "302")
         XCTAssertEqual(a.goodsName, "怡宝")
         XCTAssertEqual(a.quantity, "两箱")

@@ -130,6 +130,7 @@ struct ActionCardView: View {
     private var statusCaption: String {
         switch proposal.status {
         case .pending: return proposal.isPreviewOnly ? "Foundation 预览 · 不写库" : "待你确认"
+        case .confirmed: return "已确认"
         case .executed: return "已保存"
         case .duplicate: return "重复，已跳过"
         case .failed: return "失败，可重试"

@@ -49,8 +49,21 @@ actor FileExecutionJournal: ExecutionJournaling {
 
     init(directory: URL? = nil) {
         let dir = directory ?? AIStorage.directory()
-        self.url = dir.appendingPathComponent("execution-journal.json")
-        load()
+        let url = dir.appendingPathComponent("execution-journal.json")
+        self.url = url
+        self.storage = Self.read(from: url)
+    }
+
+    /// nonisolated：仅在初始化期读盘，损坏文件隔离后以空账本启动
+    nonisolated private static func read(from url: URL) -> [JournalEntry] {
+        guard let data = try? Data(contentsOf: url) else { return [] }
+        do {
+            return try JSONDecoder.ai.decode([JournalEntry].self, from: data)
+        } catch {
+            let bad = url.appendingPathExtension("corrupt-\(Int(Date().timeIntervalSince1970))")
+            try? FileManager.default.moveItem(at: url, to: bad)
+            return []
+        }
     }
 
     func append(_ entry: JournalEntry) async {
@@ -65,18 +78,6 @@ actor FileExecutionJournal: ExecutionJournaling {
         storage.contains { $0.fingerprint == fingerprint && $0.status == "executed" }
     }
     func entries() async -> [JournalEntry] { storage }
-
-    private func load() {
-        guard let data = try? Data(contentsOf: url) else { return }
-        do {
-            storage = try JSONDecoder.ai.decode([JournalEntry].self, from: data)
-        } catch {
-            // 隔离损坏文件，空账本启动（不崩溃、不阻断）
-            let bad = url.appendingPathExtension("corrupt-\(Int(Date().timeIntervalSince1970))")
-            try? FileManager.default.moveItem(at: url, to: bad)
-            storage = []
-        }
-    }
 
     private func persist() {
         guard let data = try? JSONEncoder.ai.encode(storage) else { return }

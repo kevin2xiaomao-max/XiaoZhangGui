@@ -33,8 +33,22 @@ actor FilePendingActionStore: PendingActionStoring {
 
     init(directory: URL? = nil) {
         let dir = directory ?? AIStorage.directory()
-        self.url = dir.appendingPathComponent("pending-actions.json")
-        load()
+        let url = dir.appendingPathComponent("pending-actions.json")
+        self.url = url
+        self.items = Self.read(from: url)
+    }
+
+    /// nonisolated：仅在初始化期读盘，损坏文件隔离后以空集合启动
+    nonisolated private static func read(from url: URL) -> [UUID: ActionProposal] {
+        guard let data = try? Data(contentsOf: url) else { return [:] }
+        do {
+            let list = try JSONDecoder.ai.decode([ActionProposal].self, from: data)
+            return Dictionary(uniqueKeysWithValues: list.map { ($0.id, $0) })
+        } catch {
+            let bad = url.appendingPathExtension("corrupt-\(Int(Date().timeIntervalSince1970))")
+            try? FileManager.default.moveItem(at: url, to: bad)
+            return [:]
+        }
     }
 
     func pending() async -> [ActionProposal] {
@@ -51,18 +65,6 @@ actor FilePendingActionStore: PendingActionStoring {
         persist()
     }
     func proposal(id: UUID) async -> ActionProposal? { items[id] }
-
-    private func load() {
-        guard let data = try? Data(contentsOf: url) else { return }
-        do {
-            let list = try JSONDecoder.ai.decode([ActionProposal].self, from: data)
-            items = Dictionary(uniqueKeysWithValues: list.map { ($0.id, $0) })
-        } catch {
-            let bad = url.appendingPathExtension("corrupt-\(Int(Date().timeIntervalSince1970))")
-            try? FileManager.default.moveItem(at: url, to: bad)
-            items = [:]
-        }
-    }
 
     private func persist() {
         let list = items.values.sorted { $0.createdAt < $1.createdAt }

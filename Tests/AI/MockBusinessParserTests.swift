@@ -64,7 +64,7 @@ final class MockBusinessParserTests: XCTestCase {
     // MARK: 信息不足必须 clarify，不脑补
 
     func testRevenueMissingAmountClarifies() {
-        guard case .clarify? = parse("今天美团") else {
+        guard case .clarify? = parse("美团卖了") else {
             return XCTFail("缺金额应要求补充")
         }
     }

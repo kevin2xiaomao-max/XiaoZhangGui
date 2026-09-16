@@ -45,7 +45,9 @@ enum AITestFactory {
         let journal = InMemoryExecutionJournal()
         let pending = InMemoryPendingActionStore()
         let conversation = InMemoryConversationStore()
-        let chain = provider ?? ProviderChain(
+        // 注入自定义 Provider（故障演练）时不再挂 Mock fallback：
+        // 否则 timeout 等可换链错误会被 fallback 吞掉，无法验证「失败可见、原文保留」。
+        let chain: any AIProvider = provider ?? ProviderChain(
             primary: MockAIProvider(id: "mock-primary"),
             fallback: MockAIProvider(id: "mock-fallback")
         )

@@ -43,8 +43,11 @@ struct IntentRouter {
         // 1) 经营读问答优先（避免“今天还有几单配送”被当成新建配送）
         if let query = classifyQuery(text) { return query }
 
-        // 2) 营业额：出现金额且含来源 / 收款语义
-        if hasAmount(text), revenueKeywords.contains(where: { text.contains($0) }) {
+        // 2) 营业额：含来源 / 收款语义，且（有金额 或 有明确收款动作词）
+        //    只有来源词没有金额（如“美团怎么开店”）不当成记账，交给后续分类 / worldChat
+        let revenueActionCues = ["营业额", "营收", "收入", "卖了", "收款", "入账", "到账"]
+        if revenueKeywords.contains(where: { text.contains($0) }),
+           hasAmount(text) || revenueActionCues.contains(where: { text.contains($0) }) {
             return .businessAction(.recordRevenue)
         }
 

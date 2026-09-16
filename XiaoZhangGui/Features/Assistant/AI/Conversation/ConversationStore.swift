@@ -53,9 +53,21 @@ actor FileConversationStore: ConversationStoring {
 
     init(directory: URL? = nil) {
         let dir = directory ?? AIStorage.directory()
-        self.url = dir.appendingPathComponent("conversation.json")
-        self.conversation = Conversation()
-        load()
+        let url = dir.appendingPathComponent("conversation.json")
+        self.url = url
+        self.conversation = Self.read(from: url)
+    }
+
+    /// nonisolated：仅在初始化期读盘，损坏文件隔离后以空会话启动
+    nonisolated private static func read(from url: URL) -> Conversation {
+        guard let data = try? Data(contentsOf: url) else { return Conversation() }
+        do {
+            return try JSONDecoder.ai.decode(Conversation.self, from: data)
+        } catch {
+            let bad = url.appendingPathExtension("corrupt-\(Int(Date().timeIntervalSince1970))")
+            try? FileManager.default.moveItem(at: url, to: bad)
+            return Conversation()
+        }
     }
 
     func load() async -> Conversation { conversation }
@@ -70,17 +82,6 @@ actor FileConversationStore: ConversationStoring {
         conversation.updatedAt = .now
         persist()
         return conversation
-    }
-
-    private func load() {
-        guard let data = try? Data(contentsOf: url) else { return }
-        do {
-            conversation = try JSONDecoder.ai.decode(Conversation.self, from: data)
-        } catch {
-            let bad = url.appendingPathExtension("corrupt-\(Int(Date().timeIntervalSince1970))")
-            try? FileManager.default.moveItem(at: url, to: bad)
-            conversation = Conversation()
-        }
     }
 
     private func persist() {
