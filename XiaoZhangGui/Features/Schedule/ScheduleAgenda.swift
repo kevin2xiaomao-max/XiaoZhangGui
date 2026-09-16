@@ -129,11 +129,13 @@ enum ScheduleAgenda {
     // 首页计数与日程当天明细必须由这两个函数派生，保证数字点进去对得上。
 
     static func completedTodos(
-        _ completedTodos: [Todo],
+        _ todos: [Todo],
         on date: Date,
         calendar: Calendar = .current
     ) -> [Todo] {
-        completedTodos.filter { todo in
+        todos.filter { todo in
+            // 函数契约自带 isCompleted 守卫，调用方即使漏过滤也不会把未完成项计入
+            guard todo.isCompleted else { return false }
             if let completedAt = todo.completedAt {
                 return calendar.isDate(completedAt, inSameDayAs: date)
             }

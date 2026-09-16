@@ -42,7 +42,14 @@ final class CompletedItemsTests: XCTestCase {
                                  isCompleted: true, completedAt: day(-1).addingTimeInterval(3600 * 10))
         XCTAssertEqual(ScheduleAgenda.completedTodos([doneYesterday], on: Date()).count, 0)
         let yesterday = ScheduleAgenda.completedTodosForDay([doneYesterday], date: day(-1), calendar: calendar)
-        XCTAssertEqual(yesterday.allDay.map(\.title), ["昨天完成"])
+        // dueDate/completedAt 都是昨天 09:00（真实钟点）→ 昨天日程的 timed
+        XCTAssertTrue(yesterday.allDay.isEmpty)
+        XCTAssertEqual(yesterday.timed.count, 1)
+        if case .todo(let todo) = yesterday.timed[0] {
+            XCTAssertEqual(todo.title, "昨天完成")
+        } else {
+            XCTFail("应是 todo 事件")
+        }
     }
 
     func testLegacyTodoWithoutCompletedAtOnlyAttributedToToday() {
