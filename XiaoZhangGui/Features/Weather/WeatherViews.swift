@@ -127,17 +127,25 @@ struct WeatherDetailSheet: View {
     private func detailCard(_ weather: WeatherSnapshot) -> some View {
         V32Card {
             VStack(spacing: 0) {
+                if let maxV = weather.roundedMax, let minV = weather.roundedMin {
+                    detailRow("今日最高 / 最低", value: "\(maxV)° / \(minV)°")
+                }
                 if let feelsLike = weather.roundedFeelsLike {
+                    if weather.roundedMax != nil { divider }
                     detailRow("体感", value: "\(feelsLike)°")
                 }
                 if let probability = weather.precipitationProbability {
-                    if weather.roundedFeelsLike != nil { divider }
+                    if weather.roundedMax != nil || weather.roundedFeelsLike != nil { divider }
                     detailRow("降雨概率", value: "\(Int((probability * 100).rounded()))%")
                 }
                 if weather.isStale {
-                    if weather.roundedFeelsLike != nil || weather.precipitationProbability != nil { divider }
+                    if weather.roundedMax != nil || weather.roundedFeelsLike != nil || weather.precipitationProbability != nil { divider }
                     detailRow("状态", value: "离线缓存")
                 }
+                if weather.roundedMax != nil || weather.roundedFeelsLike != nil || weather.precipitationProbability != nil || weather.isStale {
+                    divider
+                }
+                detailRow("数据来源", value: "WeatherAPI.com")
             }
         }
     }

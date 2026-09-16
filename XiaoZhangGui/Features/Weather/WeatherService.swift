@@ -35,20 +35,25 @@ protocol WeatherProviding: Sendable {
     func fetchCurrentWeather() async throws -> WeatherSnapshot
 }
 
-/// 默认第三方实现。替换 provider 即可接入和风天气等服务，Home 无需改动。
-struct OpenWeatherProvider: WeatherProviding {
+/// P0-4：WeatherAPI.com 实现。
+/// 端点：https://api.weatherapi.com/v1/forecast.json?key=...&q=...&days=1&aqi=no&alerts=no
+/// 返回 current.temp_c / feelslike_c / condition.text / condition.code，
+/// forecast.forecastday[0].day.maxtemp_c / mintemp_c / daily_chance_of_rain，
+/// location.name。
+struct WeatherAPIProvider: WeatherProviding {
     let configuration: WeatherConfiguration
 
     func fetchCurrentWeather() async throws -> WeatherSnapshot {
         guard configuration.isConfigured else { throw WeatherServiceError.notConfigured }
 
-        var components = URLComponents(string: "https://api.openweathermap.org/data/2.5/weather")
+        var components = URLComponents(string: "https://api.weatherapi.com/v1/forecast.json")
         components?.queryItems = [
-            URLQueryItem(name: "lat", value: String(configuration.latitude)),
-            URLQueryItem(name: "lon", value: String(configuration.longitude)),
-            URLQueryItem(name: "appid", value: configuration.apiKey),
-            URLQueryItem(name: "units", value: "metric"),
-            URLQueryItem(name: "lang", value: "zh_cn")
+            URLQueryItem(name: "key", value: configuration.apiKey),
+            URLQueryItem(name: "q", value: String(format: "%.4f,%.4f", configuration.latitude, configuration.longitude)),
+            URLQueryItem(name: "days", value: "1"),
+            URLQueryItem(name: "aqi", value: "no"),
+            URLQueryItem(name: "alerts", value: "no"),
+            URLQueryItem(name: "lang", value: "zh")
         ]
         guard let url = components?.url else { throw WeatherServiceError.invalidURL }
 
@@ -68,43 +73,65 @@ struct OpenWeatherProvider: WeatherProviding {
             throw WeatherServiceError.invalidResponse
         }
 
-        guard let payload = try? JSONDecoder().decode(OpenWeatherResponse.self, from: data),
-              let weather = payload.weather.first else {
+        guard let payload = try? JSONDecoder().decode(WeatherAPIResponse.self, from: data) else {
             throw WeatherServiceError.invalidResponse
         }
 
+        let day = payload.forecast.forecastday.first?.day
         return WeatherSnapshot(
-            temperature: payload.main.temp,
-            feelsLike: payload.main.feelsLike,
-            condition: weather.description,
-            conditionCode: weather.main,
-            city: configuration.city.isEmpty ? payload.name : configuration.city,
-            precipitationProbability: nil,
+            temperature: payload.current.tempC,
+            feelsLike: payload.current.feelslikeC,
+            condition: payload.current.condition.text,
+            conditionCode: payload.current.condition.text,
+            city: configuration.city.isEmpty ? payload.location.name : configuration.city,
+            precipitationProbability: day?.dailyChanceOfRain.map { Double($0) / 100.0 },
+            maxTemperature: day?.maxtempC,
+            minTemperature: day?.mintempC,
             observedAt: Date(),
             isStale: false
         )
     }
 }
 
-private struct OpenWeatherResponse: Decodable {
-    struct Main: Decodable {
-        let temp: Double
-        let feelsLike: Double
+private struct WeatherAPIResponse: Decodable {
+    struct Location: Decodable {
+        let name: String
+    }
+    struct Condition: Decodable {
+        let text: String
+        let code: Int
+    }
+    struct Current: Decodable {
+        let tempC: Double
+        let feelslikeC: Double
+        let condition: Condition
 
         enum CodingKeys: String, CodingKey {
-            case temp
-            case feelsLike = "feels_like"
+            case tempC = "temp_c"
+            case feelslikeC = "feelslike_c"
+            case condition
         }
     }
+    struct Day: Decodable {
+        let maxtempC: Double
+        let mintempC: Double
+        let dailyChanceOfRain: Int?
 
-    struct Condition: Decodable {
-        let main: String
-        let description: String
+        enum CodingKeys: String, CodingKey {
+            case maxtempC = "maxtemp_c"
+            case mintempC = "mintemp_c"
+            case dailyChanceOfRain = "daily_chance_of_rain"
+        }
     }
-
-    let main: Main
-    let weather: [Condition]
-    let name: String
+    struct ForecastDay: Decodable {
+        let day: Day
+    }
+    struct Forecast: Decodable {
+        let forecastday: [ForecastDay]
+    }
+    let location: Location
+    let current: Current
+    let forecast: Forecast
 }
 
 private struct CachedWeather: Codable {
@@ -171,7 +198,7 @@ final class WeatherViewModel {
 
     init(configuration: WeatherConfiguration = .current()) {
         isConfigured = configuration.isConfigured
-        service = WeatherService(provider: OpenWeatherProvider(configuration: configuration))
+        service = WeatherService(provider: WeatherAPIProvider(configuration: configuration))
     }
 
     func loadIfNeeded() {

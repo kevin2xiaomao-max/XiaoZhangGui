@@ -8,11 +8,15 @@ struct WeatherSnapshot: Codable, Equatable, Sendable {
     let conditionCode: String
     let city: String
     let precipitationProbability: Double?
+    let maxTemperature: Double?
+    let minTemperature: Double?
     let observedAt: Date
     var isStale: Bool
 
     var roundedTemperature: Int { Int(temperature.rounded()) }
     var roundedFeelsLike: Int? { feelsLike.map { Int($0.rounded()) } }
+    var roundedMax: Int? { maxTemperature.map { Int($0.rounded()) } }
+    var roundedMin: Int? { minTemperature.map { Int($0.rounded()) } }
 
     var isRaining: Bool {
         let value = conditionCode.lowercased()
