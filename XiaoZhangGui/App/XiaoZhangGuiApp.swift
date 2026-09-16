@@ -15,6 +15,9 @@ struct XiaoZhangGuiApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
+        // V3.3 Lite Payment QR：全屏收款码若在上次异常终止时遗留「亮度提升中」标记，
+        // 启动即恢复合理亮度并清标记（正常退出/后台恢复在 PaymentCodeFullScreenView 内处理）。
+        PaymentCodeBrightnessGuard.applyStartupRecovery()
         do {
             let resolved = try AppDatabase.makeContainer()
             container = resolved

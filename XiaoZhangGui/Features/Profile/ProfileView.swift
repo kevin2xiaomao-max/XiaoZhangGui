@@ -88,6 +88,7 @@ struct ProfileView: View {
             case "customer": CustomerView()
             case "expiry": ExpiryView()
             case "goods": GoodsView()
+            case "paymentCode": PaymentCodeView()
             default: EmptyView()
             }
         }
@@ -266,6 +267,9 @@ struct ProfileView: View {
             ProfileRow(icon: "clock.badge.exclamationmark", tone: .amber, title: "临期商品") { toolRoute = "expiry" }
             divider
             ProfileRow(icon: "tag", tone: .neutral, title: "货品") { toolRoute = "goods" }
+            divider
+            // V3.3 Lite Payment QR：收款码入口（功能实现位于 Features/PaymentCode/）
+            ProfileRow(icon: "qrcode", tone: .brand, title: "收款码") { toolRoute = "paymentCode" }
         }
     }
 
