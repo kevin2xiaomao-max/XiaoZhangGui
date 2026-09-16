@@ -55,7 +55,7 @@ enum BackgroundTheme: String, CaseIterable, Sendable {
 }
 
 /// 壁纸效果档（spec FR-22.8）
-enum WallpaperEffect: String, CaseIterable, Sendable {
+enum WallpaperEffect: String, CaseIterable, Sendable, Codable {
     case original = "original"   // 原图（仅遮罩）
     case soft = "soft"           // 柔和（降饱和 / 提亮）
     case blurred = "blurred"     // 模糊（预渲染缓存）
@@ -64,7 +64,7 @@ enum WallpaperEffect: String, CaseIterable, Sendable {
 }
 
 /// 壁纸遮罩强度（spec FR-22.8）
-enum WallpaperMaskStrength: String, CaseIterable, Sendable {
+enum WallpaperMaskStrength: String, CaseIterable, Sendable, Codable {
     case light = "light"
     case medium = "medium"
     case strong = "strong"

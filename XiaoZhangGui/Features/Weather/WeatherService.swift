@@ -200,10 +200,10 @@ final class WeatherViewModel {
     private var lastUsedCoordinates: (latitude: Double, longitude: Double)?
 
     init(configuration: WeatherConfiguration = .current(),
-         locationManager: LocationManager = LocationManager()) {
+         locationManager: LocationManager? = nil) {
         baseConfiguration = configuration
         isConfigured = configuration.isConfigured
-        self.locationManager = locationManager
+        self.locationManager = locationManager ?? LocationManager()
         service = WeatherService(provider: WeatherAPIProvider(configuration: configuration))
         lastUsedCoordinates = (configuration.latitude, configuration.longitude)
     }

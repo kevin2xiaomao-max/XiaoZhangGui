@@ -43,8 +43,9 @@ struct PhotoPickerField: View {
             .onChange(of: pickerItem) { _, item in
                 guard let item else { return }
                 Task {
-                    if let data = try? await item.loadTransferable(type: Data.self) {
-                        onChange(ImageCodec.downscaled(data: data))
+                    if let data = try? await item.loadTransferable(type: Data.self),
+                       let downscaled = ImageCodec.downscaled(data: data) {
+                        onChange(downscaled)
                     }
                     pickerItem = nil
                 }
@@ -52,25 +53,6 @@ struct PhotoPickerField: View {
 
             Spacer()
         }
-    }
-}
-
-// MARK: - 图片压缩（避免大图占用数据库）
-
-enum ImageCodec {
-    /// 压缩到最长边 1600px 的 JPEG
-    static func downscaled(data: Data, maxDimension: CGFloat = 1600) -> Data {
-        guard let image = UIImage(data: data) else { return data }
-        let size = image.size
-        let maxSide = max(size.width, size.height)
-        guard maxSide > maxDimension else { return data }
-        let scale = maxDimension / maxSide
-        let newSize = CGSize(width: size.width * scale, height: size.height * scale)
-        let renderer = UIGraphicsImageRenderer(size: newSize)
-        let resized = renderer.image { _ in
-            image.draw(in: CGRect(origin: .zero, size: newSize))
-        }
-        return resized.jpegData(compressionQuality: 0.85) ?? data
     }
 }
 
