@@ -5,6 +5,13 @@ options:
     iOS: "18.0"
   developmentLanguage: zh-Hans
   createIntermediateGroups: true
+# V3.3 F0：LLMProviderKit（MIT、零依赖、iOS16+），精确锁版；
+# 仅链接 core 与 OpenAI（OpenAI 兼容端点可自定义 baseURL），Gemini 留待 Lite FINAL。
+# 业务层禁止直接 import，统一经 XZGAIProviderAdapter 隔离。
+packages:
+  LLMProviderKit:
+    url: https://github.com/ayman3000/LLMProviderKit
+    exactVersion: 0.1.0-alpha.31
 settings:
   base:
     SWIFT_VERSION: "5.0"
@@ -52,6 +59,10 @@ targets:
         removeHeaders: true
         copy:
           destination: plugins
+      - package: LLMProviderKit
+        product: LLMProviderKit
+      - package: LLMProviderKit
+        product: LLMProviderKitOpenAI
   XiaoZhangGuiWidget:
     type: app-extension
     platform: iOS

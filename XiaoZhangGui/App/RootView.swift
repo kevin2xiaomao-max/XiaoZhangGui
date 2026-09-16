@@ -7,12 +7,12 @@ struct RootView: View {
     @State private var lastContentTab: AppTab = .home
     @State private var showVoice = false
     @State private var showQuickRecord = false
+    /// xzg://ai?mode=voice 到达后，通知小掌柜页拉起短语音面板
+    @State private var showAIVoice = false
     private let canInitializeSpeechRecognizer = SpeechService.canInitializeRecognizer
 
     var body: some View {
-        // P0-3：壁纸不再挂在 RootView 最底层——TabView / NavigationStack 容器的
-        // 不透明默认背景会把它完全盖住。壁纸改由 v32PageBackground() 在每个页面
-        // 内部渲染为可见背景层，见 V32Font.swift / V32Wallpaper.swift。
+        // P0-3：壁纸由 v32PageBackground() 在各页面内部渲染，容器不额外铺底。
         TabView(selection: $tab) {
             Tab("首页", systemImage: "house", value: AppTab.home) {
                 NavigationStack {
@@ -22,10 +22,11 @@ struct RootView: View {
             Tab("日程", systemImage: "calendar", value: AppTab.schedule) {
                 NavigationStack { ScheduleView() }
             }
-            Tab("语音", systemImage: "mic.fill", value: AppTab.voice, role: voiceTabRole) {
-                Color.clear
-                    .accessibilityHidden(true)
-                    .accessibilityLabel("语音")
+            // V3.3：第三个 Tab 从「语音占位 + Sheet」升级为独立的小掌柜 AI 页
+            Tab("小掌柜", systemImage: "sparkles", value: AppTab.assistant) {
+                NavigationStack {
+                    AIChatView(voiceDeepLink: $showAIVoice)
+                }
             }
             Tab("待办", systemImage: "checkmark.circle", value: AppTab.todo) {
                 NavigationStack { TodoView() }
@@ -37,28 +38,19 @@ struct RootView: View {
             }
         }
             .tint(V32.brand)
-            .onChange(of: tab) { oldValue, newValue in
-                if newValue == .voice {
-                    guard canInitializeSpeechRecognizer else {
-                        tab = oldValue == .voice ? lastContentTab : oldValue
-                        return
-                    }
-                    showVoice = true
-                    // 立即回到上一个内容 tab，避免语音占位 tab 高亮残留
-                    tab = lastContentTab
-                } else {
-                    lastContentTab = newValue
-                    Haptic.light()
-                }
+            .onChange(of: tab) { _, newValue in
+                lastContentTab = newValue
+                Haptic.light()
             }
-            // 锁屏 / Deep Link 统一入口：xzg://voice → 语音  xzg://quickrecord → 文字快速记录
+            // Deep Link：xzg://voice 旧语音、xzg://quickrecord 快速记录、
+            // xzg://ai 小掌柜、xzg://ai?mode=voice 小掌柜短语音
             .onOpenURL { url in
                 handleDeepLink(url)
             }
             .sheet(isPresented: $showQuickRecord) {
                 QuickRecordSheet()
             }
-            .sheet(isPresented: $showVoice, onDismiss: { tab = lastContentTab }) {
+            .sheet(isPresented: $showVoice) {
                 if canInitializeSpeechRecognizer {
                     VoiceView()
                         .presentationDetents([.height(260), .height(340)])
@@ -69,20 +61,15 @@ struct RootView: View {
     }
 
     private func handleDeepLink(_ url: URL) {
-        switch url.host?.lowercased() {
-        case "voice":
+        guard let route = AppDeepLink.route(url: url) else { return }
+        switch route {
+        case .voice:
             showVoice = true
-        case "quickrecord", "quick":
+        case .quickRecord:
             showQuickRecord = true
-        default:
-            break
+        case .ai(let voiceMode):
+            tab = .assistant
+            if voiceMode { showAIVoice = true }
         }
-    }
-
-    private var voiceTabRole: TabRole? {
-        if #available(iOS 27.0, *) {
-            return .prominent
-        }
-        return nil
     }
 }

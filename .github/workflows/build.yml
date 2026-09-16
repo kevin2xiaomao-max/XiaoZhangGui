@@ -23,6 +23,18 @@ jobs:
       - name: 检出源码
         uses: actions/checkout@v4
 
+      - name: V3.3 AI 写隔离检查（AI 层禁止 import SwiftData）
+        run: |
+          set -euo pipefail
+          AI_DIR="XiaoZhangGui/Features/Assistant/AI"
+          if [ -d "$AI_DIR" ]; then
+            if grep -RnE '^[[:space:]]*import[[:space:]]+SwiftData' "$AI_DIR"; then
+              echo "FAIL: AI 层禁止 import SwiftData——Provider/Agent 只能产出 ToolCall，写库唯一入口是 ToolRouter → Repository"
+              exit 1
+            fi
+            echo "AI write-isolation guard PASS"
+          fi
+
       - name: 检查 Xcode 版本
         run: |
           set -euo pipefail
