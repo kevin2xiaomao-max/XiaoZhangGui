@@ -80,7 +80,8 @@ final class SaobeiImportTests: XCTestCase {
         let stored = try ctx.fetch(FetchDescriptor<Performance>()).sorted { $0.amount < $1.amount }
         XCTAssertEqual(stored.count, 2)
         // paymentMethod 派生 incomeSource：美团 → meituan；现金/其它 → store
-        XCTAssertEqual(stored.first?.amount, 8, accuracy: 0.001)
+        let smallest = try XCTUnwrap(stored.first)
+        XCTAssertEqual(smallest.amount, 8, accuracy: 0.001)
         let meituan = try XCTUnwrap(stored.first { $0.fingerprint == "FP-1" })
         XCTAssertEqual(meituan.incomeSource, IncomeSource.meituan.rawValue)
         XCTAssertEqual(meituan.paymentMethod, "美团")
