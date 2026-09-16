@@ -78,7 +78,8 @@ enum ImageCodec {
     ///   - quality: JPEG 质量（0.82~0.85）
     /// - Returns: 降采样后的 JPEG Data
     static func downscaled(data: Data, maxDimension: CGFloat = 2048, quality: CGFloat = 0.84) -> Data? {
-        guard let cgImage = CGImageSourceCreateWithData(data as CFData, nil),
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil),
               let jpgData = encodeJPEG(image: cgImage, maxDimension: maxDimension, quality: quality) else {
             return nil
         }
@@ -92,7 +93,8 @@ enum ImageCodec {
     ///   - maxDimension: 最大边长（模糊版可进一步缩小）
     ///   - quality: JPEG 质量
     static func prerenderBlurred(data: Data, blurRadius: Double = 28, maxDimension: CGFloat = 1280, quality: CGFloat = 0.78) -> Data? {
-        guard let cgImage = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
         let ciImage = CIImage(cgImage: cgImage)
         let clamped = ciImage.clampedToExtent()
         guard let filter = CIFilter(name: "CIGaussianBlur") else {
