@@ -29,6 +29,7 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: 你的小掌柜
         INFOPLIST_KEY_NSMicrophoneUsageDescription: 语音记一笔时需要使用麦克风进行识别
         INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: 用于将你的语音转换为经营记录
+        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: 用于显示本地天气，仅在前台使用，不会上传位置
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UIUserInterfaceStyle: Automatic

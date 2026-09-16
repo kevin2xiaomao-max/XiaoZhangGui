@@ -189,26 +189,53 @@ actor WeatherService {
 @MainActor
 @Observable
 final class WeatherViewModel {
-    private let service: WeatherService
+    private var service: WeatherService
+    private let locationManager: LocationManager
     private(set) var state: WeatherViewState = .idle
     private(set) var snapshot: WeatherSnapshot?
     private(set) var isRefreshing = false
     let isConfigured: Bool
     private var hasLoaded = false
+    private let baseConfiguration: WeatherConfiguration
+    private var lastUsedCoordinates: (latitude: Double, longitude: Double)?
 
-    init(configuration: WeatherConfiguration = .current()) {
+    init(configuration: WeatherConfiguration = .current(),
+         locationManager: LocationManager = LocationManager()) {
+        baseConfiguration = configuration
         isConfigured = configuration.isConfigured
+        self.locationManager = locationManager
         service = WeatherService(provider: WeatherAPIProvider(configuration: configuration))
+        lastUsedCoordinates = (configuration.latitude, configuration.longitude)
     }
 
     func loadIfNeeded() {
         guard !hasLoaded else { return }
         hasLoaded = true
-        Task { await request(forceRefresh: false) }
+        Task { await requestWithLocationFallback(forceRefresh: false) }
     }
 
     func refresh() {
-        Task { await request(forceRefresh: true) }
+        Task { await requestWithLocationFallback(forceRefresh: true) }
+    }
+
+    /// 先尝试 CoreLocation 真实定位（4 秒超时 / 拒绝授权 fallback 恩平），
+    /// 拿到新坐标后重建 provider，再发请求。失败一律 fallback 到 `baseConfiguration`。
+    private func requestWithLocationFallback(forceRefresh: Bool) async {
+        if let location = await locationManager.requestAuthorizationAndLocation() {
+            let lat = location.coordinate.latitude
+            let lon = location.coordinate.longitude
+            if lastUsedCoordinates?.latitude != lat || lastUsedCoordinates?.longitude != lon {
+                let resolved = WeatherConfiguration(
+                    apiKey: baseConfiguration.apiKey,
+                    city: baseConfiguration.city,
+                    latitude: lat,
+                    longitude: lon
+                )
+                service = WeatherService(provider: WeatherAPIProvider(configuration: resolved))
+                lastUsedCoordinates = (lat, lon)
+            }
+        }
+        await request(forceRefresh: forceRefresh)
     }
 
     private func request(forceRefresh: Bool) async {
