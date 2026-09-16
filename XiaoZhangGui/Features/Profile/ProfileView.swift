@@ -11,13 +11,8 @@ struct ProfileView: View {
     let showsVoiceButton: Bool
 
     @Environment(\.modelContext) private var context
+    // P0-1：备份/恢复改由 BackupService 直接从 context 全量读写，不再依赖页面 @Query
     @Query private var performances: [Performance]
-    @Query private var todos: [Todo]
-    @Query private var memos: [Memo]
-    @Query private var expenses: [Expense]
-    @Query private var expiryItems: [ExpiryItem]
-    @Query private var customers: [CustomerRequest]
-    @Query private var goodsList: [Goods]
 
     @Bindable private var settings = AppSettings.shared
     @Bindable private var demo = DemoMode.shared
@@ -35,6 +30,7 @@ struct ProfileView: View {
     @State private var privacyDialog = false
     @State private var clearDialog = false
     @State private var showImporter = false
+    @State private var shareURL: URL?
     @State private var toast: String?
     @State private var toolRoute: String?
 
@@ -132,6 +128,16 @@ struct ProfileView: View {
         }
         .fileImporter(isPresented: $showImporter, allowedContentTypes: [.json]) { result in
             restore(from: result)
+        }
+        .sheet(isPresented: Binding(
+            get: { shareURL != nil },
+            set: { presenting in if !presenting { shareURL = nil } }
+        )) {
+            // P0-1：以真正的 .json 文件形式分享（系统面板可保存到文件/邮件/IM）
+            if let shareURL {
+                ShareSheet(activityItems: [shareURL])
+                    .ignoresSafeArea(edges: .bottom)
+            }
         }
     }
 
@@ -270,9 +276,10 @@ struct ProfileView: View {
                 toolRoute = "performance"
             }
             divider
-            ShareLink(item: exportJSON(), preview: SharePreview("你的小掌柜数据导出")) {
-                ProfileRowLabel(icon: "square.and.arrow.down", tone: .neutral,
-                                title: "数据备份", value: "JSON", chevron: false)
+            // P0-1：备份生成真正的 .json 文件（含状态/时间/图片 base64），经系统面板分享
+            ProfileRow(icon: "square.and.arrow.down", tone: .neutral,
+                       title: "数据备份", value: "JSON 文件", chevron: false) {
+                exportBackupFile()
             }
             divider
             ProfileRow(icon: "arrow.clockwise", tone: .neutral, title: "数据恢复", value: "JSON", chevron: false) {
@@ -314,90 +321,45 @@ struct ProfileView: View {
         }
     }
 
-    /// 逐实体手工映射为 JSON（SwiftData @Model 不可直接 Codable，语义对齐 Android ProfileViewModel.exportJson）
-    private func exportJSON() -> String {
-        var records: [[String: Any]] = []
-        func record(_ type: String, _ dict: [String: Any?]) {
-            var d = dict
-            d["type"] = type
-            if let data = try? JSONSerialization.data(withJSONObject: d, options: []),
-               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                records.append(obj)
-            }
+    /// P0-1：生成真正的 .json 备份文件并弹出系统分享面板
+    private func exportBackupFile() {
+        do {
+            let url = try BackupService.exportFileURL(context: context)
+            Haptic.light()
+            shareURL = url
+        } catch {
+            Haptic.error()
+            showToast("备份失败：\(error.localizedDescription)")
         }
-        todos.forEach { record("todo", ["title": $0.title, "detail": $0.detail, "dueDate": $0.dueDate.map { $0.timeIntervalSince1970 * 1000 }, "priority": $0.priority, "isCompleted": $0.isCompleted]) }
-        memos.forEach { record("memo", ["title": $0.title, "content": $0.content]) }
-        performances.forEach { record("performance", ["amount": $0.amount, "note": $0.note, "date": $0.date.timeIntervalSince1970 * 1000, "incomeSource": $0.incomeSource]) }
-        expenses.forEach { record("expense", ["amount": $0.amount, "category": $0.category, "note": $0.note, "date": $0.date.timeIntervalSince1970 * 1000]) }
-        expiryItems.forEach { record("expiry", ["name": $0.name, "category": $0.category, "quantity": $0.quantity, "expiryDate": $0.expiryDate.timeIntervalSince1970 * 1000, "returnStatus": $0.returnStatus]) }
-        customers.forEach { record("customer", ["customer": $0.customer, "roomOrAddress": $0.roomOrAddress, "phone": $0.phone, "content": $0.content, "status": $0.status]) }
-        goodsList.forEach { record("goods", ["name": $0.name, "barcode": $0.barcode, "purchasePrice": $0.purchasePrice, "salePrice": $0.salePrice, "category": $0.category, "stock": $0.stock]) }
-
-        let payload: [String: Any] = [
-            "app": "xiao-zhang-gui",
-            "version": 1,
-            "exportedAt": Date().timeIntervalSince1970 * 1000,
-            "records": records,
-        ]
-        if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted]),
-           let json = String(data: data, encoding: .utf8) {
-            return json
-        }
-        return "{}"
     }
 
+    /// P0-1：恢复走 BackupService（字段对称、单次 save、状态/图片不丢失）
     private func restore(from result: Result<URL, Error>) {
         guard case .success(let url) = result else { return }
         let secured = url.startAccessingSecurityScopedResource()
         defer { if secured { url.stopAccessingSecurityScopedResource() } }
         do {
             let raw = try Data(contentsOf: url)
-            guard let payload = try JSONSerialization.jsonObject(with: raw) as? [String: Any],
-                  let records = payload["records"] as? [[String: Any]] else {
-                throw NSError(domain: "restore", code: -1, userInfo: [NSLocalizedDescriptionKey: "无法读取备份文件"])
-            }
-            var count = 0
-            let repo = TodoRepository(context: context)
-            for item in records {
-                let str = { (key: String) in item[key] as? String ?? "" }
-                let num = { (key: String) in (item[key] as? NSNumber)?.doubleValue ?? 0 }
-                let date = { (key: String) in Date(timeIntervalSince1970: (num(key)) / 1000) }
-                switch str("type") {
-                case "todo":
-                    try repo.add(title: str("title"), detail: str("detail"), dueDate: item["dueDate"] != nil ? date("dueDate") : nil, priority: Int(num("priority")))
-                case "memo":
-                    try MemoRepository(context: context).add(title: str("title"), content: str("content"))
-                case "performance":
-                    // P0-3：恢复时优先用 incomeSource 字段；空则 fallback 到 .store（兼容旧 JSON 备份）
-                    let sourceStr = str("incomeSource")
-                    let source = IncomeSource(rawValue: sourceStr) ?? .store
-                    try PerformanceRepository(context: context).add(amount: num("amount"), note: str("note"), date: date("date"), incomeSource: source)
-                case "expense":
-                    try ExpenseRepository(context: context).add(amount: num("amount"), category: str("category"), note: str("note"), date: date("date"))
-                case "expiry":
-                    try ExpiryRepository(context: context).add(name: str("name"), category: str("category"), quantity: Int(num("quantity")), expiryDate: date("expiryDate"))
-                case "customer":
-                    try CustomerRepository(context: context).add(customer: str("customer"), roomOrAddress: str("roomOrAddress"), phone: str("phone"), content: str("content"))
-                case "goods":
-                    try GoodsRepository(context: context).add(Goods(
-                        name: str("name"),
-                        category: str("category").isEmpty ? "其他" : str("category"),
-                        barcode: str("barcode"),
-                        stock: Int(num("stock")),
-                        purchasePrice: num("purchasePrice"),
-                        salePrice: num("salePrice")
-                    ))
-                default: continue
-                }
-                count += 1
-            }
+            let count = try BackupService.restore(context: context, from: raw)
             Haptic.success()
             showToast("已恢复 \(count) 条记录")
-            SnapshotSyncManager.refreshAll(context: context)
         } catch {
+            Haptic.error()
             showToast("恢复失败：\(error.localizedDescription)")
         }
     }
+}
+
+// MARK: - 系统分享面板（分享真正的文件 URL，而非 JSON 纯文本）
+
+struct ShareSheet: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 // MARK: - 设置行

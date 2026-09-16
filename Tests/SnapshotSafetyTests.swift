@@ -1,0 +1,88 @@
+import XCTest
+import SwiftData
+@testable import XiaoZhangGui
+
+/// P1-4：快照安全
+/// - 查询失败时 buildSnapshot 返回 nil，不得返回空快照
+/// - commit(snapshot: nil) 必须保留上一次有效快照，Widget / Live Activity 不被清零
+@MainActor
+final class SnapshotSafetyTests: XCTestCase {
+
+    private func makeEmptyContainer() throws -> ModelContainer {
+        let config = ModelConfiguration(schema: AppDatabase.schema, isStoredInMemoryOnly: true)
+        return try ModelContainer(for: AppDatabase.schema, configurations: [config])
+    }
+
+    func testBuildSnapshotSucceedsWithRealData() throws {
+        let container = try makeEmptyContainer()
+        let ctx = container.mainContext
+        let cal = Calendar.current
+        let now = Date()
+        let todayThree = cal.date(bySettingHour: 15, minute: 0, second: 0, of: now)!
+        let yesterday = cal.date(byAdding: .day, value: -1, to: cal.startOfDay(for: now))!
+        let inThreeDays = cal.date(byAdding: .day, value: 3, to: cal.startOfDay(for: now))!
+
+        ctx.insert(Todo(title: "盘点进货", dueDate: todayThree, priority: 1))          // 今日待办
+        ctx.insert(Todo(title: "昨日逾期", dueDate: yesterday, priority: 0))          // 逾期
+        ctx.insert(Todo(title: "已完成", dueDate: todayThree, isCompleted: true,
+                        completedAt: now))                                            // 不计待办
+        ctx.insert(Performance(amount: 100, note: "门店", date: now,
+                               incomeSource: IncomeSource.store.rawValue))
+        ctx.insert(Performance(amount: 50, note: "美团", date: now,
+                               incomeSource: IncomeSource.meituan.rawValue))
+        ctx.insert(ExpiryItem(name: "鲜奶", category: "", quantity: 1, expiryDate: inThreeDays))
+        ctx.insert(CustomerRequest(customer: "王姐", roomOrAddress: "", phone: "",
+                                   content: "配送中订单", status: CustomerStatus.delivering.rawValue))
+        try ctx.save()
+
+        let snapshot = try XCTUnwrap(SnapshotSyncManager.buildSnapshot(context: ctx))
+        XCTAssertEqual(snapshot.todayRevenue, 150, accuracy: 0.001)
+        XCTAssertEqual(snapshot.todayTodoCount, 1)
+        XCTAssertEqual(snapshot.overdueTodoCount, 1)
+        XCTAssertEqual(snapshot.urgentExpiryCount, 1)
+        XCTAssertEqual(snapshot.nextExpiryName, "鲜奶")
+        XCTAssertEqual(snapshot.deliveringCustomerCount, 1)
+        XCTAssertEqual(snapshot.nextTodoTitle, "盘点进货")
+    }
+
+    func testBuildSnapshotReturnsNilWhenFetchFails() throws {
+        // 用「不包含任何业务模型」的空 schema 容器：fetch 已知模型必然失败，
+        // buildSnapshot 必须返回 nil（而不是吞错后返回全 0 空快照）
+        let emptySchema = Schema([])
+        let config = ModelConfiguration(schema: emptySchema, isStoredInMemoryOnly: true)
+        guard let container = try? ModelContainer(for: emptySchema, configurations: [config]) else {
+            throw XCTSkip("当前 SDK 不允许构造空 Schema 容器")
+        }
+        XCTAssertNil(SnapshotSyncManager.buildSnapshot(context: ModelContext(container)))
+    }
+
+    func testCommitNilKeepsPreviousSnapshot() throws {
+        guard let defaults = XZGShared.sharedDefaults else {
+            throw XCTSkip("测试环境无法访问 App Group UserDefaults")
+        }
+
+        // 先写入一份「上次有效快照」
+        var previous = BusinessSnapshot()
+        previous.todayRevenue = 888
+        previous.todayTodoCount = 7
+        previous.deliveringCustomerCount = 3
+        previous.save()
+
+        // 失败路径：commit(nil) 不得覆盖
+        SnapshotSyncManager.commit(snapshot: nil)
+        let retained = BusinessSnapshot.load()
+        XCTAssertEqual(retained?.todayRevenue, 888, accuracy: 0.001)
+        XCTAssertEqual(retained?.todayTodoCount, 7)
+        XCTAssertEqual(retained?.deliveringCustomerCount, 3)
+
+        // 成功路径：commit(非 nil) 正常覆盖
+        var fresh = BusinessSnapshot()
+        fresh.todayRevenue = 123
+        SnapshotSyncManager.commit(snapshot: fresh)
+        let updated = BusinessSnapshot.load()
+        XCTAssertEqual(updated?.todayRevenue, 123, accuracy: 0.001)
+
+        // 还原，避免污染后续测试
+        defaults.removeObject(forKey: BusinessSnapshot.storageKey)
+    }
+}
