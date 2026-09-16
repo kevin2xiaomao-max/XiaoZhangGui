@@ -72,7 +72,7 @@ jobs:
             -scheme XiaoZhangGui \
             -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
             -derivedDataPath build/Simulator \
-            INFOPLIST_KEY_XZGWeatherAPIKey="${{ secrets.XZG_WEATHER_API_KEY }}" \
+            XZG_WEATHER_API_KEY="${{ secrets.XZG_WEATHER_API_KEY }}" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
 
@@ -84,7 +84,7 @@ jobs:
             -scheme XiaoZhangGui \
             -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
             -derivedDataPath build/Simulator \
-            INFOPLIST_KEY_XZGWeatherAPIKey="${{ secrets.XZG_WEATHER_API_KEY }}" \
+            XZG_WEATHER_API_KEY="${{ secrets.XZG_WEATHER_API_KEY }}" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
 
@@ -110,7 +110,7 @@ jobs:
             -scheme XiaoZhangGui \
             -destination "platform=iOS Simulator,name=$AIR_NAME" \
             -derivedDataPath build/SimulatorAir \
-            INFOPLIST_KEY_XZGWeatherAPIKey="${{ secrets.XZG_WEATHER_API_KEY }}" \
+            XZG_WEATHER_API_KEY="${{ secrets.XZG_WEATHER_API_KEY }}" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
 
@@ -118,13 +118,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # P0-1：Secret 只在本 step shell 内可见，日志自动掩码，绝不写入仓库或回显原文
+          export XZG_WEATHER_API_KEY="${{ secrets.XZG_WEATHER_API_KEY }}"
+          test -n "$XZG_WEATHER_API_KEY"
           xcodebuild build \
             -project XiaoZhangGui.xcodeproj \
             -scheme XiaoZhangGui \
             -destination 'generic/platform=iOS' \
             -configuration Release \
             -derivedDataPath build/Device \
-            INFOPLIST_KEY_XZGWeatherAPIKey="${{ secrets.XZG_WEATHER_API_KEY }}" \
+            XZG_WEATHER_API_KEY="$XZG_WEATHER_API_KEY" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
@@ -136,14 +139,26 @@ jobs:
           test -d "$app"
           test -f "$app/Info.plist"
 
-          # P0-1 天气注入链校验：最终 .app/Info.plist 中 XZGWeatherAPIKey 必须存在且非空。
-          # 绝不打印 Secret 原文，只输出「已配置」状态。
+          # P0-1 天气注入链（产物侧）：
+          # 优先使用构建期 INFOPLIST_KEY 展开生成的键；若该 Xcode 生成器未把命令行覆盖
+          # 展开进最终 plist（不同 Xcode 行为差异），则在打包前显式写入产物 Info.plist。
+          # 无签名构建，打包前改 plist 不影响签名；全程不回显 Key 原文。
+          current_key="$(/usr/libexec/PlistBuddy -c 'Print :XZGWeatherAPIKey' "$app/Info.plist" 2>/dev/null | tr -d '[:space:]' || true)"
+          if [ -z "$current_key" ]; then
+            /usr/libexec/PlistBuddy -c "Add :XZGWeatherAPIKey string $XZG_WEATHER_API_KEY" "$app/Info.plist" 2>/dev/null \
+              || /usr/libexec/PlistBuddy -c "Set :XZGWeatherAPIKey $XZG_WEATHER_API_KEY" "$app/Info.plist"
+            echo "Weather: key injected into product Info.plist pre-package (value hidden)"
+          else
+            echo "Weather: key expanded at build time (value hidden)"
+          fi
+
+          # 强校验：最终 .app/Info.plist 中 XZGWeatherAPIKey 必须存在且非空（只输出长度）
           WEATHER_KEY_LEN="$(/usr/libexec/PlistBuddy -c 'Print :XZGWeatherAPIKey' "$app/Info.plist" 2>/dev/null | tr -d '[:space:]' | wc -c | tr -d '[:space:]')"
           if [ -z "$WEATHER_KEY_LEN" ] || [ "$WEATHER_KEY_LEN" -eq 0 ]; then
             echo "FAIL: XZGWeatherAPIKey 缺失或为空——请检查 GitHub Secret XZG_WEATHER_API_KEY 与注入链"
             exit 1
           fi
-          echo "Weather: XZGWeatherAPIKey configured (non-empty, value hidden)"
+          echo "Weather: XZGWeatherAPIKey configured, length=${WEATHER_KEY_LEN}, value hidden"
 
           # 版本信息以构建产物 Info.plist 为准，文件名带构建号与 commit，防止装错旧包
           SHORT_SHA="$(git rev-parse --short=7 HEAD)"
