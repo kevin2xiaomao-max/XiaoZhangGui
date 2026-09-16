@@ -141,44 +141,87 @@ enum ImageCodec {
 /// 在最底层 ZStack 挂载壁纸图 + 效果层 + 遮罩层
 /// - 不参与点击（allowsHitTesting(false)）
 /// - Demo Mode 下隐藏
+/// - T28 性能优化：内存缓存 UIImage 避免每次 body 重复解码
 struct V32WallpaperBackground: View {
     @Environment(ThemeStore.self) private var themeStore
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     private let demo = DemoMode.shared
 
+    /// 内存缓存已解码的 UIImage + 对应文件名，避免每次 body 重复解码
+    @State private var cachedImage: UIImage?
+    @State private var cachedDisplayFileName: String?
+
+    private var currentFileName: String? {
+        themeStore.wallpaper.isEnabled ? themeStore.wallpaper.imageFileName : nil
+    }
+
+    private var currentDisplayFileName: String? {
+        guard let fileName = currentFileName else { return nil }
+        return displayFileName(for: fileName, effect: themeStore.wallpaper.effect)
+    }
+
     var body: some View {
         Group {
-            if !demo.isEnabled, themeStore.wallpaper.isEnabled, let fileName = themeStore.wallpaper.imageFileName {
-                wallpaperLayer(fileName: fileName)
+            if !demo.isEnabled, let image = cachedImage {
+                wallpaperLayer(uiImage: image)
             } else {
                 EmptyView()
             }
         }
         .allowsHitTesting(false)
         .ignoresSafeArea()
+        // fileName 或 effect 变化时重新加载（避免每次 body 重复解码）
+        .task(id: taskID) {
+            await loadImage()
+        }
+    }
+
+    private var taskID: String {
+        "\(currentDisplayFileName ?? "none")|\(colorScheme == .dark ? "d" : "l")"
+    }
+
+    @MainActor
+    private func loadImage() async {
+        guard let displayFileName = currentDisplayFileName else {
+            cachedImage = nil
+            cachedDisplayFileName = nil
+            return
+        }
+        // 已缓存且文件名匹配，跳过
+        if cachedDisplayFileName == displayFileName, cachedImage != nil {
+            return
+        }
+        // 异步加载 + 解码，避免阻塞 MainActor
+        let data = await Task.detached(priority: .userInitiated) {
+            WallpaperStorage.loadData(fileName: displayFileName)
+        }.value
+        if let data, let image = UIImage(data: data) {
+            cachedImage = image
+            cachedDisplayFileName = displayFileName
+        } else {
+            cachedImage = nil
+            cachedDisplayFileName = nil
+        }
     }
 
     @ViewBuilder
-    private func wallpaperLayer(fileName: String) -> some View {
-        let displayFileName = displayFileName(for: fileName, effect: themeStore.wallpaper.effect)
+    private func wallpaperLayer(uiImage: UIImage) -> some View {
         let blurFallback = (themeStore.wallpaper.effect == .blurred
-                            && displayFileName == fileName)
-        if let data = WallpaperStorage.loadData(fileName: displayFileName), let uiImage = UIImage(data: data) {
-            ZStack {
-                // 1. 壁纸原图（或预渲染模糊版）
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .blur(radius: blurFallback ? 24 : 0)
-                    .ignoresSafeArea()
+                            && cachedDisplayFileName == currentFileName)
+        ZStack {
+            // 1. 壁纸原图（或预渲染模糊版）
+            Image(uiImage: uiImage)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .blur(radius: blurFallback ? 24 : 0)
+                .ignoresSafeArea()
 
-                // 2. 效果层（original 无附加；blurred 已预渲染）
-                effectLayer
+            // 2. 效果层（original 无附加；blurred 已预渲染）
+            effectLayer
 
-                // 3. 遮罩层（深色自动增强；Reduce Transparency 用纯色兜底）
-                maskLayer
-            }
+            // 3. 遮罩层（深色自动增强；Reduce Transparency 用纯色兜底）
+            maskLayer
         }
     }
 

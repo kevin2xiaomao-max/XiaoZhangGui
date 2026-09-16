@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write  # b28 T29: gh release create/upload 需要 contents: write
 
 concurrency:
   group: xzg-ios-${{ github.ref }}
@@ -187,3 +187,60 @@ jobs:
           path: ${{ env.IPA_FILENAME }}
           if-no-files-found: error
           retention-days: 14
+
+      # b28 T29: 在 GitHub Release 直接提供原始 .ipa，让 iPhone 上可直接下载，
+      # 无需用户在 Actions Artifact 下载 .zip 后再解压
+      - name: 创建 GitHub Release 并上传 IPA
+        if: github.ref == 'refs/heads/redesign/v3.2.0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          RELEASE_TAG="v${XZG_VERSION}-b${XZG_BUILD}-${XZG_COMMIT}"
+          RELEASE_TITLE="你的小掌柜 v${XZG_VERSION} Build ${XZG_BUILD} (${XZG_COMMIT})"
+          RELEASE_NOTES="## Phase 0 修复 + Theme + Wallpaper（b28）
+
+          ### Phase 0
+          - P0-1 XLSX 真机导入修复（SaobeiXLSXParser 重写）— 等待真实扫呗文件真机复验
+          - P0-2 配送 Row V32SwipeRow 左右滑动 + 完成态持久化 + success haptic
+          - P0-3 Performance 增加 meituan 收入来源 + 来源拆分
+          - P0-4 接入 WeatherAPI.com 真实天气 + CoreLocation 定位 fallback 恩平
+          - P0-5 删除首页头像入口 + 「我的」大头像身份卡弱化为店铺信息 Row
+
+          ### Theme + Wallpaper（T23–T29）
+          - T23 Build 28 基建：CURRENT_PROJECT_VERSION=28 + ThemeStore 骨架
+          - T24 V32 token 全面主题化（14 个可主题化 token 接入 ThemeStore）
+          - T25 我的 → 个性化：主题色 + 背景风格 选择器
+          - T26 旧 app_theme_name 迁移单测（12 用例）
+          - T27 自定义 Wallpaper：PhotosPicker + 降采样 + 落盘 + 遮罩 + 预渲染模糊
+          - T28 性能：V32WallpaperBackground 内存缓存 UIImage 避免重复解码
+          - T29 GitHub Release 直接提供 .ipa（无需用户解压 ZIP）
+
+          ### IPA 验证
+          - 文件名：${IPA_FILENAME}
+          - 大小：$(ls -lh "$IPA_FILENAME" | awk '{print $5}')
+          - 合法 ZIP 容器 + Payload/你的小掌柜.app
+          - CFBundleShortVersionString=${XZG_VERSION}
+          - CFBundleVersion=${XZG_BUILD}
+
+          > Pre-release · 仅用于测试 · 不覆盖 stable release"
+
+          # 若同名 tag 已存在（重跑 CI 时常见），先删除旧 Release 与 tag
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Release $RELEASE_TAG 已存在，先删除旧版本"
+            gh release delete "$RELEASE_TAG" --yes --cleanup-tag || true
+          fi
+
+          gh release create "$RELEASE_TAG" \
+            --target redesign/v3.2.0 \
+            --title "$RELEASE_TITLE" \
+            --notes "$RELEASE_NOTES" \
+            --prerelease
+
+          gh release upload "$RELEASE_TAG" "$IPA_FILENAME" --clobber
+
+          echo "=== GitHub Release 创建完成 ==="
+          echo "Release Tag: $RELEASE_TAG"
+          echo "Release Title: $RELEASE_TITLE"
+          echo "Asset: $IPA_FILENAME"
+          echo "Release URL: https://github.com/${{ github.repository }}/releases/tag/$RELEASE_TAG"
