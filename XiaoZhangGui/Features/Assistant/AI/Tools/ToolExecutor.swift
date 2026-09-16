@@ -43,9 +43,8 @@ enum ToolArgumentValidator {
         }
         switch call.arguments {
         case .recordRevenue(let a):
-            var errors: [String] = []
-            guard let amount = a.amount, amount > 0 else { errors.append("缺少有效金额") }
-            return errors
+            guard (a.amount ?? 0) > 0 else { return ["缺少有效金额"] }
+            return []
         case .createTodo(let a):
             guard let title = a.title?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !title.isEmpty else { return ["缺少待办标题"] }

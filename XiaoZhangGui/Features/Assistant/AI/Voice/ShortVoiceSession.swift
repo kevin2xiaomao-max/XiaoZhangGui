@@ -81,13 +81,13 @@ final class ShortVoiceSession {
                             if self.liveTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
                                 self.lastRawTranscript = self.liveTranscript
                             }
-                            self.phase = .failed(SpeechService.mapError(error))
+                            self.phase = .failed(Self.describe(error))
                         }
                     }
                 )
                 self.phase = .listening
             } catch {
-                self.phase = .failed(SpeechService.mapError(error))
+                self.phase = .failed(Self.describe(error))
             }
         }
     }
@@ -115,5 +115,13 @@ final class ShortVoiceSession {
         let text = lastRawTranscript
         lastRawTranscript = ""
         return text
+    }
+
+    /// 错误文案映射放在 AI 层本地完成，不改动既有 SpeechService（复用而非扩展）。
+    private static func describe(_ error: Error) -> String {
+        if let speechError = error as? SpeechService.SpeechError {
+            return speechError.errorDescription ?? "语音识别失败"
+        }
+        return "语音识别失败，可重试或直接打字：\(error.localizedDescription)"
     }
 }
