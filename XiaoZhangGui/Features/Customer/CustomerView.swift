@@ -44,10 +44,17 @@ struct CustomerView: View {
                         .padding(.vertical, 8)
                     }
                 } else {
-                    V32Card(padding: 4) {
-                        VStack(spacing: 0) {
-                            ForEach(Array(shown.enumerated()), id: \.element.persistentModelID) { index, request in
-                                if index > 0 { Rectangle().fill(V32.divider).frame(height: 1).padding(.leading, 48) }
+                    // P0-2：每个 Row 用 V32SwipeRow 包装，
+                    // 让 pending → 右滑露出「开始配送」、delivering → 右滑露出「✓ 完成」。
+                    // done 状态 actions 为空，不允许 swipe。
+                    // 整体保留 b27 的 V32Card 外观（圆角 + 白底 + 描边），
+                    // 额外加 clipShape 让 swipe 偏移不溢出圆角边界。
+                    VStack(spacing: 0) {
+                        ForEach(Array(shown.enumerated()), id: \.element.persistentModelID) { index, request in
+                            if index > 0 {
+                                Rectangle().fill(V32.divider).frame(height: 1).padding(.leading, 48)
+                            }
+                            V32SwipeRow(actions: swipeActions(for: request)) {
                                 CustomerRow(
                                     request: request,
                                     onEdit: { editingRequest = request },
@@ -55,10 +62,20 @@ struct CustomerView: View {
                                     onAdvance: { advance(request) },
                                     onDelete: { deletingRequest = request }
                                 )
-                                .transition(.opacity.combined(with: .scale(scale: 0.98)))
                             }
+                            .transition(.opacity.combined(with: .scale(scale: 0.98)))
                         }
                     }
+                    .padding(4)
+                    .background(
+                        RoundedRectangle(cornerRadius: V32Radius.card, style: .continuous)
+                            .fill(V32.card)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: V32Radius.card, style: .continuous)
+                            .strokeBorder(V32.cardOutline, lineWidth: 1)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: V32Radius.card, style: .continuous))
                 }
             }
             .padding(.horizontal, V32Layout.pageMargin)
@@ -116,6 +133,25 @@ struct CustomerView: View {
         if let address = request.roomOrAddress.nonEmpty {
             UIPasteboard.general.string = address
             Haptic.success()
+        }
+    }
+
+    // P0-2：根据配送状态返回 swipe actions。
+    // pending → [开始配送]；delivering → [✓ 完成]；done → []（不允许 swipe）。
+    // 完成动作直接调用 advance(request)，由 CustomerRepository 写入唯一业务状态，
+    // 不在 View 维护第二套 completed 状态。
+    private func swipeActions(for request: CustomerRequest) -> [V32SwipeAction] {
+        switch request.statusEnum {
+        case .pending:
+            return [V32SwipeAction(title: "开始配送", systemName: "bicycle", tint: V32.brand) {
+                advance(request)
+            }]
+        case .delivering:
+            return [V32SwipeAction(title: "完成", systemName: "checkmark", tint: V32.brand) {
+                advance(request)
+            }]
+        case .done:
+            return []
         }
     }
 }
@@ -245,5 +281,106 @@ extension String {
     var nonEmpty: String? {
         let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+// MARK: - V32 Swipe Action（自绘 swipe，不退回裸 List 系统样式）
+// P0-2：CustomerView 配送 Row 专用。pending/delivering 右滑露出操作按钮，
+// done 不允许 swipe。Swipe 动画统一引用 V32Motion（不夸张）。
+
+private struct V32SwipeAction: Identifiable {
+    let id = UUID()
+    let title: String
+    let systemName: String
+    let tint: Color
+    let perform: () -> Void
+}
+
+private struct V32SwipeRow<Content: View>: View {
+    let actions: [V32SwipeAction]
+    @ViewBuilder var content: Content
+
+    @State private var offsetX: CGFloat = 0
+    @State private var startOffset: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private let buttonWidth: CGFloat = 76
+    private var maxSwipe: CGFloat { CGFloat(actions.count) * buttonWidth }
+    private var animation: Animation {
+        reduceMotion ? V32Motion.reducedFade : V32Motion.interactiveSpring
+    }
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            // 背景按钮（右滑露出）
+            if !actions.isEmpty {
+                HStack(spacing: 0) {
+                    Spacer()
+                    ForEach(actions) { action in
+                        Button {
+                            trigger(action)
+                        } label: {
+                            VStack(spacing: 4) {
+                                Image(systemName: action.systemName)
+                                    .font(.system(size: 16, weight: .semibold))
+                                Text(action.title)
+                                    .font(.system(size: 11, weight: .medium))
+                            }
+                            .foregroundStyle(Color.white)
+                            .frame(width: buttonWidth)
+                            .frame(maxHeight: .infinity)
+                            .background(action.tint)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            // 前景内容：done 时无 swipe 手势，避免拦截 ScrollView 滚动
+            foreground
+        }
+    }
+
+    @ViewBuilder
+    private var foreground: some View {
+        if actions.isEmpty {
+            content.background(V32.card)
+        } else {
+            content
+                .background(V32.card)
+                .offset(x: offsetX)
+                .highPriorityGesture(
+                    DragGesture(minimumDistance: 14)
+                        .onChanged { value in
+                            // 只允许左滑（向负方向），不超过 -maxSwipe
+                            let target = startOffset + value.translation.width
+                            offsetX = min(0, max(-maxSwipe, target))
+                        }
+                        .onEnded { value in
+                            let snapped = snap(offset: offsetX, predicted: value.predictedEndTranslation.width)
+                            startOffset = snapped
+                            withAnimation(animation) {
+                                offsetX = snapped
+                            }
+                        }
+                )
+        }
+    }
+
+    private func snap(offset: CGFloat, predicted: CGFloat) -> CGFloat {
+        if actions.isEmpty { return 0 }
+        let threshold = -maxSwipe / 2
+        if offset < threshold || predicted < -maxSwipe * 0.6 {
+            return -maxSwipe
+        }
+        return 0
+    }
+
+    private func trigger(_ action: V32SwipeAction) {
+        withAnimation(animation) {
+            offsetX = 0
+            startOffset = 0
+        }
+        action.perform()
     }
 }
