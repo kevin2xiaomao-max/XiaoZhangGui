@@ -1,7 +1,7 @@
 import Foundation
 
 // MARK: - 业绩派生数据（语义对齐 Android PerformanceViewModel）
-// 注意：无独立来源字段；来源仅从现有备注关键词派生，不写入或迁移数据模型
+// P0-3：新增独立 incomeSource 字段后，优先读 incomeSource；空则 fallback 到 note 关键词派生
 
 enum PerformancePeriod: String, CaseIterable, Identifiable, Hashable {
     case today = "今日"
@@ -89,6 +89,26 @@ enum IncomeSource: String, CaseIterable, Identifiable {
         if normalized.contains("门店") || normalized.contains("到店") { return .store }
         return .other
     }
+
+    /// P0-3：优先用独立 incomeSource 字段（用户在编辑器里选择）；
+    /// 空字符串 fallback 到 note 关键词派生（兼容旧记录）。
+    static func from(performance: Performance) -> IncomeSource {
+        let stored = performance.incomeSource.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let matched = IncomeSource(rawValue: stored) {
+            return matched
+        }
+        // 兼容扫呗导入：扫呗 paymentMethod 可能含 "美团"
+        if stored.isEmpty {
+            let pay = performance.paymentMethod.trimmingCharacters(in: .whitespacesAndNewlines)
+            if pay == "美团" || pay.lowercased() == "meituan" {
+                return .meituan
+            }
+            if pay == "门店" || pay.lowercased() == "store" {
+                return .store
+            }
+        }
+        return IncomeSource.from(note: performance.note)
+    }
 }
 
 struct IncomeSourceSummary: Identifiable {
@@ -102,7 +122,7 @@ struct IncomeSourceSummary: Identifiable {
         let total = filtered.reduce(0) { $0 + $1.amount }
         return IncomeSource.allCases.map { source in
             let amount = filtered
-                .filter { IncomeSource.from(note: $0.note) == source }
+                .filter { IncomeSource.from(performance: $0) == source }
                 .reduce(0) { $0 + $1.amount }
             return IncomeSourceSummary(
                 source: source,

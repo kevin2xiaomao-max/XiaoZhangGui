@@ -75,13 +75,21 @@ struct MemoRepository {
 struct PerformanceRepository {
     let context: ModelContext
 
-    func add(amount: Double, note: String, date: Date = Date()) throws {
-        context.insert(Performance(amount: amount, note: note, date: date))
+    /// P0-3：新增 incomeSource 参数，默认 .store（兼容旧调用方语义）
+    func add(amount: Double, note: String, date: Date = Date(), incomeSource: IncomeSource = .store) throws {
+        context.insert(Performance(
+            amount: amount,
+            note: note,
+            date: date,
+            incomeSource: incomeSource.rawValue
+        ))
         try context.save()
         SnapshotSyncManager.refreshAll(context: context)
     }
 
     func addImported(_ row: SaobeiParsedRow) throws {
+        // P0-3：扫呗导入时按 paymentMethod 派生 incomeSource
+        let source = IncomeSource.from(note: row.paymentMethod)
         context.insert(Performance(
             amount: row.amount,
             note: row.paymentMethod.isEmpty ? "扫呗" : "扫呗 · \(row.paymentMethod)",
@@ -89,7 +97,8 @@ struct PerformanceRepository {
             fingerprint: row.fingerprint,
             paymentMethod: row.paymentMethod,
             orderNo: row.orderNo,
-            importSource: "saobei"
+            importSource: "saobei",
+            incomeSource: source.rawValue
         ))
         try context.save()
         SnapshotSyncManager.refreshAll(context: context)

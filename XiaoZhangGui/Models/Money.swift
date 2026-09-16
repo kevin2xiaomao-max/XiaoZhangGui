@@ -3,6 +3,8 @@ import SwiftData
 
 /// 营业额记录（对齐 Android PerformanceEntity：amount/note/date）
 /// 3.0：fingerprint 用于扫呗防重复；空字符串表示手工记录。
+/// P0-3：新增 incomeSource 字段（默认空字符串），向后兼容旧记录。
+/// 旧记录读取时 fallback 到 IncomeSource.from(note:) 派生。
 @Model
 final class Performance {
     var amount: Double = 0
@@ -12,6 +14,7 @@ final class Performance {
     var paymentMethod: String = ""
     var orderNo: String = ""
     var importSource: String = ""
+    var incomeSource: String = ""
 
     init(
         amount: Double,
@@ -20,7 +23,8 @@ final class Performance {
         fingerprint: String = "",
         paymentMethod: String = "",
         orderNo: String = "",
-        importSource: String = ""
+        importSource: String = "",
+        incomeSource: String = ""
     ) {
         self.amount = amount
         self.note = note
@@ -29,6 +33,7 @@ final class Performance {
         self.paymentMethod = paymentMethod
         self.orderNo = orderNo
         self.importSource = importSource
+        self.incomeSource = incomeSource
     }
 }
 

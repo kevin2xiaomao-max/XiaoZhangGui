@@ -49,6 +49,7 @@ struct PerformanceView: View {
                 header
                 heroCard
                 metricsCard
+                sourcesCard
                 recordsSection
             }
             .padding(.horizontal, V32Layout.pageMargin)
@@ -159,6 +160,50 @@ struct PerformanceView: View {
 
     private var metricDivider: some View {
         Rectangle().fill(V32.divider).frame(width: 1, height: 36)
+    }
+
+    // MARK: 来源拆分（P0-3 美团）
+
+    private var sourcesCard: some View {
+        let summaries = IncomeSourceSummary.compute(
+            performances: performances,
+            range: (Date().startOfMonth, Date().endOfDay)
+        )
+        let active = summaries.filter { $0.amount > 0 }
+        return VStack(alignment: .leading, spacing: 10) {
+            Text("本月来源拆分")
+                .v32Text(.caption)
+                .foregroundStyle(V32.textTertiary)
+                .padding(.leading, 4)
+            V32Card {
+                VStack(spacing: 0) {
+                    ForEach(Array(active.enumerated()), id: \.element.id) { index, item in
+                        if index > 0 {
+                            Rectangle().fill(V32.divider).frame(height: 1).padding(.leading, 0)
+                        }
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(item.source.rawValue)
+                                .v32Text(.title)
+                                .foregroundStyle(V32.textPrimary)
+                            Spacer(minLength: 12)
+                            Text(Fmt.money(item.amount))
+                                .v32Text(.headline)
+                                .foregroundStyle(V32.brand)
+                            Text("·\(String(format: "%.0f%%", item.ratio * 100))")
+                                .v32Text(.caption)
+                                .foregroundStyle(V32.textTertiary)
+                        }
+                        .padding(.vertical, 10)
+                    }
+                    if active.isEmpty {
+                        Text("本月暂无收入")
+                            .v32Text(.subhead)
+                            .foregroundStyle(V32.textTertiary)
+                            .padding(.vertical, 12)
+                    }
+                }
+            }
+        }
     }
 
     // MARK: 最近交易

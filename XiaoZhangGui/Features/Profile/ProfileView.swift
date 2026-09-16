@@ -326,7 +326,7 @@ struct ProfileView: View {
         }
         todos.forEach { record("todo", ["title": $0.title, "detail": $0.detail, "dueDate": $0.dueDate.map { $0.timeIntervalSince1970 * 1000 }, "priority": $0.priority, "isCompleted": $0.isCompleted]) }
         memos.forEach { record("memo", ["title": $0.title, "content": $0.content]) }
-        performances.forEach { record("performance", ["amount": $0.amount, "note": $0.note, "date": $0.date.timeIntervalSince1970 * 1000]) }
+        performances.forEach { record("performance", ["amount": $0.amount, "note": $0.note, "date": $0.date.timeIntervalSince1970 * 1000, "incomeSource": $0.incomeSource]) }
         expenses.forEach { record("expense", ["amount": $0.amount, "category": $0.category, "note": $0.note, "date": $0.date.timeIntervalSince1970 * 1000]) }
         expiryItems.forEach { record("expiry", ["name": $0.name, "category": $0.category, "quantity": $0.quantity, "expiryDate": $0.expiryDate.timeIntervalSince1970 * 1000, "returnStatus": $0.returnStatus]) }
         customers.forEach { record("customer", ["customer": $0.customer, "roomOrAddress": $0.roomOrAddress, "phone": $0.phone, "content": $0.content, "status": $0.status]) }
@@ -367,7 +367,10 @@ struct ProfileView: View {
                 case "memo":
                     try MemoRepository(context: context).add(title: str("title"), content: str("content"))
                 case "performance":
-                    try PerformanceRepository(context: context).add(amount: num("amount"), note: str("note"), date: date("date"))
+                    // P0-3：恢复时优先用 incomeSource 字段；空则 fallback 到 .store（兼容旧 JSON 备份）
+                    let sourceStr = str("incomeSource")
+                    let source = IncomeSource(rawValue: sourceStr) ?? .store
+                    try PerformanceRepository(context: context).add(amount: num("amount"), note: str("note"), date: date("date"), incomeSource: source)
                 case "expense":
                     try ExpenseRepository(context: context).add(amount: num("amount"), category: str("category"), note: str("note"), date: date("date"))
                 case "expiry":

@@ -19,6 +19,9 @@ struct MoneyEditorSheet: View {
     @State private var note = ""
     @State private var category = "其他"
     @State private var date = Date()
+    @State private var incomeSource: IncomeSource = .store
+
+    private let incomeSources: [IncomeSource] = IncomeSource.allCases
 
     private let expenseCategories = ["进货", "房租", "水电", "人工", "其他"]
 
@@ -51,6 +54,7 @@ struct MoneyEditorSheet: View {
                 header
                 amountCard
                 detailCard
+                if kind == .income { incomeSourceCard }
                 if kind == .expense { categoryCard }
                 V32PrimaryButton(title: "保存", systemName: "checkmark") { save() }
                     .disabled(amount == nil)
@@ -135,6 +139,21 @@ struct MoneyEditorSheet: View {
         }
     }
 
+    // MARK: 收入来源（P0-3 美团支持）
+
+    private var incomeSourceCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            V32SectionHeader("收入来源")
+            V32SegmentedPicker(
+                tabs: incomeSources.map(\.rawValue),
+                selectionIndex: Binding(
+                    get: { incomeSources.firstIndex(of: incomeSource) ?? 0 },
+                    set: { incomeSource = incomeSources[$0] }
+                )
+            )
+        }
+    }
+
     private func loadEditing() {
         switch mode {
         case .new:
@@ -145,6 +164,8 @@ struct MoneyEditorSheet: View {
                 : String(p.amount)
             note = p.note
             date = p.date
+            // P0-3：编辑旧流水时载入已存来源；空字符串 fallback 到派生
+            incomeSource = IncomeSource.from(performance: p)
         case .editExpense(let e):
             amountText = e.amount == e.amount.rounded(.towardZero)
                 ? String(Int(e.amount))
@@ -161,7 +182,12 @@ struct MoneyEditorSheet: View {
             switch mode {
             case .new(let k):
                 if k == .income {
-                    try PerformanceRepository(context: context).add(amount: amount, note: note, date: date)
+                    try PerformanceRepository(context: context).add(
+                        amount: amount,
+                        note: note,
+                        date: date,
+                        incomeSource: incomeSource
+                    )
                 } else {
                     try ExpenseRepository(context: context).add(amount: amount, category: category, note: note, date: date)
                 }
@@ -169,6 +195,8 @@ struct MoneyEditorSheet: View {
                 p.amount = amount
                 p.note = note
                 p.date = date
+                // P0-3：编辑旧流水可修改来源
+                p.incomeSource = incomeSource.rawValue
                 try PerformanceRepository(context: context).update(p)
             case .editExpense(let e):
                 e.amount = amount

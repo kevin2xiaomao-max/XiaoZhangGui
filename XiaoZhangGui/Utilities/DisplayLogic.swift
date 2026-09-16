@@ -74,7 +74,12 @@ enum RecordSourceLabel {
     }
 
     static func display(performance: Performance) -> String {
-        display(
+        // P0-3：优先看独立 incomeSource 字段
+        let stored = performance.incomeSource.trimmingCharacters(in: .whitespacesAndNewlines)
+        if stored == "门店" || stored == "美团" {
+            return stored
+        }
+        return display(
             importSource: performance.importSource,
             paymentMethod: performance.paymentMethod,
             note: performance.note
