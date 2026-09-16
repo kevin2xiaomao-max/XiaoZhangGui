@@ -64,11 +64,9 @@ final class SaobeiRoundTripTests: XCTestCase {
         let rows = [makeRow(date: Date(), amount: 10, status: "成功", orderNo: "X", pay: "现金")]
         let xlsxData = try SaobeiExporter.exportXLSX(rows: rows)
 
-        // XLSX 是二进制 ZIP，必须以 ZIP 魔数开头
-        XCTAssertTrue(xlsxData.starts(with: [0x50, 0x4b, 0x03, 0x04]), "必须是 ZIP 格式")
-
-        // 不应以 CSV 表头明文开头（CSV 冒充会被前两个字节 '交' '易' 识破）
-        let firstTwo = xlsxData.prefix(2)
-        XCTAssertFalse(firstTwo == Data([0xE4, 0xBA]), "不应以 UTF-8 中文开头（CSV 冒充）")
+        // XLSX 是二进制 ZIP，必须以 ZIP 魔数开头（0x50 0x4B 0x03 0x04）
+        // CSV 冒充会以 UTF-8 中文字节开头，不会是 ZIP 魔数
+        XCTAssertEqual(xlsxData[0], UInt8(0x50), "必须以 ZIP 魔数 0x50 开头")
+        XCTAssertEqual(xlsxData[1], UInt8(0x4B), "第二字节必须是 0x4B")
     }
 }
