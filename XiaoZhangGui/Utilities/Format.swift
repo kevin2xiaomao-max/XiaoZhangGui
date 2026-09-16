@@ -56,6 +56,12 @@ enum Fmt {
         return "\(c.component(.month, from: date))月\(c.component(.day, from: date))日 \(time(date))"
     }
 
+    /// "X月X日"（无钟点，全天事项用）
+    static func monthDay(_ date: Date) -> String {
+        let c = Calendar.current
+        return "\(c.component(.month, from: date))月\(c.component(.day, from: date))日"
+    }
+
     /// "MM月dd日 HH:mm"（备忘卡片时间）
     static func memoTime(_ date: Date) -> String {
         let c = Calendar.current

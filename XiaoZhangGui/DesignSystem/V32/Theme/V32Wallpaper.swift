@@ -140,17 +140,26 @@ enum ImageCodec {
 
 // MARK: - 壁纸背景 View
 
-/// 在最底层 ZStack 挂载壁纸图 + 效果层 + 遮罩层
+/// 在页面背景层挂载壁纸图 + 效果层 + 遮罩层
 /// - 不参与点击（allowsHitTesting(false)）
 /// - Demo Mode 下隐藏
-/// - T28 性能优化：内存缓存 UIImage 避免每次 body 重复解码
+/// - P0-3：壁纸由 v32PageBackground() 在每个页面内部渲染（首页/日程/待办/我的各自一层），
+///   解码结果通过 SharedDecodeCache 共享，避免 4 个 tab 各自重复解码同一张图。
+/// - T28 性能：内存缓存 UIImage 避免每次 body 重复解码
 struct V32WallpaperBackground: View {
     @Environment(ThemeStore.self) private var themeStore
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     private let demo = DemoMode.shared
 
-    /// 内存缓存已解码的 UIImage + 对应文件名，避免每次 body 重复解码
+    /// 进程级共享解码缓存：同一张壁纸全 App 只解码一次（@MainActor 访问）
+    @MainActor
+    private enum SharedDecodeCache {
+        static var image: UIImage?
+        static var displayFileName: String?
+    }
+
+    /// 本实例的渲染触发状态：从共享缓存拷贝引用（同一 UIImage，无额外解码内存）
     @State private var cachedImage: UIImage?
     @State private var cachedDisplayFileName: String?
 
@@ -188,20 +197,33 @@ struct V32WallpaperBackground: View {
         guard let displayFileName = currentDisplayFileName else {
             cachedImage = nil
             cachedDisplayFileName = nil
+            SharedDecodeCache.image = nil
+            SharedDecodeCache.displayFileName = nil
             return
         }
         // 已缓存且文件名匹配，跳过
         if cachedDisplayFileName == displayFileName, cachedImage != nil {
             return
         }
-        // 异步加载 + 解码，避免阻塞 MainActor
+        // 1. 进程级共享缓存命中：直接复用同一 UIImage，不重新读盘/解码
+        if let shared = SharedDecodeCache.image,
+           SharedDecodeCache.displayFileName == displayFileName {
+            cachedImage = shared
+            cachedDisplayFileName = displayFileName
+            return
+        }
+        // 2. 异步加载 + 解码，避免阻塞 MainActor
         let data = await Task.detached(priority: .userInitiated) {
             WallpaperStorage.loadData(fileName: displayFileName)
         }.value
         if let data, let image = UIImage(data: data) {
+            SharedDecodeCache.image = image
+            SharedDecodeCache.displayFileName = displayFileName
             cachedImage = image
             cachedDisplayFileName = displayFileName
         } else {
+            SharedDecodeCache.image = nil
+            SharedDecodeCache.displayFileName = nil
             cachedImage = nil
             cachedDisplayFileName = nil
         }

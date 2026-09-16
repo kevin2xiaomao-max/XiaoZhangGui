@@ -70,6 +70,7 @@ jobs:
             -scheme XiaoZhangGui \
             -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
             -derivedDataPath build/Simulator \
+            XZG_WEATHER_API_KEY="${{ secrets.XZG_WEATHER_API_KEY }}" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
 
@@ -81,18 +82,19 @@ jobs:
             -scheme XiaoZhangGui \
             -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
             -derivedDataPath build/Simulator \
+            XZG_WEATHER_API_KEY="${{ secrets.XZG_WEATHER_API_KEY }}" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
 
-      - name: iPhone 17 Air 窄屏编译校验（无该设备时回退 iPhone 17）
+      - name: iPhone Air 窄屏编译校验（无该设备时回退最接近的 iPhone 旗舰）
         id: aircheck
         run: |
           set -euo pipefail
-          # v3.2 AC-9：为 iPhone 17 Air 窄屏旗舰做一次模拟器编译校验。
-          # 当前 xcode-27 runner 镜像设备列表为 iPhone 17 / 17 Pro / 17 Pro Max / 17e，
-          # 暂无 iPhone 17 Air；选最接近的窄屏旗舰 iPhone 17（6.1"）作为替代目标并记录。
+          # v3.2 AC-9：为 iPhone Air 窄屏旗舰做一次模拟器编译校验（P2：官方名称为 iPhone Air）。
+          # 设备必须按 xcode-27 runner 当前真实设备列表选择：有 iPhone Air 用 iPhone Air，
+          # 否则回退最接近的窄屏旗舰（当前镜像为 iPhone 17），并继续兜底任意可用 iPhone。
           AIR_NAME=""
-          for cand in "iPhone 17 Air" "iPhone 17"; do
+          for cand in "iPhone Air" "iPhone 17"; do
             if xcrun simctl list devices available | grep -F "$cand (" >/dev/null; then
               AIR_NAME="$cand"
               break
@@ -106,6 +108,7 @@ jobs:
             -scheme XiaoZhangGui \
             -destination "platform=iOS Simulator,name=$AIR_NAME" \
             -derivedDataPath build/SimulatorAir \
+            XZG_WEATHER_API_KEY="${{ secrets.XZG_WEATHER_API_KEY }}" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
 
@@ -119,6 +122,7 @@ jobs:
             -destination 'generic/platform=iOS' \
             -configuration Release \
             -derivedDataPath build/Device \
+            XZG_WEATHER_API_KEY="${{ secrets.XZG_WEATHER_API_KEY }}" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
@@ -129,6 +133,15 @@ jobs:
           test -n "${app:-}"
           test -d "$app"
           test -f "$app/Info.plist"
+
+          # P0-1 天气注入链校验：最终 .app/Info.plist 中 XZGWeatherAPIKey 必须存在且非空。
+          # 绝不打印 Secret 原文，只输出「已配置」状态。
+          WEATHER_KEY_LEN="$(/usr/libexec/PlistBuddy -c 'Print :XZGWeatherAPIKey' "$app/Info.plist" 2>/dev/null | tr -d '[:space:]' | wc -c | tr -d '[:space:]')"
+          if [ -z "$WEATHER_KEY_LEN" ] || [ "$WEATHER_KEY_LEN" -eq 0 ]; then
+            echo "FAIL: XZGWeatherAPIKey 缺失或为空——请检查 GitHub Secret XZG_WEATHER_API_KEY 与注入链"
+            exit 1
+          fi
+          echo "Weather: XZGWeatherAPIKey configured (non-empty, value hidden)"
 
           # 版本信息以构建产物 Info.plist 为准，文件名带构建号与 commit，防止装错旧包
           SHORT_SHA="$(git rev-parse --short=7 HEAD)"
@@ -198,23 +211,20 @@ jobs:
           set -euo pipefail
           RELEASE_TAG="v${XZG_VERSION}-b${XZG_BUILD}-${XZG_COMMIT}"
           RELEASE_TITLE="你的小掌柜 v${XZG_VERSION} Build ${XZG_BUILD} (${XZG_COMMIT})"
-          RELEASE_NOTES="## Phase 0 修复 + Theme + Wallpaper（b28）
+          RELEASE_NOTES="## B28 真机验收修复批次（Build ${XZG_BUILD}）
 
-          ### Phase 0
-          - P0-1 XLSX 真机导入修复（SaobeiXLSXParser 重写）— 等待真实扫呗文件真机复验
-          - P0-2 配送 Row V32SwipeRow 左右滑动 + 完成态持久化 + success haptic
-          - P0-3 Performance 增加 meituan 收入来源 + 来源拆分
-          - P0-4 接入 WeatherAPI.com 真实天气 + CoreLocation 定位 fallback 恩平
-          - P0-5 删除首页头像入口 + 「我的」大头像身份卡弱化为店铺信息 Row
+          ### P0
+          - P0-1 天气：GitHub Secret → build setting → Info.plist 注入链，Release 真机不再显示未配置；状态区分 未配置/定位未授权/网络失败/API 请求失败/使用缓存
+          - P0-2 待办：tab 切换胶囊始终可见，记录/今天/已完成/逾期 无死路切换
+          - P0-3 壁纸：壁纸下沉为每页可见背景层，首页/日程/待办/我的真实显示；清除后立即恢复主题背景
+          - P0-4 配送图片：列表行内缩略图 + externalStorage round-trip 单测（增/换/删）
 
-          ### Theme + Wallpaper（T23–T29）
-          - T23 Build 28 基建：CURRENT_PROJECT_VERSION=28 + ThemeStore 骨架
-          - T24 V32 token 全面主题化（14 个可主题化 token 接入 ThemeStore）
-          - T25 我的 → 个性化：主题色 + 背景风格 选择器
-          - T26 旧 app_theme_name 迁移单测（12 用例）
-          - T27 自定义 Wallpaper：PhotosPicker + 降采样 + 落盘 + 遮罩 + 预渲染模糊
-          - T28 性能：V32WallpaperBackground 内存缓存 UIImage 避免重复解码
-          - T29 GitHub Release 直接提供 .ipa（无需用户解压 ZIP）
+          ### P1 / P2
+          - P1-1 「我的」顶部绿色 Hero 改为普通主题卡片 Row（首页营业额 Hero 不变）
+          - P1-2 配送卡底部只表达配送时间（未设配送时间），不再与状态 Pill 冲突
+          - P1-3 全天事项统一时间语义（DayTimeLabel），任何页面不再出现 00:00
+          - P1-4 清理旧 AppTheme/appThemeName 残留，主题统一 ThemeStore + V32 tokens
+          - P2 工程文案统一为 iPhone Air（CI 设备按真实设备列表选择）
 
           ### IPA 验证
           - 文件名：${IPA_FILENAME}
@@ -222,6 +232,7 @@ jobs:
           - 合法 ZIP 容器 + Payload/你的小掌柜.app
           - CFBundleShortVersionString=${XZG_VERSION}
           - CFBundleVersion=${XZG_BUILD}
+          - XZGWeatherAPIKey：已注入（值不展示）
 
           > Pre-release · 仅用于测试 · 不覆盖 stable release"
 

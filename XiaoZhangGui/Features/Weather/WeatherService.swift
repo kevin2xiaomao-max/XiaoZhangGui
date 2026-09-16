@@ -194,6 +194,8 @@ final class WeatherViewModel {
     private(set) var state: WeatherViewState = .idle
     private(set) var snapshot: WeatherSnapshot?
     private(set) var isRefreshing = false
+    /// P0-1：定位被拒绝/受限时为 true（天气继续用配置 fallback 城市请求，不阻塞）
+    private(set) var isLocationDenied = false
     let isConfigured: Bool
     private var hasLoaded = false
     private let baseConfiguration: WeatherConfiguration
@@ -222,6 +224,7 @@ final class WeatherViewModel {
     /// 拿到新坐标后重建 provider，再发请求。失败一律 fallback 到 `baseConfiguration`。
     private func requestWithLocationFallback(forceRefresh: Bool) async {
         if let location = await locationManager.requestAuthorizationAndLocation() {
+            isLocationDenied = false
             let lat = location.coordinate.latitude
             let lon = location.coordinate.longitude
             if lastUsedCoordinates?.latitude != lat || lastUsedCoordinates?.longitude != lon {
@@ -233,6 +236,14 @@ final class WeatherViewModel {
                 )
                 service = WeatherService(provider: WeatherAPIProvider(configuration: resolved))
                 lastUsedCoordinates = (lat, lon)
+            }
+        } else {
+            // P0-1：拿到 nil 时区分「定位未授权」与普通超时/失败
+            switch locationManager.authorizationStatus {
+            case .denied, .restricted:
+                isLocationDenied = true
+            default:
+                break
             }
         }
         await request(forceRefresh: forceRefresh)
@@ -250,7 +261,21 @@ final class WeatherViewModel {
             snapshot = nil
             state = .notConfigured
         } catch {
-            state = snapshot == nil ? .unavailable : .loaded
+            // P0-1：区分网络失败 / API 请求失败，供详情页展示不同文案。
+            // 已有数据时保留旧快照（state=.loaded），只在无任何数据时进入失败态。
+            if snapshot == nil {
+                state = .unavailable(Self.failureReason(of: error))
+            } else {
+                state = .loaded
+            }
+        }
+    }
+
+    private static func failureReason(of error: Error) -> WeatherFailureReason {
+        switch error as? WeatherServiceError {
+        case .requestFailed: return .network
+        case .invalidURL, .invalidResponse: return .api
+        default: return .unknown
         }
     }
 }

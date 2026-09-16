@@ -41,9 +41,8 @@ final class AppSettings {
             else { ud.removeObject(forKey: "avatar_image_data") }
         }
     }
-    var appThemeName: String {
-        didSet { ud.set(appThemeName, forKey: "app_theme_name") }
-    }
+    // P1-4：旧 appThemeName（app_theme_name）属性已删除。
+    // 主题唯一入口是 ThemeStore；旧 key 的一次性迁移在 ThemeStore.init 完成（T26）。
 
     init() {
         shopName = ud.string(forKey: "shop_name") ?? "天福便利店"
@@ -55,7 +54,6 @@ final class AppSettings {
         voiceLanguage = ud.string(forKey: "voice_language") ?? "普通话"
         avatarEmoji = ud.string(forKey: "avatar_emoji") ?? "👨🏻‍💼"
         avatarImageData = ud.data(forKey: "avatar_image_data")
-        appThemeName = ud.string(forKey: "app_theme_name") ?? "Emerald"
     }
 
     var colorScheme: ColorScheme? {

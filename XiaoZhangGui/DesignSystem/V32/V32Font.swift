@@ -60,15 +60,21 @@ private struct V32TextModifier: ViewModifier {
     }
 }
 
-/// b28 T27：壁纸启用时页面底色改为透明，让 RootView 底层 V32WallpaperBackground 透出
-/// 壁纸禁用时保持 b27 行为：背景 = V32.pageBG
+/// b28 T27 / P0-3：页面背景层。
+/// - 壁纸启用：把 V32WallpaperBackground 直接作为**当前页面的背景层**渲染，
+///   保证壁纸真实出现在首页 / 日程 / 待办 / 我的（RootView 底层会被 TabView /
+///   NavigationStack 容器的不透明默认背景完全盖住，不能再依赖最底层）。
+/// - 壁纸禁用：保持 b27 行为，背景 = V32.pageBG；清除壁纸后立即恢复。
+/// 卡片仍是 V32.card 不透明表面，可读性不受影响。
 @MainActor
 private struct V32PageBackgroundModifier: ViewModifier {
     @Environment(ThemeStore.self) private var themeStore
 
     func body(content: Content) -> some View {
         if themeStore.wallpaper.isEnabled {
-            content.background(Color.clear.ignoresSafeArea())
+            content.background {
+                V32WallpaperBackground()
+            }
         } else {
             content.background(V32.pageBG.ignoresSafeArea())
         }
@@ -81,7 +87,7 @@ extension View {
     }
 
     /// 统一 V32 页面底色：
-    /// - 壁纸启用：透明（让 RootView 底层 V32WallpaperBackground 透出）
+    /// - 壁纸启用：壁纸作为当前页面可见背景层（P0-3）
     /// - 壁纸禁用：V32.pageBG（保持 b27 行为）
     func v32PageBackground() -> some View {
         modifier(V32PageBackgroundModifier())

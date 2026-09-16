@@ -94,7 +94,8 @@ struct HomeView: View {
             }
         }
         .sheet(isPresented: $showWeatherSheet) {
-            WeatherDetailSheet(model: weatherModel, palette: AppTheme.palette(named: settings.appThemeName))
+            // P1-4：跟随 ThemeStore / V32 tokens，不再走旧 AppTheme 链路
+            WeatherDetailSheet(model: weatherModel)
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
         }
@@ -430,7 +431,8 @@ private struct DeliveryCard: View {
                 HStack(spacing: 4) {
                     Image(systemName: "clock")
                         .font(.system(size: 11, weight: .semibold))
-                    Text(info.deliveryTime.map(Fmt.time) ?? "待配送")
+                    // P1-2：这一行只表达配送时间，不重复表达状态（状态唯一来源是右上 Pill）
+                    Text(info.deliveryTime.map(Fmt.time) ?? "未设配送时间")
                         .v32Text(.caption)
                 }
                 .foregroundStyle(V32.textTertiary)

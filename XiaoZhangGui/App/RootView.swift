@@ -10,33 +10,32 @@ struct RootView: View {
     private let canInitializeSpeechRecognizer = SpeechService.canInitializeRecognizer
 
     var body: some View {
-        ZStack {
-            // 壁纸层在最底层，不拦截交互（allowsHitTesting(false)）
-            V32WallpaperBackground()
-
-            TabView(selection: $tab) {
-                Tab("首页", systemImage: "house", value: AppTab.home) {
-                    NavigationStack {
-                        HomeView(tab: $tab, showVoice: $showVoice, showQuickRecord: $showQuickRecord, showsVoiceButton: canInitializeSpeechRecognizer)
-                    }
-                }
-                Tab("日程", systemImage: "calendar", value: AppTab.schedule) {
-                    NavigationStack { ScheduleView() }
-                }
-                Tab("语音", systemImage: "mic.fill", value: AppTab.voice, role: voiceTabRole) {
-                    Color.clear
-                        .accessibilityHidden(true)
-                        .accessibilityLabel("语音")
-                }
-                Tab("待办", systemImage: "checkmark.circle", value: AppTab.todo) {
-                    NavigationStack { TodoView() }
-                }
-                Tab("我的", systemImage: "person", value: AppTab.profile) {
-                    NavigationStack {
-                        ProfileView(tab: $tab, showVoice: $showVoice, showsVoiceButton: canInitializeSpeechRecognizer)
-                    }
+        // P0-3：壁纸不再挂在 RootView 最底层——TabView / NavigationStack 容器的
+        // 不透明默认背景会把它完全盖住。壁纸改由 v32PageBackground() 在每个页面
+        // 内部渲染为可见背景层，见 V32Font.swift / V32Wallpaper.swift。
+        TabView(selection: $tab) {
+            Tab("首页", systemImage: "house", value: AppTab.home) {
+                NavigationStack {
+                    HomeView(tab: $tab, showVoice: $showVoice, showQuickRecord: $showQuickRecord, showsVoiceButton: canInitializeSpeechRecognizer)
                 }
             }
+            Tab("日程", systemImage: "calendar", value: AppTab.schedule) {
+                NavigationStack { ScheduleView() }
+            }
+            Tab("语音", systemImage: "mic.fill", value: AppTab.voice, role: voiceTabRole) {
+                Color.clear
+                    .accessibilityHidden(true)
+                    .accessibilityLabel("语音")
+            }
+            Tab("待办", systemImage: "checkmark.circle", value: AppTab.todo) {
+                NavigationStack { TodoView() }
+            }
+            Tab("我的", systemImage: "person", value: AppTab.profile) {
+                NavigationStack {
+                    ProfileView(tab: $tab, showVoice: $showVoice, showsVoiceButton: canInitializeSpeechRecognizer)
+                }
+            }
+        }
             .tint(V32.brand)
             .onChange(of: tab) { oldValue, newValue in
                 if newValue == .voice {
@@ -67,7 +66,6 @@ struct RootView: View {
                         .presentationCornerRadius(28)
                 }
             }
-        }
     }
 
     private func handleDeepLink(_ url: URL) {

@@ -69,28 +69,5 @@ enum V21 {
     static let glassHighlight = Color.v21Dynamic(light: 0xFFFFFF, dark: 0xFFFFFF, lightAlpha: 0.8, darkAlpha: 0.06)
 }
 
-struct AppThemePalette {
-    let name: String
-    let accent: Color
-    let accentSecondary: Color
-    let heroGradient: LinearGradient
-    let selectedBackground: Color
-
-    static let mint = AppThemePalette(
-        name: "Mint",
-        accent: V21.brandGreen,
-        accentSecondary: V21.brandGreenDeep,
-        heroGradient: V21.brandGreenGradient,
-        selectedBackground: V21.brandGreen.opacity(0.12)
-    )
-}
-
-enum AppTheme {
-    static let current = AppThemePalette.mint
-
-    static func palette(named name: String) -> AppThemePalette {
-        .mint
-    }
-
-    static let all: [AppThemePalette] = [.mint]
-}
+// P1-4：AppThemePalette / AppTheme 已删除——旧 V21 主题链路死代码。
+// b28 起主题统一走 ThemeStore + V32 semantic tokens（V32ThemeModels / V32Color）。

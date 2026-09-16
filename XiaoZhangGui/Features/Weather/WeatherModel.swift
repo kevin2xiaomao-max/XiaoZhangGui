@@ -40,7 +40,17 @@ enum WeatherViewState: Equatable {
     case loading
     case loaded
     case notConfigured
-    case unavailable
+    /// 拉取失败（snapshot 为 nil）。附带失败原因供 UI 区分网络 / API 错误。
+    case unavailable(WeatherFailureReason)
+}
+
+/// P0-1 真机状态区分：网络失败 / API 请求失败 / 其它
+enum WeatherFailureReason: Equatable {
+    /// URLSession 层失败（无网 / 超时 / DNS）
+    case network
+    /// 服务端返回非 2xx 或响应无法解析（多为 Key 无效 / 配额）
+    case api
+    case unknown
 }
 
 enum WeatherServiceError: LocalizedError {

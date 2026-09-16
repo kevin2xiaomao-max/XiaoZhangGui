@@ -208,6 +208,10 @@ private struct CustomerRow: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                // P0-4：配送带图时在行内直接显示缩略图（round-trip：列表可见）
+                if request.imageData != nil {
+                    ImageThumb(imageData: request.imageData, size: 44)
+                }
                 V32StatusPill(text: request.statusEnum.rawValue, status: status)
             }
             // 行内只保留主状态操作；复制/删除等次级动作进 contextMenu（T19）

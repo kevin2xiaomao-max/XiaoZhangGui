@@ -1,63 +1,10 @@
 import SwiftUI
 
-struct WeatherPill: View {
-    let model: WeatherViewModel
-    let palette: AppThemePalette
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 4) {
-                weatherIcon
-                if let weather = model.snapshot {
-                    Text("\(weather.roundedTemperature)°")
-                        .font(.subheadline.monospacedDigit().weight(.medium))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                }
-            }
-            .frame(minWidth: 36, minHeight: 36)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(accessibilityLabel)
-    }
-
-    @ViewBuilder
-    private var weatherIcon: some View {
-        if model.state == .loading && model.snapshot == nil {
-            ProgressView().controlSize(.small)
-        } else {
-            Image(systemName: model.snapshot?.symbolName ?? fallbackSymbol)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    private var fallbackSymbol: String {
-        switch model.state {
-        case .notConfigured: return "cloud.sun"
-        case .unavailable: return "wifi.exclamationmark"
-        default: return "cloud.sun"
-        }
-    }
-
-    private var accessibilityLabel: String {
-        if let weather = model.snapshot {
-            return "\(weather.city)，\(weather.condition)，\(weather.roundedTemperature)度"
-        }
-        switch model.state {
-        case .notConfigured: return "天气"
-        case .unavailable: return "天气暂不可用"
-        case .loading: return "正在获取天气"
-        default: return "天气"
-        }
-    }
-}
+// P1-4：WeatherPill 已删除（未被任何页面使用的旧 V21 主题链路组件）。
+// 天气入口统一使用 HomeView.weatherButton（V32 tokens）。
 
 struct WeatherDetailSheet: View {
     let model: WeatherViewModel
-    let palette: AppThemePalette
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -142,7 +89,11 @@ struct WeatherDetailSheet: View {
                     if weather.roundedMax != nil || weather.roundedFeelsLike != nil || weather.precipitationProbability != nil { divider }
                     detailRow("状态", value: "离线缓存")
                 }
-                if weather.roundedMax != nil || weather.roundedFeelsLike != nil || weather.precipitationProbability != nil || weather.isStale {
+                if model.isLocationDenied {
+                    divider
+                    detailRow("定位", value: "未授权 · 使用默认城市")
+                }
+                if weather.roundedMax != nil || weather.roundedFeelsLike != nil || weather.precipitationProbability != nil || weather.isStale || model.isLocationDenied {
                     divider
                 }
                 detailRow("数据来源", value: "WeatherAPI.com")
@@ -167,14 +118,34 @@ struct WeatherDetailSheet: View {
         V32Card {
             VStack(spacing: 14) {
                 V32EmptyState(
-                    systemName: model.state == .notConfigured ? "cloud.sun" : "wifi.exclamationmark",
-                    title: model.state == .notConfigured ? "未配置天气服务" : "天气暂不可用"
+                    systemName: emptySymbol,
+                    title: emptyTitle,
+                    message: model.isLocationDenied ? "定位未授权，已使用默认城市" : nil
                 )
                 if model.isConfigured {
                     V32PrimaryButton(title: "重试", systemName: "arrow.clockwise") { model.refresh() }
                         .padding(.horizontal, V32Layout.pageMargin)
                 }
             }
+        }
+    }
+
+    /// P0-1：真机状态区分 —— 未配置 / 定位未授权 / 网络失败 / API 请求失败
+    private var emptySymbol: String {
+        switch model.state {
+        case .notConfigured: return "cloud.sun"
+        case .unavailable(.network): return "wifi.exclamationmark"
+        case .unavailable(.api): return "exclamationmark.icloud"
+        default: return "wifi.exclamationmark"
+        }
+    }
+
+    private var emptyTitle: String {
+        switch model.state {
+        case .notConfigured: return "未配置天气服务"
+        case .unavailable(.network): return "网络连接失败，请检查网络后重试"
+        case .unavailable(.api): return "天气服务请求失败，请稍后重试"
+        default: return "天气暂不可用"
         }
     }
 }

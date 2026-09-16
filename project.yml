@@ -23,7 +23,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.xiaozhanggui.ios
         MARKETING_VERSION: "3.2.0"
-        CURRENT_PROJECT_VERSION: "28"
+        CURRENT_PROJECT_VERSION: "29"
         CODE_SIGN_ENTITLEMENTS: XiaoZhangGui/XiaoZhangGui.entitlements
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: 你的小掌柜
@@ -34,6 +34,11 @@ targets:
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UIUserInterfaceStyle: Automatic
         INFOPLIST_KEY_NSSupportsLiveActivities: YES
+        # P0-1：天气 API Key 注入链
+        # GitHub Secret XZG_WEATHER_API_KEY → CI xcodebuild 传入同名 build setting →
+        # 生成的 Info.plist XZGWeatherAPIKey → WeatherConfiguration.current()
+        # 本地未设置该变量时展开为空串，行为同未配置（绝不把 Key 写进仓库）。
+        INFOPLIST_KEY_XZGWeatherAPIKey: $(XZG_WEATHER_API_KEY)
         INFOPLIST_KEY_CFBundleURLTypes:
           - CFBundleURLName: com.xiaozhanggui.ios
             CFBundleURLSchemes:
@@ -55,7 +60,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.xiaozhanggui.ios.widget
         MARKETING_VERSION: "3.2.0"
-        CURRENT_PROJECT_VERSION: "28"
+        CURRENT_PROJECT_VERSION: "29"
         SKIP_INSTALL: YES
         CODE_SIGN_ENTITLEMENTS: XiaoZhangGuiWidget/XiaoZhangGuiWidgetExtension.entitlements
         GENERATE_INFOPLIST_FILE: NO

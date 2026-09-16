@@ -135,31 +135,27 @@ struct ProfileView: View {
         }
     }
 
-    // MARK: 店铺信息 Row（轻量，无头像）
+    // MARK: 店铺信息 Row（P1-1：普通主题卡片，不再使用大面积绿色 Hero）
 
     private var profileHero: some View {
         Button { shopDialog = true } label: {
-            V32HeroCard {
+            V32Card {
                 HStack(spacing: 12) {
-                    Image(systemName: "storefront.fill")
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(V32.brandOnHero)
-                        .frame(width: 40, height: 40)
-                        .background(Circle().fill(V32.brandOnHero.opacity(0.18)))
+                    V32IconBubble(systemName: "storefront.fill", tone: .brand, size: 40, icon: 18)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(DisplayText.visible(settings.shopName, fallback: "我的小店"))
                             .v32Text(.section)
-                            .foregroundStyle(V32.textOnHero)
+                            .foregroundStyle(V32.textPrimary)
                             .lineLimit(1)
                         Text("\(DisplayText.visible(settings.ownerName, fallback: "老板")) · 你的小掌柜")
                             .v32Text(.subhead)
-                            .foregroundStyle(V32.textOnHeroSecondary)
+                            .foregroundStyle(V32.textTertiary)
                             .lineLimit(1)
                     }
                     Spacer(minLength: 8)
                     Image(systemName: "chevron.right")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(V32.textOnHeroSecondary)
+                        .foregroundStyle(V32.textQuaternary)
                 }
             }
         }

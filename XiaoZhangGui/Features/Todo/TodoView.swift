@@ -39,6 +39,9 @@ struct TodoView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 header
+                // P0-2：切换控件必须始终可见——切到「记录」后用户必须有入口回到其它 tab。
+                // 只隐藏统计数字区域，不隐藏 tab 导航。
+                tabPicker
                 if tab != .records { statsCard }
                 content
             }
@@ -81,23 +84,25 @@ struct TodoView: View {
         }
     }
 
-    // MARK: 分段胶囊
+    // MARK: 分段胶囊 + 统计
 
+    /// P0-2：tab 导航独立于统计卡，任何 tab 下都可见
+    private var tabPicker: some View {
+        V32SegmentedPicker(tabs: TodoTab.allCases.map(\.rawValue), selectionIndex: Binding(
+            get: { TodoTab.allCases.firstIndex(of: tab) ?? 0 },
+            set: { tab = TodoTab.allCases[$0] }
+        ))
+    }
+
+    /// 统计数字区域（仅非「记录」tab 显示）
     private var statsCard: some View {
-        VStack(spacing: 14) {
-            V32SegmentedPicker(tabs: TodoTab.allCases.map(\.rawValue), selectionIndex: Binding(
-                get: { TodoTab.allCases.firstIndex(of: tab) ?? 0 },
-                set: { tab = TodoTab.allCases[$0] }
-            ))
-
-            HStack(spacing: 8) {
-                statCell(value: todayCount, label: "待办", icon: "sun.max", tint: V32.brand)
-                statDivider
-                statCell(value: doneCount, label: "已完成", icon: "checkmark.circle", tint: V32.textSecondary)
-                statDivider
-                statCell(value: overdueCount, label: "逾期", icon: "exclamationmark.circle",
-                         tint: overdueCount > 0 ? V32.amber : V32.textTertiary)
-            }
+        HStack(spacing: 8) {
+            statCell(value: todayCount, label: "待办", icon: "sun.max", tint: V32.brand)
+            statDivider
+            statCell(value: doneCount, label: "已完成", icon: "checkmark.circle", tint: V32.textSecondary)
+            statDivider
+            statCell(value: overdueCount, label: "逾期", icon: "exclamationmark.circle",
+                     tint: overdueCount > 0 ? V32.amber : V32.textTertiary)
         }
     }
 
@@ -318,9 +323,8 @@ private struct TodoListRow: View {
     }
 
     private var timeText: String {
-        guard let due = todo.dueDate else { return "待安排" }
-        if due.isToday { return Fmt.time(due) }
-        return Fmt.monthDayTime(due)
+        // P1-3：与 HomeInbox / ScheduleAgenda 同一规则，00:00 显示为全天
+        DayTimeLabel.label(todo.dueDate, unscheduledText: "待安排")
     }
 }
 

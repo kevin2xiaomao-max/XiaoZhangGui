@@ -45,6 +45,31 @@ enum Greeting {
     }
 }
 
+// MARK: - 全天 / 时间统一语义（P1-3）
+// 单一规则来源：ScheduleAgenda.hasClock（nil / 当天 00:00 = 全天）。
+// 首页、待办、日历的时间标签一律通过本 helper 输出，
+// 保证全天事项在任何页面都不会出现 00:00。
+enum DayTimeLabel {
+    /// 是否携带真实钟点（日期级 00:00 不算）
+    static func hasClock(_ date: Date?) -> Bool {
+        ScheduleAgenda.hasClock(date)
+    }
+
+    /// 统一时间标签：
+    /// - nil → unscheduledText（各页面按自身语义传入，如「待安排」「全天」）
+    /// - 当天无钟点 → 「全天」
+    /// - 非当天无钟点 → 「M月d日」
+    /// - 当天有钟点 → HH:mm
+    /// - 非当天有钟点 → 「M月d日 HH:mm」
+    static func label(_ date: Date?, unscheduledText: String) -> String {
+        guard let date else { return unscheduledText }
+        if hasClock(date) {
+            return date.isToday ? Fmt.time(date) : Fmt.monthDayTime(date)
+        }
+        return date.isToday ? "全天" : Fmt.monthDay(date)
+    }
+}
+
 enum RecordSourceLabel {
     static func display(
         importSource: String = "",
@@ -127,7 +152,8 @@ enum HomeInbox {
                     id: "todo-\(todo.notificationID)",
                     date: todo.dueDate ?? todo.createdAt,
                     rank: high ? 1 : 4,
-                    time: todo.dueDate.map(Fmt.time) ?? "今天",
+                    // P1-3：nil / 00:00 → 全天，不再出现 00:00
+                    time: DayTimeLabel.label(todo.dueDate, unscheduledText: "全天"),
                     title: DisplayText.visible(todo.title, fallback: "待办事项"),
                     subtitle: DisplayText.visible(todo.detail, fallback: todo.priorityLevel.label),
                     tone: high ? .urgent : .normal,

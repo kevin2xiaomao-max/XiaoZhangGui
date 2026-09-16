@@ -163,7 +163,8 @@ struct CalendarView: View {
         }
         if !dayData.todos.isEmpty {
             let summary = dayData.todos.prefix(2).map { todo in
-                "\(todo.dueDate.map(Fmt.time) ?? "—") \(todo.title)"
+                // P1-3：nil / 00:00 → 全天，不出现 00:00
+                "\(DayTimeLabel.label(todo.dueDate, unscheduledText: "全天")) \(todo.title)"
             }.joined(separator: " · ")
             items.append(CalendarDetailItem(dotColor: V32.info, label: "待办事项", sublabel: summary, rightText: "", rightColor: V32.textPrimary))
         }
@@ -178,7 +179,8 @@ struct CalendarView: View {
         if !dayData.customers.isEmpty {
             let summary = dayData.customers.prefix(2).map { request in
                 let info = CustomerDeliveryStorage.decode(request.customer)
-                let time = info.deliveryTime.map(Fmt.time) ?? "待配送"
+                // P1-2：只表达配送时间，不与状态冲突
+                let time = info.deliveryTime.map(Fmt.time) ?? "未设配送时间"
                 let address = DisplayText.visible(request.roomOrAddress, fallback: DisplayText.visible(info.legacyCustomer ?? "", fallback: "客户配送"))
                 return "\(time) \(address)"
             }.joined(separator: " · ")
