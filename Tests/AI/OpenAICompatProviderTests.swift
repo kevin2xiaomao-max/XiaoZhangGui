@@ -150,7 +150,7 @@ final class OpenAICompatProviderTests: XCTestCase {
             _ = try await provider.complete(baseRequest())
             XCTFail("空响应必须抛错")
         } catch let failure as ProviderFailure {
-            guard case .decoding = failure else { XCTFail("应为 decoding") }
+            guard case .decoding = failure else { return XCTFail("应为 decoding") }
         } catch {
             XCTFail("应抛 ProviderFailure，实际 \(error)")
         }
