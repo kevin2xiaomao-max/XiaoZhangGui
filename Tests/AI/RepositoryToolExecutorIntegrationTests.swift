@@ -158,7 +158,8 @@ final class RepositoryToolExecutorIntegrationTests: XCTestCase {
         let result = await agent.send("今天美团680")
         let id = try XCTUnwrap(result.proposal?.id)
 
-        let first: ActionProposal = try XCTUnwrap(await agent.confirm(proposalID: id))
+        let confirmed = await agent.confirm(proposalID: id)
+        let first: ActionProposal = try XCTUnwrap(confirmed)
         XCTAssertEqual(first.status, .executed)
         XCTAssertEqual(try count(Performance.self, in: context), 1)
 
