@@ -1,8 +1,10 @@
 import SwiftUI
 import SwiftData
 
-// MARK: - 日历页（V2.1：月份导航 + 状态点月历 + 当日聚合详情）
-// 语义对齐 Android CalendarScreen；聚合 营业额/待办/临期/客户需求
+private enum CalendarScope: String, CaseIterable {
+    case weekly = "周"
+    case monthly = "月"
+}
 
 struct CalendarView: View {
     @Query private var todos: [Todo]
@@ -12,15 +14,16 @@ struct CalendarView: View {
     @Query private var customers: [CustomerRequest]
     @Query private var memos: [Memo]
 
-    /// 周日为一周起点（对齐 Android firstDayOfWeek = 0）
     private var calendar: Calendar {
         var c = Calendar.current
-        c.firstWeekday = 1
+        c.firstWeekday = 2
         return c
     }
 
     @State private var currentMonth: Date = Date().startOfMonth
     @State private var selectedDate = Date()
+    @State private var scope: CalendarScope = .weekly
+    @State private var showReminderSheet = false
 
     private var dayData: CalendarDayData {
         CalendarAgenda.dayData(
@@ -37,92 +40,154 @@ struct CalendarView: View {
     var body: some View {
         PageBackground {
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 0) {
-                    titleSection
-                    monthNavigator
-                    weekdayHeader
-                        .padding(.top, 8)
-                    monthGrid
-                        .padding(.top, 4)
+                VStack(alignment: .leading, spacing: 18) {
+                    header
+                    scopeAndWeek
+                    if scope == .monthly {
+                        weekdayHeader
+                        monthGrid
+                    }
+                    reminderActions
                     dayDetail
-                        .padding(.top, V21Layout.spaceXXL)
-
                 }
+                .padding(.horizontal, V21Layout.pageMargin)
+                .padding(.top, 12)
+                .padding(.bottom, V21Layout.bottomDockContentGap)
             }
         }
         .navigationTitle("日历")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showReminderSheet) {
+            TodoEditorSheet(todo: nil)
+        }
     }
 
-    private var titleSection: some View {
-        VStack(alignment: .leading, spacing: 4) {
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 10) {
             Text("日历")
-                .v21Style(.titlePage)
-                .foregroundColor(V21.textPrimary)
-            Text("营业额 · 待办 · 临期 · 客户需求一览")
-                .v21Style(.bodyMedium)
-                .foregroundColor(V21.textTertiary)
-        }
-        .padding(.top, 12)
-        .padding(.horizontal, V21Layout.pageMargin)
-    }
-
-    // MARK: - 月份导航
-
-    private var monthNavigator: some View {
-        HStack {
-            monthButton("chevron.left") {
-                currentMonth = calendar.date(byAdding: .month, value: -1, to: currentMonth) ?? currentMonth
-            }
-            Spacer()
-            Text(currentMonth, format: .dateTime.year().month(.wide).locale(Locale(identifier: "zh_CN")))
-                .v21Style(.titleLarge)
-                .fontWeight(.semibold)
-                .foregroundColor(V21.textPrimary)
-            Spacer()
-            monthButton("chevron.right") {
-                currentMonth = calendar.date(byAdding: .month, value: 1, to: currentMonth) ?? currentMonth
+                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .foregroundStyle(V21.textPrimary)
+            HStack {
+                Text(rangeLabel)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(V21.textTertiary)
+                Spacer()
+                Button {
+                    Haptic.light()
+                    selectedDate = Date()
+                    currentMonth = Date().startOfMonth
+                } label: {
+                    Text("今天")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(V21.textPrimary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Capsule().fill(V21.surfaceElevated))
+                        .overlay(Capsule().strokeBorder(V21.divider.opacity(0.5), lineWidth: 0.6))
+                }
+                .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, V21Layout.pageMargin)
-        .padding(.vertical, 8)
     }
 
-    private func monthButton(_ icon: String, action: @escaping () -> Void) -> some View {
+    private var rangeLabel: String {
+        let fmt = DateFormatter()
+        fmt.locale = Locale(identifier: "zh_CN")
+        fmt.dateFormat = "M月"
+        if scope == .weekly {
+            let days = weekDays
+            guard let first = days.first, let last = days.last else { return fmt.string(from: selectedDate) }
+            return "\(fmt.string(from: first)) – \(fmt.string(from: last))"
+        }
+        return currentMonth.formatted(.dateTime.year().month(.wide).locale(Locale(identifier: "zh_CN")))
+    }
+
+    private var scopeAndWeek: some View {
+        VStack(spacing: 16) {
+            HStack(spacing: 0) {
+                scopeChip(.weekly)
+                scopeChip(.monthly)
+            }
+            .padding(4)
+            .background(Capsule().fill(V21.surfacePrimary))
+            .overlay(Capsule().strokeBorder(V21.divider.opacity(0.4), lineWidth: 0.6))
+            weekStrip
+        }
+        .padding(16)
+        .background(V21.surfaceElevated, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(V21.divider.opacity(0.4), lineWidth: 0.6))
+    }
+
+    private func scopeChip(_ item: CalendarScope) -> some View {
         Button {
+            withAnimation(.easeOut(duration: 0.18)) { scope = item }
             Haptic.light()
-            action()
         } label: {
-            Image(systemName: icon)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(V21.textTertiary)
-                .frame(width: 32, height: 32)
-                .background {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(V21.surfaceGlass)
-                }
-                .overlay {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(V21.dividerStrong, lineWidth: 1)
-                }
+            Text(item.rawValue)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(scope == item ? V21.surfaceElevated : V21.textSecondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 9)
+                .background(Capsule().fill(scope == item ? V21.textPrimary : Color.clear))
         }
         .buttonStyle(.plain)
     }
 
-    // MARK: - 星期标题 + 月历网格
+    private var weekDays: [Date] {
+        let cal = calendar
+        let weekday = cal.component(.weekday, from: selectedDate)
+        let offset = (weekday + 5) % 7
+        let start = cal.date(byAdding: .day, value: -offset, to: cal.startOfDay(for: selectedDate)) ?? selectedDate
+        return (0..<7).compactMap { cal.date(byAdding: .day, value: $0, to: start) }
+    }
+
+    private var weekStrip: some View {
+        HStack(spacing: 0) {
+            ForEach(weekDays, id: \.self) { day in
+                let selected = day.isSameDay(as: selectedDate)
+                let flags = CalendarAgenda.eventFlags(
+                    date: day, todos: todos, performances: performances, expenses: expenses,
+                    expiryItems: expiryItems, customers: customers, memos: memos
+                )
+                Button {
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        selectedDate = day
+                        currentMonth = day.startOfMonth
+                    }
+                    Haptic.light()
+                } label: {
+                    VStack(spacing: 6) {
+                        Text(shortWeekday(day)).font(.system(size: 11, weight: .medium)).foregroundStyle(V21.textTertiary)
+                        Text("\(calendar.component(.day, from: day))")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .foregroundStyle(selected ? V21.surfaceElevated : V21.textPrimary)
+                            .frame(width: 36, height: 36)
+                            .background(Circle().fill(selected ? V21.textPrimary : Color.clear))
+                        Circle()
+                            .fill(hasAny(flags) && !selected ? V21.textPrimary.opacity(0.35) : Color.clear)
+                            .frame(width: 4, height: 4)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func hasAny(_ flags: CalendarAgenda.EventFlags) -> Bool {
+        flags.hasRevenue || flags.hasTodo || flags.hasExpiry || flags.hasCustomer || flags.hasMemo
+    }
+
+    private func shortWeekday(_ date: Date) -> String {
+        ["日", "一", "二", "三", "四", "五", "六"][Calendar.current.component(.weekday, from: date) - 1]
+    }
 
     private var weekdayHeader: some View {
         HStack(spacing: 2) {
-            ForEach(["日", "一", "二", "三", "四", "五", "六"], id: \.self) { day in
-                Text(day)
-                    .v21Style(.labelSmall)
-                    .fontWeight(.semibold)
-                    .foregroundColor(V21.textTertiary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
+            ForEach(["一", "二", "三", "四", "五", "六", "日"], id: \.self) { day in
+                Text(day).font(.system(size: 11, weight: .semibold)).foregroundStyle(V21.textTertiary).frame(maxWidth: .infinity).padding(.vertical, 6)
             }
         }
-        .padding(.horizontal, 20)
     }
 
     private var monthGrid: some View {
@@ -135,116 +200,137 @@ struct CalendarView: View {
                         isToday: date.isToday,
                         isSelected: date.isSameDay(as: selectedDate),
                         flags: CalendarAgenda.eventFlags(
-                            date: date,
-                            todos: todos,
-                            performances: performances,
-                            expenses: expenses,
-                            expiryItems: expiryItems,
-                            customers: customers,
-                            memos: memos
+                            date: date, todos: todos, performances: performances, expenses: expenses,
+                            expiryItems: expiryItems, customers: customers, memos: memos
                         )
                     ) {
                         withAnimation(.easeOut(duration: 0.15)) { selectedDate = date }
                         Haptic.light()
                     }
                 } else {
-                    Color.clear
-                        .aspectRatio(1, contentMode: .fit)
+                    Color.clear.aspectRatio(1, contentMode: .fit)
                 }
             }
         }
-        .padding(.horizontal, 20)
     }
 
-    /// 当月网格日期（首尾补 nil 空位，总格数为 7 的倍数）
     private func gridDates(for month: Date) -> [Date?] {
         let monthStart = month.startOfMonth
         let daysInMonth = calendar.range(of: .day, in: .month, for: monthStart)?.count ?? 30
-        let firstWeekday = calendar.component(.weekday, from: monthStart) - 1 // 0 = 周日
-        let totalCells = Int(ceil(Double(firstWeekday + daysInMonth) / 7.0)) * 7
-
+        let raw = calendar.component(.weekday, from: monthStart)
+        let firstIndex = (raw + 5) % 7
+        let totalCells = Int(ceil(Double(firstIndex + daysInMonth) / 7.0)) * 7
         var cells: [Date?] = Array(repeating: nil, count: totalCells)
         for day in 1...daysInMonth {
             if let date = calendar.date(byAdding: .day, value: day - 1, to: monthStart) {
-                cells[firstWeekday + day - 1] = date
+                cells[firstIndex + day - 1] = date
             }
         }
         return cells
     }
 
-    // MARK: - 当日详情
+    private var reminderActions: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button {
+                showReminderSheet = true
+                Haptic.light()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "plus").font(.system(size: 14, weight: .bold))
+                    Text("设提醒").font(.system(size: 15, weight: .semibold))
+                }
+                .foregroundStyle(V21.textPrimary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(style: StrokeStyle(lineWidth: 1.15, dash: [6, 5]))
+                        .foregroundStyle(V21.dividerStrong.opacity(0.85))
+                )
+            }
+            .buttonStyle(.plain)
+            hintRow("person", "只给自己", "写进待办，仅本机可见")
+            hintRow("storefront", "店内事项", "出现在首页提醒和今日待办")
+            hintRow("shippingbox", "客户配送", "到客户页登记地址与时间")
+        }
+    }
 
-    private var detailItems: [CalendarDetailItem] {
-        var items: [CalendarDetailItem] = []
+    private func hintRow(_ symbol: String, _ title: String, _ subtitle: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: symbol).font(.system(size: 14, weight: .semibold)).foregroundStyle(V21.textSecondary)
+                .frame(width: 36, height: 36)
+                .background(V21.surfacePrimary, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.system(size: 15, weight: .semibold)).foregroundStyle(V21.textPrimary)
+                Text(subtitle).font(.system(size: 12, weight: .medium)).foregroundStyle(V21.textTertiary)
+            }
+            Spacer()
+        }
+        .padding(14)
+        .background(V21.surfaceElevated, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(V21.divider.opacity(0.4), lineWidth: 0.6))
+    }
+
+    private var detailCards: [(symbol: String, title: String, subtitle: String, trailing: String)] {
+        var items: [(String, String, String, String)] = []
         if !dayData.revenues.isEmpty || !dayData.expenses.isEmpty {
-            items.append(CalendarDetailItem(
-                dotColor: V21.brandGreen,
-                label: "营业额 / 收支",
-                sublabel: "收入 \(dayData.revenues.count) 笔 · 支出 \(dayData.expenses.count) 笔",
-                rightText: "¥\(Fmt.groupedInt(dayData.revenueTotal))",
-                rightColor: V21.brandGreen
-            ))
+            items.append(("yensign.circle", "营业额 / 收支", "收入 \(dayData.revenues.count) 笔 · 支出 \(dayData.expenses.count) 笔", "¥\(Fmt.groupedInt(dayData.revenueTotal))"))
         }
-        if !dayData.todos.isEmpty {
-            let summary = dayData.todos.prefix(2).map { todo in
-                "\(todo.dueDate.map(Fmt.time) ?? "—") \(todo.title)"
-            }.joined(separator: " · ")
-            items.append(CalendarDetailItem(dotColor: V21.info, label: "待办事项", sublabel: summary, rightText: "", rightColor: V21.textPrimary))
+        for todo in dayData.todos.prefix(3) {
+            items.append(("checkmark.circle", todo.title, todo.dueDate.map(Fmt.time) ?? "全天", ""))
         }
-        if !dayData.memos.isEmpty {
-            let summary = dayData.memos.prefix(2).map(\.title).joined(separator: " · ")
-            items.append(CalendarDetailItem(dotColor: V21.textTertiary, label: "记录", sublabel: summary, rightText: "", rightColor: V21.textPrimary))
+        for memo in dayData.memos.prefix(2) {
+            items.append(("note.text", memo.title, "记录", ""))
         }
-        if !dayData.expiry.isEmpty {
-            let summary = dayData.expiry.prefix(2).map { "\($0.name) ×\($0.quantity)" }.joined(separator: " · ")
-            items.append(CalendarDetailItem(dotColor: V21.warning, label: "临期提醒", sublabel: summary, rightText: "", rightColor: V21.textPrimary))
+        for item in dayData.expiry.prefix(2) {
+            items.append(("exclamationmark.triangle", "\(item.name) ×\(item.quantity)", "临期", ""))
         }
-        if !dayData.customers.isEmpty {
-            let summary = dayData.customers.prefix(2).map { request in
-                let info = CustomerDeliveryStorage.decode(request.customer)
-                let time = info.deliveryTime.map(Fmt.time) ?? "待配送"
-                let address = request.roomOrAddress.isBlank ? (info.legacyCustomer ?? "客户配送") : request.roomOrAddress
-                return "\(time) \(address)"
-            }.joined(separator: " · ")
-            items.append(CalendarDetailItem(dotColor: V21.textQuaternary, label: "客户需求", sublabel: summary, rightText: "", rightColor: V21.textPrimary))
+        for request in dayData.customers.prefix(2) {
+            let info = CustomerDeliveryStorage.decode(request.customer)
+            let time = info.deliveryTime.map(Fmt.time) ?? "待配送"
+            let address = request.roomOrAddress.isBlank ? (info.legacyCustomer ?? "客户配送") : request.roomOrAddress
+            items.append(("shippingbox", address, time, ""))
         }
         return items
     }
 
     private var dayDetail: some View {
-        GlassSurface {
-            VStack(alignment: .leading, spacing: 0) {
-                Text("\(calendar.component(.month, from: selectedDate))月\(calendar.component(.day, from: selectedDate))日 · \(selectedDate.weekdayLabel)")
-                    .v21Style(.titleSmall)
-                    .fontWeight(.semibold)
-                    .foregroundColor(V21.textPrimary)
-                    .padding(.bottom, 12)
-
-                if detailItems.isEmpty {
-                    Text("当天暂无经营记录")
-                        .v21Style(.bodyMedium)
-                        .foregroundColor(V21.textTertiary)
-                        .padding(.vertical, 10)
-                } else {
-                    ForEach(Array(detailItems.enumerated()), id: \.offset) { index, item in
-                        if index > 0 { DividerLine() }
-                        CalendarDetailRow(
-                            dotColor: item.dotColor,
-                            label: item.label,
-                            sublabel: item.sublabel,
-                            rightText: item.rightText,
-                            rightColor: item.rightColor
-                        )
+        VStack(alignment: .leading, spacing: 12) {
+            Text("\(calendar.component(.month, from: selectedDate))月\(calendar.component(.day, from: selectedDate))日 · \(selectedDate.weekdayLabel)")
+                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                .foregroundStyle(V21.textPrimary)
+            if detailCards.isEmpty {
+                Text("当天暂无经营记录")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(V21.textTertiary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 20)
+                    .background(V21.surfaceElevated, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            } else {
+                VStack(spacing: 10) {
+                    ForEach(Array(detailCards.enumerated()), id: \.offset) { _, item in
+                        HStack(spacing: 12) {
+                            Image(systemName: item.symbol).font(.system(size: 14, weight: .semibold)).foregroundStyle(V21.textSecondary)
+                                .frame(width: 36, height: 36)
+                                .background(V21.surfacePrimary, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(item.title).font(.system(size: 15, weight: .semibold)).foregroundStyle(V21.textPrimary).lineLimit(2)
+                                Text(item.subtitle).font(.system(size: 12, weight: .medium)).foregroundStyle(V21.textTertiary).lineLimit(1)
+                            }
+                            Spacer()
+                            if !item.trailing.isEmpty {
+                                Text(item.trailing).font(.system(size: 15, weight: .semibold, design: .rounded)).foregroundStyle(V21.textPrimary)
+                            }
+                        }
+                        .padding(14)
+                        .background(V21.surfaceElevated, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(V21.divider.opacity(0.4), lineWidth: 0.6))
                     }
                 }
             }
-            .padding(18)
         }
-        .padding(.horizontal, V21Layout.pageMargin)
     }
 }
-
-// MARK: - 日期格（今日绿底 / 选中玻璃底 + 描边 / 状态点）
 
 struct CalendarDayCell: View {
     let date: Date
@@ -253,66 +339,32 @@ struct CalendarDayCell: View {
     let flags: CalendarAgenda.EventFlags
     var onTap: () -> Void
 
-    private var dayNumber: Int {
-        Calendar.current.component(.day, from: date)
-    }
+    private var dayNumber: Int { Calendar.current.component(.day, from: date) }
 
     var body: some View {
         Button(action: onTap) {
             VStack(spacing: 2) {
                 Text("\(dayNumber)")
-                    .v21Style(.bodySmall)
-                    .fontWeight(isToday ? .bold : .medium)
-                    .foregroundColor(
-                        isToday ? .white :
-                        (isSelected ? V21.textPrimary : V21.textSecondary)
-                    )
+                    .font(.system(size: 14, weight: isToday || isSelected ? .bold : .medium, design: .rounded))
+                    .foregroundStyle(isSelected || isToday ? V21.surfaceElevated : V21.textSecondary)
                 HStack(spacing: 2) {
-                    if flags.hasRevenue { EventDot(color: V21.brandGreen) }
-                    if flags.hasTodo { EventDot(color: V21.info) }
-                    if flags.hasExpiry { EventDot(color: V21.warning) }
-                    if flags.hasCustomer { EventDot(color: V21.textQuaternary) }
-                    if flags.hasMemo { EventDot(color: V21.textTertiary) }
+                    if flags.hasRevenue { Circle().fill(V21.brandGreen).frame(width: 4, height: 4) }
+                    if flags.hasTodo { Circle().fill(V21.info).frame(width: 4, height: 4) }
+                    if flags.hasExpiry { Circle().fill(V21.warning).frame(width: 4, height: 4) }
+                    if flags.hasCustomer { Circle().fill(V21.textQuaternary).frame(width: 4, height: 4) }
+                    if flags.hasMemo { Circle().fill(V21.textTertiary).frame(width: 4, height: 4) }
                 }
                 .frame(height: 4)
             }
             .frame(maxWidth: .infinity)
             .aspectRatio(1, contentMode: .fit)
             .background {
-                ZStack {
-                    if isToday {
-                        Circle().fill(V21.brandGreen)
-                    } else if isSelected {
-                        Circle().fill(V21.surfaceElevated)
-                    }
-                }
-            }
-            .overlay {
-                if isSelected && !isToday {
-                    Circle().strokeBorder(V21.dividerHighlight, lineWidth: 1)
-                }
+                if isSelected || isToday { Circle().fill(V21.textPrimary) }
             }
             .contentShape(Circle())
         }
         .buttonStyle(.plain)
     }
-
-    private struct EventDot: View {
-        let color: Color
-        var body: some View {
-            Circle().fill(color).frame(width: 4, height: 4)
-        }
-    }
-}
-
-// MARK: - 详情行 + 分割线
-
-private struct CalendarDetailItem {
-    let dotColor: Color
-    let label: String
-    let sublabel: String
-    let rightText: String
-    let rightColor: Color
 }
 
 struct CalendarDetailRow: View {
@@ -321,25 +373,16 @@ struct CalendarDetailRow: View {
     let sublabel: String
     let rightText: String
     let rightColor: Color
-
     var body: some View {
         HStack {
             Circle().fill(dotColor).frame(width: 8, height: 8)
             VStack(alignment: .leading, spacing: 2) {
-                Text(label)
-                    .v21Style(.bodyMedium)
-                    .fontWeight(.medium)
-                    .foregroundColor(V21.textPrimary)
-                Text(sublabel)
-                    .v21Style(.labelSmall)
-                    .foregroundColor(V21.textTertiary)
+                Text(label).v21Style(.bodyMedium).fontWeight(.medium).foregroundColor(V21.textPrimary)
+                Text(sublabel).v21Style(.labelSmall).foregroundColor(V21.textTertiary)
             }
             Spacer()
             if !rightText.isEmpty {
-                Text(rightText)
-                    .v21Style(.titleSmall)
-                    .fontWeight(.semibold)
-                    .foregroundColor(rightColor)
+                Text(rightText).v21Style(.titleSmall).fontWeight(.semibold).foregroundColor(rightColor)
             }
         }
         .padding(.vertical, 10)
@@ -347,16 +390,11 @@ struct CalendarDetailRow: View {
 }
 
 struct DividerLine: View {
-    var body: some View {
-        Rectangle().fill(V21.divider).frame(height: 1)
-    }
+    var body: some View { Rectangle().fill(V21.divider).frame(height: 1) }
 }
 
 extension Date {
-    /// "星期X"
     var weekdayLabel: String {
-        let symbols = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"]
-        let index = Calendar.current.component(.weekday, from: self) - 1
-        return symbols[index]
+        ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"][Calendar.current.component(.weekday, from: self) - 1]
     }
 }
