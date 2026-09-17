@@ -62,7 +62,7 @@ struct AILiveEnvironmentModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .onAppear(perform: attach)
+            .onAppear { attach() }
             .onReceive(NotificationCenter.default.publisher(for: .aiProviderConfigChanged)) { _ in
                 attach(force: true)
             }

@@ -21,7 +21,8 @@ enum BusinessAnswerComposer {
 
     /// 多类合并回答（去空段，段间换行）。
     static func answer(for kinds: [BusinessRecordKind], context: ScopedBusinessContext) -> String {
-        let unique = Array(NSOrderedSet(array: kinds).array) as? [BusinessRecordKind] ?? kinds
+        var seen = Set<BusinessRecordKind>()
+        let unique = kinds.filter { seen.insert($0).inserted }
         let paragraphs = unique.map { answer(for: $0, context: context) }
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }

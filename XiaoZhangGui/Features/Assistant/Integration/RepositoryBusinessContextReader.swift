@@ -83,7 +83,7 @@ final class RepositoryBusinessContextReader: BusinessContextProviding {
 
     private func todaysTodos() throws -> [String] {
         let (_, end) = try dayBounds()
-        let descriptor = FetchDescriptor<Todo>(
+        var descriptor = FetchDescriptor<Todo>(
             predicate: #Predicate { !$0.isCompleted },
             sortBy: [SortDescriptor(\.dueDate, order: .forward)]
         )
@@ -106,7 +106,7 @@ final class RepositoryBusinessContextReader: BusinessContextProviding {
     private func upcomingExpiry() throws -> [String] {
         let today = calendar.startOfDay(for: Date())
         let horizon = calendar.date(byAdding: .day, value: 7, to: today) ?? today
-        let descriptor = FetchDescriptor<ExpiryItem>(
+        var descriptor = FetchDescriptor<ExpiryItem>(
             predicate: #Predicate { $0.returnStatus == "待处理" },
             sortBy: [SortDescriptor(\.expiryDate, order: .forward)]
         )
