@@ -8,9 +8,12 @@ import SwiftData
 // 验证：4 个 CREATE 真实落库、未确认 / 取消零写入、确认只写一次、
 // toolCallID + 业务指纹双幂等、执行日志跨实例恢复防重。
 // 这些测试不发任何网络请求，也不碰真实 Keychain。
+//
+// 类名以 AIReal 开头：SwiftData 集成测试在宿主冷启动后最健康的时间窗最先执行，
+// 规避预发布版 CI 模拟器运行约 5~6 分钟后出现的连接停滞 / 宿主重启级联。
 
 @MainActor
-final class RepositoryToolExecutorIntegrationTests: XCTestCase {
+final class AIRealToolExecutorIntegrationTests: XCTestCase {
 
     // MARK: 辅助
 

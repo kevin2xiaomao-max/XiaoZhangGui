@@ -11,7 +11,10 @@ import SwiftData
 // 写法对齐基线 SwiftData 测试（IncomeSourceTests / CustomerImageRoundTripTests）：
 // 类不标 @MainActor、单个测试方法 @MainActor + 同步 throws，
 // 走 reader 的同步测试接缝，避免 async 宿主 + SwiftData 组合导致的进程挂起。
-final class RepositoryBusinessContextReaderTests: XCTestCase {
+//
+// 类名以 AIReal 开头：SwiftData 集成测试在宿主冷启动后最健康的时间窗最先执行，
+// 规避预发布版 CI 模拟器运行约 5~6 分钟后出现的连接停滞 / 宿主重启级联。
+final class AIRealBusinessContextReaderTests: XCTestCase {
 
     @MainActor
     private func makeContext() throws -> ModelContext {

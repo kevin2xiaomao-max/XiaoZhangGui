@@ -91,8 +91,15 @@ targets:
       - target: XiaoZhangGui
       # AI REAL：Provider 适配层测试需要直接构造 LLMRequest / LLMResponse / LLMError
       # （仅测试 target 链接；业务代码仍只有 OpenAICompatProvider.swift 可 import）
+      # 链接一致性：App target 同时链接 core + OpenAI 两个 product，测试 target 必须
+      # 保持相同 product 集合，Xcode 才会把两个 product 统一构建为共享动态框架。
+      # 否则 OpenAI 静态链入 App 二进制时会把 core 类一并静态复制，而测试侧又生成
+      # PackageFrameworks 动态 core，出现 “Class implemented in both ...” 重复类，
+      # 可导致测试宿主重启时神秘崩溃（objc 明确警告）。
       - package: LLMProviderKit
         product: LLMProviderKit
+      - package: LLMProviderKit
+        product: LLMProviderKitOpenAI
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.xiaozhanggui.ios.tests
