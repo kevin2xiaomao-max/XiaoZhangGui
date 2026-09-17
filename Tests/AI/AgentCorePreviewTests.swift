@@ -83,16 +83,19 @@ final class AgentCorePreviewTests: XCTestCase {
     }
 
     // MARK: Provider 失败：原文保留、错误可见、可重试
+    //
+    // AI REAL 起四范例为本地 0 Token 解析，不会调用 Provider；
+    // Provider 故障用普通世界知识问题（worldChat 必须上云）验证。
 
     func testProviderFailureKeepsUserTextAndShowsError() async {
         let failing = ScriptedAIProvider(id: "broken", [.failure(ProviderFailure.timeout)])
         let (agent, _, _, _) = AITestFactory.preview(provider: failing)
-        let result = await agent.send("今天美团680")
+        let result = await agent.send("广东天气怎么样")
         XCTAssertNil(result.proposal)
         XCTAssertTrue(result.assistantMessage?.isError ?? false)
         let messages = await agent.messages()
         XCTAssertEqual(messages.first?.role, .user)
-        XCTAssertEqual(messages.first?.content, "今天美团680")
+        XCTAssertEqual(messages.first?.content, "广东天气怎么样")
     }
 
     // MARK: 重复响应得到相同业务指纹（幂等键稳定）

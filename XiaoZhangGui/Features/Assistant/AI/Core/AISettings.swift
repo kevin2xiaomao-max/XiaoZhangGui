@@ -15,6 +15,14 @@ import Security
 final class AISettings {
     static let shared = AISettings()
 
+    /// V3.3 首版主 Provider：DeepSeek（OpenAI 兼容端点）。
+    /// 仅默认值，不承诺任何第三方永久免费；用户可改成任意 OpenAI 兼容端点。
+    enum Defaults {
+        static let primaryKind = "deepseek"
+        static let primaryBaseURL = "https://api.deepseek.com/v1"
+        static let primaryModel = "deepseek-chat"
+    }
+
     private let ud = UserDefaults.standard
 
     /// 免费优先 / 自动 / 高质量
@@ -22,6 +30,15 @@ final class AISettings {
         didSet { ud.set(tier.rawValue, forKey: Keys.tier) }
     }
 
+    /// Provider 类型标识（非敏感，仅用于展示 / id）；主默认 deepseek
+    var primaryKind: String {
+        didSet { ud.set(primaryKind, forKey: Keys.primaryKind) }
+    }
+    var fallbackKind: String {
+        didSet { ud.set(fallbackKind, forKey: Keys.fallbackKind) }
+    }
+
+    /// 用户自定义端点；留空时解析为 DeepSeek 默认端点
     var primaryBaseURL: String {
         didSet { ud.set(primaryBaseURL, forKey: Keys.primaryBaseURL) }
     }
@@ -44,16 +61,37 @@ final class AISettings {
         set { AIKeychain.write(newValue, forKey: Keys.fallbackKey) }
     }
 
-    /// 主 Provider 是否具备可连接条件（FINAL 才需要）
+    /// 留空即回退 DeepSeek 官方默认端点 / 模型
+    var resolvedPrimaryBaseURL: String {
+        primaryBaseURL.trimmingCharacters(in: .whitespaces).isEmpty
+            ? Defaults.primaryBaseURL : primaryBaseURL
+    }
+    var resolvedPrimaryModel: String {
+        primaryModel.trimmingCharacters(in: .whitespaces).isEmpty
+            ? Defaults.primaryModel : primaryModel
+    }
+
+    /// 主 Provider 是否具备可连接条件
     var isPrimaryConfigured: Bool {
-        guard let url = URL(string: primaryBaseURL), let scheme = url.scheme,
+        guard let url = URL(string: resolvedPrimaryBaseURL), let scheme = url.scheme,
               scheme == "https" || scheme == "http" else { return false }
-        return !primaryModel.isEmpty && !primaryAPIKey.isEmpty
+        return !resolvedPrimaryModel.isEmpty && !primaryAPIKey.isEmpty
+    }
+
+    /// Fallback 仅在端点 / 模型 / Key 三者齐全时启用；否则禁用（fail-closed，不回退 Mock）
+    var isFallbackConfigured: Bool {
+        let urlText = fallbackBaseURL.trimmingCharacters(in: .whitespaces)
+        let model = fallbackModel.trimmingCharacters(in: .whitespaces)
+        guard let url = URL(string: urlText), let scheme = url.scheme,
+              scheme == "https" || scheme == "http" else { return false }
+        return !model.isEmpty && !fallbackAPIKey.isEmpty
     }
 
     init() {
         let rawTier = ud.string(forKey: Keys.tier) ?? ModelTier.freeFirst.rawValue
         tier = ModelTier(rawValue: rawTier) ?? .freeFirst
+        primaryKind = ud.string(forKey: Keys.primaryKind) ?? Defaults.primaryKind
+        fallbackKind = ud.string(forKey: Keys.fallbackKind) ?? ""
         primaryBaseURL = ud.string(forKey: Keys.primaryBaseURL) ?? ""
         primaryModel = ud.string(forKey: Keys.primaryModel) ?? ""
         fallbackBaseURL = ud.string(forKey: Keys.fallbackBaseURL) ?? ""
@@ -62,6 +100,8 @@ final class AISettings {
 
     private enum Keys {
         static let tier = "ai_model_tier"
+        static let primaryKind = "ai_primary_kind"
+        static let fallbackKind = "ai_fallback_kind"
         static let primaryBaseURL = "ai_primary_base_url"
         static let primaryModel = "ai_primary_model"
         static let fallbackBaseURL = "ai_fallback_base_url"

@@ -27,6 +27,9 @@ struct ContextRedactor: Sendable {
         if let memos = context.recentMemoTitles {
             object["recentMemoTitles"] = clean(memos)
         }
+        if let expiring = context.expiringTitles {
+            object["expiringTitles"] = clean(expiring)
+        }
         if let pending = context.deliveryPendingCount {
             object["deliveryPendingCount"] = pending
         }

@@ -128,6 +128,8 @@ enum BusinessRecordKind: String, Codable, Sendable, CaseIterable {
     case revenueToday
     case todoToday
     case recentMemo
+    /// 临期 / 到期商品
+    case expiringGoods
     case delivery
 }
 

@@ -99,6 +99,8 @@ struct AgentEnvironment: Sendable {
 final class AgentCore {
     private let env: AgentEnvironment
     private let toolDefinitions = ToolCatalog.definitions()
+    /// Free First 第一道：高置信本地规则直接出卡 / 追问（0 Token）
+    private let localParser = LocalBusinessParser()
 
     init(_ env: AgentEnvironment) {
         self.env = env
@@ -144,15 +146,42 @@ final class AgentCore {
     private func runTurn(text: String, userMessage: AIMessage) async throws -> AgentTurnResult {
         let intent = env.intentRouter.classify(text)
 
-        // 仅经营读问答需要最小上下文；CREATE 与 worldChat 都不带经营数据
-        let payload: ProviderContextPayload
-        if case .businessQuery(let kind) = intent {
-            let scoped = await env.contextProvider.scopedContext(for: [kind])
-            payload = env.redactor.sanitize(scoped)
-        } else {
-            payload = .empty
-        }
+        switch intent {
+        case .businessAction:
+            // Free First：本地高置信规则 0 Token 直接出卡 / 追问；
+            // 本地无把握（返回 nil）才允许上云。
+            if let local = localParser.parse(text, intent: intent) {
+                switch local {
+                case .tool(let arguments):
+                    let call = ToolCall(id: ToolCall.makeID(), name: arguments.toolName, arguments: arguments)
+                    return try await handleToolCall(call, userMessage: userMessage)
+                case .clarify(let reply):
+                    return try await appendAssistant(reply, userMessage: userMessage)
+                }
+            }
+            return try await remoteTurn(intent: intent, userMessage: userMessage)
 
+        case .businessQuery(let kind):
+            // Lite：四类 READ 全部本地聚合回答（0 Token，数据不出设备）。
+            // 预览环境未接业务库，保留 Foundation 的固定说明。
+            if env.gate == .preview {
+                return try await appendAssistant(
+                    "预览版还没有接入你的经营数据；正式版可以在这里查询今日营业额、待办、临期商品和配送。",
+                    userMessage: userMessage)
+            }
+            let scoped = await env.contextProvider.scopedContext(for: [kind])
+            return try await appendAssistant(
+                BusinessAnswerComposer.answer(for: kind, context: scoped),
+                userMessage: userMessage)
+
+        case .worldChat, .localZeroToken:
+            return try await remoteTurn(intent: intent, userMessage: userMessage)
+        }
+    }
+
+    /// 上云一轮：仅在本地无把握（CREATE）或普通聊天时调用。
+    /// Lite 不把经营数据随云端 CREATE / 聊天外发（READ 已本地回答），context 恒空。
+    private func remoteTurn(intent: IntentKind, userMessage: AIMessage) async throws -> AgentTurnResult {
         let task: ModelTask = {
             switch intent {
             case .businessAction: return .toolCall
@@ -163,37 +192,54 @@ final class AgentCore {
         }()
         let route = env.modelRouter.route(task: task, intent: intent, tier: env.tier)
         let history = await env.conversation.load().messages
-        let request = ProviderRequest(messages: history, tools: toolDefinitions, route: route, context: payload)
+        let request = ProviderRequest(messages: history, tools: toolDefinitions, route: route, context: .empty)
 
         let turn: ProviderTurn
         do {
             turn = try await env.provider.complete(request)
+        } catch let agentError as AgentError {
+            // notConfigured 等 AgentError 原样上抛，保留 fail-closed 语义与文案
+            throw agentError
         } catch {
             throw AgentError.providerFailed(error.localizedDescription)
         }
 
         switch turn {
         case .text(let reply):
-            let message = AIMessage(role: .assistant, content: reply)
-            await env.conversation.append(message)
-            return AgentTurnResult(userMessage: userMessage, assistantMessage: message, proposal: nil)
-
+            return try await appendAssistant(reply, userMessage: userMessage)
         case .toolCall(let call):
             return try await handleToolCall(call, userMessage: userMessage)
         }
+    }
+
+    private func appendAssistant(_ content: String, userMessage: AIMessage, isError: Bool = false)
+        async throws -> AgentTurnResult {
+        let message = AIMessage(role: .assistant, content: content, isError: isError)
+        await env.conversation.append(message)
+        return AgentTurnResult(userMessage: userMessage, assistantMessage: message, proposal: nil)
     }
 
     private func handleToolCall(_ call: ToolCall, userMessage: AIMessage) async throws -> AgentTurnResult {
         guard ToolCatalog.isRegistered(call.name) else {
             throw AgentError.unsupportedTool(call.name.rawValue)
         }
-        // READ 在 Foundation 没有真实数据，直接给说明文本；CREATE 出确认卡
+        // READ：权限允许自动执行，但结果只在本机聚合回答（0 Token、不出设备）。
         if call.name == .searchRecords {
-            let message = AIMessage(
-                role: .assistant,
-                content: "预览版还没有接入经营数据；正式版可以在这里查询今日营业额、待办、备忘和配送。")
-            await env.conversation.append(message)
-            return AgentTurnResult(userMessage: userMessage, assistantMessage: message, proposal: nil)
+            if env.gate == .preview {
+                return try await appendAssistant(
+                    "预览版还没有接入经营数据；正式版可以在这里查询今日营业额、待办、临期商品和配送。",
+                    userMessage: userMessage)
+            }
+            let kinds: [BusinessRecordKind] = {
+                if case .searchRecords(let args) = call.arguments, !args.kinds.isEmpty {
+                    return args.kinds
+                }
+                return [.revenueToday, .todoToday, .recentMemo, .expiringGoods, .delivery]
+            }()
+            let scoped = await env.contextProvider.scopedContext(for: kinds)
+            return try await appendAssistant(
+                BusinessAnswerComposer.answer(for: kinds, context: scoped),
+                userMessage: userMessage)
         }
 
         let validationErrors = ToolArgumentValidator.validate(call)
@@ -251,7 +297,9 @@ final class AgentCore {
         case .executed(let recordID, let summary):
             proposal.status = .executed
             proposal.resultText = summary
-            await env.journal.append(JournalEntry(
+            // markExecuted 为 upsert：执行器可能已写入 executed（替换 pending）；
+            // 测试替身执行器未写账本时由这里兜底推进状态。
+            await env.journal.markExecuted(JournalEntry(
                 toolCallID: proposal.call.id,
                 fingerprint: ToolIdempotency.fingerprint(for: proposal.call),
                 toolName: proposal.call.name.rawValue,

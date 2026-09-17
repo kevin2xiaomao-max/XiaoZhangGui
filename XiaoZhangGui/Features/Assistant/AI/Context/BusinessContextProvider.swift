@@ -16,6 +16,8 @@ struct ScopedBusinessContext: Equatable, Sendable {
     var todoTodayTitles: [String]?
     /// 仅备忘标题
     var recentMemoTitles: [String]?
+    /// 仅临期商品名称（不含备注 / 图片）
+    var expiringTitles: [String]? = nil
     var deliveryPendingCount: Int?
     var deliveryDeliveringCount: Int?
 

@@ -18,6 +18,9 @@ struct JournalEntry: Codable, Sendable, Equatable {
 
 protocol ExecutionJournaling: Sendable {
     func append(_ entry: JournalEntry) async
+    /// 状态推进（pending → executed / failed）：同一 toolCallID 已存在则替换，
+    /// 不存在则追加。真实执行成功后必须用本方法，确保崩溃恢复时能查到 executed。
+    func markExecuted(_ entry: JournalEntry) async
     func has(callID: String) async -> Bool
     func isFingerprintUsed(_ fingerprint: String) async -> Bool
     func entries() async -> [JournalEntry]
@@ -32,6 +35,13 @@ actor InMemoryExecutionJournal: ExecutionJournaling {
     func append(_ entry: JournalEntry) async {
         guard !storage.contains(where: { $0.toolCallID == entry.toolCallID }) else { return }
         storage.append(entry)
+    }
+    func markExecuted(_ entry: JournalEntry) async {
+        if let index = storage.firstIndex(where: { $0.toolCallID == entry.toolCallID }) {
+            storage[index] = entry
+        } else {
+            storage.append(entry)
+        }
     }
     func has(callID: String) async -> Bool {
         storage.contains { $0.toolCallID == callID }
@@ -69,6 +79,14 @@ actor FileExecutionJournal: ExecutionJournaling {
     func append(_ entry: JournalEntry) async {
         guard !storage.contains(where: { $0.toolCallID == entry.toolCallID }) else { return }
         storage.append(entry)
+        persist()
+    }
+    func markExecuted(_ entry: JournalEntry) async {
+        if let index = storage.firstIndex(where: { $0.toolCallID == entry.toolCallID }) {
+            storage[index] = entry
+        } else {
+            storage.append(entry)
+        }
         persist()
     }
     func has(callID: String) async -> Bool {

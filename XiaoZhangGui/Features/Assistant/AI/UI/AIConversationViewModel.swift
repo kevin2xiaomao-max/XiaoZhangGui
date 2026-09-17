@@ -16,7 +16,8 @@ final class AIConversationViewModel {
     private(set) var showVoicePanel = false
 
     let voice: ShortVoiceSession
-    private let agent: AgentCore
+    /// 启动时为 Foundation 预览 Agent；Integration 层在 onAppear 时用 live Agent 替换。
+    private(set) var agent: AgentCore
 
     init(agent: AgentCore? = nil) {
         let core = agent ?? AgentCore(.foundationPreview())
@@ -24,6 +25,15 @@ final class AIConversationViewModel {
         self.voice = ShortVoiceSession()
         Task { await hydrate() }
     }
+
+    /// 由 AI 目录外的 AILiveEnvironmentModifier 注入真实 Agent（含 Repository 执行器）。
+    func attach(live newAgent: AgentCore) {
+        self.agent = newAgent
+        Task { await hydrate() }
+    }
+
+    /// 远端 Provider 是否已配置（未配置时本地 0-token 能力仍可用）
+    var isRemoteConfigured: Bool { AISettings.shared.isPrimaryConfigured }
 
     // MARK: 恢复
 

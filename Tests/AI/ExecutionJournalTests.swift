@@ -18,6 +18,17 @@ final class ExecutionJournalTests: XCTestCase {
         XCTAssertTrue(hasCall)
     }
 
+    /// 真实执行后 pending → executed 必须能推进（同一 toolCallID 替换，而非被首条 pending 挡住）
+    func testMarkExecutedTransitionsPendingEntry() async {
+        let journal = InMemoryExecutionJournal()
+        await journal.append(entry("call_1", fingerprint: "fp-a", status: "pending"))
+        await journal.markExecuted(entry("call_1", fingerprint: "fp-a", status: "executed"))
+        let entries = await journal.entries()
+        XCTAssertEqual(entries.count, 1)
+        XCTAssertEqual(entries.first?.status, "executed")
+        XCTAssertTrue(await journal.isFingerprintUsed("fp-a"))
+    }
+
     func testFingerprintUsedOnlyWhenExecuted() async {
         let journal = InMemoryExecutionJournal()
         await journal.append(entry("call_1", fingerprint: "fp-a", status: "pending"))

@@ -89,6 +89,10 @@ targets:
           - "**/*.md"
     dependencies:
       - target: XiaoZhangGui
+      # AI REAL：Provider 适配层测试需要直接构造 LLMRequest / LLMResponse / LLMError
+      # （仅测试 target 链接；业务代码仍只有 OpenAICompatProvider.swift 可 import）
+      - package: LLMProviderKit
+        product: LLMProviderKit
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.xiaozhanggui.ios.tests

@@ -89,7 +89,7 @@ struct ToolCatalog {
                     "type": "array",
                     "items": [
                         "type": "string",
-                        "enum": ["revenueToday", "todoToday", "recentMemo", "delivery"]
+                        "enum": ["revenueToday", "todoToday", "recentMemo", "expiringGoods", "delivery"]
                     ]
                 ]
             ]

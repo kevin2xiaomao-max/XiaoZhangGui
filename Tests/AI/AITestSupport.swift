@@ -35,6 +35,39 @@ actor SuccessToolExecutor: ToolExecuting {
     }
 }
 
+/// 包装另一个 Provider 并计数，用于验证 Local First 是否真的 0 Token
+actor CountingAIProvider: AIProvider {
+    nonisolated let id: String
+    private let wrapped: any AIProvider
+    private(set) var callCount = 0
+
+    init(wrapping wrapped: any AIProvider) {
+        self.id = "counting-\(wrapped.id)"
+        self.wrapped = wrapped
+    }
+
+    func complete(_ request: ProviderRequest) async throws -> ProviderTurn {
+        callCount += 1
+        return try await wrapped.complete(request)
+    }
+}
+
+/// 脚本化业务上下文（不碰 SwiftData，用于本地 READ 测试）
+actor ScriptedBusinessContextProvider: BusinessContextProviding {
+    private let context: ScopedBusinessContext
+    private(set) var requestedKinds: [[BusinessRecordKind]] = []
+
+    init(_ context: ScopedBusinessContext) {
+        self.context = context
+    }
+
+    func scopedContext(for kinds: [BusinessRecordKind]) async -> ScopedBusinessContext {
+        requestedKinds.append(kinds)
+        guard !kinds.isEmpty else { return .empty }
+        return context
+    }
+}
+
 enum AITestFactory {
     /// 装配一套全内存、全 Mock 的 Foundation 预览 Agent
     @MainActor
@@ -63,6 +96,31 @@ enum AITestFactory {
             pending: pending,
             gate: .preview,
             tier: .freeFirst
+        )
+        return (AgentCore(env), journal, pending, conversation)
+    }
+
+    /// 装配 live 闸门的内存 Agent（真实执行器 / 脚本 Provider，不碰 SwiftData）。
+    /// 与 Preview 的区别：CREATE 确认后走 toolExecutor，READ 走 contextProvider 本地回答。
+    @MainActor
+    static func live(
+        provider: any AIProvider,
+        fallback: (any AIProvider)? = nil,
+        contextProvider: any BusinessContextProviding = UnavailableBusinessContextProvider(),
+        toolExecutor: any ToolExecuting = SuccessToolExecutor()
+    ) -> (agent: AgentCore, journal: InMemoryExecutionJournal, pending: InMemoryPendingActionStore,
+          conversation: InMemoryConversationStore) {
+        let journal = InMemoryExecutionJournal()
+        let pending = InMemoryPendingActionStore()
+        let conversation = InMemoryConversationStore()
+        let env = try! AgentEnvironment.makeLive(
+            provider: provider,
+            fallback: fallback,
+            contextProvider: contextProvider,
+            toolExecutor: toolExecutor,
+            conversation: conversation,
+            pending: pending,
+            journal: journal
         )
         return (AgentCore(env), journal, pending, conversation)
     }

@@ -126,6 +126,10 @@ struct IntentRouter {
         if text.contains("配送") || text.contains("送货") || text.contains("送水") || text.contains("几单") {
             return .businessQuery(.delivery)
         }
+        if text.contains("临期") || text.contains("过期") || text.contains("到期")
+            || text.contains("保质期") || text.contains("退货") {
+            return .businessQuery(.expiringGoods)
+        }
         if text.contains("待办") || text.contains("事项") || text.contains("要做") || text.contains("任务") {
             return .businessQuery(.todoToday)
         }

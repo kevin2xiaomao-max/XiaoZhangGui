@@ -10,6 +10,7 @@ struct AIChatView: View {
     var voiceDeepLink: Binding<Bool>?
 
     @State private var model = AIConversationViewModel()
+    @State private var showSettings = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let examples = [
@@ -26,7 +27,20 @@ struct AIChatView: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 12) {
                             V32PageHeader("小掌柜", subtitle: "说句话，帮你记账、派单、备忘") {
-                                V32StatusPill(text: "预览版", status: .info)
+                                HStack(spacing: 8) {
+                                    V32StatusPill(
+                                        text: model.isRemoteConfigured ? "正式版" : "未配置",
+                                        status: model.isRemoteConfigured ? .delivering : .expiry)
+                                    Button {
+                                        showSettings = true
+                                    } label: {
+                                        Image(systemName: "gearshape")
+                                            .font(.system(size: 16, weight: .medium))
+                                            .foregroundStyle(V32.textSecondary)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("AI 设置")
+                                }
                             }
                             if model.messages.isEmpty {
                                 emptyState
@@ -74,6 +88,14 @@ struct AIChatView: View {
                 model.startVoice()
                 voiceDeepLink?.wrappedValue = false
             }
+        }
+        // 由 AI 目录外的桥接修饰符注入 live Agent（真实 Provider / Repository 执行器）；
+        // 本文件不 import SwiftData，ModelContext 不出 Integration 层。
+        .aiAttachLive { liveAgent in
+            model.attach(live: liveAgent)
+        }
+        .sheet(isPresented: $showSettings) {
+            AIProviderSettingsSheet()
         }
     }
 
