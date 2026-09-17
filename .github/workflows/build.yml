@@ -76,6 +76,15 @@ jobs:
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
           echo "使用模拟器: $NAME"
 
+      - name: 预热并等待模拟器完全启动（规避 CoreDevice lockdown 120s 停滞）
+        run: |
+          set -euo pipefail
+          NAME="${{ steps.sim.outputs.name }}"
+          xcrun simctl boot "$NAME" || true
+          # -b 阻塞直到模拟器真正启动完成（dataContainer 就绪），超时 180s
+          xcrun simctl bootstatus "$NAME" -b -t 180 || true
+          xcrun simctl list devices booted
+
       - name: Simulator compile
         run: |
           set -euo pipefail
@@ -92,15 +101,14 @@ jobs:
         run: |
           set -euo pipefail
           # xcode-27 预发布模拟器偶发 lockdown 连接停滞 / 宿主重启级联，
-          # 对失败用例自动重试一轮（仅重试失败项，不掩盖真实断言失败：
-          # 两轮均失败仍判 FAIL）。
+          # 仅对失败用例自动重试一轮（不做全量 -test-iterations，避免健康 runner 上测试翻倍）：
+          # 真实断言失败在重试中仍失败，不会被掩盖。
           xcodebuild test \
             -project XiaoZhangGui.xcodeproj \
             -scheme XiaoZhangGui \
             -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
             -derivedDataPath build/Simulator \
             -retry-tests-on-failure \
-            -test-iterations 2 \
             XZG_WEATHER_API_KEY="${{ secrets.XZG_WEATHER_API_KEY }}" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
