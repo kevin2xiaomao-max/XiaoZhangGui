@@ -138,3 +138,11 @@ enum CustomerStatus: String, CaseIterable, Identifiable {
         }
     }
 }
+
+/// 状态字符串桥接（与模型同文件：App / Widget Extension 共享，避免仓储层编译耦合）
+extension CustomerRequest {
+    var statusEnum: CustomerStatus {
+        get { CustomerStatus(rawValue: status) ?? .pending }
+        set { status = newValue.rawValue }
+    }
+}

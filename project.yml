@@ -69,6 +69,18 @@ targets:
     sources:
       - path: XiaoZhangGuiWidget
       - path: SharedKernel
+      # V3.3 Widget 2.0 Interactive：AppIntent 在扩展内直接写同一个 App Group store。
+      # 以下为「同一源文件、双 target 编译」复用（非复制第二套逻辑/数据库）：
+      # 7 个 @Model 与 App 完全相同的 SwiftData schema；容器/快照/通知/LA 全部用 App 原文件。
+      - path: XiaoZhangGui/Models
+      - path: XiaoZhangGui/DesignSystem/V21Color.swift
+      - path: XiaoZhangGui/Data/ModelContainer.swift
+      - path: XiaoZhangGui/Utilities/DateExt.swift
+      - path: XiaoZhangGui/Utilities/AppSettings.swift
+      - path: XiaoZhangGui/Services/SnapshotBuilder.swift
+      - path: XiaoZhangGui/Services/NotificationManager.swift
+      - path: XiaoZhangGui/Services/LiveActivityManager.swift
+      - path: XiaoZhangGui/Services/WidgetTodoCompletion.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.xiaozhanggui.ios.widget

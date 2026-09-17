@@ -315,10 +315,3 @@ struct GoodsRepository {
         SnapshotSyncManager.refreshAll(context: context)
     }
 }
-
-extension CustomerRequest {
-    var statusEnum: CustomerStatus {
-        get { CustomerStatus(rawValue: status) ?? .pending }
-        set { status = newValue.rawValue }
-    }
-}
