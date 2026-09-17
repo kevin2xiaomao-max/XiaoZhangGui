@@ -20,7 +20,7 @@ struct GlassSurface<Content: View>: View {
             }
             .overlay {
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .strokeBorder(V21.dividerStrong, lineWidth: 1)
+                    .strokeBorder(V21.divider.opacity(0.55), lineWidth: 0.6)
             }
     }
 }
