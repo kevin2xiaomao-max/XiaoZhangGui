@@ -1,7 +1,7 @@
 import SwiftUI
 
-// MARK: - Floating Dock（主底部导航）
-// 4 个 Tab + 中央语音突出按钮；玻璃胶囊浮层
+// MARK: - Floating Dock（Studio UI）
+// 4 个线框 Tab + 最右实心加号（语音/记一笔），胶囊浮层，无文字标签。
 
 enum AppTab: Hashable {
     case home, performance, todo, profile
@@ -17,9 +17,18 @@ enum AppTab: Hashable {
 
     var icon: String {
         switch self {
+        case .home: return "house"
+        case .performance: return "square.stack"
+        case .todo: return "checkmark.circle"
+        case .profile: return "person"
+        }
+    }
+
+    var selectedIcon: String {
+        switch self {
         case .home: return "house.fill"
-        case .performance: return "chart.line.uptrend.xyaxis"
-        case .todo: return "checkmark"
+        case .performance: return "square.stack.fill"
+        case .todo: return "checkmark.circle.fill"
         case .profile: return "person.fill"
         }
     }
@@ -29,37 +38,33 @@ struct FloatingDock: View {
     @Binding var selection: AppTab
     var showsVoiceButton: Bool = true
     var onVoice: () -> Void
-    @Environment(AppSettings.self) private var settings
     @Environment(\.colorScheme) private var colorScheme
 
-    private let tabs: [AppTab] = [.home, .performance, .todo, .profile]
+    private let tabs: [AppTab] = [.home, .todo, .performance, .profile]
 
     var body: some View {
-        HStack(spacing: 0) {
-            dockItem(.home)
-            dockItem(.todo)
-            if showsVoiceButton {
-                centralVoice
+        HStack(spacing: 6) {
+            ForEach(tabs, id: \.self) { tab in
+                dockItem(tab)
             }
-            dockItem(.performance)
-            dockItem(.profile)
+            plusButton
         }
-        .padding(.horizontal, 5)
-        .frame(height: 67)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
         .background {
             Capsule(style: .continuous)
                 .fill(.ultraThinMaterial)
-                .overlay(Capsule(style: .continuous).fill(Color.white.opacity(0.08)))
+                .overlay(Capsule(style: .continuous).fill(V21.surfaceElevated.opacity(0.55)))
         }
         .overlay {
             Capsule(style: .continuous)
-                .strokeBorder(V21.dividerStrong, lineWidth: 1)
+                .strokeBorder(V21.divider.opacity(0.55), lineWidth: 0.6)
         }
-        .padding(.horizontal, V21Layout.pageMargin)
-        .shadow(color: .black.opacity(0.14), radius: 12, x: 0, y: 5)
+        .shadow(color: .black.opacity(colorScheme == .dark ? 0.28 : 0.10), radius: 18, y: 8)
+        .padding(.horizontal, 28)
+        .accessibilityElement(children: .contain)
     }
 
-    // 普通导航项
     @ViewBuilder
     private func dockItem(_ tab: AppTab) -> some View {
         let selected = selection == tab
@@ -68,47 +73,32 @@ struct FloatingDock: View {
             selection = tab
             Haptic.light()
         } label: {
-            VStack(spacing: 3) {
-                Image(systemName: tab.icon)
-                    .font(.system(size: 20, weight: .semibold))
-                    .symbolEffect(.bounce, value: selected)
-                Text(tab.title)
-                    .font(.system(size: 10, weight: selected ? .semibold : .medium))
-            }
-            .foregroundColor(selected ? AppTheme.palette(named: settings.appThemeName).accent : (colorScheme == .dark ? Color.white.opacity(0.62) : V21.tabInactive))
-            .background {
-                if selected {
-                    Capsule(style: .continuous)
-                        .fill(AppTheme.palette(named: settings.appThemeName).selectedBackground)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, -3)
-                }
-            }
-            .scaleEffect(selected ? 1.06 : 1.0)
-            .animation(.spring(response: 0.28, dampingFraction: 0.7), value: selected)
-            .frame(maxWidth: .infinity)
+            Image(systemName: selected ? tab.selectedIcon : tab.icon)
+                .font(.system(size: 20, weight: selected ? .semibold : .regular))
+                .foregroundStyle(selected ? V21.textPrimary : V21.textTertiary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(tab.title)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
-    // 中央语音按钮：蓝紫渐变玻璃圆钮，上浮
-    private var centralVoice: some View {
+    private var plusButton: some View {
         Button {
             Haptic.medium()
             onVoice()
         } label: {
-            Image(systemName: "mic.fill")
-                .font(.system(size: 22, weight: .semibold))
-                .foregroundColor(.white)
-                .frame(width: 53, height: 53)
-                .background(Circle().fill(AppTheme.palette(named: settings.appThemeName).heroGradient))
-                .overlay(Circle().fill(.white.opacity(0.08)))
-                .overlay(Circle().strokeBorder(.white.opacity(0.3), lineWidth: 1))
-                .shadow(color: AppTheme.palette(named: settings.appThemeName).accent.opacity(0.28), radius: 8, x: 0, y: 3)
+            Image(systemName: "plus")
+                .font(.system(size: 17, weight: .bold))
+                .foregroundStyle(colorScheme == .dark ? V21.background : Color.white)
+                .frame(width: 44, height: 44)
+                .background(Circle().fill(V21.textPrimary))
         }
         .buttonStyle(.plain)
-        .offset(y: -5)
-        .frame(maxWidth: .infinity)
+        .accessibilityLabel(showsVoiceButton ? "语音记一笔" : "记一笔")
+        .opacity(showsVoiceButton ? 1 : 0.92)
     }
 }
 
