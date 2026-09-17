@@ -62,7 +62,8 @@ final class LocalFirstZeroTokenTests: XCTestCase {
         XCTAssertNil(result.proposal)
         XCTAssertTrue(result.assistantMessage?.content.contains("金额") ?? false)
         XCTAssertFalse(result.assistantMessage?.isError ?? true, "追问是普通回复，不是错误")
-        XCTAssertEqual(await counting.callCount, 0)
+        let clarifyCalls = await counting.callCount
+        XCTAssertEqual(clarifyCalls, 0)
     }
 
     // MARK: 普通聊天：必须上云
@@ -72,7 +73,8 @@ final class LocalFirstZeroTokenTests: XCTestCase {
             id: "cloud", [.success(.text("这是网络回答"))]))
         let (agent, _, _, _) = AITestFactory.live(provider: counting)
         let result = await agent.send("苹果发布会什么时候开")
-        XCTAssertEqual(await counting.callCount, 1)
+        let cloudCalls = await counting.callCount
+        XCTAssertEqual(cloudCalls, 1)
         XCTAssertNil(result.proposal)
         XCTAssertEqual(result.assistantMessage?.content, "这是网络回答")
     }
@@ -99,7 +101,8 @@ final class LocalFirstZeroTokenTests: XCTestCase {
         ]
         for (question, expected) in cases {
             let result = await agent.send(question)
-            XCTAssertEqual(await counting.callCount, 0, "READ「\(question)」不得调用 Provider")
+            let readCalls = await counting.callCount
+            XCTAssertEqual(readCalls, 0, "READ「\(question)」不得调用 Provider")
             XCTAssertNil(result.proposal, "READ 不出 ActionCard")
             XCTAssertTrue(result.assistantMessage?.content.contains(expected) ?? false,
                           "「\(question)」应答应包含 \(expected)，实际：\(result.assistantMessage?.content ?? "")")

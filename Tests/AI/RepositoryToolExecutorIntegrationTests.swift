@@ -44,12 +44,12 @@ final class RepositoryToolExecutorIntegrationTests: XCTestCase {
         return AgentCore(env)
     }
 
-    private func count<T>(_ type: T.Type, in context: ModelContext) throws -> Int {
+    private func count<T: PersistentModel>(_ type: T.Type, in context: ModelContext) throws -> Int {
         try context.fetchCount(FetchDescriptor<T>())
     }
 
-    private func revenueCall(amount: Double = 680, source: String = "美团",
-                             date: Date = Date(), id: String = ToolCall.makeID()) -> ToolCall {
+    private func revenueCall(id: String = ToolCall.makeID(), amount: Double = 680,
+                             source: String = "美团", date: Date = Date()) -> ToolCall {
         ToolCall(id: id, name: .recordRevenue,
                  arguments: .recordRevenue(RevenueArguments(amount: amount, source: source, date: date, note: nil)))
     }
@@ -131,7 +131,7 @@ final class RepositoryToolExecutorIntegrationTests: XCTestCase {
     // MARK: 未确认 / 取消：零写入
 
     func testProposalBeforeConfirmWritesNothing() async throws {
-        let (_, context, journal) = try makeHarness()
+        let (_, context, journal, _) = try makeHarness()
         let agent = try makeLiveAgent(context: context, journal: journal)
 
         let result = await agent.send("今天美团680")
@@ -140,7 +140,7 @@ final class RepositoryToolExecutorIntegrationTests: XCTestCase {
     }
 
     func testCancelWritesNothing() async throws {
-        let (_, context, journal) = try makeHarness()
+        let (_, context, journal, _) = try makeHarness()
         let agent = try makeLiveAgent(context: context, journal: journal)
 
         let result = await agent.send("今天美团680")
@@ -152,13 +152,13 @@ final class RepositoryToolExecutorIntegrationTests: XCTestCase {
     // MARK: 确认：只写一次；重复确认不重复
 
     func testConfirmWritesExactlyOnce() async throws {
-        let (_, context, journal) = try makeHarness()
+        let (_, context, journal, _) = try makeHarness()
         let agent = try makeLiveAgent(context: context, journal: journal)
 
         let result = await agent.send("今天美团680")
         let id = try XCTUnwrap(result.proposal?.id)
 
-        let first = try XCTUnwrap(await agent.confirm(proposalID: id))
+        let first: ActionProposal = try XCTUnwrap(await agent.confirm(proposalID: id))
         XCTAssertEqual(first.status, .executed)
         XCTAssertEqual(try count(Performance.self, in: context), 1)
 

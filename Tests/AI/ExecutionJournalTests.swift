@@ -26,7 +26,8 @@ final class ExecutionJournalTests: XCTestCase {
         let entries = await journal.entries()
         XCTAssertEqual(entries.count, 1)
         XCTAssertEqual(entries.first?.status, "executed")
-        XCTAssertTrue(await journal.isFingerprintUsed("fp-a"))
+        let used = await journal.isFingerprintUsed("fp-a")
+        XCTAssertTrue(used)
     }
 
     func testFingerprintUsedOnlyWhenExecuted() async {

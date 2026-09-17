@@ -144,7 +144,7 @@ final class RepositoryBusinessContextReaderTests: XCTestCase {
         let scoped = await reader.scopedContext(for: [.revenueToday, .todoToday, .delivery])
         let payload = redactor.sanitize(scoped)
 
-        guard case .json(let data) = payload, let raw = String(data: data, encoding: .utf8) else {
+        guard let data = payload.json, let raw = String(data: data, encoding: .utf8) else {
             return XCTFail("应产出 JSON payload")
         }
         // 投影结构里根本不存在电话 / 地址 / 图片 / 客户名字段
@@ -167,7 +167,7 @@ final class RepositoryBusinessContextReaderTests: XCTestCase {
         let scoped = await reader.scopedContext(for: [.todoToday])
         let payload = ContextRedactor().sanitize(scoped)
 
-        guard case .json(let data) = payload, let raw = String(data: data, encoding: .utf8) else {
+        guard let data = payload.json, let raw = String(data: data, encoding: .utf8) else {
             return XCTFail("应产出 JSON payload")
         }
         XCTAssertFalse(raw.contains("13800138000"), "完整手机号不得外发")
