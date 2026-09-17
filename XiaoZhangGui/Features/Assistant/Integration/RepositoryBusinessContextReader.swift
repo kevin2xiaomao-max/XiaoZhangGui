@@ -8,7 +8,11 @@ import SwiftData
 //   电话、地址、图片、内部 ID、备注等敏感字段一律不进入投影；
 // - 投影之后还必须经过 ContextRedactor 才能（未来）进入 Provider；
 //   Lite 的 READ 全部本地模板回答，0 Token、数据不出设备。
-
+//
+// 查询约定（与全工程 Repository / 基线测试一致）：
+// - 只使用裸 FetchDescriptor 拉取后在 Swift 侧过滤 / 排序；
+// - 不使用 #Predicate / SortDescriptor，与全工程既有用法保持一致，
+//   规避 in-memory 测试宿主上的兼容 / 挂起风险（含可选 keypath 排序）。
 @MainActor
 final class RepositoryBusinessContextReader: BusinessContextProviding {
     private let context: ModelContext
@@ -20,6 +24,11 @@ final class RepositoryBusinessContextReader: BusinessContextProviding {
     }
 
     func scopedContext(for kinds: [BusinessRecordKind]) async -> ScopedBusinessContext {
+        scopedContextSync(for: kinds)
+    }
+
+    /// 同步测试接缝：查询本身无异步等待，同步实现便于单测与 AgentCore 共用同一份派生逻辑。
+    func scopedContextSync(for kinds: [BusinessRecordKind]) -> ScopedBusinessContext {
         guard !kinds.isEmpty else { return .empty }
 
         var total: Double?
@@ -47,7 +56,7 @@ final class RepositoryBusinessContextReader: BusinessContextProviding {
                     pending = p; delivering = d
                 }
             } catch {
-                // 单类查询失败不拖垮整体：该类保持 nil（回答层显示空态）
+                // 单类查询失败不拖垮整体：该类保持 nil（回答层显示空值）。
                 continue
             }
         }
@@ -65,54 +74,44 @@ final class RepositoryBusinessContextReader: BusinessContextProviding {
 
     // MARK: 查询
 
-    private func dayBounds(_ date: Date = Date()) throws -> (start: Date, end: Date) {
+    private func dayBounds(_ date: Date = Date()) -> (start: Date, end: Date) {
         let start = calendar.startOfDay(for: date)
         let end = calendar.date(byAdding: .day, value: 1, to: start) ?? start
         return (start, end)
     }
 
     private func todaysRevenue() throws -> (total: Double, count: Int) {
-        let (start, end) = try dayBounds()
-        let descriptor = FetchDescriptor<Performance>(
-            predicate: #Predicate { $0.date >= start && $0.date < end },
-            sortBy: [SortDescriptor(\.date, order: .reverse)]
-        )
-        let rows = try context.fetch(descriptor)
-        return (rows.reduce(0) { $0 + $1.amount }, rows.count)
+        let (start, end) = dayBounds()
+        let rows = try context.fetch(FetchDescriptor<Performance>())
+        let today = rows.filter { $0.date >= start && $0.date < end }
+        return (today.reduce(0) { $0 + $1.amount }, today.count)
     }
 
     private func todaysTodos() throws -> [String] {
-        let (_, end) = try dayBounds()
-        var descriptor = FetchDescriptor<Todo>(
-            predicate: #Predicate { !$0.isCompleted },
-            sortBy: [SortDescriptor(\.dueDate, order: .forward)]
-        )
-        descriptor.fetchLimit = 20
-        let rows = try context.fetch(descriptor)
+        let (_, end) = dayBounds()
+        let rows = try context.fetch(FetchDescriptor<Todo>())
         return rows
-            .filter { ($0.dueDate ?? .distantFuture) <= end }
+            .filter { !$0.isCompleted && ($0.dueDate ?? .distantFuture) <= end }
+            .sorted { ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture) }
             .prefix(5)
             .map(\.title)
     }
 
     private func recentMemos() throws -> [String] {
-        var descriptor = FetchDescriptor<Memo>(
-            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
-        )
-        descriptor.fetchLimit = 3
-        return try context.fetch(descriptor).map(\.title)
+        let rows = try context.fetch(FetchDescriptor<Memo>())
+        return rows
+            .sorted { $0.createdAt > $1.createdAt }
+            .prefix(3)
+            .map(\.title)
     }
 
     private func upcomingExpiry() throws -> [String] {
         let today = calendar.startOfDay(for: Date())
         let horizon = calendar.date(byAdding: .day, value: 7, to: today) ?? today
-        var descriptor = FetchDescriptor<ExpiryItem>(
-            predicate: #Predicate { $0.returnStatus == "待处理" },
-            sortBy: [SortDescriptor(\.expiryDate, order: .forward)]
-        )
-        descriptor.fetchLimit = 30
-        return try context.fetch(descriptor)
-            .filter { $0.expiryDate <= horizon }
+        let rows = try context.fetch(FetchDescriptor<ExpiryItem>())
+        return rows
+            .filter { $0.returnStatus == ReturnStatus.pending.rawValue && $0.expiryDate <= horizon }
+            .sorted { $0.expiryDate < $1.expiryDate }
             .prefix(8)
             .map { item in
                 let days = item.daysLeft(from: Date())
@@ -123,13 +122,11 @@ final class RepositoryBusinessContextReader: BusinessContextProviding {
     }
 
     private func todaysDeliveries() throws -> (pending: Int, delivering: Int) {
-        let (start, end) = try dayBounds()
-        let descriptor = FetchDescriptor<CustomerRequest>(
-            predicate: #Predicate { $0.createdAt >= start && $0.createdAt < end }
-        )
-        let rows = try context.fetch(descriptor)
-        let pending = rows.filter { $0.status == CustomerStatus.pending.rawValue }.count
-        let delivering = rows.filter { $0.status == CustomerStatus.delivering.rawValue }.count
+        let (start, end) = dayBounds()
+        let rows = try context.fetch(FetchDescriptor<CustomerRequest>())
+        let today = rows.filter { $0.createdAt >= start && $0.createdAt < end }
+        let pending = today.filter { $0.status == CustomerStatus.pending.rawValue }.count
+        let delivering = today.filter { $0.status == CustomerStatus.delivering.rawValue }.count
         return (pending, delivering)
     }
 }

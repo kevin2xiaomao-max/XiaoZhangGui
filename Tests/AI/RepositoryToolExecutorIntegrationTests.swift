@@ -45,7 +45,8 @@ final class RepositoryToolExecutorIntegrationTests: XCTestCase {
     }
 
     private func count<T: PersistentModel>(_ type: T.Type, in context: ModelContext) throws -> Int {
-        try context.fetchCount(FetchDescriptor<T>())
+        // 与基线测试一致：裸 FetchDescriptor + Swift 侧计数（不用 fetchCount）。
+        try context.fetch(FetchDescriptor<T>()).count
     }
 
     private func revenueCall(id: String = ToolCall.makeID(), amount: Double = 680,

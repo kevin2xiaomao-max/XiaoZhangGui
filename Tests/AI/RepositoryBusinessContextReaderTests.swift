@@ -7,15 +7,19 @@ import SwiftData
 // 验证 RepositoryBusinessContextReader 只产出最小投影（数量 / 标题），
 // 且投影经 ContextRedactor 后可进入 Provider 的 payload 中
 // 不含电话、地址、图片等敏感字段（R3 隐私边界）。
-
-@MainActor
+//
+// 写法对齐基线 SwiftData 测试（IncomeSourceTests / CustomerImageRoundTripTests）：
+// 类不标 @MainActor、单个测试方法 @MainActor + 同步 throws，
+// 走 reader 的同步测试接缝，避免 async 宿主 + SwiftData 组合导致的进程挂起。
 final class RepositoryBusinessContextReaderTests: XCTestCase {
 
+    @MainActor
     private func makeContext() throws -> ModelContext {
         let container = try AppDatabase.makeInMemoryContainer()
         return container.mainContext
     }
 
+    @MainActor
     private func seed(_ context: ModelContext) throws {
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
@@ -66,47 +70,51 @@ final class RepositoryBusinessContextReaderTests: XCTestCase {
 
     // MARK: 五类 READ 投影
 
-    func testRevenueProjection() async throws {
+    @MainActor
+    func testRevenueProjection() throws {
         let context = try makeContext()
         try seed(context)
         let reader = RepositoryBusinessContextReader(context: context)
 
-        let scoped = await reader.scopedContext(for: [.revenueToday])
+        let scoped = reader.scopedContextSync(for: [.revenueToday])
         XCTAssertEqual(scoped.revenueTodayTotal ?? 0, 680.5, accuracy: 0.01)
         XCTAssertEqual(scoped.revenueTodayCount, 2)
         XCTAssertNil(scoped.todoTodayTitles)
     }
 
-    func testTodoProjectionIncludesTodayAndOverdue() async throws {
+    @MainActor
+    func testTodoProjectionIncludesTodayAndOverdue() throws {
         let context = try makeContext()
         try seed(context)
         let reader = RepositoryBusinessContextReader(context: context)
 
-        let scoped = await reader.scopedContext(for: [.todoToday])
+        let scoped = reader.scopedContextSync(for: [.todoToday])
         let titles = try XCTUnwrap(scoped.todoTodayTitles)
         XCTAssertEqual(Set(titles), ["今日下可乐", "逾期未拿货"])
         XCTAssertFalse(titles.contains("明天的事"))
         XCTAssertFalse(titles.contains("今日已完成"))
     }
 
-    func testMemoProjectionReturnsLatestThree() async throws {
+    @MainActor
+    func testMemoProjectionReturnsLatestThree() throws {
         let context = try makeContext()
         try seed(context)
         let reader = RepositoryBusinessContextReader(context: context)
 
-        let scoped = await reader.scopedContext(for: [.recentMemo])
+        let scoped = reader.scopedContextSync(for: [.recentMemo])
         let titles = try XCTUnwrap(scoped.recentMemoTitles)
         XCTAssertEqual(titles.count, 3)
         XCTAssertTrue(titles.contains("最新备忘"))
         XCTAssertFalse(titles.contains("最早备忘"))
     }
 
-    func testExpiringProjectionExcludesReturnedAndFarItems() async throws {
+    @MainActor
+    func testExpiringProjectionExcludesReturnedAndFarItems() throws {
         let context = try makeContext()
         try seed(context)
         let reader = RepositoryBusinessContextReader(context: context)
 
-        let scoped = await reader.scopedContext(for: [.expiringGoods])
+        let scoped = reader.scopedContextSync(for: [.expiringGoods])
         let titles = try XCTUnwrap(scoped.expiringTitles)
         XCTAssertTrue(titles.contains { $0.contains("牛奶") })
         XCTAssertTrue(titles.contains { $0.contains("过期面包") })
@@ -114,34 +122,37 @@ final class RepositoryBusinessContextReaderTests: XCTestCase {
         XCTAssertFalse(titles.contains { $0.contains("已退酸奶") })
     }
 
-    func testDeliveryProjectionCountsTodayOnly() async throws {
+    @MainActor
+    func testDeliveryProjectionCountsTodayOnly() throws {
         let context = try makeContext()
         try seed(context)
         let reader = RepositoryBusinessContextReader(context: context)
 
-        let scoped = await reader.scopedContext(for: [.delivery])
+        let scoped = reader.scopedContextSync(for: [.delivery])
         XCTAssertEqual(scoped.deliveryPendingCount, 2)
         XCTAssertEqual(scoped.deliveryDeliveringCount, 1)
     }
 
-    func testEmptyKindsReturnsEmpty() async throws {
+    @MainActor
+    func testEmptyKindsReturnsEmpty() throws {
         let context = try makeContext()
         try seed(context)
         let reader = RepositoryBusinessContextReader(context: context)
-        let scoped = await reader.scopedContext(for: [])
+        let scoped = reader.scopedContextSync(for: [])
         XCTAssertNil(scoped.revenueTodayTotal)
         XCTAssertNil(scoped.todoTodayTitles)
     }
 
     // MARK: 隐私：READ 结果 → 脱敏 → Provider payload
 
-    func testSanitizedPayloadExcludesSensitiveFields() async throws {
+    @MainActor
+    func testSanitizedPayloadExcludesSensitiveFields() throws {
         let context = try makeContext()
         try seed(context)
         let reader = RepositoryBusinessContextReader(context: context)
         let redactor = ContextRedactor()
 
-        let scoped = await reader.scopedContext(for: [.revenueToday, .todoToday, .delivery])
+        let scoped = reader.scopedContextSync(for: [.revenueToday, .todoToday, .delivery])
         let payload = redactor.sanitize(scoped)
 
         guard let data = payload.json, let raw = String(data: data, encoding: .utf8) else {
@@ -157,14 +168,15 @@ final class RepositoryBusinessContextReaderTests: XCTestCase {
         XCTAssertTrue(raw.contains("680.5"))
     }
 
-    func testPhoneInsideTitleIsMaskedBeforeLeavingDevice() async throws {
+    @MainActor
+    func testPhoneInsideTitleIsMaskedBeforeLeavingDevice() throws {
         let context = try makeContext()
         let cal = Calendar.current
         context.insert(Todo(title: "给 13800138000 回电", dueDate: cal.startOfDay(for: Date())))
         try context.save()
 
         let reader = RepositoryBusinessContextReader(context: context)
-        let scoped = await reader.scopedContext(for: [.todoToday])
+        let scoped = reader.scopedContextSync(for: [.todoToday])
         let payload = ContextRedactor().sanitize(scoped)
 
         guard let data = payload.json, let raw = String(data: data, encoding: .utf8) else {
