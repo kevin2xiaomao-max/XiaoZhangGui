@@ -61,69 +61,18 @@ enum SnapshotSyncManager {
         )
     }
 
-    /// 纯计算（无数据库访问），由 buildSnapshot 调用，也便于单元测试。
+    /// 纯计算门面：实际口径在 SnapshotBuilder（App 与 Widget Extension 共用同一份）。
     static func makeSnapshot(
         todos: [Todo],
         performances: [Performance],
         expiryItems: [ExpiryItem],
         customers: [CustomerRequest]
     ) -> BusinessSnapshot {
-        var snapshot = BusinessSnapshot()
-
-        // 今日营业额与目标（日均 = 月目标 / 30，与首页一致）
-        let todayRevenue = performances.filter { $0.date.isToday }.reduce(0) { $0 + $1.amount }
-        snapshot.todayRevenue = todayRevenue
-        let dailyGoal = AppSettings.shared.monthGoal / 30
-        snapshot.todayGoalPercent = dailyGoal > 0 ? Int(todayRevenue / dailyGoal * 100) : 0
-
-        // 待办：今日待办 + 逾期 + 下一条（按截止时间）
-        let pending = todos.filter { !$0.isCompleted }
-        snapshot.todayTodoCount = pending.filter { $0.dueDate == nil || $0.dueDate!.isToday }.count
-        snapshot.overdueTodoCount = pending.filter { todo in
-            guard let due = todo.dueDate else { return false }
-            return due < Date().startOfDay
-        }.count
-        let nextTodo = pending
-            .filter({ $0.dueDate != nil && $0.dueDate! >= Date() })
-            .min(by: { $0.dueDate! < $1.dueDate! }) ?? pending.first
-
-        if let nextTodo, isMeaningfulActionTitle(nextTodo.title) {
-            snapshot.nextTodoTitle = nextTodo.title
-            snapshot.nextTodoTime = nextTodo.dueDate
-        }
-
-        // 客户需求：配送中
-        let delivering = customers
-            .filter { $0.statusEnum == .delivering }
-            .sorted { $0.updatedAt > $1.updatedAt }
-        snapshot.deliveringCustomerCount = delivering.count
-        if snapshot.nextTodoTitle == nil, let delivery = delivering.first {
-            let summary = [delivery.roomOrAddress, delivery.content]
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }
-                .joined(separator: " · ")
-            if !summary.isEmpty {
-                snapshot.nextTodoTitle = summary
-                snapshot.nextTodoTime = nil
-            }
-        }
-
-        // 临期：7 天内到期且待处理；下一条最近到期
-        let urgent = expiryItems
-            .filter { $0.status == .pending && $0.daysLeft(from: Date()) >= 0 && $0.daysLeft(from: Date()) <= 7 }
-            .sorted { $0.expiryDate < $1.expiryDate }
-        snapshot.urgentExpiryCount = urgent.count
-        if let nearest = urgent.first {
-            snapshot.nextExpiryName = nearest.name
-            snapshot.nextExpiryDays = nearest.daysLeft(from: Date())
-        }
-
-        return snapshot
-    }
-
-    private static func isMeaningfulActionTitle(_ title: String) -> Bool {
-        let value = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        let genericTitles: Set<String> = ["记录", "待办", "提醒", "语音记录", "新建待办"]
-        return !value.isEmpty && !genericTitles.contains(value)
+        SnapshotBuilder.makeSnapshot(
+            todos: todos,
+            performances: performances,
+            expiryItems: expiryItems,
+            customers: customers
+        )
     }
 }

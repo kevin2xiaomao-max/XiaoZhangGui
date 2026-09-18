@@ -38,16 +38,32 @@ struct SnapshotProvider: TimelineProvider {
 extension BusinessSnapshot {
     /// 首次添加小组件 / 预览用示例数据（真实数据由主 App 快照覆盖）
     static let sample = BusinessSnapshot(
-        todayRevenue: 1260,
+        todayRevenue: 2680,
         todayGoalPercent: 63,
-        todayTodoCount: 3,
+        todayTodoCount: 2,
         overdueTodoCount: 1,
         nextTodoTitle: "下午去市场进货",
         nextTodoTime: Date.today(hour: 15),
         deliveringCustomerCount: 2,
         urgentExpiryCount: 4,
         nextExpiryName: "鲜牛奶",
-        nextExpiryDays: 2
+        nextExpiryDays: 2,
+        focusItems: [
+            WidgetFocusItem(
+                id: "sample-overdue-1",
+                kind: .todoOverdue,
+                title: "给王姐回电话确认订单",
+                detail: "逾期",
+                completable: true
+            ),
+            WidgetFocusItem(
+                id: "sample-delivery-1",
+                kind: .delivery,
+                title: "3 栋 502 鲜牛奶两箱",
+                detail: "今晚配送",
+                completable: false
+            ),
+        ]
     )
 }
 
@@ -71,14 +87,14 @@ struct TodayStatsWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "TodayStatsWidget", provider: SnapshotProvider()) { entry in
             TodayStatsEntryView(entry: entry)
+                // V3.3 Widget 2.0：系统材质底（浅=米白中性、深=暗材质；
+                // Tinted 自动单色化、Clear/StandBy 下保证对比度）；锁屏 accessory 由系统忽略背景。
                 .containerBackground(for: .widget) {
-                    Color(white: 0.08).opacity(entry.snapshot == nil ? 0.0 : 1.0)
+                    Rectangle().fill(.thinMaterial)
                 }
-                // 锁屏点击直达语音快速记录（iOS 安全限制下打开 App 后用户再点一次麦克风）
-                .widgetURL(URL(string: "xzg://voice"))
         }
-        .configurationDisplayName("今日经营")
-        .description("今日营业额、待办数量、临期提醒和下一件事")
+        .configurationDisplayName("小掌柜工作台")
+        .description("一键问小掌柜、语音记录；今日营业额与现在最该做的两件事")
         .supportedFamilies([
             .systemSmall, .systemMedium,
             .accessoryInline, .accessoryCircular, .accessoryRectangular,
@@ -95,123 +111,17 @@ struct TodayStatsEntryView: View {
     var body: some View {
         switch family {
         case .systemSmall:
-            SmallView(snapshot: entry.snapshot)
+            // V3.3 Widget 2.0：Small = 问小掌柜 + 语音记录（不再是营业额仪表盘）
+            SmallWorkbenchView(snapshot: entry.snapshot)
         case .systemMedium:
-            MediumView(snapshot: entry.snapshot)
+            // V3.3 Widget 2.0：Medium = 经营概览 + 快捷工作台（待办可勾选）
+            MediumWorkbenchView(snapshot: entry.snapshot)
         case .accessoryInline:
             InlineView(snapshot: entry.snapshot)
         case .accessoryCircular:
             CircularView(snapshot: entry.snapshot)
         default:
             RectangularView(snapshot: entry.snapshot)
-        }
-    }
-}
-
-/// systemSmall：营业额 + 待办/临期徽标
-private struct SmallView: View {
-    let snapshot: BusinessSnapshot?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 4) {
-                Circle().fill(WidgetBrand.green).frame(width: 6, height: 6)
-                Text("今日营业额")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text("待办 \(snapshot?.todayTodoCount ?? 0)")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(snapshot != nil && snapshot!.overdueTodoCount > 0 ? WidgetBrand.danger : .secondary)
-            }
-            Text("¥\(formatAmount(snapshot?.todayRevenue ?? 0))")
-                .font(.system(size: 26, weight: .bold, design: .rounded))
-                .minimumScaleFactor(0.6)
-                .lineLimit(1)
-            if snapshot?.todayGoalPercent ?? 0 > 0 {
-                ProgressView(value: Double(min(snapshot?.todayGoalPercent ?? 0, 100)), total: 100)
-                    .tint(WidgetBrand.green)
-            }
-            Text(verbatim: nextEventLine)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-        }
-    }
-
-    private var nextEventLine: String {
-        guard let s = snapshot else { return "打开 App 同步数据" }
-        if let todo = s.nextTodoTitle { return "下一件事：\(todo)" }
-        if let expiry = s.nextExpiryName, let days = s.nextExpiryDays {
-            return "临期：\(expiry) 还剩\(days)天"
-        }
-        return "今天没有待办"
-    }
-}
-
-/// systemMedium：左营业额 / 右三行状态
-private struct MediumView: View {
-    let snapshot: BusinessSnapshot?
-
-    var body: some View {
-        HStack(spacing: 14) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("今日营业额")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-                Text("¥\(formatAmount(snapshot?.todayRevenue ?? 0))")
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
-                    .minimumScaleFactor(0.6)
-                    .lineLimit(1)
-                Text("今日目标 \(snapshot?.todayGoalPercent ?? 0)%")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(WidgetBrand.green)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            VStack(alignment: .leading, spacing: 7) {
-                StatusRow(
-                    icon: "checkmark.circle",
-                    color: .secondary,
-                    text: "待办 \(snapshot?.todayTodoCount ?? 0) 件"
-                        + (snapshot?.overdueTodoCount ?? 0 > 0 ? "（逾期 \((snapshot?.overdueTodoCount ?? 0))）" : "")
-                )
-                StatusRow(
-                    icon: "person.2",
-                    color: .secondary,
-                    text: "配送中 \(snapshot?.deliveringCustomerCount ?? 0) 单"
-                )
-                StatusRow(
-                    icon: "calendar.badge.exclamationmark",
-                    color: (snapshot?.urgentExpiryCount ?? 0) > 0 ? WidgetBrand.warning : .secondary,
-                    text: "临期 \(snapshot?.urgentExpiryCount ?? 0) 件"
-                )
-                if let todo = snapshot?.nextTodoTitle {
-                    Text(verbatim: "下一件事：\(todo)")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-}
-
-private struct StatusRow: View {
-    let icon: String
-    let color: Color
-    let text: String
-
-    var body: some View {
-        HStack(spacing: 5) {
-            Image(systemName: icon)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(color)
-            Text(verbatim: text)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
         }
     }
 }
