@@ -250,7 +250,7 @@ jobs:
             echo "=== XCTest attempt $attempt/3 ==="
             reset_sim
             if run_attempt "$attempt"; then
-              echo "XCTest PASS（attempt $attempt，$EXPECTED tests / 0 failures）"
+              echo "XCTest PASS（attempt ${attempt}，${EXPECTED} tests / 0 failures）"
               exit 0
             fi
             echo "attempt $attempt 未全绿，重置模拟器后重试"
