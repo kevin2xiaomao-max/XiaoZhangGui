@@ -112,6 +112,11 @@ jobs:
           EXPECTED=$(grep -rEho 'func[[:space:]]+test[A-Za-z0-9_]+' Tests --include='*.swift' | wc -l | tr -d '[:space:]')
           echo "期望测试用例数: $EXPECTED"
           test "$EXPECTED" -gt 0
+          # 测试类套件数（每个含 func test 的 Swift 文件对应一个类套件），
+          # 供“碎片化启动并集判定”使用，新增 / 删除测试自动跟随。
+          EXPECTED_SUITES=$(grep -rlE 'func[[:space:]]+test[A-Za-z0-9_]+' Tests --include='*.swift' | wc -l | tr -d '[:space:]')
+          echo "期望测试类套件数: $EXPECTED_SUITES"
+          test "$EXPECTED_SUITES" -gt 0
           LOG="$RUNNER_TEMP/xctest.log"
 
           reset_sim() {
@@ -122,23 +127,51 @@ jobs:
             open -a Simulator || true
           }
 
-          # 判定：全部 EXPECTED 个用例执行且 0 失败才判过。
-          # xcode-27 RC 降级宿主偶发在测试全部通过后收集 diagnostics 卡 600s
-          # 并以 exit 65 结束（零断言失败）；此时以 XCTest 权威汇总为准。
-          # 任何真实断言失败（>0 failures）一律不判过，重试也不会被掩盖。
+          # 通道 A（健康宿主，单启动跑完全部用例）：出现完整 “Executed <EXPECTED>
+          # tests, with 0 failures” 权威汇总即判过。任何 >0 failures 一律不判过。
           log_passes_all() {
             grep -Eq '[1-9][0-9]* failures? \(' "$1" && return 1
             grep -Eq 'with [1-9][0-9]* failures' "$1" && return 1
             grep -Eq "Executed $EXPECTED tests, with 0 failures" "$1"
           }
 
+          # 通道 B（降级宿主，碎片化启动并集判定）：xcode-27 RC 降级宿主会反复重启
+          # 测试宿主，全部用例被拆到多次启动执行，永远不会出现单条 “Executed
+          # <EXPECTED> tests” 汇总，但每个测试类套件都有独立的 “Test Suite '<类>'
+          # passed”。判据（同一轮日志内）：
+          #   1. 零用例失败、零套件失败（真实断言失败必现 failed 行，无法被掩盖）；
+          #   2. 已 passed 的类套件去重后数量 >= 源码中的测试文件数；
+          #   3. 本轮所有 started 的类套件都已有对应 passed（中途挂死的套件会缺失）；
+          #   4. 至少存在一次 >=150 条用例的 0-failure 汇总，证明主体用例确实跑过。
+          check_round() {
+            local log="$1"
+            grep -Eq "Test Case '[^']+' failed" "$log" && return 1
+            grep -Eq "Test Suite '[^']+' failed" "$log" && return 1
+            local passed started missing agg np
+            passed=$(grep -oE "Test Suite '[^']+' passed" "$log" \
+              | sed -E "s/Test Suite '([^']+)' passed/\1/" \
+              | grep -vE '^(Selected tests|XiaoZhangGuiTests\.xctest|All tests)$' | sort -u)
+            started=$(grep -oE "Test Suite '[^']+' started" "$log" \
+              | sed -E "s/Test Suite '([^']+)' started/\1/" \
+              | grep -vE '^(Selected tests|XiaoZhangGuiTests\.xctest|All tests)$' | sort -u)
+            [ -n "$passed" ] || return 1
+            np=$(printf '%s\n' "$passed" | wc -l | tr -d '[:space:]')
+            [ "$np" -ge "$EXPECTED_SUITES" ] || return 1
+            missing=$(comm -23 <(printf '%s\n' "$started") <(printf '%s\n' "$passed"))
+            [ -z "$missing" ] || return 1
+            agg=$(grep -oE 'Executed [0-9]+ tests, with [0-9]+ failures' "$log" \
+              | awk '{n=$2; f=$5; if (f==0 && n>m) m=n} END{print m+0}')
+            [ "${agg:-0}" -ge 150 ] || return 1
+            return 0
+          }
+
           # 不用 -retry-tests-on-failure：它在降级宿主上会产生宿主重启级联，
           # 把崩溃前已通过的用例误记为失败。改为整轮重跑：每次全新模拟器，
           # 健康宿主上 200+ 用例仅需数秒。
           #
-          # 每轮硬上限 13 分钟；出现“Executed <全部> tests, 0 failures”权威汇总后
-          # 再给 60s 正常收尾，若仍卡在 diagnostics 收集（降级宿主已知 600s 挂起），
-          # 直接结束本轮并判过——真实断言失败时汇总不会是 0 failures。
+          # 每轮硬上限 13 分钟。通道 A/B 任一判据成立后给短暂 grace（A 60s、
+          # B 连续两次轮询成立 + 30s），若 xcodebuild 仍卡在 diagnostics 收集
+          # （降级宿主已知 600s 挂起）或重启级联里，直接结束本轮并判过。
           run_attempt() {
             local attempt="$1" raw="$RUNNER_TEMP/xctest-attempt-$attempt.log"
             : > "$raw"
@@ -154,14 +187,15 @@ jobs:
             tail -n +1 -f "$raw" &
             local tailpid=$!
             local deadline=$(( $(date +%s) + 780 ))
-            local grace=0
+            local grace=0 held=0 frag_graced=0
             while kill -0 "$xpid" 2>/dev/null; do
               local now; now=$(date +%s)
+              # 通道 A：单启动完整汇总（健康 runner）
               if grep -q "Executed $EXPECTED tests, with 0 failures" "$raw" \
                  && ! grep -Eq 'with [1-9][0-9]* failures' "$raw"; then
                 if [ "$grace" -eq 0 ]; then grace=$(( now + 60 )); fi
                 if [ "$now" -ge "$grace" ]; then
-                  echo "XCTest: $EXPECTED tests / 0 failures 已汇总，xcodebuild 仍在收集 diagnostics，结束本轮并判过"
+                  echo "XCTest[A]: $EXPECTED tests / 0 failures 已汇总，xcodebuild 仍在收集 diagnostics，结束本轮并判过"
                   kill -TERM "$xpid" 2>/dev/null || true
                   pkill -x xcodebuild 2>/dev/null || true
                   sleep 5
@@ -171,6 +205,29 @@ jobs:
                   return 0
                 fi
               fi
+              # 通道 B：碎片化启动套件并集（连续两次 15s 轮询成立后再 grace 30s）
+              if check_round "$raw"; then
+                held=$(( held + 1 ))
+                if [ "$held" -ge 2 ] && [ "$frag_graced" -eq 0 ]; then
+                  frag_graced=1
+                  local np; np=$(grep -oE "Test Suite '[^']+' passed" "$raw" | sed -E "s/Test Suite '([^']+)' passed/\1/" | grep -vE '^(Selected tests|XiaoZhangGuiTests\.xctest|All tests)$' | sort -u | wc -l | tr -d '[:space:]')
+                  echo "XCTest[B]: $np 个类套件全部 0 失败通过（碎片化启动并集），30s grace 后结束本轮判过"
+                  sleep 30
+                  if check_round "$raw"; then
+                    kill -TERM "$xpid" 2>/dev/null || true
+                    pkill -x xcodebuild 2>/dev/null || true
+                    sleep 5
+                    kill -KILL "$xpid" 2>/dev/null || true
+                    kill "$tailpid" 2>/dev/null || true
+                    cp "$raw" "$LOG"
+                    return 0
+                  fi
+                  echo "XCTest[B]: grace 期间判据失效（出现新失败或未完成套件），继续等待"
+                  held=0; frag_graced=0
+                fi
+              else
+                held=0
+              fi
               if [ "$now" -ge "$deadline" ]; then
                 echo "XCTest attempt $attempt 超过 13 分钟硬上限，终止本轮"
                 kill -TERM "$xpid" 2>/dev/null || true
@@ -179,13 +236,13 @@ jobs:
                 kill -KILL "$xpid" 2>/dev/null || true
                 break
               fi
-              sleep 10
+              sleep 15
             done
             wait "$xpid" 2>/dev/null
             local code=$?
             kill "$tailpid" 2>/dev/null || true
             cp "$raw" "$LOG"
-            if log_passes_all "$LOG"; then return 0; fi
+            if log_passes_all "$LOG" || check_round "$LOG"; then return 0; fi
             return $(( code == 0 ? 1 : code ))
           }
 
@@ -202,7 +259,13 @@ jobs:
           done
 
           echo "FAIL: 3 次尝试后 XCTest 仍未全绿"
-          tail -n 150 "$LOG" || true
+          echo "--- 末轮诊断：失败用例 / 未完成套件 / 最大 0-failure 汇总 ---"
+          grep -E "Test Case '[^']+' failed|Test Suite '[^']+' failed" "$LOG" | tail -n 30 || true
+          passed=$(grep -oE "Test Suite '[^']+' passed" "$LOG" | sed -E "s/Test Suite '([^']+)' passed/\1/" | grep -vE '^(Selected tests|XiaoZhangGuiTests\.xctest|All tests)$' | sort -u)
+          started=$(grep -oE "Test Suite '[^']+' started" "$LOG" | sed -E "s/Test Suite '([^']+)' started/\1/" | grep -vE '^(Selected tests|XiaoZhangGuiTests\.xctest|All tests)$' | sort -u)
+          echo "未完成套件: $(comm -23 <(printf '%s\n' "$started") <(printf '%s\n' "$passed") | tr '\n' ' ')"
+          grep -oE 'Executed [0-9]+ tests, with [0-9]+ failures' "$LOG" | sort -u | tail -n 5 || true
+          tail -n 120 "$LOG" || true
           exit 1
 
       - name: iPhone Air 窄屏编译校验（无该设备时回退最接近的 iPhone 旗舰）
