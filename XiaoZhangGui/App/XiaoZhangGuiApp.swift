@@ -4,6 +4,16 @@ import WidgetKit
 
 @main
 struct XiaoZhangGuiApp: App {
+    /// 仅在 XCTest 单元测试宿主进程中为 true。
+    /// 测试宿主渲染空页面并跳过全部启动副作用（持久容器构建、通知授权、
+    /// 快照落盘、WidgetCenter、Live Activity），规避预发布版 CI 模拟器
+    /// CoreDevice lockdown 停滞时启动期主线程争用导致的测试宿主挂起。
+    /// 单元测试各自构建 in-memory ModelContainer，不依赖 App 启动。
+    /// 生产进程中永远为 false，生产启动路径逻辑保持不变。
+    private static var isUnitTesting: Bool {
+        NSClassFromString("XCTestCase") != nil
+    }
+
     // P0-2：持久化失败时 container 为 nil 且保留错误原因，
     // 绝不静默回退到可写 in-memory store（避免「假装保存成功、重启数据蒸发」）。
     private let container: ModelContainer?
@@ -15,6 +25,12 @@ struct XiaoZhangGuiApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
+        if Self.isUnitTesting {
+            // 测试宿主：不构建持久容器、不触发任何真实业务启动工作。
+            container = nil
+            databaseError = nil
+            return
+        }
         do {
             let resolved = try AppDatabase.makeContainer()
             container = resolved
@@ -27,7 +43,10 @@ struct XiaoZhangGuiApp: App {
 
     var body: some Scene {
         WindowGroup {
-            if let container {
+            if Self.isUnitTesting {
+                // 最小测试宿主：无 RootView、无快照、无 Live Activity。
+                Color.clear
+            } else if let container {
                 RootView()
                     .id(demo.sessionID)
                     .modelContainer(demo.isEnabled ? DemoCatalog.container : container)
@@ -58,6 +77,7 @@ struct XiaoZhangGuiApp: App {
             }
         }
         .onChange(of: scenePhase) { _, phase in
+            guard !Self.isUnitTesting else { return }
             guard phase == .active || phase == .background,
                   let container else { return }
             let contextContainer = demo.isEnabled ? DemoCatalog.container : container
