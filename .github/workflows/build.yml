@@ -18,7 +18,7 @@ jobs:
   build:
     name: 小掌柜 Xcode 构建、测试与 IPA
     runs-on: xcode-27
-    timeout-minutes: 60
+    timeout-minutes: 75
     steps:
       - name: 检出源码
         uses: actions/checkout@v4
@@ -102,8 +102,10 @@ jobs:
             CODE_SIGNING_REQUIRED=NO
 
       - name: XCTest
-        timeout-minutes: 40
+        timeout-minutes: 55
         run: |
+          # GitHub 默认 shell 带 -e；整轮重试需要在 xcodebuild 失败后继续，显式关掉 -e。
+          set +e
           set -uo pipefail
           NAME="${{ steps.sim.outputs.name }}"
           # 期望用例总数直接从源码统计，新增 / 删除测试自动跟随，不写死数字。
@@ -133,9 +135,13 @@ jobs:
           # 不用 -retry-tests-on-failure：它在降级宿主上会产生宿主重启级联，
           # 把崩溃前已通过的用例误记为失败。改为整轮重跑：每次全新模拟器，
           # 健康宿主上 200+ 用例仅需数秒。
-          for attempt in 1 2 3; do
-            echo "=== XCTest attempt $attempt/3 ==="
-            reset_sim
+          #
+          # 每轮硬上限 13 分钟；出现“Executed <全部> tests, 0 failures”权威汇总后
+          # 再给 60s 正常收尾，若仍卡在 diagnostics 收集（降级宿主已知 600s 挂起），
+          # 直接结束本轮并判过——真实断言失败时汇总不会是 0 failures。
+          run_attempt() {
+            local attempt="$1" raw="$RUNNER_TEMP/xctest-attempt-$attempt.log"
+            : > "$raw"
             xcodebuild test \
               -project XiaoZhangGui.xcodeproj \
               -scheme XiaoZhangGui \
@@ -143,13 +149,55 @@ jobs:
               -derivedDataPath build/Simulator \
               XZG_WEATHER_API_KEY="${{ secrets.XZG_WEATHER_API_KEY }}" \
               CODE_SIGNING_ALLOWED=NO \
-              CODE_SIGNING_REQUIRED=NO 2>&1 | tee "$LOG"
-            code=${PIPESTATUS[0]}
-            if log_passes_all "$LOG"; then
+              CODE_SIGNING_REQUIRED=NO > "$raw" 2>&1 &
+            local xpid=$!
+            tail -n +1 -f "$raw" &
+            local tailpid=$!
+            local deadline=$(( $(date +%s) + 780 ))
+            local grace=0
+            while kill -0 "$xpid" 2>/dev/null; do
+              local now; now=$(date +%s)
+              if grep -q "Executed $EXPECTED tests, with 0 failures" "$raw" \
+                 && ! grep -Eq 'with [1-9][0-9]* failures' "$raw"; then
+                if [ "$grace" -eq 0 ]; then grace=$(( now + 60 )); fi
+                if [ "$now" -ge "$grace" ]; then
+                  echo "XCTest: $EXPECTED tests / 0 failures 已汇总，xcodebuild 仍在收集 diagnostics，结束本轮并判过"
+                  kill -TERM "$xpid" 2>/dev/null || true
+                  pkill -x xcodebuild 2>/dev/null || true
+                  sleep 5
+                  kill -KILL "$xpid" 2>/dev/null || true
+                  kill "$tailpid" 2>/dev/null || true
+                  cp "$raw" "$LOG"
+                  return 0
+                fi
+              fi
+              if [ "$now" -ge "$deadline" ]; then
+                echo "XCTest attempt $attempt 超过 13 分钟硬上限，终止本轮"
+                kill -TERM "$xpid" 2>/dev/null || true
+                pkill -x xcodebuild 2>/dev/null || true
+                sleep 5
+                kill -KILL "$xpid" 2>/dev/null || true
+                break
+              fi
+              sleep 10
+            done
+            wait "$xpid" 2>/dev/null
+            local code=$?
+            kill "$tailpid" 2>/dev/null || true
+            cp "$raw" "$LOG"
+            if log_passes_all "$LOG"; then return 0; fi
+            return $(( code == 0 ? 1 : code ))
+          }
+
+          for attempt in 1 2 3; do
+            echo "=== XCTest attempt $attempt/3 ==="
+            reset_sim
+            if run_attempt "$attempt"; then
               echo "XCTest PASS（attempt $attempt，$EXPECTED tests / 0 failures）"
               exit 0
             fi
-            echo "attempt $attempt 未全绿（xcodebuild exit=$code），重置模拟器后重试"
+            echo "attempt $attempt 未全绿，重置模拟器后重试"
+            pkill -x xcodebuild 2>/dev/null || true
             sleep 5
           done
 
