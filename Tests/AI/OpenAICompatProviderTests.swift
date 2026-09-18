@@ -255,10 +255,11 @@ final class OpenAICompatProviderTests: XCTestCase {
             settings.primaryBaseURL = previousBaseURL
             settings.primaryModel = previousModel
         }
-        settings.primaryBaseURL = "  https://gateway.example.com/v1  "
+        settings.primaryBaseURL = "https://gateway.example.com/v1"
         settings.primaryModel = "custom-model"
-        // 自定义值原样保留（空白只用于「留空回落」判断，不做截断）
-        XCTAssertTrue(settings.resolvedPrimaryBaseURL.hasPrefix("https://gateway.example.com"))
+        // 非空自定义值必须原样覆盖默认（生产代码仅用 trim 做「留空回落」判断，
+        // 不截断返回值，因此测试输入本身保持干净；端点有效性由 Adapter.validURL 把关）
+        XCTAssertEqual(settings.resolvedPrimaryBaseURL, "https://gateway.example.com/v1")
         XCTAssertEqual(settings.resolvedPrimaryModel, "custom-model")
         XCTAssertNotEqual(settings.resolvedPrimaryBaseURL, AISettings.Defaults.primaryBaseURL)
         XCTAssertNotEqual(settings.resolvedPrimaryModel, AISettings.Defaults.primaryModel)
