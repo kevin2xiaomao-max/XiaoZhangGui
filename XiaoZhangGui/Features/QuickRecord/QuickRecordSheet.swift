@@ -10,6 +10,8 @@ import Observation
 // - 只要 trim 后非空就一定能保存，无法识别的句子由 parser 兜底为「备忘」；
 // - 全程本地规则，不调用远程 AI、不需要 API Key；
 // - 保存仍走各现有 Repository，不新增写入路径。
+// - 监听期间唯一麦克风视觉入口是监听状态卡（头部麦克风整体不渲染），
+//   停止 / 取消都在状态卡内；全程静态样式，无 repeatForever 脉冲动画。
 
 /// 保存闸门：唯一条件是「trim 后非空」。类型识别结果不参与能否保存的判断。
 enum QuickRecordSavePolicy {
@@ -21,7 +23,6 @@ enum QuickRecordSavePolicy {
 struct QuickRecordSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var text = ""
     @State private var parsedDraft: QuickRecordDraft?
@@ -106,7 +107,10 @@ struct QuickRecordSheet: View {
             HStack(alignment: .center) {
                 V32SectionHeader("一句话")
                 Spacer(minLength: 8)
-                micButton
+                // 监听期间头部麦克风按钮整体不渲染：全屏唯一麦克风入口是监听状态卡。
+                if !voice.isListening {
+                    micButton
+                }
             }
             V32Card {
                 TextField("例如：今天美团680", text: $text, axis: .vertical)
@@ -126,39 +130,30 @@ struct QuickRecordSheet: View {
     /// 首页麦克风进入：能初始化系统识别器就直接听；不可用时安静退化为键盘输入。
     private func autoStartListening() {
         guard voice.status == .idle, voice.canUseSpeech else { return }
+        startListening()
+    }
+
+    private func startListening() {
         voice.start { final in
             text = final
         }
     }
 
-    private func toggleVoice() {
-        if voice.isListening {
-            voice.stop()
-        } else {
-            voice.start { final in
-                text = final
-            }
-        }
-    }
-
+    /// 头部麦克风：只在非监听态出现（监听态由 `if !voice.isListening` 整体不渲染）。
+    /// V3.3 静态样式：无 repeatForever 缩放 / 脉冲动画，避免持续跳动与布局抖动。
     private var micButton: some View {
-        Button(action: toggleVoice) {
-            Image(systemName: voice.isListening ? "stop.fill" : "mic.fill")
+        Button(action: startListening) {
+            Image(systemName: "mic.fill")
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(voice.isListening ? .white : V32.brand)
+                .foregroundStyle(V32.brand)
                 .frame(width: 36, height: 36)
                 .background(
                     Circle()
-                        .fill(voice.isListening ? V32.brand : V32.brandSoft)
-                )
-                .scaleEffect(reduceMotion || !voice.isListening ? 1 : 1.06)
-                .animation(
-                    reduceMotion ? nil : V32Motion.softSpring.repeatForever(autoreverses: true),
-                    value: voice.isListening
+                        .fill(V32.brandSoft)
                 )
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(voice.isListening ? "停止语音输入" : "语音说一句")
+        .accessibilityLabel("语音说一句")
     }
 
     private var voiceCard: some View {
@@ -177,7 +172,7 @@ struct QuickRecordSheet: View {
                         .v32Text(.subhead)
                         .foregroundStyle(V32.textPrimary)
                     if voice.isListening {
-                        Text(voice.liveTranscript.isEmpty ? "停顿后会自动结束，也可点方块手动停止" : voice.liveTranscript)
+                        Text(voice.liveTranscript.isEmpty ? "停顿后会自动结束，也可停止或取消" : voice.liveTranscript)
                             .v32Text(.caption)
                             .foregroundStyle(V32.textSecondary)
                             .lineLimit(2)
@@ -185,17 +180,30 @@ struct QuickRecordSheet: View {
                 }
                 Spacer(minLength: 8)
                 if voice.isListening {
-                    Button {
-                        voice.cancel()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(V32.textSecondary)
-                            .frame(width: 32, height: 32)
-                            .background(Circle().fill(V32.neutralSoft))
+                    HStack(spacing: 8) {
+                        Button {
+                            voice.stop()
+                        } label: {
+                            Image(systemName: "stop.fill")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .frame(width: 32, height: 32)
+                                .background(Circle().fill(V32.brand))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("停止语音")
+                        Button {
+                            voice.cancel()
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(V32.textSecondary)
+                                .frame(width: 32, height: 32)
+                                .background(Circle().fill(V32.neutralSoft))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("取消语音")
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("取消语音")
                 }
             }
         }
