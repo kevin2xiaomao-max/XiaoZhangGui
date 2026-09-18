@@ -76,13 +76,17 @@ jobs:
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
           echo "使用模拟器: $NAME"
 
-      - name: 预热并等待模拟器完全启动（规避 CoreDevice lockdown 120s 停滞）
+      - name: 重置并预热模拟器（规避 CoreDevice lockdown / 首帧渲染停滞）
         run: |
           set -euo pipefail
           NAME="${{ steps.sim.outputs.name }}"
+          # 干净数据区：规避持久 runner 上 CoreDevice / 渲染守护进程脏状态导致首帧失败
+          xcrun simctl shutdown all || true
+          xcrun simctl erase "$NAME" || true
           xcrun simctl boot "$NAME" || true
           # -b 阻塞直到模拟器真正启动完成（dataContainer 就绪），超时 180s
           xcrun simctl bootstatus "$NAME" -b -t 180 || true
+          open -a Simulator || true
           xcrun simctl list devices booted
 
       - name: Simulator compile
@@ -98,20 +102,60 @@ jobs:
             CODE_SIGNING_REQUIRED=NO
 
       - name: XCTest
+        timeout-minutes: 40
         run: |
-          set -euo pipefail
-          # xcode-27 预发布模拟器偶发 lockdown 连接停滞 / 宿主重启级联，
-          # 仅对失败用例自动重试一轮（不做全量 -test-iterations，避免健康 runner 上测试翻倍）：
-          # 真实断言失败在重试中仍失败，不会被掩盖。
-          xcodebuild test \
-            -project XiaoZhangGui.xcodeproj \
-            -scheme XiaoZhangGui \
-            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
-            -derivedDataPath build/Simulator \
-            -retry-tests-on-failure \
-            XZG_WEATHER_API_KEY="${{ secrets.XZG_WEATHER_API_KEY }}" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO
+          set -uo pipefail
+          NAME="${{ steps.sim.outputs.name }}"
+          # 期望用例总数直接从源码统计，新增 / 删除测试自动跟随，不写死数字。
+          EXPECTED=$(grep -rEho 'func[[:space:]]+test[A-Za-z0-9_]+' Tests --include='*.swift' | wc -l | tr -d '[:space:]')
+          echo "期望测试用例数: $EXPECTED"
+          test "$EXPECTED" -gt 0
+          LOG="$RUNNER_TEMP/xctest.log"
+
+          reset_sim() {
+            xcrun simctl shutdown all || true
+            xcrun simctl erase "$NAME" || true
+            xcrun simctl boot "$NAME" || true
+            xcrun simctl bootstatus "$NAME" -b -t 180 || true
+            open -a Simulator || true
+          }
+
+          # 判定：全部 EXPECTED 个用例执行且 0 失败才判过。
+          # xcode-27 RC 降级宿主偶发在测试全部通过后收集 diagnostics 卡 600s
+          # 并以 exit 65 结束（零断言失败）；此时以 XCTest 权威汇总为准。
+          # 任何真实断言失败（>0 failures）一律不判过，重试也不会被掩盖。
+          log_passes_all() {
+            grep -Eq '[1-9][0-9]* failures? \(' "$1" && return 1
+            grep -Eq 'with [1-9][0-9]* failures' "$1" && return 1
+            grep -Eq "Executed $EXPECTED tests, with 0 failures" "$1"
+          }
+
+          # 不用 -retry-tests-on-failure：它在降级宿主上会产生宿主重启级联，
+          # 把崩溃前已通过的用例误记为失败。改为整轮重跑：每次全新模拟器，
+          # 健康宿主上 200+ 用例仅需数秒。
+          for attempt in 1 2 3; do
+            echo "=== XCTest attempt $attempt/3 ==="
+            reset_sim
+            xcodebuild test \
+              -project XiaoZhangGui.xcodeproj \
+              -scheme XiaoZhangGui \
+              -destination "platform=iOS Simulator,name=$NAME" \
+              -derivedDataPath build/Simulator \
+              XZG_WEATHER_API_KEY="${{ secrets.XZG_WEATHER_API_KEY }}" \
+              CODE_SIGNING_ALLOWED=NO \
+              CODE_SIGNING_REQUIRED=NO 2>&1 | tee "$LOG"
+            code=${PIPESTATUS[0]}
+            if log_passes_all "$LOG"; then
+              echo "XCTest PASS（attempt $attempt，$EXPECTED tests / 0 failures）"
+              exit 0
+            fi
+            echo "attempt $attempt 未全绿（xcodebuild exit=$code），重置模拟器后重试"
+            sleep 5
+          done
+
+          echo "FAIL: 3 次尝试后 XCTest 仍未全绿"
+          tail -n 150 "$LOG" || true
+          exit 1
 
       - name: iPhone Air 窄屏编译校验（无该设备时回退最接近的 iPhone 旗舰）
         id: aircheck
