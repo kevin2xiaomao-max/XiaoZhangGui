@@ -17,10 +17,18 @@ final class AISettings {
 
     /// V3.3 首版主 Provider：DeepSeek（OpenAI 兼容端点）。
     /// 仅默认值，不承诺任何第三方永久免费；用户可改成任意 OpenAI 兼容端点。
+    ///
+    /// endpoint 拼接（LLMProviderKit OpenAIProvider）：baseURL 上直接追加
+    /// `chat/completions`，因此：
+    /// - 默认 https://api.deepseek.com → https://api.deepseek.com/chat/completions
+    ///   （DeepSeek 官方网关：裸域与 /v1 等价，两种写法都受支持）
+    /// - 用户若自填 https://api.deepseek.com/v1 → .../v1/chat/completions
+    /// 本工程不再自行补 /v1，避免 /v1/v1 重复。
+    /// 模型默认 deepseek-flash（deepseek-chat 自 2026-07-24 起不再作为当前 API 模型名）。
     enum Defaults {
         static let primaryKind = "deepseek"
-        static let primaryBaseURL = "https://api.deepseek.com/v1"
-        static let primaryModel = "deepseek-chat"
+        static let primaryBaseURL = "https://api.deepseek.com"
+        static let primaryModel = "deepseek-flash"
     }
 
     private let ud = UserDefaults.standard

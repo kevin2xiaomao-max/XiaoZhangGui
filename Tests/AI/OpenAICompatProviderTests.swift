@@ -42,7 +42,7 @@ final class OpenAICompatProviderTests: XCTestCase {
         ProviderRequest(
             messages: [AIMessage(role: .user, content: userText)],
             tools: ToolCatalog.definitions(),
-            route: ModelRoute(providerID: "primary-deepseek", model: "deepseek-chat",
+            route: ModelRoute(providerID: "primary-deepseek", model: "deepseek-flash",
                               tier: .freeFirst, isLocalZeroToken: false),
             context: .empty
         )
@@ -59,7 +59,7 @@ final class OpenAICompatProviderTests: XCTestCase {
     }
 
     private func makeProvider(_ chat: ScriptedChatCompletion) -> OpenAICompatProvider {
-        OpenAICompatProvider(id: "test", model: "deepseek-chat", chat: chat)
+        OpenAICompatProvider(id: "test", model: "deepseek-flash", chat: chat)
     }
 
     // MARK: 请求构造
@@ -70,7 +70,7 @@ final class OpenAICompatProviderTests: XCTestCase {
         _ = try? await provider.complete(baseRequest())
         let request = await chat.capturedRequest
         let unwrapped = try XCTUnwrap(request)
-        XCTAssertEqual(unwrapped.model, "deepseek-chat")
+        XCTAssertEqual(unwrapped.model, "deepseek-flash")
         XCTAssertTrue(unwrapped.messages.contains { $0.role == .system })
         XCTAssertTrue(unwrapped.messages.contains { $0.content == "今天美团680" })
         XCTAssertEqual(Set(unwrapped.tools.map(\.name)),
@@ -219,5 +219,92 @@ final class OpenAICompatProviderTests: XCTestCase {
         } catch {
             XCTFail("应抛 AgentError.notConfigured，实际 \(error)")
         }
+    }
+
+    // MARK: DeepSeek 默认配置（2026-09 封版修正）
+    //
+    // 不发真实网络：仅验证默认常量、用户覆盖优先级，以及 baseURL 与
+    // LLMProviderKit「baseURL + chat/completions」拼接契约之间没有 /v1 重复。
+
+    func testDeepSeekDefaultConstants() {
+        XCTAssertEqual(AISettings.Defaults.primaryKind, "deepseek")
+        XCTAssertEqual(AISettings.Defaults.primaryBaseURL, "https://api.deepseek.com")
+        XCTAssertEqual(AISettings.Defaults.primaryModel, "deepseek-flash")
+    }
+
+    func testEmptyUserConfigResolvesToDeepSeekDefaults() {
+        let settings = AISettings()
+        let previousBaseURL = settings.primaryBaseURL
+        let previousModel = settings.primaryModel
+        defer {
+            settings.primaryBaseURL = previousBaseURL
+            settings.primaryModel = previousModel
+        }
+        settings.primaryBaseURL = ""
+        settings.primaryModel = ""
+        XCTAssertEqual(settings.resolvedPrimaryBaseURL, "https://api.deepseek.com")
+        XCTAssertEqual(settings.resolvedPrimaryModel, "deepseek-flash")
+    }
+
+    func testUserCustomBaseURLAndModelOverrideDefaults() {
+        let settings = AISettings()
+        let previousBaseURL = settings.primaryBaseURL
+        let previousModel = settings.primaryModel
+        defer {
+            // 还原 UserDefaults，避免污染同进程其它用例
+            settings.primaryBaseURL = previousBaseURL
+            settings.primaryModel = previousModel
+        }
+        settings.primaryBaseURL = "  https://gateway.example.com/v1  "
+        settings.primaryModel = "custom-model"
+        // 自定义值原样保留（空白只用于「留空回落」判断，不做截断）
+        XCTAssertTrue(settings.resolvedPrimaryBaseURL.hasPrefix("https://gateway.example.com"))
+        XCTAssertEqual(settings.resolvedPrimaryModel, "custom-model")
+        XCTAssertNotEqual(settings.resolvedPrimaryBaseURL, AISettings.Defaults.primaryBaseURL)
+        XCTAssertNotEqual(settings.resolvedPrimaryModel, AISettings.Defaults.primaryModel)
+    }
+
+    /// 复刻 LLMProviderKit OpenAIProvider.prepareRequest 的 URL 拼接契约：
+    /// baseURL.appendingPathComponent("chat").appendingPathComponent("completions")。
+    /// 默认裸域不得出现 /v1/v1 或 chat/chat；用户自填 /v1 时 /v1 只出现一次。
+    func testEndpointCompositionHasNoDuplicatedPath() throws {
+        func endpoint(for base: String) -> URL {
+            try! URL(string: base)!.appendingPathComponent("chat").appendingPathComponent("completions")
+        }
+
+        let defaultURL = endpoint(for: AISettings.Defaults.primaryBaseURL)
+        XCTAssertEqual(defaultURL.absoluteString,
+                       "https://api.deepseek.com/chat/completions")
+        XCTAssertFalse(defaultURL.path.contains("/v1/v1"))
+        XCTAssertFalse(defaultURL.path.contains("chat/chat"))
+
+        let versionedURL = endpoint(for: "https://api.deepseek.com/v1")
+        XCTAssertEqual(versionedURL.absoluteString,
+                       "https://api.deepseek.com/v1/chat/completions")
+        XCTAssertEqual(versionedURL.path.components(separatedBy: "v1").count - 1, 1)
+
+        let customURL = endpoint(for: "https://gateway.example.com/v1")
+        XCTAssertEqual(customURL.absoluteString,
+                       "https://gateway.example.com/v1/chat/completions")
+    }
+
+    func testAdapterBuildsPrimaryFromResolvedDefaultsWithoutKeychain() throws {
+        // 不写真实 Keychain：经凭据注入 seam 给一个假 Key，
+        // 验证 Adapter 用「默认 URL + 默认模型」装配成功且 id 正确。
+        let settings = AISettings()
+        let previousBaseURL = settings.primaryBaseURL
+        let previousModel = settings.primaryModel
+        defer {
+            settings.primaryBaseURL = previousBaseURL
+            settings.primaryModel = previousModel
+        }
+        settings.primaryBaseURL = ""
+        settings.primaryModel = ""
+        let credentials = InMemoryCredentials(primary: "sk-test-not-real", fallback: "")
+        // 注意：这里不能断言 settings.isPrimaryConfigured——该 getter 读真实 Keychain；
+        // Adapter 的 credentials 由 seam 注入，验证默认 URL/model 能完成装配即可。
+        let provider = try XZGAIProviderAdapter.makePrimary(
+            settings: settings, credentials: credentials)
+        XCTAssertEqual(provider.id, "primary-deepseek")
     }
 }

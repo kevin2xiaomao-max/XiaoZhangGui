@@ -1099,6 +1099,7 @@ private struct VoiceSettingsSheet: View {
 
 private struct AboutSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @State private var notesPresented = false
 
     var body: some View {
         ScrollView {
@@ -1108,15 +1109,35 @@ private struct AboutSheet: View {
                 Text("你的小掌柜")
                     .v32Text(.section)
                     .foregroundStyle(V32.textPrimary)
-                Text("v\(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "3.0.2")")
+                Text("v\(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "3.3.0")")
                     .v32Text(.caption)
                     .foregroundStyle(V32.textTertiary)
                 V32Card {
-                    Text("本次更新：UI 精修 · 语音界面紧凑化 · 长列表安全区优化")
-                        .v32Text(.subhead)
-                        .foregroundStyle(V32.textSecondary)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity)
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("本次更新：小掌柜 AI · 短语音记账 · 收款码 · 桌面小组件 2.0")
+                            .v32Text(.subhead)
+                            .foregroundStyle(V32.textSecondary)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Button {
+                            notesPresented = true
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "sparkles")
+                                    .font(.system(size: 14, weight: .semibold))
+                                Text("查看完整更新说明")
+                                    .v32Text(.title)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(V32.textTertiary)
+                            }
+                            .foregroundStyle(V32.brand)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("查看 V3.3 完整更新说明")
+                    }
                 }
                 Spacer(minLength: 8)
                 Button { dismiss() } label: {
@@ -1132,7 +1153,120 @@ private struct AboutSheet: View {
         }
         .scrollIndicators(.hidden)
         .v32PageBackground()
-        .v32Sheet([.height(320)])
+        .v32Sheet([.height(360)])
+        .sheet(isPresented: $notesPresented) {
+            ReleaseNotesSheet()
+        }
+    }
+}
+
+// MARK: - 更新说明（V3.3）
+
+/// App 内完整版本更新说明。内容仅描述用户可感知的功能，
+/// 不放工程术语 / 提交信息；未进入本版本的能力（更大尺寸的桌面小组件、
+/// 长语音、多意图、长期记忆、主动提醒、AI 建临期、改删操作等）一律不写。
+private struct ReleaseNotesSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    private struct NoteSection: Identifiable {
+        let id = UUID()
+        let icon: String
+        let title: String
+        let items: [String]
+    }
+
+    private let sections: [NoteSection] = [
+        NoteSection(icon: "sparkles", title: "小掌柜 AI", items: [
+            "新增「小掌柜」智能助手，可直接用自然语言记录店铺事务",
+            "支持记录营业额、待办、备忘和客户配送",
+            "AI 会先生成确认卡片，确认后再执行，减少误操作",
+            "支持查询今日营业额、今日待办、今日配送、最近备忘和临期商品"
+        ]),
+        NoteSection(icon: "mic.fill", title: "语音更方便", items: [
+            "新增 AI 短语音输入，说一句即可整理成对应店铺事项",
+            "文字与语音使用同一套处理流程",
+            "常见指令优先在本机识别，响应更快，也更节省 AI 调用"
+        ]),
+        NoteSection(icon: "qrcode", title: "全新收款码", items: [
+            "新增微信、支付宝和自定义收款码",
+            "支持从相册添加和自定义名称",
+            "支持全屏展示和左右切换",
+            "展示时自动提高屏幕亮度，退出后自动恢复",
+            "收款码图片仅保存在本机"
+        ]),
+        NoteSection(icon: "square.grid.2x2", title: "桌面小组件 2.0", items: [
+            "Small 小组件支持快速进入「问小掌柜」和语音记录",
+            "Medium 小组件可查看今日营业额和重要事项",
+            "支持从桌面直接完成待办",
+            "优先展示逾期、今日、配送和临期等重点事项"
+        ]),
+        NoteSection(icon: "hand.tap.fill", title: "操作体验优化", items: [
+            "小掌柜入口进一步融入首页和底部导航",
+            "优化 AI 输入、确认卡片、加载状态和语音操作体验",
+            "优化首页与各业务入口之间的跳转",
+            "优化 Widget 与 App 之间的数据同步和快捷操作"
+        ]),
+        NoteSection(icon: "lock.shield.fill", title: "数据与隐私", items: [
+            "AI 仅在需要时读取最少的经营信息",
+            "手机号、地址等敏感内容会做脱敏处理",
+            "普通聊天不会自动携带店铺经营数据",
+            "AI API Key 使用系统安全存储",
+            "增强重复操作保护，避免同一条记录被重复创建"
+        ]),
+        NoteSection(icon: "checkmark.shield.fill", title: "稳定性提升", items: [
+            "优化 iPhone Air 等窄屏设备适配",
+            "优化 App、Widget、快捷操作和深色模式兼容性",
+            "优化启动、数据快照和业务写入稳定性",
+            "修复多项细节问题并提升整体可靠性"
+        ])
+    ]
+
+    var body: some View {
+        V32SheetChrome("更新说明", detents: [.large], doneTitle: "关闭", onDone: { dismiss() }) {
+            V32Card {
+                VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("你的小掌柜 V3.3")
+                            .v32Text(.headline)
+                            .foregroundStyle(V32.textPrimary)
+                        Text("更懂你，也更少操作")
+                            .v32Text(.caption)
+                            .foregroundStyle(V32.textTertiary)
+                    }
+                    ForEach(Array(sections.enumerated()), id: \.element.id) { index, section in
+                        if index > 0 {
+                            Rectangle()
+                                .fill(V32.divider)
+                                .frame(height: 1)
+                        }
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 7) {
+                                Image(systemName: section.icon)
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(V32.brand)
+                                Text(section.title)
+                                    .v32Text(.title)
+                                    .foregroundStyle(V32.textPrimary)
+                            }
+                            VStack(alignment: .leading, spacing: 6) {
+                                ForEach(section.items, id: \.self) { item in
+                                    HStack(alignment: .top, spacing: 8) {
+                                        Image(systemName: "circle.fill")
+                                            .font(.system(size: 4))
+                                            .foregroundStyle(V32.textTertiary)
+                                            .padding(.top, 7)
+                                        Text(item)
+                                            .v32Text(.subhead)
+                                            .foregroundStyle(V32.textSecondary)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
