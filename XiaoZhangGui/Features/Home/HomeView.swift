@@ -73,7 +73,6 @@ struct HomeView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: V32Layout.sectionGap) {
                 header
-                assistantEntry
                 heroCard
                     .modifier(V32HomeEntrance(delay: 0, reduceMotion: reduceMotion))
                 if !topDeliveries.isEmpty {
@@ -128,37 +127,11 @@ struct HomeView: View {
                     .padding(.top, 1)
             }
             Spacer(minLength: 4)
-            toolCircle("square.and.pencil") { showQuickRecord = true }
-                .accessibilityLabel("快速记录")
+            // V3.3 真机 hotfix：右上角固定为「一句话快速记录」（半屏 QuickRecord，
+            // 弹出即听）；与小掌柜对话的唯一入口是底部 Dock 的「小掌柜」。
+            toolCircle("mic.fill") { showQuickRecord = true }
+                .accessibilityLabel("一句话快速记录")
             weatherButton
-        }
-    }
-
-    // MARK: 小掌柜轻入口（只切到 AI Tab，完整 Chat 不塞回首页）
-
-    private var assistantEntry: some View {
-        V32Card(padding: 12) {
-            Button {
-                tab = .assistant
-                Haptic.light()
-            } label: {
-                HStack(spacing: 10) {
-                    V32IconBubble(systemName: "sparkles", tone: .brand, size: 36, icon: 16)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("问小掌柜…")
-                            .v32Text(.headline)
-                            .foregroundStyle(V32.textPrimary)
-                        Text("记营业额、待办、备忘、配送")
-                            .v32Text(.caption)
-                            .foregroundStyle(V32.textTertiary)
-                    }
-                    Spacer(minLength: 0)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(V32.textTertiary)
-                }
-            }
-            .buttonStyle(.plain)
         }
     }
 

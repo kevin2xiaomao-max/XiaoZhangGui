@@ -83,6 +83,10 @@ struct AIChatView: View {
                 voiceOverlay
             }
         }
+        // V3.3 真机 hotfix：短语音面板展示 / 聆听期间隐藏底部 Tab 栏（Dock），
+        // 让面板完整使用底部安全区；取消 / 完成 / 失败关闭后自动恢复。
+        .toolbar(model.showVoicePanel ? .hidden : .visible, for: .tabBar)
+        .animation(V32Motion.standard, value: model.showVoicePanel)
         .onChange(of: voiceDeepLink?.wrappedValue ?? false) { _, triggered in
             if triggered {
                 model.startVoice()
@@ -205,6 +209,8 @@ struct AIChatView: View {
     // MARK: 语音覆盖层
 
     private var voiceOverlay: some View {
+        // 遮罩自身忽略安全区铺满全屏；面板容器不忽略底部安全区，
+        // 按钮避开 Home Indicator（Dock 隐藏后由外层安全区兜底）。
         ZStack(alignment: .bottom) {
             Color.black.opacity(0.28)
                 .ignoresSafeArea()
@@ -218,8 +224,6 @@ struct AIChatView: View {
             )
             .transition(.move(edge: .bottom).combined(with: .opacity))
         }
-        .ignoresSafeArea(.container, edges: .bottom)
-        .animation(V32Motion.standard, value: model.showVoicePanel)
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {

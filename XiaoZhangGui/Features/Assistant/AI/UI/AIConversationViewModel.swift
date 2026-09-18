@@ -19,6 +19,10 @@ final class AIConversationViewModel {
     /// 启动时为 Foundation 预览 Agent；Integration 层在 onAppear 时用 live Agent 替换。
     private(set) var agent: AgentCore
 
+    /// V3.3 真机 hotfix：短语音面板展示 / 聆听期间隐藏底部导航（Dock），
+    /// 面板完整使用底部安全区；取消 / 完成 / 失败关闭后恢复。
+    var isBottomDockHidden: Bool { showVoicePanel }
+
     init(agent: AgentCore? = nil) {
         let core = agent ?? AgentCore(.foundationPreview())
         self.agent = core

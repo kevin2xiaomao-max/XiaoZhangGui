@@ -1,6 +1,6 @@
 import Foundation
 
-enum QuickRecordKind: String, Equatable {
+enum QuickRecordKind: String, Equatable, CaseIterable {
     case performance
     case todo
     case customer
@@ -29,7 +29,7 @@ struct QuickRecordDraft: Equatable {
         case .expiry:
             return "临时商品 · \(title)"
         case .memo:
-            return "记录"
+            return "备忘"
         }
     }
 }
@@ -46,12 +46,27 @@ struct LocalQuickRecordParser: QuickRecordParsing {
         let amount = AmountPhraseParser.parse(trimmed)
         let quantity = QuantityPhraseParser.parse(trimmed)
 
+        // V3.3 真机 hotfix 定稿的分流顺序：
+        // 1) 营业额 → 2) 待办 → 3) 配送 → 4) 临时商品 → 5) 备忘兜底。
+        // 任何规则都识别不了的非空句子一律落「备忘」，保证用户的每一句话都能保存。
         if isPerformance(trimmed, amount: amount) {
             return QuickRecordDraft(
                 kind: .performance,
                 title: "营业额",
                 amount: amount,
                 date: date ?? now,
+                quantity: nil,
+                customer: nil,
+                note: trimmed,
+                raw: trimmed
+            )
+        }
+        if isTodo(trimmed) {
+            return QuickRecordDraft(
+                kind: .todo,
+                title: trimmed,
+                amount: nil,
+                date: date,
                 quantity: nil,
                 customer: nil,
                 note: trimmed,
@@ -82,21 +97,10 @@ struct LocalQuickRecordParser: QuickRecordParsing {
                 raw: trimmed
             )
         }
-        if isMemo(trimmed) {
-            return QuickRecordDraft(
-                kind: .memo,
-                title: String(trimmed.prefix(20)),
-                amount: nil,
-                date: date,
-                quantity: nil,
-                customer: nil,
-                note: trimmed,
-                raw: trimmed
-            )
-        }
+        // 兜底：非空但无法识别（如「卡卡卡卡卡卡」「供应商周五过来」）→ 备忘
         return QuickRecordDraft(
-            kind: .todo,
-            title: trimmed,
+            kind: .memo,
+            title: String(trimmed.prefix(20)),
             amount: nil,
             date: date,
             quantity: nil,
@@ -107,19 +111,39 @@ struct LocalQuickRecordParser: QuickRecordParsing {
     }
 
     private func isPerformance(_ text: String, amount: Double?) -> Bool {
-        amount != nil && ["营业额", "营收", "收入", "卖了", "收款", "入账"].contains(where: text.contains)
+        amount != nil && Self.revenueSignals.contains(where: text.contains)
+    }
+
+    /// 金额 +（营收词 / 收款渠道词）即判定营业额，覆盖「今天美团680」这类口语。
+    private static let revenueSignals = [
+        "营业额", "营收", "收入", "卖了", "收款", "入账", "进账",
+        "美团", "饿了么", "抖音", "团购", "外卖", "收钱吧",
+    ]
+
+    /// 明确的动作 / 待办信号（不含「送」：配送在下一步单独识别）。
+    private static let todoSignals = [
+        "联系", "打电话", "回电", "通话",
+        "买", "进货", "进", "拿货", "提货", "订货", "下单", "补货", "上架",
+        "整理", "打扫", "清理", "盘点", "对账", "核对", "清点",
+        "催", "取货", "取件", "寄", "发货", "送修", "维修", "修一下",
+        "预约", "安装", "搬", "交费", "交班", "带", "办理",
+        "准备", "安排", "检查", "打印", "复印", "报名", "提醒",
+    ]
+
+    private func isTodo(_ text: String) -> Bool {
+        Self.todoSignals.contains(where: text.contains)
     }
 
     private func isCustomer(_ text: String) -> Bool {
-        ["配送", "送货", "送到", "客户"].contains(where: text.contains)
+        if ["配送", "送货", "送到", "客户"].contains(where: text.contains) {
+            return true
+        }
+        // 「给302送…」「给张老板送…」这类房号 / 人称配送口语
+        return text.range(of: #"给[^，。；\s]{0,12}送"#, options: .regularExpression) != nil
     }
 
     private func isExpiry(_ text: String) -> Bool {
         ["退货", "临期", "过期", "到期"].contains(where: text.contains)
-    }
-
-    private func isMemo(_ text: String) -> Bool {
-        ["备忘", "记下", "记录一下"].contains(where: text.contains)
     }
 
     private func customerName(from text: String) -> String? {
@@ -127,7 +151,13 @@ struct LocalQuickRecordParser: QuickRecordParsing {
         for token in ["今天", "明天", "后天", "月底"] {
             cleaned = cleaned.replacingOccurrences(of: token, with: "")
         }
-        if let match = cleaned.range(of: #"([\u4e00-\u9fa5A-Za-z0-9]{1,8})(老板|别墅|房|店)"#, options: .regularExpression) {
+        // 优先：给302送… / 给张老板送…
+        if let regex = try? NSRegularExpression(pattern: #"给\s*([^\s，。；]{1,12}?)\s*送"#),
+           let match = regex.firstMatch(in: cleaned, range: NSRange(cleaned.startIndex..., in: cleaned)),
+           let range = Range(match.range(at: 1), in: cleaned) {
+            return String(cleaned[range])
+        }
+        if let match = cleaned.range(of: #"([一-龥A-Za-z0-9]{1,8})(老板|别墅|房|店)"#, options: .regularExpression) {
             return String(cleaned[match])
         }
         return nil
