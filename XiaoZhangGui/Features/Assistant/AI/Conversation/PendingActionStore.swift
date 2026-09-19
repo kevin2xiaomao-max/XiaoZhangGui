@@ -10,6 +10,9 @@ protocol PendingActionStoring: Sendable {
     func upsert(_ proposal: ActionProposal) async
     func remove(id: UUID) async
     func proposal(id: UUID) async -> ActionProposal?
+    /// 清空全部待确认卡（用户清空对话时调用）；原子持久化。
+    /// 已执行记录的幂等日志不在此处，不受影响。
+    func clear() async
 }
 
 actor InMemoryPendingActionStore: PendingActionStoring {
@@ -25,6 +28,7 @@ actor InMemoryPendingActionStore: PendingActionStoring {
     func upsert(_ proposal: ActionProposal) async { items[proposal.id] = proposal }
     func remove(id: UUID) async { items[id] = nil }
     func proposal(id: UUID) async -> ActionProposal? { items[id] }
+    func clear() async { items.removeAll(keepingCapacity: false) }
 }
 
 actor FilePendingActionStore: PendingActionStoring {
@@ -65,6 +69,11 @@ actor FilePendingActionStore: PendingActionStoring {
         persist()
     }
     func proposal(id: UUID) async -> ActionProposal? { items[id] }
+
+    func clear() async {
+        items.removeAll(keepingCapacity: false)
+        persist()
+    }
 
     private func persist() {
         let list = items.values.sorted { $0.createdAt < $1.createdAt }

@@ -20,12 +20,15 @@ extension OpenAIProvider: XZGChatCompleting {}
 struct OpenAICompatProvider: AIProvider {
     nonisolated let id: String
     let model: String
+    /// 仅用于诊断日志（host，不含 path / Key）
+    private let endpointHost: String
     private let chat: any XZGChatCompleting
 
     /// 正式构造：OpenAI 兼容端点 + Bearer Key。
     init(id: String, baseURL: URL, apiKey: String, model: String) {
         self.id = id
         self.model = model
+        self.endpointHost = baseURL.host ?? "unknown"
         self.chat = OpenAIProvider(configuration: LLMProviderConfiguration(
             name: id,
             baseURL: baseURL,
@@ -38,6 +41,7 @@ struct OpenAICompatProvider: AIProvider {
     init(id: String, model: String, chat: any XZGChatCompleting) {
         self.id = id
         self.model = model
+        self.endpointHost = "test"
         self.chat = chat
     }
 
@@ -47,11 +51,44 @@ struct OpenAICompatProvider: AIProvider {
         do {
             response = try await chat.complete(llmRequest)
         } catch let error as LLMError {
-            throw Self.mapError(error)
+            let failure = Self.mapError(error)
+            Self.log(failure, providerID: id, host: endpointHost, model: model)
+            throw failure
+        } catch let urlError as URLError {
+            let failure = Self.mapURLError(urlError)
+            Self.log(failure, providerID: id, host: endpointHost, model: model)
+            throw failure
         } catch {
-            throw ProviderFailure.network(error.localizedDescription)
+            let failure = ProviderFailure.network(error.localizedDescription)
+            Self.log(failure, providerID: id, host: endpointHost, model: model)
+            throw failure
         }
         return try Self.mapResponse(response)
+    }
+
+    private static func log(_ failure: ProviderFailure, providerID: String, host: String, model: String) {
+        switch failure {
+        case .http(let status, _):
+            AILog.providerFailed(providerID: providerID, host: host, model: model,
+                                 status: status, reason: "http")
+        case .timeout:
+            AILog.providerFailed(providerID: providerID, host: host, model: model,
+                                 status: nil, reason: "timeout")
+        case .offline:
+            AILog.providerFailed(providerID: providerID, host: host, model: model,
+                                 status: nil, reason: "offline")
+        case .network:
+            AILog.providerFailed(providerID: providerID, host: host, model: model,
+                                 status: nil, reason: "network")
+        case .decoding:
+            AILog.providerFailed(providerID: providerID, host: host, model: model,
+                                 status: nil, reason: "decoding")
+        case .cancelled:
+            break
+        case .other:
+            AILog.providerFailed(providerID: providerID, host: host, model: model,
+                                 status: nil, reason: "other")
+        }
     }
 
     // MARK: 请求构造（纯函数，可单测）
@@ -168,12 +205,31 @@ struct OpenAICompatProvider: AIProvider {
             if lower.contains("timed out") || lower.contains("timeout") || message.contains("超时") {
                 return .timeout
             }
+            if lower.contains("offline") || lower.contains("not connected")
+                || lower.contains("no internet") || message.contains("没有网络") {
+                return .offline
+            }
             return .network(message)
         case .invalidResponse(let reason), .streamingError(let reason):
             return .decoding(reason)
         case .invalidRequest(let reason), .providerError(let reason),
              .unsupportedOperation(let reason), .unknownProvider(let reason):
             return .other(reason)
+        }
+    }
+
+    /// URLError 细分：无网络 / 超时 / 连不上主机，给出可自救的中文分类。
+    static func mapURLError(_ error: URLError) -> ProviderFailure {
+        switch error.code {
+        case .timedOut:
+            return .timeout
+        case .notConnectedToInternet, .networkConnectionLost:
+            return .offline
+        case .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed,
+             .dataNotAllowed, .internationalRoamingOff:
+            return .offline
+        default:
+            return .network(error.localizedDescription)
         }
     }
 

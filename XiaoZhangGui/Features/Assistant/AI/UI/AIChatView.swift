@@ -11,6 +11,7 @@ struct AIChatView: View {
 
     @State private var model = AIConversationViewModel()
     @State private var showSettings = false
+    @State private var showClearConfirm = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let examples = [
@@ -29,17 +30,32 @@ struct AIChatView: View {
                             V32PageHeader("小掌柜", subtitle: "说句话，帮你记账、派单、备忘") {
                                 HStack(spacing: 8) {
                                     V32StatusPill(
-                                        text: model.isRemoteConfigured ? "正式版" : "未配置",
-                                        status: model.isRemoteConfigured ? .delivering : .expiry)
-                                    Button {
-                                        showSettings = true
+                                        text: model.isRemoteConfigured ? "Key 已保存" : "未配置",
+                                        status: model.isRemoteConfigured ? .pending : .expiry)
+                                    Menu {
+                                        Button {
+                                            showClearConfirm = true
+                                        } label: {
+                                            Label("新对话", systemImage: "square.and.pencil")
+                                        }
+                                        Button(role: .destructive) {
+                                            showClearConfirm = true
+                                        } label: {
+                                            Label("清空当前对话", systemImage: "trash")
+                                        }
+                                        Divider()
+                                        Button {
+                                            showSettings = true
+                                        } label: {
+                                            Label("AI 设置", systemImage: "gearshape")
+                                        }
                                     } label: {
-                                        Image(systemName: "gearshape")
-                                            .font(.system(size: 16, weight: .medium))
+                                        Image(systemName: "ellipsis.circle")
+                                            .font(.system(size: 18, weight: .medium))
                                             .foregroundStyle(V32.textSecondary)
                                     }
                                     .buttonStyle(.plain)
-                                    .accessibilityLabel("AI 设置")
+                                    .accessibilityLabel("对话菜单")
                                 }
                             }
                             if model.messages.isEmpty {
@@ -96,6 +112,12 @@ struct AIChatView: View {
         }
         .sheet(isPresented: $showSettings) {
             AIProviderSettingsSheet()
+        }
+        .alert("清空此对话？", isPresented: $showClearConfirm) {
+            Button("取消", role: .cancel) {}
+            Button("清空", role: .destructive) { model.clearConversation() }
+        } message: {
+            Text("只删除聊天记录，不会删除已经保存的营业额、待办、备忘或配送记录。")
         }
     }
 

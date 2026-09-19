@@ -1,18 +1,19 @@
 import SwiftUI
 
-// MARK: - V3.3 Lite · AI Provider 设置页
+// MARK: - V3.3 AI REAL · AI Provider 设置页
 //
-// - 非敏感配置（端点 / 模型 / 档位）存 UserDefaults（经 AISettings）；
-// - API Key 只写 Keychain，输入框不回显已存 Key，只显示「已配置 / 未配置」；
-// - 保存后通知 Chat 页重新装配 live Agent；
-// - 不配置 Key 也能使用本地 0-token 能力（四范例记账 / 四类经营问答）。
+// - 所有编辑先写入内存 AISettingsDraft：保存才 commit（trim 后落盘），取消整体丢弃；
+// - DeepSeek 主 Provider 模型只能通过 Picker 选择（Flash / V4 Pro），不接受手填模型 ID；
+// - 「测试连接」对真实端点发一次最小请求，只有真实成功才显示绿色「连接成功」；
+// - API Key 只写 Keychain，输入框不回显已存 Key；
+// - 自定义 OpenAI-Compatible Provider 放在「高级 / 自定义 Provider」，不混入 DeepSeek 默认流程。
 
 struct AIProviderSettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @Bindable private var settings = AISettings.shared
 
-    @State private var primaryKeyInput = ""
-    @State private var fallbackKeyInput = ""
+    /// 打开即复制当前设置；不 commit 就绝不落盘
+    @State private var draft = AISettingsDraft(settings: .shared)
+    @State private var tester = ProviderConnectionTester(initial: .unverified)
 
     var body: some View {
         NavigationStack {
@@ -20,7 +21,7 @@ struct AIProviderSettingsSheet: View {
                 VStack(alignment: .leading, spacing: 14) {
                     tierCard
                     primaryCard
-                    fallbackCard
+                    advancedCard
                     privacyNote
                 }
                 .padding(.horizontal, V32Layout.pageMargin)
@@ -38,6 +39,9 @@ struct AIProviderSettingsSheet: View {
                         .fontWeight(.semibold)
                 }
             }
+            .onAppear {
+                tester.synchronize(hasEffectiveKey: !effectivePrimaryKey.isEmpty)
+            }
         }
     }
 
@@ -47,7 +51,7 @@ struct AIProviderSettingsSheet: View {
         V32Card {
             VStack(alignment: .leading, spacing: 10) {
                 Text("模型策略").v32Text(.section).foregroundStyle(V32.textPrimary)
-                Picker("模型策略", selection: $settings.tier) {
+                Picker("模型策略", selection: $draft.tier) {
                     Text("免费优先").tag(ModelTier.freeFirst)
                     Text("自动").tag(ModelTier.auto)
                     Text("高质量").tag(ModelTier.highQuality)
@@ -60,77 +64,118 @@ struct AIProviderSettingsSheet: View {
         }
     }
 
-    // MARK: 主 Provider
+    // MARK: 主 Provider（DeepSeek）
 
     private var primaryCard: some View {
         V32Card {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
-                    Text("主 Provider（DeepSeek 兼容）").v32Text(.section).foregroundStyle(V32.textPrimary)
+                    Text("DeepSeek").v32Text(.section).foregroundStyle(V32.textPrimary)
                     Spacer()
-                    V32StatusPill(
-                        text: settings.isPrimaryConfigured ? "已配置" : "未配置",
-                        status: settings.isPrimaryConfigured ? .delivering : .expiry)
+                    V32StatusPill(text: tester.status.text, status: connectionPillStatus)
                 }
-                label("服务地址（留空用 DeepSeek 官方）")
-                TextField(AISettings.Defaults.primaryBaseURL, text: $settings.primaryBaseURL)
+                label("服务地址（默认 DeepSeek 官方，一般无需修改）")
+                TextField(AISettings.Defaults.primaryBaseURL, text: $draft.primaryBaseURL)
                     .textFieldStyle(.roundedBorder)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-                label("模型（留空用 \(AISettings.Defaults.primaryModel)）")
-                TextField(AISettings.Defaults.primaryModel, text: $settings.primaryModel)
-                    .textFieldStyle(.roundedBorder)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
+                    .onChange(of: draft.primaryBaseURL) { _, _ in tester.reset(to: hasSavedKeyState) }
+
+                label("模型")
+                Picker(selection: $draft.primaryModel) {
+                    ForEach(DeepSeekModel.allCases, id: \.self) { model in
+                        Text(model.displayName).tag(model)
+                    }
+                } label: {
+                    HStack {
+                        Text(draft.primaryModel.displayName)
+                            .v32Text(.body)
+                            .foregroundStyle(V32.textPrimary)
+                        Spacer()
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(V32.textTertiary)
+                    }
+                }
+                .pickerStyle(.menu)
+                .onChange(of: draft.primaryModel) { _, _ in tester.reset(to: hasSavedKeyState) }
+
                 label("API Key（仅存本机 Keychain，不回显）")
-                SecureField("粘贴 API Key", text: $primaryKeyInput)
+                SecureField(draft.primaryKeySaved && !draft.clearPrimaryKeyRequested
+                            ? "已保存，如需更换请粘贴新 Key" : "粘贴 API Key",
+                            text: $draft.stagedPrimaryKey)
                     .textFieldStyle(.roundedBorder)
-                if settings.isPrimaryConfigured {
-                    Button(role: .destructive) {
-                        settings.primaryAPIKey = ""
+                    .onChange(of: draft.stagedPrimaryKey) { _, _ in
+                        if !draft.stagedPrimaryKey.isEmpty { draft.clearPrimaryKeyRequested = false }
+                        tester.synchronize(hasEffectiveKey: !effectivePrimaryKey.isEmpty)
+                    }
+                if draft.primaryKeySaved {
+                    Button(role: draft.clearPrimaryKeyRequested ? nil : .destructive) {
+                        draft.clearPrimaryKeyRequested.toggle()
+                        if draft.clearPrimaryKeyRequested { draft.stagedPrimaryKey = "" }
+                        tester.synchronize(hasEffectiveKey: !effectivePrimaryKey.isEmpty)
                     } label: {
-                        Text("清除已保存的 Key").v32Text(.caption)
+                        Text(draft.clearPrimaryKeyRequested ? "保留已保存的 Key" : "清除已保存的 Key")
+                            .v32Text(.caption)
                     }
                     .buttonStyle(.plain)
                 }
+
+                Button {
+                    testConnection()
+                } label: {
+                    HStack(spacing: 6) {
+                        if case .testing = tester.status {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Image(systemName: "antenna.radiowaves.left.and.right")
+                        }
+                        Text("测试连接").v32Text(.subhead)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isTesting || effectivePrimaryKey.isEmpty)
+                .accessibilityHint("真实调用 DeepSeek 验证 Key、模型与服务地址")
+
+                Text("只有测试通过显示「连接成功」后，才代表 API 可以正常使用。")
+                    .v32Text(.caption)
+                    .foregroundStyle(V32.textTertiary)
             }
         }
     }
 
-    // MARK: Fallback
+    // MARK: 高级 / 自定义 Provider（备用 fallback）
 
-    private var fallbackCard: some View {
+    private var advancedCard: some View {
         V32Card {
             VStack(alignment: .leading, spacing: 10) {
-                Text("备用 Provider（可选）").v32Text(.section).foregroundStyle(V32.textPrimary)
-                Text("主 Provider 网络失败 / 超时 / 限流时自动切换一次；三项都填才启用。")
+                Text("高级 / 自定义 Provider（可选）").v32Text(.section).foregroundStyle(V32.textPrimary)
+                Text("任意 OpenAI 兼容端点；主 Provider 网络失败 / 超时 / 限流时自动切换一次，三项都填才启用。")
                     .v32Text(.caption).foregroundStyle(V32.textSecondary)
                 label("服务地址")
-                TextField("https://api.example.com/v1", text: $settings.fallbackBaseURL)
+                TextField("https://api.example.com/v1", text: $draft.fallbackBaseURL)
                     .textFieldStyle(.roundedBorder)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                 label("模型")
-                TextField("模型名", text: $settings.fallbackModel)
+                TextField("模型名", text: $draft.fallbackModel)
                     .textFieldStyle(.roundedBorder)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                 label("API Key（仅存 Keychain）")
-                SecureField("粘贴备用 API Key", text: $fallbackKeyInput)
+                SecureField("粘贴自定义 Provider API Key", text: $draft.stagedFallbackKey)
                     .textFieldStyle(.roundedBorder)
-                HStack {
-                    V32StatusPill(
-                        text: settings.isFallbackConfigured ? "已启用" : "未启用",
-                        status: settings.isFallbackConfigured ? .delivering : .pending)
-                    Spacer()
-                    if settings.isFallbackConfigured {
-                        Button(role: .destructive) {
-                            settings.fallbackAPIKey = ""
-                        } label: {
-                            Text("清除备用 Key").v32Text(.caption)
-                        }
-                        .buttonStyle(.plain)
+                if draft.fallbackKeySaved {
+                    Button(role: draft.clearFallbackKeyRequested ? nil : .destructive) {
+                        draft.clearFallbackKeyRequested.toggle()
+                        if draft.clearFallbackKeyRequested { draft.stagedFallbackKey = "" }
+                    } label: {
+                        Text(draft.clearFallbackKeyRequested ? "保留已保存的备用 Key" : "清除备用 Key")
+                            .v32Text(.caption)
                     }
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -153,14 +198,58 @@ struct AIProviderSettingsSheet: View {
             .foregroundStyle(V32.textSecondary)
     }
 
-    // MARK: 保存
+    // MARK: 连接状态 / 测试
+
+    private var isTesting: Bool {
+        if case .testing = tester.status { return true }
+        return false
+    }
+
+    private var connectionPillStatus: V32Status {
+        switch tester.status {
+        case .success: return .delivering
+        case .testing: return .info
+        case .unverified: return .pending
+        case .notConfigured: return .expiry
+        case .failure: return .expiry
+        }
+    }
+
+    /// 配置变更后回到「Key 已保存 / 未配置」基础态（不抹掉正在进行的测试）
+    private var hasSavedKeyState: ProviderConnectionStatus {
+        effectivePrimaryKey.isEmpty ? .notConfigured : .unverified
+    }
+
+    private var effectivePrimaryKey: String {
+        let staged = draft.stagedPrimaryKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !staged.isEmpty { return staged }
+        if draft.clearPrimaryKeyRequested { return "" }
+        return AISettings.shared.primaryAPIKey
+    }
+
+    private func testConnection() {
+        let key = effectivePrimaryKey
+        let urlText = draft.primaryBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let baseURLText = urlText.isEmpty ? AISettings.Defaults.primaryBaseURL : urlText
+        let model = draft.primaryModel.rawValue
+        guard !key.isEmpty, let url = URL(string: baseURLText),
+              url.scheme == "https" || url.scheme == "http" else {
+            tester.reset(to: .notConfigured)
+            return
+        }
+        do {
+            let provider = try XZGAIProviderAdapter.makePrimary(
+                baseURL: url, apiKey: key, model: model)
+            Task { await tester.test(provider, model: model) }
+        } catch {
+            tester.reset(to: .notConfigured)
+        }
+    }
+
+    // MARK: 保存（唯一落盘点；取消不触发本方法）
 
     private func save() {
-        let primary = primaryKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !primary.isEmpty { settings.primaryAPIKey = primary }
-        let fallback = fallbackKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !fallback.isEmpty { settings.fallbackAPIKey = fallback }
-        // 非敏感字段经 @Bindable 已实时写入 UserDefaults
+        draft.commit(to: .shared)
         NotificationCenter.default.post(name: .aiProviderConfigChanged, object: nil)
         dismiss()
     }

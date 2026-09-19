@@ -24,6 +24,10 @@ protocol ConversationStoring: Sendable {
     /// 追加一条消息并返回最新会话
     @discardableResult
     func append(_ message: AIMessage) async -> Conversation
+    /// 清空当前对话：消息清零、更新时间、原子持久化；重启后仍为空。
+    /// 只动聊天记录，绝不触碰业务数据库 / 执行日志。
+    @discardableResult
+    func clearConversation() async -> Conversation
 }
 
 actor InMemoryConversationStore: ConversationStoring {
@@ -41,6 +45,13 @@ actor InMemoryConversationStore: ConversationStoring {
 
     func append(_ message: AIMessage) async -> Conversation {
         conversation.messages.append(message)
+        conversation.updatedAt = .now
+        return conversation
+    }
+
+    @discardableResult
+    func clearConversation() async -> Conversation {
+        conversation.messages.removeAll(keepingCapacity: false)
         conversation.updatedAt = .now
         return conversation
     }
@@ -79,6 +90,15 @@ actor FileConversationStore: ConversationStoring {
 
     func append(_ message: AIMessage) async -> Conversation {
         conversation.messages.append(message)
+        conversation.updatedAt = .now
+        persist()
+        return conversation
+    }
+
+    /// 清空并原子写回：先更新内存状态，encode 成功才落盘（.atomic 保证不破坏文件）。
+    @discardableResult
+    func clearConversation() async -> Conversation {
+        conversation.messages.removeAll(keepingCapacity: false)
         conversation.updatedAt = .now
         persist()
         return conversation
