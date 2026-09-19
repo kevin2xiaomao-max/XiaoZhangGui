@@ -210,6 +210,29 @@ final class AgentCore {
         // P0-5：仅当挂着未确认卡片时才识别纠正话术（避免普通否定句误伤）。
         // 命中后：旧 pending 全部立即取消 → 剥掉纠正话术 → 按（可能被点名的）新类型重走。
         let activePending = await env.pending.pending()
+
+        if activePending.count == 1, var proposal = activePending.first,
+           let fieldCorrection = PendingFieldCorrectionParser.parse(text, current: proposal.call.arguments) {
+            switch fieldCorrection {
+            case .cancel:
+                proposal.status = .cancelled
+                await env.pending.upsert(proposal)
+                let reply = try await appendAssistant("好的，刚才那条已取消。", userMessage: userMessage)
+                return AgentTurnResult(userMessage: reply.userMessage, assistantMessage: reply.assistantMessage,
+                                       proposal: nil, cancelledProposalIDs: [proposal.id])
+            case .followUp(let question):
+                return try await appendAssistant(question, userMessage: userMessage)
+            case .update(let arguments, let message):
+                proposal.call = ToolCall(id: ToolCall.makeID(), name: arguments.toolName, arguments: arguments)
+                proposal.status = .pending
+                proposal.resultText = nil
+                await env.pending.upsert(proposal)
+                let assistant = AIMessage(role: .assistant, content: message, proposalID: proposal.id)
+                await env.conversation.append(assistant)
+                return AgentTurnResult(userMessage: userMessage, assistantMessage: assistant, proposal: proposal)
+            }
+        }
+
         let correction = activePending.isEmpty ? nil : CorrectionParser.detect(text)
 
         if let correction {

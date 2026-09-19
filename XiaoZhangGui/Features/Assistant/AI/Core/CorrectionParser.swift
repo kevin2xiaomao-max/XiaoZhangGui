@@ -117,6 +117,70 @@ enum CorrectionParser {
     }
 }
 
+enum PendingFieldCorrection: Equatable, Sendable {
+    case update(ToolArguments, String)
+    case cancel
+    case followUp(String)
+}
+
+/// 对单个待确认 ActionCard 做字段级修正；不重新解析整条业务记录，也不触碰数据库。
+enum PendingFieldCorrectionParser {
+    private static let sources = ["美团", "饿了么", "微信", "支付宝", "现金", "扫呗", "抖音", "快手"]
+    private static let numberRegex = try? NSRegularExpression(pattern: #"\d+(?:\.\d+)?"#)
+
+    static func parse(_ raw: String, current: ToolArguments, now: Date = .now) -> PendingFieldCorrection? {
+        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if ["取消刚才那个", "取消刚才的", "刚才那个取消", "不要了", "取消这条"].contains(where: text.contains) {
+            return .cancel
+        }
+
+        switch current {
+        case .recordRevenue(var value):
+            if text.contains("金额"), lastNumber(in: text) == nil {
+                return .followUp("金额要改成多少？")
+            }
+            if text.contains("不是") || text.contains("金额") || text.contains("改成") || text.contains("改为") {
+                if let amount = lastNumber(in: text), amount > 0 {
+                    value.amount = amount
+                    return .update(.recordRevenue(value), "金额已改为 ¥\(money(amount))，请确认。")
+                }
+            }
+            if text.contains("来源"), let source = sources.first(where: text.contains) {
+                value.source = source
+                return .update(.recordRevenue(value), "来源已改为\(source)，请确认。")
+            }
+        case .createTodo(var value):
+            if text.contains("改") || text.contains("刚才") {
+                switch DatePhraseParser.resolve(text, now: now) {
+                case .some(.date(let date)):
+                    value.dueDate = date
+                    return .update(.createTodo(value), "待办时间已更新，请确认。")
+                case .some(.ambiguousClock(let token)):
+                    return .followUp("你说的「\(token)」是凌晨还是下午？请补充时段。")
+                case .none:
+                    if text.contains("时间") || text.contains("日期") {
+                        return .followUp("要改成什么时间？")
+                    }
+                }
+            }
+        case .createMemo, .createDelivery, .searchRecords:
+            break
+        }
+        return nil
+    }
+
+    private static func lastNumber(in text: String) -> Double? {
+        guard let regex = numberRegex else { return nil }
+        let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+        guard let match = matches.last, let range = Range(match.range, in: text) else { return nil }
+        return Double(text[range])
+    }
+
+    private static func money(_ value: Double) -> String {
+        String(format: value.rounded() == value ? "%.0f" : "%.2f", value)
+    }
+}
+
 // MARK: - V3.3 P0-6 · 客户订单「未收款」语义检测
 //
 // 当前 CustomerRequest 模型没有收款状态字段（详见最终报告的 schema 方案）。
