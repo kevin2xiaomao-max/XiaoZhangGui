@@ -8,12 +8,12 @@ enum GoodsLookupResult: Equatable, Sendable {
 
 enum GoodsLookupSkill {
     static func lookup(_ query: String, in goods: [GoodsSummary]) -> GoodsLookupResult {
-        let matches = goods.filter { matches(query: query, goodsName: $0.name) }
-        guard !matches.isEmpty else {
+        let matchedGoods = goods.filter { matchesGoods(query: query, goodsName: $0.name) }
+        guard !matchedGoods.isEmpty else {
             return .notFound("暂时没找到相关商品，你可以先在货品里建档。")
         }
-        guard matches.count == 1, let item = matches.first else {
-            return .clarify(matches.map(\.name))
+        guard matchedGoods.count == 1, let item = matchedGoods.first else {
+            return .clarify(matchedGoods.map(\.name))
         }
 
         let asksPurchase = query.contains("进价")
@@ -48,7 +48,7 @@ enum GoodsLookupSkill {
 
     /// 轻量本地匹配：先移除查询意图词，再用剩余商品词匹配完整名或前缀/简称。
     /// 不调用模型，也不把完整 Goods 对象带出本地上下文。
-    static func matches(query: String, goodsName: String) -> Bool {
+    static func matchesGoods(query: String, goodsName: String) -> Bool {
         let name = normalize(goodsName)
         guard !name.isEmpty else { return false }
         return queryTerms(query).contains { term in

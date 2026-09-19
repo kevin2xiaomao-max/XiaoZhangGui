@@ -31,7 +31,7 @@ final class RepositoryBusinessContextReader: BusinessContextProviding {
         let normalized = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty, let rows = try? context.fetch(FetchDescriptor<Goods>()) else { return [] }
         return rows
-            .filter { GoodsLookupSkill.matches(query: normalized, goodsName: $0.name) }
+            .filter { GoodsLookupSkill.matchesGoods(query: normalized, goodsName: $0.name) }
             .map { GoodsSummary(name: $0.name, purchasePrice: $0.purchasePrice, salePrice: $0.salePrice, stock: $0.stock, minStock: $0.minStock) }
     }
 
