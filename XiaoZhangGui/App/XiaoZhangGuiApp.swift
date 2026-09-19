@@ -31,6 +31,20 @@ struct XiaoZhangGuiApp: App {
             databaseError = nil
             return
         }
+        #if DEBUG
+        if UITestMode.isEnabled {
+            do {
+                let testContainer = try AppDatabase.makeInMemoryContainer()
+                UITestSeed.seed(ModelContext(testContainer))
+                container = testContainer
+                databaseError = nil
+            } catch {
+                container = nil
+                databaseError = error
+            }
+            return
+        }
+        #endif
         // V3.3 Lite Payment QR：全屏收款码若在上次异常终止时遗留「亮度提升中」标记，
         // 启动即恢复合理亮度并清标记（正常退出/后台恢复在 PaymentCodeFullScreenView 内处理）。
         PaymentCodeBrightnessGuard.applyStartupRecovery()

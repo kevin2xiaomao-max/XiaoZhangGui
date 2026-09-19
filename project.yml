@@ -96,6 +96,7 @@ targets:
     sources:
       - path: Tests
         excludes:
+          - "UITests/**"
           - "**/*.ps1"
           - "**/*.json"
           - "**/*.md"
@@ -118,3 +119,14 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/XiaoZhangGui.app/XiaoZhangGui"
         BUNDLE_LOADER: "$(TEST_HOST)"
+  XiaoZhangGuiUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: Tests/UITests
+    dependencies:
+      - target: XiaoZhangGui
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.xiaozhanggui.ios.uitests
+        TEST_TARGET_NAME: XiaoZhangGui

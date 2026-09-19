@@ -16,9 +16,10 @@ enum AIAssembly {
         context: ModelContext,
         settings: AISettings = .shared
     ) throws -> AgentCore {
-        let journal = FileExecutionJournal()
-        let pending = FilePendingActionStore()
-        let conversation = FileConversationStore()
+        let directory = UITestMode.isEnabled ? UITestMode.storageDirectory : nil
+        let journal = FileExecutionJournal(directory: directory)
+        let pending = FilePendingActionStore(directory: directory)
+        let conversation = FileConversationStore(directory: directory)
 
         let primary: any AIProvider
         if settings.isPrimaryConfigured,

@@ -39,6 +39,7 @@ struct ChatInputBar: View {
                         )
                 )
                 .onSubmit(onSend)
+                .accessibilityIdentifier("ai.input")
 
             Button(action: onSend) {
                 Image(systemName: "arrow.up")
@@ -52,6 +53,7 @@ struct ChatInputBar: View {
             .buttonStyle(.plain)
             .disabled(!canSend)
             .accessibilityLabel("发送")
+            .accessibilityIdentifier("ai.send")
         }
         .padding(.horizontal, V32Layout.pageMargin)
         .padding(.top, 8)

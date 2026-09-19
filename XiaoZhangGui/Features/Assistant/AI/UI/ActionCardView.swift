@@ -30,6 +30,7 @@ struct ActionCardView: View {
         .transition(.opacity.combined(with: reduceMotion ? .identity : .move(edge: .bottom)))
         .animation(V32Motion.standard, value: proposal.status)
         .animation(V32Motion.standard, value: proposal.previewAcknowledged)
+        .accessibilityIdentifier("ai.action-card")
     }
 
     private var header: some View {
@@ -107,6 +108,7 @@ struct ActionCardView: View {
             }
             .disabled(resolved)
             .opacity(resolved ? 0.55 : 1)
+            .accessibilityIdentifier("ai.action-card.confirm")
 
             HStack(spacing: 10) {
                 V32SecondaryButton(title: "修改", systemName: "pencil") { onModify() }

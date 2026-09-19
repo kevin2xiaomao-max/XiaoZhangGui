@@ -56,6 +56,7 @@ struct AIChatView: View {
                                     }
                                     .buttonStyle(.plain)
                                     .accessibilityLabel("对话菜单")
+                                    .accessibilityIdentifier("ai.menu")
                                 }
                             }
                             if model.messages.isEmpty {
@@ -225,6 +226,7 @@ struct AIChatView: View {
                     )
             )
             .frame(maxWidth: 320, alignment: .leading)
+            .accessibilityIdentifier(message.role == .assistant ? "ai.message.assistant" : "ai.message.user")
         }
     }
 
