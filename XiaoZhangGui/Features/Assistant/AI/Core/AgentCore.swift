@@ -45,7 +45,35 @@ struct AgentEnvironment: Sendable {
     let pending: any PendingActionStoring
     let gate: WriteGate
     let tier: ModelTier
-    let weatherService: WeatherService? = nil
+    let weatherService: WeatherService?
+
+    init(
+        provider: any AIProvider,
+        intentRouter: IntentRouter,
+        modelRouter: any ModelRouting,
+        contextProvider: any BusinessContextProviding,
+        redactor: ContextRedactor,
+        toolExecutor: any ToolExecuting,
+        journal: any ExecutionJournaling,
+        conversation: any ConversationStoring,
+        pending: any PendingActionStoring,
+        gate: WriteGate,
+        tier: ModelTier,
+        weatherService: WeatherService? = nil
+    ) {
+        self.provider = provider
+        self.intentRouter = intentRouter
+        self.modelRouter = modelRouter
+        self.contextProvider = contextProvider
+        self.redactor = redactor
+        self.toolExecutor = toolExecutor
+        self.journal = journal
+        self.conversation = conversation
+        self.pending = pending
+        self.gate = gate
+        self.tier = tier
+        self.weatherService = weatherService
+    }
 
     // MARK: Foundation 预览装配（全 Mock + 预览执行器，不写业务库）
 
