@@ -288,7 +288,7 @@ final class AgentCore {
             let original = cloudMessages[lastUserIndex]
             cloudMessages[lastUserIndex] = AIMessage(
                 role: .user, content: workingText,
-                isError: original.isError, proposalID: original.proposalID)
+                proposalID: original.proposalID, isError: original.isError)
         }
         let request = ProviderRequest(messages: cloudMessages, tools: toolDefinitions, route: route, context: .empty)
 
