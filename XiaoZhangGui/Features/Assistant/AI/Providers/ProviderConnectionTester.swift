@@ -57,7 +57,8 @@ final class ProviderConnectionTester {
 
     /// 用给定 Provider 发一次最小请求验证连通性。
     /// - 任何错误都经 UserFacingAIError 转中文；不向上抛。
-    func test(_ provider: any AIProvider, model: String) async {
+    /// - 默认用当前默认模型；设置页会显式传入用户选择的模型。
+    func test(_ provider: any AIProvider, model: String = AISettings.Defaults.primaryModel) async {
         status = .testing
         let request = ProviderRequest(
             messages: [AIMessage(role: .user, content: "ping")],
