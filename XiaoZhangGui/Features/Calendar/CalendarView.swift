@@ -5,6 +5,7 @@ import SwiftData
 // 聚合 营业额/待办/临期/客户需求；派生层 CalendarAgenda 零改动
 
 struct CalendarView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query private var todos: [Todo]
     @Query private var performances: [Performance]
     @Query private var expenses: [Expense]
@@ -60,7 +61,9 @@ struct CalendarView: View {
     private var monthNavigator: some View {
         HStack {
             monthButton("chevron.left") {
-                currentMonth = calendar.date(byAdding: .month, value: -1, to: currentMonth) ?? currentMonth
+                withAnimation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion))) {
+                    currentMonth = calendar.date(byAdding: .month, value: -1, to: currentMonth) ?? currentMonth
+                }
             }
             Spacer()
             Text(currentMonth, format: .dateTime.year().month(.wide).locale(Locale(identifier: "zh_CN")))
@@ -68,7 +71,9 @@ struct CalendarView: View {
                 .foregroundStyle(V32.textPrimary)
             Spacer()
             monthButton("chevron.right") {
-                currentMonth = calendar.date(byAdding: .month, value: 1, to: currentMonth) ?? currentMonth
+                withAnimation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion))) {
+                    currentMonth = calendar.date(byAdding: .month, value: 1, to: currentMonth) ?? currentMonth
+                }
             }
         }
     }
@@ -85,7 +90,7 @@ struct CalendarView: View {
                 .background(Circle().fill(V32.card))
                 .overlay(Circle().strokeBorder(V32.cardOutline, lineWidth: 1))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(V32PressButtonStyle())
     }
 
     // MARK: - 星期标题 + 月历网格
@@ -121,7 +126,9 @@ struct CalendarView: View {
                             memos: memos
                         )
                     ) {
-                        withAnimation(.easeOut(duration: 0.15)) { selectedDate = date }
+                        withAnimation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion))) {
+                            selectedDate = date
+                        }
                         Haptic.light()
                     }
                 } else {

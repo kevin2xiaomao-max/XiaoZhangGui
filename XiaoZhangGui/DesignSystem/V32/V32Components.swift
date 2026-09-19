@@ -1,5 +1,19 @@
 import SwiftUI
 
+// MARK: - V32 interaction feedback
+
+struct V32PressButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.82 : 1)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.98 : 1)
+            .animation(reduceMotion ? V32Motion.reducedFade : V32Motion.interactiveSpring,
+                       value: configuration.isPressed)
+    }
+}
+
 // MARK: - V32 / BusinessDesignSystem — 可复用组件
 // 基准：已确认的首页/日程设计稿。白卡细描边少阴影、深墨绿 hero、
 // 圆形勾选、浅底图标泡、点式状态胶囊、大留白大圆角。
@@ -27,7 +41,7 @@ struct V32PageHeader<Trailing: View>: View {
                     .frame(width: V32Layout.toolCircle, height: V32Layout.toolCircle)
                     .background(Circle().fill(V32.pageBGSecondary))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(V32PressButtonStyle())
             .accessibilityLabel("返回")
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
@@ -60,7 +74,7 @@ struct V32ToolButton: View {
                 .frame(width: V32Layout.toolCircle, height: V32Layout.toolCircle)
                 .background(Circle().fill(V32.hero))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(V32PressButtonStyle())
     }
 }
 
@@ -100,6 +114,7 @@ struct V32SearchField: View {
 struct V32PillBar: View {
     let items: [String]
     @Binding var selection: String
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -107,7 +122,9 @@ struct V32PillBar: View {
                 ForEach(items, id: \.self) { item in
                     let selected = selection == item
                     Button {
-                        withAnimation(.easeOut(duration: 0.15)) { selection = item }
+                        withAnimation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion))) {
+                            selection = item
+                        }
                         Haptic.light()
                     } label: {
                         Text(item)
@@ -356,7 +373,7 @@ struct V32SectionAction: View {
             }
             .foregroundStyle(V32.textTertiary)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(V32PressButtonStyle())
     }
 }
 
@@ -387,7 +404,7 @@ struct V32Checkbox: View {
             .frame(width: V32Layout.checkbox, height: V32Layout.checkbox)
             .contentShape(Circle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(V32PressButtonStyle())
         .disabled(action == nil)
         // 圆→勾 quick；Reduce Motion 无 scale，仅短淡入（T21）
         .animation(V32Motion.animation(V32Motion.resolve(.spring, reduceMotion: reduceMotion)), value: checked)
@@ -442,7 +459,7 @@ struct V32PrimaryButton: View {
             .padding(.vertical, 14)
             .background(Capsule().fill(V32.brand))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(V32PressButtonStyle())
     }
 }
 
@@ -470,7 +487,7 @@ struct V32SecondaryButton: View {
                     .overlay(Capsule().strokeBorder(V32.cardOutline, lineWidth: 1))
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(V32PressButtonStyle())
     }
 }
 

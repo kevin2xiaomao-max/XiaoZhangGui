@@ -17,6 +17,7 @@ struct ProfileView: View {
     @Bindable private var settings = AppSettings.shared
     @Bindable private var demo = DemoMode.shared
     @Environment(ThemeStore.self) private var themeStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var shopDialog = false
     @State private var goalDialog = false
@@ -101,7 +102,7 @@ struct ProfileView: View {
                     .padding(.vertical, 11)
                     .background(Capsule().fill(V32.card).shadow(color: V32.cardOutline, radius: 10, y: 4))
                     .padding(.bottom, 12)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .transition(.opacity.combined(with: reduceMotion ? .identity : .move(edge: .bottom)))
             }
         }
         .sheet(isPresented: $shopDialog) { ShopEditSheet() }
@@ -319,9 +320,9 @@ struct ProfileView: View {
     }
 
     private func showToast(_ text: String) {
-        withAnimation(.easeOut(duration: 0.2)) { toast = text }
+        withAnimation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion))) { toast = text }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-            withAnimation(.easeIn(duration: 0.25)) { toast = nil }
+            withAnimation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion))) { toast = nil }
         }
     }
 
@@ -384,7 +385,7 @@ private struct ProfileRow: View {
         } label: {
             ProfileRowLabel(icon: icon, tone: tone, title: title, value: value, chevron: chevron)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(V32PressButtonStyle())
     }
 }
 

@@ -85,6 +85,7 @@ struct PillTabRow<Item: Hashable>: View {
     let items: [Item]
     let label: (Item) -> String
     @Binding var selection: Item
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -92,7 +93,9 @@ struct PillTabRow<Item: Hashable>: View {
                 ForEach(items, id: \.self) { item in
                     let selected = item == selection
                     Button {
-                        withAnimation(.easeOut(duration: 0.15)) { selection = item }
+                        withAnimation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion))) {
+                            selection = item
+                        }
                         Haptic.light()
                     } label: {
                         Text(label(item))
