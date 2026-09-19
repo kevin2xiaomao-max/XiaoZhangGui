@@ -16,7 +16,7 @@ struct ReleaseNotes: Equatable {
     }
 
     static var build: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "32"
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "33"
     }
 
     static var versionDisplay: String {
@@ -24,13 +24,18 @@ struct ReleaseNotes: Equatable {
     }
 
     static let current = ReleaseNotes(
-        headline: "细节更顺手，反馈更清晰",
+        headline: "AI 更懂你的店，经营信息一问就懂",
         sections: [
-            ReleaseNoteSection(icon: "wand.and.sparkles", title: "体验精修", items: [
-                "界面细节和动效更顺滑",
-                "AI 对话和操作反馈更清晰",
-                "深色模式与主题体验优化",
-                "多处交互和稳定性改进"
+            ReleaseNoteSection(icon: "sparkles", title: "小掌柜 AI", items: [
+                "AI 现在能查询天气和商品信息",
+                "能结合店铺真实数据分析今日经营与近 7 天趋势",
+                "经营建议只使用必要的本地汇总信息，保护店铺隐私",
+                "支持对待确认的金额、来源和时间继续修改"
+            ]),
+            ReleaseNoteSection(icon: "wand.and.sparkles", title: "体验升级", items: [
+                "AI 对话、操作反馈和动效全面优化",
+                "深色模式、动态字体与减少动态效果体验优化",
+                "多处稳定性与设备适配改进"
             ])
         ]
     )
