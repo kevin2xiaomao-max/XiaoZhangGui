@@ -208,10 +208,9 @@ struct AIProviderSettingsSheet: View {
     private var connectionPillStatus: V32Status {
         switch tester.status {
         case .success: return .delivering
-        case .testing: return .info
-        case .unverified: return .pending
-        case .notConfigured: return .expiry
-        case .failure: return .expiry
+        // 只有真实测试成功才允许绿色：测试中 / 未验证都是中性灰，失败是琥珀
+        case .testing, .unverified: return .pending
+        case .notConfigured, .failure: return .expiry
         }
     }
 
