@@ -13,6 +13,7 @@ final class AIConversationViewModel {
     private(set) var proposals: [UUID: ActionProposal] = [:]
     var input: String = ""
     private(set) var isProcessing = false
+    private(set) var processingLabel = "正在思考"
     private(set) var showVoicePanel = false
 
     let voice: ShortVoiceSession
@@ -56,6 +57,16 @@ final class AIConversationViewModel {
         let content = (preset ?? input).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !content.isEmpty, !isProcessing else { return }
         input = ""
+        switch IntentRouter().classify(content) {
+        case .businessInsight:
+            processingLabel = "正在读取店铺数据"
+        case .goodsQuery:
+            processingLabel = "正在查询商品"
+        case .weatherQuery:
+            processingLabel = "正在查询天气"
+        default:
+            processingLabel = "正在思考"
+        }
         isProcessing = true
         let requestGeneration = generation
         Task {

@@ -66,7 +66,7 @@ struct AIChatView: View {
                                     messageRow(message)
                                 }
                                 if model.isProcessing {
-                                    TypingIndicator()
+                                    TypingIndicator(label: model.processingLabel)
                                         .padding(.top, 2)
                                 }
                                 Color.clear.frame(height: 8).id("bottom-anchor")

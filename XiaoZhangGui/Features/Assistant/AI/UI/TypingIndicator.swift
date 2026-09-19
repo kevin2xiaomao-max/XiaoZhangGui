@@ -3,6 +3,7 @@ import SwiftUI
 // MARK: - 小掌柜「正在输入」指示（克制动画，Reduce Motion 下静止）
 
 struct TypingIndicator: View {
+    var label = "正在思考"
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var animating = false
 
@@ -38,6 +39,6 @@ struct TypingIndicator: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("小掌柜正在思考")
+        .accessibilityLabel("小掌柜\(label)")
     }
 }
