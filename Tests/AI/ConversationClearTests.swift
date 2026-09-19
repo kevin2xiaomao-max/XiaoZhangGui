@@ -17,15 +17,19 @@ final class ConversationClearTests: XCTestCase {
         let (agent, _, pending, conversation) = AITestFactory.preview()
         let result = await agent.send("今天美团680")
         XCTAssertNotNil(result.proposal)
-        XCTAssertFalse(await agent.messages().isEmpty)
-        XCTAssertEqual(await pending.pending().count, 1)
+        let messagesBeforeClear = await agent.messages()
+        XCTAssertFalse(messagesBeforeClear.isEmpty)
+        let pendingBeforeClear = await pending.pending()
+        XCTAssertEqual(pendingBeforeClear.count, 1)
 
         await agent.clearConversation()
 
         let messages = await agent.messages()
         XCTAssertTrue(messages.isEmpty, "清空后消息必须立即为空")
-        XCTAssertTrue(await conversation.load().messages.isEmpty)
-        XCTAssertTrue(await pending.pending().isEmpty, "未确认 ActionCard 不得残留")
+        let storedMessages = await conversation.load().messages
+        XCTAssertTrue(storedMessages.isEmpty)
+        let pendingAfterClear = await pending.pending()
+        XCTAssertTrue(pendingAfterClear.isEmpty, "未确认 ActionCard 不得残留")
     }
 
     // MARK: 9) 文件存储：清空后重启（新实例）仍为空
@@ -50,8 +54,10 @@ final class ConversationClearTests: XCTestCase {
         // 模拟重启：重新从磁盘初始化
         let reopenedConversation = FileConversationStore(directory: dir)
         let reopenedPending = FilePendingActionStore(directory: dir)
-        XCTAssertTrue(await reopenedConversation.load().messages.isEmpty, "重启后聊天必须仍为空")
-        XCTAssertTrue(await reopenedPending.pending().isEmpty, "重启后未确认卡必须仍为空")
+        let reopenedMessages = await reopenedConversation.load().messages
+        XCTAssertTrue(reopenedMessages.isEmpty, "重启后聊天必须仍为空")
+        let reopenedItems = await reopenedPending.pending()
+        XCTAssertTrue(reopenedItems.isEmpty, "重启后未确认卡必须仍为空")
     }
 
     // MARK: 10) 清空聊天绝不影响业务数据库
@@ -79,7 +85,7 @@ final class ConversationClearTests: XCTestCase {
             .recordRevenue(RevenueArguments(amount: 680, source: "美团", date: Date(), note: "今天美团680")))
         let result = await env.toolExecutor.execute(call)
         guard case .executed = result else { return XCTFail("前置：营业额应已真实写入") }
-        try XCTAssertEqual(context.fetch(FetchDescriptor<Performance>()).count, 1)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<Performance>()).count, 1)
 
         // 聊天里留痕 + 未确认卡，然后清空
         await conversation.append(AIMessage(role: .user, content: "今天美团680"))
@@ -94,7 +100,9 @@ final class ConversationClearTests: XCTestCase {
         XCTAssertEqual(rows.count, 1, "清空聊天绝不能删除已保存的营业额")
         XCTAssertEqual(rows.first?.amount, 680)
         // 聊天侧已空
-        XCTAssertTrue(await conversation.load().messages.isEmpty)
-        XCTAssertTrue(await pending.pending().isEmpty)
+        let finalMessages = await conversation.load().messages
+        XCTAssertTrue(finalMessages.isEmpty)
+        let finalPending = await pending.pending()
+        XCTAssertTrue(finalPending.isEmpty)
     }
 }

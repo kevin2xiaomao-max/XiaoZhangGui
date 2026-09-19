@@ -13,19 +13,19 @@ import XCTest
 final class DeepSeekSettingsTests: XCTestCase {
 
     private var suite: UserDefaults!
+    private var suiteName: String!
 
     override func setUp() {
         super.setUp()
-        let name = "ai-settings-test-\(UUID().uuidString)"
-        suite = UserDefaults(suiteName: name)
-        suite.removePersistentDomain(forName: name)
+        suiteName = "ai-settings-test-\(UUID().uuidString)"
+        suite = UserDefaults(suiteName: suiteName)
+        suite.removePersistentDomain(forName: suiteName)
     }
 
     override func tearDown() {
-        if let name = suite?.suiteName {
-            suite.removePersistentDomain(forName: name)
-        }
+        suite.removePersistentDomain(forName: suiteName)
         suite = nil
+        suiteName = nil
         super.tearDown()
     }
 
