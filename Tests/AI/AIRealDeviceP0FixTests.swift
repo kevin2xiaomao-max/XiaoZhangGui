@@ -14,6 +14,12 @@ import SwiftData
 
 @MainActor
 final class AIRealDeviceP0FixTests: XCTestCase {
+    private var retainedContainers: [ModelContainer] = []
+
+    override func tearDown() {
+        retainedContainers.removeAll()
+        super.tearDown()
+    }
 
     // MARK: 辅助
 
@@ -24,6 +30,7 @@ final class AIRealDeviceP0FixTests: XCTestCase {
         provider: CountingAIProvider
     ) {
         let container = try AppDatabase.makeInMemoryContainer()
+        retainedContainers.append(container)
         let context = container.mainContext
         let journal = InMemoryExecutionJournal()
         let pending = InMemoryPendingActionStore()

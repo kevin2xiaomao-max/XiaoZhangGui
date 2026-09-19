@@ -14,6 +14,12 @@ import SwiftData
 
 @MainActor
 final class AIRealToolExecutorIntegrationTests: XCTestCase {
+    private var retainedContainers: [ModelContainer] = []
+
+    override func tearDown() {
+        retainedContainers.removeAll()
+        super.tearDown()
+    }
 
     // MARK: 辅助
 
@@ -24,6 +30,7 @@ final class AIRealToolExecutorIntegrationTests: XCTestCase {
         executor: RepositoryToolExecutor
     ) {
         let container = try AppDatabase.makeInMemoryContainer()
+        retainedContainers.append(container)
         let context = container.mainContext
         let journal = InMemoryExecutionJournal()
         let executor = RepositoryToolExecutor(context: context, journal: journal)
