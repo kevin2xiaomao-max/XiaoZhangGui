@@ -256,13 +256,14 @@ final class OpenAICompatProviderTests: XCTestCase {
             settings.primaryModel = previousModel
         }
         settings.primaryBaseURL = "https://gateway.example.com/v1"
+        // V3.3 AI REAL 新语义：主 Provider 固定 DeepSeek，模型不接受自由文本——
+        // 任意自定义/非法模型 ID 一律 normalize 回 deepseek-flash；
+        // 自定义 OpenAI 兼容端点只能走「高级 / 自定义 Provider（fallback）」。
         settings.primaryModel = "custom-model"
-        // 非空自定义值必须原样覆盖默认（生产代码仅用 trim 做「留空回落」判断，
-        // 不截断返回值，因此测试输入本身保持干净；端点有效性由 Adapter.validURL 把关）
         XCTAssertEqual(settings.resolvedPrimaryBaseURL, "https://gateway.example.com/v1")
-        XCTAssertEqual(settings.resolvedPrimaryModel, "custom-model")
+        XCTAssertEqual(settings.resolvedPrimaryModel, AISettings.Defaults.primaryModel,
+                       "主 Provider 模型不允许自由文本覆盖，非法值必须回落 deepseek-flash")
         XCTAssertNotEqual(settings.resolvedPrimaryBaseURL, AISettings.Defaults.primaryBaseURL)
-        XCTAssertNotEqual(settings.resolvedPrimaryModel, AISettings.Defaults.primaryModel)
     }
 
     /// 复刻 LLMProviderKit OpenAIProvider.prepareRequest 的 URL 拼接契约：
