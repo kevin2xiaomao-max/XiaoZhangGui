@@ -109,13 +109,14 @@ final class ProviderConnectionTesterTests: XCTestCase {
         actor HangingProvider: AIProvider {
             nonisolated let id = "hang"
             func complete(_ request: ProviderRequest) async throws -> ProviderTurn {
-                try? await Task.sleep(nanoseconds: 50_000_000)
+                try? await Task.sleep(nanoseconds: 500_000_000)
                 return .text("pong")
             }
         }
         let tester = ProviderConnectionTester()
         let task = Task { await tester.test(HangingProvider()) }
-        try? await Task.sleep(nanoseconds: 10_000_000)
+        // 50ms 窗口（CI 模拟器高负载下仍足够），Provider 500ms 后才返回
+        try? await Task.sleep(nanoseconds: 50_000_000)
         XCTAssertEqual(tester.status, .testing)
         await task.value
         XCTAssertEqual(tester.status, .success)
