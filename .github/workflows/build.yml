@@ -4,7 +4,7 @@ on:
   push:
     # P2-2：redesign/v3.2.0 push 自动触发完整 CI（此前仅 workflow_dispatch）。
     # main / ios-dev 触发保持不变；Release 步骤仍另有分支条件，不会因此在其它分支发版。
-    branches: [ios-dev, main, redesign/v3.2.0]
+    branches: [ios-dev, main, redesign/v3.2.0, feature/v3.4-intelligence-experience]
   workflow_dispatch:
 
 permissions:

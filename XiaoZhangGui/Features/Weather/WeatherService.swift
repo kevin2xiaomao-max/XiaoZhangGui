@@ -187,6 +187,7 @@ private struct WeatherAPIResponse: Decodable {
         let dailyChanceOfRain: Int?
 
         enum CodingKeys: String, CodingKey {
+            case condition
             case maxtempC = "maxtemp_c"
             case mintempC = "mintemp_c"
             case dailyChanceOfRain = "daily_chance_of_rain"

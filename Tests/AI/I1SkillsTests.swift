@@ -47,6 +47,35 @@ final class I1SkillsTests: XCTestCase {
         XCTAssertEqual(result, .reply("百威：售价 ¥12，进价 ¥8，毛利 ¥4，毛利率 33.3%。"))
     }
 
+    func testGoodsLookupMatchesExactProductNameInsideQuestion() {
+        let goods = [GoodsSummary(name: "百威啤酒", purchasePrice: 8, salePrice: 12, stock: 9, minStock: 3)]
+        let result = GoodsLookupSkill.lookup("百威啤酒多少钱", in: goods)
+        XCTAssertEqual(result, .reply("百威啤酒：售价 ¥12，进价 ¥8，毛利 ¥4，毛利率 33.3%。"))
+    }
+
+    func testGoodsLookupMatchesShortPrefixAgainstRelatedProducts() {
+        let goods = [
+            GoodsSummary(name: "百威啤酒", purchasePrice: 8, salePrice: 12, stock: 9, minStock: 3),
+            GoodsSummary(name: "百威纯生", purchasePrice: 10, salePrice: 15, stock: 4, minStock: 3)
+        ]
+        let result = GoodsLookupSkill.lookup("百威进价多少", in: goods)
+        guard case .clarify(let names) = result else { return XCTFail("简称应形成多个候选") }
+        XCTAssertEqual(names, ["百威啤酒", "百威纯生"])
+    }
+
+    func testGoodsLookupReturnsNotFoundForUnrelatedProduct() {
+        let goods = [GoodsSummary(name: "百威啤酒", purchasePrice: 8, salePrice: 12, stock: 9, minStock: 3)]
+        guard case .notFound = GoodsLookupSkill.lookup("可口可乐多少钱", in: goods) else {
+            return XCTFail("无关商品必须返回未找到")
+        }
+    }
+
+    func testGoodsLookupReturnsStockAndMarginForLocalProduct() {
+        let goods = [GoodsSummary(name: "百威啤酒", purchasePrice: 8, salePrice: 12, stock: 2, minStock: 3)]
+        XCTAssertEqual(GoodsLookupSkill.lookup("百威啤酒还有多少库存", in: goods), .reply("百威啤酒：库存 2，库存偏低。"))
+        XCTAssertEqual(GoodsLookupSkill.lookup("百威啤酒毛利多少", in: goods), .reply("百威啤酒：毛利 ¥4，毛利率 33.3%。"))
+    }
+
     func testGoodsLookupRequiresChoiceForMultipleMatches() {
         let goods = [
             GoodsSummary(name: "百威啤酒", purchasePrice: 8, salePrice: 12, stock: 9, minStock: 3),

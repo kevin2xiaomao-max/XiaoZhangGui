@@ -63,6 +63,18 @@ final class WeatherAPIProviderTests: XCTestCase {
         XCTAssertEqual(snapshot.city, "茂名市")
     }
 
+    func testForecastDecodesThreeDaysIncludingDayCondition() async throws {
+        StubWeatherURLProtocol.stubJSON = Self.threeDayForecastJSON()
+
+        let forecast = try await provider(city: "恩平", latitude: 22.183, longitude: 112.305)
+            .fetchForecast(days: 3)
+
+        XCTAssertEqual(forecast.days.count, 3)
+        XCTAssertEqual(forecast.days.map(\.condition), ["晴", "多云", "小雨"])
+        XCTAssertEqual(forecast.days.map(\.minTemperature), [20, 21, 22])
+        XCTAssertEqual(forecast.days.map(\.maxTemperature), [28, 29, 30])
+    }
+
     // MARK: - Stub JSON
 
     private static func forecastJSON(city: String, temp: Double) -> Data {
@@ -77,6 +89,26 @@ final class WeatherAPIProviderTests: XCTestCase {
           "forecast": {
             "forecastday": [
               { "day": { "maxtemp_c": 28, "mintemp_c": 22, "daily_chance_of_rain": 40 } }
+            ]
+          }
+        }
+        """.data(using: .utf8)!
+    }
+
+    private static func threeDayForecastJSON() -> Data {
+        """
+        {
+          "location": { "name": "恩平" },
+          "current": {
+            "temp_c": 24,
+            "feelslike_c": 25,
+            "condition": { "text": "晴", "code": 1000 }
+          },
+          "forecast": {
+            "forecastday": [
+              { "date": "2026-09-19", "day": { "maxtemp_c": 28, "mintemp_c": 20, "daily_chance_of_rain": 10, "condition": { "text": "晴", "code": 1000 } } },
+              { "date": "2026-09-20", "day": { "maxtemp_c": 29, "mintemp_c": 21, "daily_chance_of_rain": 40, "condition": { "text": "多云", "code": 1003 } } },
+              { "date": "2026-09-21", "day": { "maxtemp_c": 30, "mintemp_c": 22, "daily_chance_of_rain": 70, "condition": { "text": "小雨", "code": 1180 } } }
             ]
           }
         }
