@@ -109,7 +109,8 @@ final class AIRealDeviceP0FixTests: XCTestCase {
         let result = await harness.agent.send("今晚8点送3杯珍珠奶茶到幸福路9号，一共45元")
         let proposalID = try XCTUnwrap(result.proposal).id
 
-        let confirmed = try XCTUnwrap(await harness.agent.confirm(proposalID: proposalID))
+        let confirmedResult = await harness.agent.confirm(proposalID: proposalID)
+        let confirmed = try XCTUnwrap(confirmedResult)
         XCTAssertEqual(confirmed.status, .executed)
 
         let rows = try harness.context.fetch(FetchDescriptor<CustomerRequest>())
@@ -217,7 +218,8 @@ final class AIRealDeviceP0FixTests: XCTestCase {
         // 同一时刻只有一个有效 pending
         let active = await harness.pending.pending()
         XCTAssertEqual(active.map(\.id), [newProposal.id])
-        let old = try XCTUnwrap(await harness.pending.proposal(id: oldID))
+        let cancelledOld = await harness.pending.proposal(id: oldID)
+        let old = try XCTUnwrap(cancelledOld)
         XCTAssertEqual(old.status, .cancelled, "旧 Todo proposal 必须立即取消")
 
         // 确认前数据库无任何新记录
