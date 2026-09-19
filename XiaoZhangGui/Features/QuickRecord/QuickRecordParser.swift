@@ -276,4 +276,93 @@ enum DatePhraseParser {
         guard ns.location != NSNotFound else { return nil }
         return Range(ns, in: text)
     }
+
+    // MARK: - AI 对话专用：带「歧义时段」判定的解析（V3.3 P0-3，纯新增，不改变 parse 的既有行为）
+
+    /// resolve 的结果：要么是确定时间，要么是需要向用户澄清的裸「N点」。
+    enum Resolution: Equatable {
+        /// 成功解析到确定时间
+        case date(Date)
+        /// 出现「N点」但没有上午 / 下午 / 晚上等限定词，无法确定凌晨还是下午。
+        /// 关联值为命中的时间原文（如「3点」）。调用方必须追问澄清，禁止回落当前时间。
+        case ambiguousClock(String)
+    }
+
+    /// 与 parse 共用同一套日期规则，但区分三种情况：
+    /// - 「明天下午3点」→ 明天 15:00；「明天上午3点」→ 明天 03:00；
+    /// - 「明天3点」→ .ambiguousClock("3点")；
+    /// - 只有日期（如「明天进货」）→ .date(明天零点)；无任何时间词 → nil。
+    /// QuickRecord 等既有链路仍继续使用 parse，本方法为 AI 链路纯新增。
+    static func resolve(_ text: String, now: Date) -> Resolution? {
+        let cal = Calendar.current
+        var base = now
+        var dayMatched = false
+
+        if text.contains("今天") { base = now; dayMatched = true }
+        if text.contains("明天") {
+            base = cal.date(byAdding: .day, value: 1, to: now) ?? now
+            dayMatched = true
+        }
+        if text.contains("后天") {
+            base = cal.date(byAdding: .day, value: 2, to: now) ?? now
+            dayMatched = true
+        }
+        if text.contains("月底") {
+            let start = now.startOfMonth
+            if let next = cal.date(byAdding: .month, value: 1, to: start),
+               let last = cal.date(byAdding: .day, value: -1, to: next) {
+                base = last
+                dayMatched = true
+            }
+        }
+        if let weekday = weekdayOffset(in: text, from: now) {
+            base = weekday
+            dayMatched = true
+        }
+
+        guard let clock = clockMatch(in: text) else {
+            return dayMatched ? .date(base) : nil
+        }
+        if clock.ambiguous { return .ambiguousClock(clock.token) }
+
+        var comps = cal.dateComponents([.year, .month, .day], from: base)
+        comps.hour = clock.hour
+        comps.minute = clock.minute
+        guard let resolved = cal.date(from: comps) else { return nil }
+        return .date(resolved)
+    }
+
+    private struct Clock {
+        let token: String
+        let hour: Int
+        let minute: Int
+        let ambiguous: Bool
+    }
+
+    private static func clockMatch(in text: String) -> Clock? {
+        guard let regex = try? NSRegularExpression(
+            pattern: #"(凌晨|早上|早晨|上午|中午|下午|傍晚|晚上|晚间)?\s*(\d{1,2})(?:点|:|：)\s*(\d{1,2})?\s*分?"#),
+              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+              let tokenRange = Range(match.range, in: text),
+              let hourRange = range(match.range(at: 2), in: text),
+              let hour = Int(text[hourRange]) else { return nil }
+        let period = range(match.range(at: 1), in: text).map { String(text[$0]) } ?? ""
+        let minute = range(match.range(at: 3), in: text).flatMap { Int(text[$0]) } ?? 0
+        guard (0...23).contains(hour) else { return nil }
+
+        // 无任何时段限定：1~11 点无法区分凌晨 / 下午（如「3点」），必须澄清；
+        // 12 点约定为中午、13 点及以上本身就是 24 小时制，无需澄清。
+        let ambiguous = period.isEmpty && hour >= 1 && hour <= 11
+
+        var resolvedHour = hour
+        if period.contains("下午") || period.contains("傍晚")
+            || period.contains("晚上") || period.contains("晚间") || period.contains("中午") {
+            if hour < 12 { resolvedHour = hour + 12 }
+        }
+        if (period.contains("上午") || period.contains("凌晨")) && hour == 12 {
+            resolvedHour = 0
+        }
+        return Clock(token: String(text[tokenRange]),
+                     hour: resolvedHour, minute: minute, ambiguous: ambiguous)
+    }
 }

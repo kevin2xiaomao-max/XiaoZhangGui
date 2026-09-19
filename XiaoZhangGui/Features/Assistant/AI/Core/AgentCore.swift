@@ -18,6 +18,18 @@ struct AgentTurnResult: Sendable {
     let userMessage: AIMessage
     let assistantMessage: AIMessage?
     let proposal: ActionProposal?
+    /// 本轮被纠正替换而取消的旧 proposal（P0-5：UI 必须立即移除旧卡）
+    let cancelledProposalIDs: [UUID]
+
+    init(userMessage: AIMessage,
+         assistantMessage: AIMessage?,
+         proposal: ActionProposal?,
+         cancelledProposalIDs: [UUID] = []) {
+        self.userMessage = userMessage
+        self.assistantMessage = assistantMessage
+        self.proposal = proposal
+        self.cancelledProposalIDs = cancelledProposalIDs
+    }
 }
 
 /// 依赖装配。所有第三方能力都藏在 AIProvider 背后。
@@ -102,6 +114,11 @@ final class AgentCore {
     /// Free First 第一道：高置信本地规则直接出卡 / 追问（0 Token）
     private let localParser = LocalBusinessParser()
 
+    /// P0-1：没有天气工具时的固定回复（必须包含「当前无法查询实时天气」原义）
+    private static let weatherUnsupportedText =
+        "当前无法查询实时天气，这个版本还没有接入天气查询。你可以在首页顶部查看本地天气；"
+        + "店里的经营数据（营业额、待办、备忘、配送）随时可以直接问我。"
+
     init(_ env: AgentEnvironment) {
         self.env = env
     }
@@ -151,13 +168,64 @@ final class AgentCore {
     }
 
     private func runTurn(text: String, userMessage: AIMessage) async throws -> AgentTurnResult {
-        let intent = env.intentRouter.classify(text)
+        // P0-6：客户订单「未收款」语义。当前模型没有收款状态字段，只能明确告知，
+        // 绝不降级成 Todo / Memo，也不写任何业务数据（schema 方案见交付报告）。
+        if CustomerPaymentIntent.isUnpaidCustomerOrder(text) {
+            return try await appendAssistant(CustomerPaymentIntent.unsupportedMessage,
+                                             userMessage: userMessage)
+        }
 
+        // P0-5：仅当挂着未确认卡片时才识别纠正话术（避免普通否定句误伤）。
+        // 命中后：旧 pending 全部立即取消 → 剥掉纠正话术 → 按（可能被点名的）新类型重走。
+        let activePending = await env.pending.pending()
+        let correction = activePending.isEmpty ? nil : CorrectionParser.detect(text)
+
+        if let correction {
+            let cancelledIDs = activePending.map(\.id)
+            for var old in activePending {
+                old.status = .cancelled
+                await env.pending.upsert(old)
+            }
+            let cleaned = correction.cleanedText
+            guard !cleaned.isEmpty else {
+                let reply = try await appendAssistant(
+                    "好的，上一条已取消。你想改成记录什么？直接把新内容发给我就行。",
+                    userMessage: userMessage)
+                return AgentTurnResult(
+                    userMessage: reply.userMessage,
+                    assistantMessage: reply.assistantMessage,
+                    proposal: reply.proposal,
+                    cancelledProposalIDs: cancelledIDs)
+            }
+            var intent = env.intentRouter.classify(cleaned)
+            if let tool = correction.targetTool {
+                intent = .businessAction(tool)
+            }
+            let result = try await handleIntent(
+                intent, workingText: cleaned, originalText: text, userMessage: userMessage)
+            return AgentTurnResult(
+                userMessage: result.userMessage,
+                assistantMessage: result.assistantMessage,
+                proposal: result.proposal,
+                cancelledProposalIDs: cancelledIDs)
+        }
+
+        let intent = env.intentRouter.classify(text)
+        return try await handleIntent(
+            intent, workingText: text, originalText: text, userMessage: userMessage)
+    }
+
+    private func handleIntent(
+        _ intent: IntentKind,
+        workingText: String,
+        originalText: String,
+        userMessage: AIMessage
+    ) async throws -> AgentTurnResult {
         switch intent {
         case .businessAction:
             // Free First：本地高置信规则 0 Token 直接出卡 / 追问；
             // 本地无把握（返回 nil）才允许上云。
-            if let local = localParser.parse(text, intent: intent) {
+            if let local = localParser.parse(workingText, intent: intent) {
                 switch local {
                 case .tool(let arguments):
                     let call = ToolCall(id: ToolCall.makeID(), name: arguments.toolName, arguments: arguments)
@@ -166,7 +234,9 @@ final class AgentCore {
                     return try await appendAssistant(reply, userMessage: userMessage)
                 }
             }
-            return try await remoteTurn(intent: intent, userMessage: userMessage)
+            return try await remoteTurn(
+                intent: intent, workingText: workingText, originalText: originalText,
+                userMessage: userMessage)
 
         case .businessQuery(let kind):
             // Lite：四类 READ 全部本地聚合回答（0 Token，数据不出设备）。
@@ -181,25 +251,46 @@ final class AgentCore {
                 BusinessAnswerComposer.answer(for: kind, context: scoped),
                 userMessage: userMessage)
 
+        case .weatherQuery:
+            // P0-1：READ 意图，但本版本没有天气工具 → 明确告知，0 Token、不出卡、不写库。
+            return try await appendAssistant(Self.weatherUnsupportedText, userMessage: userMessage)
+
         case .worldChat, .localZeroToken:
-            return try await remoteTurn(intent: intent, userMessage: userMessage)
+            return try await remoteTurn(
+                intent: intent, workingText: workingText, originalText: originalText,
+                userMessage: userMessage)
         }
     }
 
     /// 上云一轮：仅在本地无把握（CREATE）或普通聊天时调用。
     /// Lite 不把经营数据随云端 CREATE / 聊天外发（READ 已本地回答），context 恒空。
-    private func remoteTurn(intent: IntentKind, userMessage: AIMessage) async throws -> AgentTurnResult {
+    /// 多轮纠正时发送给模型的是剥掉话术的 workingText（原文仍保留在本地会话里）。
+    private func remoteTurn(
+        intent: IntentKind,
+        workingText: String,
+        originalText: String,
+        userMessage: AIMessage
+    ) async throws -> AgentTurnResult {
         let task: ModelTask = {
             switch intent {
             case .businessAction: return .toolCall
             case .businessQuery: return .businessAnswer
             case .localZeroToken: return .simpleExtraction
-            case .worldChat: return .chat
+            case .worldChat, .weatherQuery: return .chat
             }
         }()
         let route = env.modelRouter.route(task: task, intent: intent, tier: env.tier)
         let history = await env.conversation.load().messages
-        let request = ProviderRequest(messages: history, tools: toolDefinitions, route: route, context: .empty)
+        // 把最后一条用户原文替换成清洗后的业务内容，纠正话术不外发、不污染抽取
+        var cloudMessages = history
+        if let lastUserIndex = cloudMessages.lastIndex(where: { $0.role == .user }),
+           workingText != originalText {
+            let original = cloudMessages[lastUserIndex]
+            cloudMessages[lastUserIndex] = AIMessage(
+                role: .user, content: workingText,
+                isError: original.isError, proposalID: original.proposalID)
+        }
+        let request = ProviderRequest(messages: cloudMessages, tools: toolDefinitions, route: route, context: .empty)
 
         let turn: ProviderTurn
         do {

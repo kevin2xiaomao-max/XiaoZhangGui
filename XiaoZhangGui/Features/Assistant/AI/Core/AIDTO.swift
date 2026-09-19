@@ -122,6 +122,8 @@ struct DeliveryArguments: Codable, Equatable, Sendable {
     /// 时间原文，如 "今晚8点"
     var deliveryTimeText: String?
     var note: String?
+    /// 配送 / 商品总金额（P0-2，如「一共45元」→ 45）。缺省 nil，旧 JSON 无此字段可正常解码。
+    var amount: Double? = nil
 }
 
 enum BusinessRecordKind: String, Codable, Sendable, CaseIterable {

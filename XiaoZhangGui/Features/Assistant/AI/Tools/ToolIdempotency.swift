@@ -22,7 +22,8 @@ enum ToolIdempotency {
         case .createMemo(let a):
             return "memo|\(norm(a.title))"
         case .createDelivery(let a):
-            return "del|\(norm(a.customer))|\(norm(a.roomOrAddress))|\(minute(a.deliveryTime))|\(norm(a.goodsName))|\(norm(a.quantity))"
+            let amount = (a.amount ?? 0).rounded(to: 2)
+            return "del|\(norm(a.customer))|\(norm(a.roomOrAddress))|\(minute(a.deliveryTime))|\(norm(a.goodsName))|\(norm(a.quantity))|\(fmt(amount))"
         case .searchRecords(let a):
             let kinds = a.kinds.map(\.rawValue).sorted().joined(separator: ",")
             return "search|\(kinds)|\(norm(a.query))"

@@ -141,6 +141,9 @@ final class RepositoryToolExecutor: ToolExecuting {
                 .joined(separator: "")
         }
         var parts = content.isEmpty ? [] : [content]
+        if let amount = args.amount, amount > 0 {
+            parts.append(money(amount))
+        }
         if let timeText = args.deliveryTimeText?.trimmingCharacters(in: .whitespaces), !timeText.isEmpty {
             parts.append("（\(timeText)）")
         }

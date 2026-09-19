@@ -69,6 +69,10 @@ final class AIConversationViewModel {
                 return
             }
             await refresh()
+            // P0-5：被纠正替换的旧卡必须立即从界面移除（同一时刻只留一个有效 pending）
+            for cancelledID in result.cancelledProposalIDs {
+                proposals[cancelledID] = nil
+            }
             if let proposal = result.proposal {
                 proposals[proposal.id] = proposal
             }

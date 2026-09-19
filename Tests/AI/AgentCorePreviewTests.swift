@@ -86,16 +86,16 @@ final class AgentCorePreviewTests: XCTestCase {
     //
     // AI REAL 起四范例为本地 0 Token 解析，不会调用 Provider；
     // Provider 故障用普通世界知识问题（worldChat 必须上云）验证。
-
+    // 注意：天气类问题自 P0-1 起改为本地固定回复（无天气工具），不再上云。
     func testProviderFailureKeepsUserTextAndShowsError() async {
         let failing = ScriptedAIProvider(id: "broken", [.failure(ProviderFailure.timeout)])
         let (agent, _, _, _) = AITestFactory.preview(provider: failing)
-        let result = await agent.send("广东天气怎么样")
+        let result = await agent.send("广东有什么好玩的景点")
         XCTAssertNil(result.proposal)
         XCTAssertTrue(result.assistantMessage?.isError ?? false)
         let messages = await agent.messages()
         XCTAssertEqual(messages.first?.role, .user)
-        XCTAssertEqual(messages.first?.content, "广东天气怎么样")
+        XCTAssertEqual(messages.first?.content, "广东有什么好玩的景点")
     }
 
     // MARK: 重复响应得到相同业务指纹（幂等键稳定）

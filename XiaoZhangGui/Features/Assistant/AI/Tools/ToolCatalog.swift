@@ -72,14 +72,15 @@ struct ToolCatalog {
             ]
         case .createDelivery:
             return [
-                "customer": ["type": "string", "description": "客户 / 房号，如 302"],
-                "roomOrAddress": ["type": "string"],
+                "customer": ["type": "string", "description": "客户名，如 阿东；没有客户名时留空，不要用数字或金额代替"],
+                "roomOrAddress": ["type": "string", "description": "房号或地址，如 302 / 幸福路9号"],
                 "phone": ["type": "string"],
-                "content": ["type": "string", "description": "商品与数量，如 怡宝 两箱"],
-                "goodsName": ["type": "string"],
-                "quantity": ["type": "string"],
+                "content": ["type": "string", "description": "商品与数量，如 珍珠奶茶 3杯；多件用、隔开"],
+                "goodsName": ["type": "string", "description": "商品名，如 珍珠奶茶"],
+                "quantity": ["type": "string", "description": "数量原文，如 3杯 / 两箱"],
                 "deliveryTime": ["type": "string", "format": "date-time"],
                 "deliveryTimeText": ["type": "string"],
+                "amount": ["type": "number", "description": "配送商品总金额，如 45；没有提到金额时留空"],
                 "note": ["type": "string"]
             ]
         case .searchRecords:
@@ -132,9 +133,14 @@ extension ToolArguments {
 
         case .createDelivery(let a):
             var rows: [(String, String)] = []
-            let customer = [a.customer, a.roomOrAddress]
-                .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " ")
-            if !customer.isEmpty { rows.append(("客户", customer)) }
+            if let customer = a.customer?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !customer.isEmpty {
+                rows.append(("客户", customer))
+            }
+            if let address = a.roomOrAddress?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !address.isEmpty, address != a.customer {
+                rows.append(("地址", address))
+            }
             if let timeText = a.deliveryTimeText, !timeText.isEmpty {
                 rows.append(("时间", timeText))
             } else if let time = a.deliveryTime {
@@ -143,6 +149,7 @@ extension ToolArguments {
             let goods = a.content ?? [a.goodsName, a.quantity]
                 .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " ")
             if !goods.isEmpty { rows.append(("商品", goods)) }
+            if let amount = a.amount, amount > 0 { rows.append(("金额", "¥" + Self.money(amount))) }
             if let phone = a.phone, !phone.isEmpty { rows.append(("电话", phone)) }
             if let note = a.note, !note.isEmpty { rows.append(("备注", note)) }
             return rows.map { (label: $0.0, value: $0.1) }

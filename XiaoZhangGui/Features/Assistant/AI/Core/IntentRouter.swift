@@ -17,6 +17,8 @@ enum IntentKind: Equatable, Sendable {
     case businessQuery(BusinessRecordKind)
     /// 普通聊天 / 世界知识（不带经营数据）
     case worldChat
+    /// 实时外部信息查询（天气等）：本版本没有对应工具，本地直接明确告知（0 Token）
+    case weatherQuery
 }
 
 struct IntentRouter {
@@ -34,11 +36,26 @@ struct IntentRouter {
     ]
     private static let deliveryKeywords = ["配送", "送货", "送到", "送水", "跑腿"]
     private static let memoKeywords = ["记一下", "记录一下", "备忘", "备注", "供应商", "记一笔"]
-    private static let queryKeywords = ["多少", "几单", "几件", "几条", "几个", "有什么", "还有", "？", "?"]
+    private static let queryKeywords = [
+        "多少", "几单", "几件", "几条", "几个", "有什么", "还有", "？", "?",
+        // P0-1 / P0-4：先判「问」再判「记」——出现疑问词时不能仅因时间词就落 CREATE
+        "什么", "怎么", "为什么", "哪", "吗", "呢", "查"
+    ]
+    /// 实时天气类外部信息（本版本没有天气工具，命中即明确告知，绝不出待办 / 备忘卡）
+    private static let weatherKeywords = [
+        "天气", "天气预报", "气温", "多少度", "几度",
+        "下雨", "会下雨", "降雨", "降水", "台风", "冷不冷", "热不热"
+    ]
+    /// 命中天气词的同时若出现这些 CREATE 词，仍按经营记录处理（如「提醒我看天气」）
+    private static let createCueWords = ["记一下", "记录", "备忘", "备注", "提醒", "待办", "记得"]
 
     func classify(_ raw: String, now: Date = Date()) -> IntentKind {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return .worldChat }
+
+        // 0) 实时外部信息查询（天气）优先于一切 CREATE：
+        //    「明天恩平什么天气啊，帮我查下」是 READ，不是「明天 + 新建待办」。
+        if isWeatherQuery(text) { return .weatherQuery }
 
         // 1) 经营读问答优先（避免“今天还有几单配送”被当成新建配送）
         if let query = classifyQuery(text) { return query }
@@ -86,9 +103,18 @@ struct IntentRouter {
         return false
     }
 
+    /// 街道式地址：「到幸福路9号」「送至解放大道128号3栋」等（必须有 到/送至/地址 引导，
+    /// 与纯数字房号、时间、金额区分）
+    private static let streetAddressRegex = try? NSRegularExpression(
+        pattern: #"(?:到|去|送至|送到|送往|地址是|地址为|地址[:：]?)\s*([一-龥A-Za-z][一-龥A-Za-z0-9]{0,15}?(?:路|街|巷|大道|村|小区|花园|大厦|广场|苑|城)\s*\d{0,4}\s*(?:号|幢|栋)?(?:\s*\d{1,4}\s*(?:室|房|单元|楼))?)"#)
+
     func isDelivery(_ text: String) -> Bool {
         let hasVerb = text.contains("送") || Self.deliveryKeywords.contains(where: { text.contains($0) })
         guard hasVerb else { return false }
+        // 「送…到幸福路9号」：出现街道式地址即配送
+        if streetAddress(in: text) != nil { return true }
+        // 「给阿东送…」：中文人名 + 送（无房号也是配送）
+        if text.range(of: #"给\s*[一-龥]{2,4}\s*送"#, options: .regularExpression) != nil { return true }
         // “给302送…” / “送…到302” / 含 室|房|号
         if text.contains("给"), let _ = firstRoomNumber(in: text) { return true }
         if firstRoomNumber(in: text) != nil,
@@ -97,6 +123,15 @@ struct IntentRouter {
         }
         if Self.deliveryKeywords.contains(where: { text.contains($0) }) { return true }
         return false
+    }
+
+    /// 提取街道式地址（无则 nil）。仅供配送判定 / 解析层复用。
+    func streetAddress(in text: String) -> String? {
+        guard let regex = Self.streetAddressRegex else { return nil }
+        let range = NSRange(text.startIndex..., in: text)
+        guard let match = regex.firstMatch(in: text, range: range),
+              let r = Range(match.range(at: 1), in: text) else { return nil }
+        return String(text[r]).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     func firstRoomNumber(in text: String) -> String? {
@@ -114,6 +149,14 @@ struct IntentRouter {
                              "联系", "打电话", "收拾", "整理", "安排", "要做", "跟进"]
         return timeMarkers.contains(where: { text.contains($0) })
             || actionMarkers.contains(where: { text.contains($0) })
+    }
+
+    /// 天气等实时外部查询：含天气类词，且不是「记/提醒/备忘」式 CREATE。
+    /// 「明天恩平什么天气啊，帮我查下」→ true；「提醒我明天看天气」→ false。
+    private func isWeatherQuery(_ text: String) -> Bool {
+        guard Self.weatherKeywords.contains(where: { text.contains($0) }) else { return false }
+        if Self.createCueWords.contains(where: { text.contains($0) }) { return false }
+        return true
     }
 
     private func classifyQuery(_ text: String) -> IntentKind? {
@@ -136,6 +179,8 @@ struct IntentRouter {
         if text.contains("备忘") || text.contains("记过") || text.contains("笔记") {
             return .businessQuery(.recentMemo)
         }
-        return nil
+        // 是问句但不属于店内经营实体：交云端正常回答。
+        // 关键：此时即便句中含「明天」等时间词，也绝不能继续落入 CREATE（P0-1 / P0-4）。
+        return .worldChat
     }
 }
