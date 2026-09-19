@@ -2,36 +2,67 @@ import Foundation
 import Observation
 import Security
 
-// MARK: - V3.3 Lite · AI 设置（Free First 三档 + 端点配置接缝）
+// MARK: - V3.3 Lite · AI 设置（Free First 三档 + DeepSeek 模型 Picker + Draft 编辑）
 //
 // 边界（R3 定稿）：
 // - AppSettings 继续负责 system/light/dark 的 themeMode，本类不碰 colorScheme 链路；
 // - 页面不得直接读主题 / AI 的 UserDefaults 键，统一经由本类；
 // - API Key 只存 Keychain，绝不写入 UserDefaults / 仓库 / IPA；
-// - Foundation 不连真实 Provider，配置项先落好，FINAL 才启用；
-// - 自用阶段可经 Secrets.xcconfig / 本设置直连，Gateway 为 V3.4 可选项，不阻塞。
+// - 主 Provider 固定为 DeepSeek：模型只能从 DeepSeekModel Picker 选择，
+//   旧值 / 非法自由输入在初始化时自动迁移到 deepseek-flash；
+// - 自定义 OpenAI 兼容端点只允许出现在「高级 / 自定义 Provider（fallback）」。
+
+/// DeepSeek 官方当前可用模型。主流程只允许 Picker 选择这些 ID。
+enum DeepSeekModel: String, CaseIterable, Sendable {
+    /// 默认（推荐）：快速、便宜、满足小店日常对话 / 工具调用
+    case flash = "deepseek-flash"
+    /// 高质量可选
+    case v4Pro = "deepseek-v4-pro"
+
+    var displayName: String {
+        switch self {
+        case .flash: return "DeepSeek Flash（推荐）"
+        case .v4Pro: return "DeepSeek V4 Pro"
+        }
+    }
+
+    /// 已下线 / 历史默认值：检测到即自动迁移到 flash，绝不继续请求。
+    static let legacyIDs: Set<String> = [
+        "deepseek-chat",
+        "deepseek-reasoner",
+        // 用户在旧版自由文本框里常见的误填
+        "deepseek",
+    ]
+
+    /// 空值 / 旧值 / 任意非法 ID 一律回落 flash（DeepSeek 主流程不接受自由输入）。
+    static func normalize(_ raw: String?) -> DeepSeekModel {
+        let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmed.isEmpty else { return .flash }
+        if let model = DeepSeekModel(rawValue: trimmed) { return model }
+        if let model = DeepSeekModel(rawValue: trimmed.lowercased()) { return model }
+        return .flash
+    }
+
+    static func isLegacy(_ raw: String?) -> Bool {
+        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              !trimmed.isEmpty else { return false }
+        return legacyIDs.contains(trimmed)
+    }
+}
 
 @Observable
 final class AISettings {
     static let shared = AISettings()
 
-    /// V3.3 首版主 Provider：DeepSeek（OpenAI 兼容端点）。
-    /// 仅默认值，不承诺任何第三方永久免费；用户可改成任意 OpenAI 兼容端点。
-    ///
-    /// endpoint 拼接（LLMProviderKit OpenAIProvider）：baseURL 上直接追加
-    /// `chat/completions`，因此：
-    /// - 默认 https://api.deepseek.com → https://api.deepseek.com/chat/completions
-    ///   （DeepSeek 官方网关：裸域与 /v1 等价，两种写法都受支持）
-    /// - 用户若自填 https://api.deepseek.com/v1 → .../v1/chat/completions
-    /// 本工程不再自行补 /v1，避免 /v1/v1 重复。
-    /// 模型默认 deepseek-flash（deepseek-chat 自 2026-07-24 起不再作为当前 API 模型名）。
+    /// V3.3 主 Provider：DeepSeek（OpenAI 兼容裸域；LLMProviderKit 自动拼 chat/completions）。
     enum Defaults {
         static let primaryKind = "deepseek"
         static let primaryBaseURL = "https://api.deepseek.com"
-        static let primaryModel = "deepseek-flash"
+        static let primaryModel = DeepSeekModel.flash.rawValue
+        static let highQualityModel = DeepSeekModel.v4Pro.rawValue
     }
 
-    private let ud = UserDefaults.standard
+    private let ud: UserDefaults
 
     /// 免费优先 / 自动 / 高质量
     var tier: ModelTier {
@@ -50,6 +81,7 @@ final class AISettings {
     var primaryBaseURL: String {
         didSet { ud.set(primaryBaseURL, forKey: Keys.primaryBaseURL) }
     }
+    /// 持久化值始终为 DeepSeekModel 合法 ID（init 已迁移旧值）
     var primaryModel: String {
         didSet { ud.set(primaryModel, forKey: Keys.primaryModel) }
     }
@@ -69,41 +101,60 @@ final class AISettings {
         set { AIKeychain.write(newValue, forKey: Keys.fallbackKey) }
     }
 
-    /// 留空即回退 DeepSeek 官方默认端点 / 模型
+    /// 留空即回退 DeepSeek 官方默认端点
     var resolvedPrimaryBaseURL: String {
-        primaryBaseURL.trimmingCharacters(in: .whitespaces).isEmpty
-            ? Defaults.primaryBaseURL : primaryBaseURL
+        primaryBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? Defaults.primaryBaseURL : primaryBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
     }
+    /// 防御性归一：无论盘上值如何，主 Provider 只会拿到当前合法 DeepSeek 模型 ID。
     var resolvedPrimaryModel: String {
-        primaryModel.trimmingCharacters(in: .whitespaces).isEmpty
-            ? Defaults.primaryModel : primaryModel
+        DeepSeekModel.normalize(primaryModel).rawValue
     }
 
-    /// 主 Provider 是否具备可连接条件
+    /// 主 Provider 是否具备「发起连接」的字段条件（不等于 API 真的可用）。
     var isPrimaryConfigured: Bool {
         guard let url = URL(string: resolvedPrimaryBaseURL), let scheme = url.scheme,
               scheme == "https" || scheme == "http" else { return false }
         return !resolvedPrimaryModel.isEmpty && !primaryAPIKey.isEmpty
     }
 
+    /// 仅代表 Key 已存入 Keychain；UI 文案必须用「Key 已保存」，不得暗示连接可用。
+    var isPrimaryKeySaved: Bool { !primaryAPIKey.isEmpty }
+
     /// Fallback 仅在端点 / 模型 / Key 三者齐全时启用；否则禁用（fail-closed，不回退 Mock）
     var isFallbackConfigured: Bool {
-        let urlText = fallbackBaseURL.trimmingCharacters(in: .whitespaces)
-        let model = fallbackModel.trimmingCharacters(in: .whitespaces)
+        let urlText = fallbackBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let model = fallbackModel.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let url = URL(string: urlText), let scheme = url.scheme,
               scheme == "https" || scheme == "http" else { return false }
         return !model.isEmpty && !fallbackAPIKey.isEmpty
     }
 
-    init() {
-        let rawTier = ud.string(forKey: Keys.tier) ?? ModelTier.freeFirst.rawValue
+    /// - Parameter defaults: 生产用 .standard；测试注入独立 suite，避免污染真实配置。
+    init(defaults: UserDefaults = .standard) {
+        self.ud = defaults
+        Self.migrateLegacyConfig(in: defaults)
+
+        let rawTier = defaults.string(forKey: Keys.tier) ?? ModelTier.freeFirst.rawValue
         tier = ModelTier(rawValue: rawTier) ?? .freeFirst
-        primaryKind = ud.string(forKey: Keys.primaryKind) ?? Defaults.primaryKind
-        fallbackKind = ud.string(forKey: Keys.fallbackKind) ?? ""
-        primaryBaseURL = ud.string(forKey: Keys.primaryBaseURL) ?? ""
-        primaryModel = ud.string(forKey: Keys.primaryModel) ?? ""
-        fallbackBaseURL = ud.string(forKey: Keys.fallbackBaseURL) ?? ""
-        fallbackModel = ud.string(forKey: Keys.fallbackModel) ?? ""
+        primaryKind = defaults.string(forKey: Keys.primaryKind) ?? Defaults.primaryKind
+        fallbackKind = defaults.string(forKey: Keys.fallbackKind) ?? ""
+        primaryBaseURL = defaults.string(forKey: Keys.primaryBaseURL) ?? ""
+        primaryModel = defaults.string(forKey: Keys.primaryModel) ?? ""
+        fallbackBaseURL = defaults.string(forKey: Keys.fallbackBaseURL) ?? ""
+        fallbackModel = defaults.string(forKey: Keys.fallbackModel) ?? ""
+    }
+
+    /// 旧版用户迁移：deepseek-chat / deepseek-reasoner / "DeepSeek" 等旧值或非法自由输入
+    /// 在加载时直接改写为 deepseek-flash 并持久化，避免旧值继续被拿去请求而报模型错误。
+    private static func migrateLegacyConfig(in defaults: UserDefaults) {
+        guard let raw = defaults.string(forKey: Keys.primaryModel)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty else { return }
+        let normalized = DeepSeekModel.normalize(raw)
+        if normalized.rawValue != raw {
+            defaults.set(normalized.rawValue, forKey: Keys.primaryModel)
+        }
     }
 
     private enum Keys {
@@ -116,6 +167,65 @@ final class AISettings {
         static let fallbackModel = "ai_fallback_model"
         static let primaryKey = "ai.primary.apiKey"
         static let fallbackKey = "ai.fallback.apiKey"
+    }
+}
+
+// MARK: - 设置 Draft（打开时复制，保存才 commit，取消整体丢弃）
+//
+// 解决真机问题：旧版 @Bindable AISettings 使每次键入都实时写 UserDefaults，
+// 「取消」无法恢复。Draft 只在内存中编辑，非敏感字段保存时 trim 后一次性落盘；
+// API Key 仍只进 Keychain（新输入非空才覆盖；勾选清除才删除）。
+
+@Observable
+final class AISettingsDraft {
+    var tier: ModelTier
+    var primaryBaseURL: String
+    var primaryModel: DeepSeekModel
+    var fallbackKind: String
+    var fallbackBaseURL: String
+    var fallbackModel: String
+
+    /// 新粘贴的 Key；空表示「不动已保存的 Key」
+    var stagedPrimaryKey = ""
+    var primaryKeySaved: Bool
+    var clearPrimaryKeyRequested = false
+    var stagedFallbackKey = ""
+    var fallbackKeySaved: Bool
+    var clearFallbackKeyRequested = false
+
+    init(settings: AISettings) {
+        tier = settings.tier
+        primaryBaseURL = settings.primaryBaseURL
+        primaryModel = DeepSeekModel.normalize(settings.primaryModel)
+        fallbackKind = settings.fallbackKind
+        fallbackBaseURL = settings.fallbackBaseURL
+        fallbackModel = settings.fallbackModel
+        primaryKeySaved = settings.isPrimaryKeySaved
+        fallbackKeySaved = settings.isFallbackConfigured || !settings.fallbackAPIKey.isEmpty
+    }
+
+    /// 保存：trim 后一次性写入。调用方负责随后发出 .aiProviderConfigChanged。
+    func commit(to settings: AISettings) {
+        settings.tier = tier
+        settings.primaryBaseURL = primaryBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        settings.primaryModel = primaryModel.rawValue
+        settings.fallbackKind = fallbackKind.trimmingCharacters(in: .whitespacesAndNewlines)
+        settings.fallbackBaseURL = fallbackBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        settings.fallbackModel = fallbackModel.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let newPrimaryKey = stagedPrimaryKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !newPrimaryKey.isEmpty {
+            settings.primaryAPIKey = newPrimaryKey
+        } else if clearPrimaryKeyRequested {
+            settings.primaryAPIKey = ""
+        }
+
+        let newFallbackKey = stagedFallbackKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !newFallbackKey.isEmpty {
+            settings.fallbackAPIKey = newFallbackKey
+        } else if clearFallbackKeyRequested {
+            settings.fallbackAPIKey = ""
+        }
     }
 }
 

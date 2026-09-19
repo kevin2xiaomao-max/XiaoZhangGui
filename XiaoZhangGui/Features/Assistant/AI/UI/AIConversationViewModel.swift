@@ -18,6 +18,8 @@ final class AIConversationViewModel {
     let voice: ShortVoiceSession
     /// 启动时为 Foundation 预览 Agent；Integration 层在 onAppear 时用 live Agent 替换。
     private(set) var agent: AgentCore
+    /// 对话代数：清空对话 +1；进行中的旧请求回来时若发现代数已变，丢弃结果并再次清空。
+    private var generation = 0
 
     /// V3.3 真机 hotfix：短语音面板展示 / 聆听期间隐藏底部导航（Dock），
     /// 面板完整使用底部安全区；取消 / 完成 / 失败关闭后恢复。
@@ -36,8 +38,8 @@ final class AIConversationViewModel {
         Task { await hydrate() }
     }
 
-    /// 远端 Provider 是否已配置（未配置时本地 0-token 能力仍可用）
-    var isRemoteConfigured: Bool { AISettings.shared.isPrimaryConfigured }
+    /// 远端 Provider 是否已保存 Key（不代表连接可用；连接状态以设置页真实测试为准）
+    var isRemoteConfigured: Bool { AISettings.shared.isPrimaryKeySaved }
 
     // MARK: 恢复
 
@@ -55,8 +57,17 @@ final class AIConversationViewModel {
         guard !content.isEmpty, !isProcessing else { return }
         input = ""
         isProcessing = true
+        let requestGeneration = generation
         Task {
             let result = await agent.send(content)
+            guard requestGeneration == generation else {
+                // 请求期间用户已清空对话：丢弃本次结果并再次清空，保证最终为空
+                await agent.clearConversation()
+                proposals.removeAll()
+                messages = []
+                isProcessing = false
+                return
+            }
             await refresh()
             if let proposal = result.proposal {
                 proposals[proposal.id] = proposal
@@ -74,6 +85,21 @@ final class AIConversationViewModel {
                 send(messages[index].content)
                 return
             }
+        }
+    }
+
+    // MARK: 清空 / 新建对话
+
+    /// Lite 只有单个会话，「新对话」与「清空当前对话」行为一致：
+    /// 清空消息与未确认 ActionCard；已保存的营业额 / 待办 / 备忘 / 配送绝不删除。
+    func clearConversation() {
+        generation += 1
+        input = ""
+        isProcessing = false
+        Task {
+            await agent.clearConversation()
+            proposals.removeAll()
+            messages = []
         }
     }
 

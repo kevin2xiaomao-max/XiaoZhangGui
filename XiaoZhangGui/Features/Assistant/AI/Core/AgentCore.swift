@@ -131,11 +131,18 @@ final class AgentCore {
         do {
             return try await runTurn(text: text, userMessage: userMessage)
         } catch {
-            // 2) 失败：保留原文，追加可见的错误回复，提供重试，不脑补
+            // 2) 失败：保留原文，追加可见的错误回复，提供重试，不脑补。
+            // ProviderFailure / URLError 等经统一映射成明确中文
+            // （API Key 无效 / 余额不足 / 超时 / 没有网络…），不显示原始错误描述。
+            let content: String = {
+                if let agentError = error as? AgentError {
+                    return agentError.errorDescription ?? "处理失败，请重试（你刚说的话已保留）"
+                }
+                return UserFacingAIError.message(for: error)
+            }()
             let errorMessage = AIMessage(
                 role: .assistant,
-                content: (error as? AgentError)?.errorDescription
-                    ?? "处理失败，请重试（你刚说的话已保留）",
+                content: content,
                 isError: true
             )
             await env.conversation.append(errorMessage)
@@ -201,7 +208,10 @@ final class AgentCore {
             // notConfigured 等 AgentError 原样上抛，保留 fail-closed 语义与文案
             throw agentError
         } catch {
-            throw AgentError.providerFailed(error.localizedDescription)
+            // ProviderFailure / URLError 保留类型化错误直接上抛：
+            // 由 send() 经 UserFacingAIError 统一映射成中文，
+            // 不再压成 generic localizedDescription。
+            throw error
         }
 
         switch turn {
@@ -271,6 +281,15 @@ final class AgentCore {
         let message = AIMessage(role: .assistant, content: lead, proposalID: proposal.id)
         await env.conversation.append(message)
         return AgentTurnResult(userMessage: userMessage, assistantMessage: message, proposal: proposal)
+    }
+
+    // MARK: 清空对话
+
+    /// 清空当前聊天：消息 + 未确认 ActionCard 全部清除并持久化，重启后仍为空。
+    /// 刻意不清 ExecutionJournal：已真实写入业务库的数据与幂等防重记录绝不受影响。
+    func clearConversation() async {
+        await env.conversation.clearConversation()
+        await env.pending.clear()
     }
 
     // MARK: ActionCard 操作

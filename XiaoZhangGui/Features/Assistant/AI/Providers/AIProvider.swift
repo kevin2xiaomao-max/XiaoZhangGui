@@ -58,6 +58,8 @@ protocol AIProvider: Sendable {
 
 enum ProviderFailure: Error, Equatable {
     case network(String)
+    /// 设备当前无网络（区别于一般网络错误，文案提示「当前没有网络」）
+    case offline
     case timeout
     case http(status: Int, body: String)
     case decoding(String)
@@ -65,12 +67,12 @@ enum ProviderFailure: Error, Equatable {
     case other(String)
 
     /// 401 / 403 等鉴权错误不允许悄悄换链重试（避免把无效 Key 轮询到多家）；
-    /// 网络 / 超时 / 5xx 才允许跳到唯一 fallback。
+    /// 网络 / 无网络 / 超时 / 5xx / 429 才允许跳到唯一 fallback。
     var allowsFailover: Bool {
         switch self {
         case .http(let status, _):
             return (500...599).contains(status) || status == 429
-        case .network, .timeout:
+        case .network, .offline, .timeout:
             return true
         case .decoding, .cancelled, .other:
             return false

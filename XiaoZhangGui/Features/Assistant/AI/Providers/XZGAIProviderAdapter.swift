@@ -35,6 +35,20 @@ enum XZGAIProviderAdapter {
         )
     }
 
+    /// 按显式参数构造主 Provider（设置页「测试连接」用：Draft 尚未保存也能验证）。
+    static func makePrimary(
+        baseURL: URL,
+        apiKey: String,
+        model: String,
+        kind: String = AISettings.Defaults.primaryKind
+    ) throws -> any AIProvider {
+        guard let scheme = baseURL.scheme, scheme == "https" || scheme == "http",
+              !model.isEmpty, !apiKey.isEmpty else {
+            throw AgentError.notConfigured
+        }
+        return OpenAICompatProvider(id: "primary-\(kind)", baseURL: baseURL, apiKey: apiKey, model: model)
+    }
+
     /// 构造 fallback Provider；未完整配置返回 nil（禁用 fallback，而非伪造）。
     static func makeFallback(
         settings: AISettings = .shared,
