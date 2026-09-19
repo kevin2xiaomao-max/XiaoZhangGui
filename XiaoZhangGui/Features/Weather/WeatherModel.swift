@@ -35,6 +35,23 @@ struct WeatherSnapshot: Codable, Equatable, Sendable {
     }
 }
 
+struct WeatherDayForecast: Codable, Equatable, Sendable {
+    let offset: Int
+    let date: Date
+    let minTemperature: Double
+    let maxTemperature: Double
+    let precipitationProbability: Double?
+    let condition: String
+    var isStale: Bool
+}
+
+struct WeatherForecast: Codable, Equatable, Sendable {
+    let city: String
+    var days: [WeatherDayForecast]
+    let fetchedAt: Date
+    var isStale: Bool
+}
+
 enum WeatherViewState: Equatable {
     case idle
     case loading

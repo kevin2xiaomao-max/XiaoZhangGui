@@ -33,6 +33,19 @@ struct WeatherConfiguration: Sendable {
 
 protocol WeatherProviding: Sendable {
     func fetchCurrentWeather() async throws -> WeatherSnapshot
+    func fetchForecast(days: Int) async throws -> WeatherForecast
+}
+
+extension WeatherProviding {
+    func fetchForecast(days: Int) async throws -> WeatherForecast {
+        let current = try await fetchCurrentWeather()
+        return WeatherForecast(
+            city: current.city,
+            days: [WeatherDayForecast(offset: 0, date: current.observedAt, minTemperature: current.temperature, maxTemperature: current.temperature, precipitationProbability: current.precipitationProbability, condition: current.condition, isStale: current.isStale)],
+            fetchedAt: current.observedAt,
+            isStale: current.isStale
+        )
+    }
 }
 
 /// P0-4：WeatherAPI.com 实现。
@@ -96,6 +109,56 @@ struct WeatherAPIProvider: WeatherProviding {
             isStale: false
         )
     }
+
+    func fetchForecast(days: Int) async throws -> WeatherForecast {
+        guard configuration.isConfigured else { throw WeatherServiceError.notConfigured }
+        var components = URLComponents(string: "https://api.weatherapi.com/v1/forecast.json")
+        components?.queryItems = [
+            URLQueryItem(name: "key", value: configuration.apiKey),
+            URLQueryItem(name: "q", value: String(format: "%.4f,%.4f", configuration.latitude, configuration.longitude)),
+            URLQueryItem(name: "days", value: String(min(max(days, 1), 3))),
+            URLQueryItem(name: "aqi", value: "no"),
+            URLQueryItem(name: "alerts", value: "no"),
+            URLQueryItem(name: "lang", value: "zh")
+        ]
+        guard let url = components?.url else { throw WeatherServiceError.invalidURL }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 8
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            throw WeatherServiceError.requestFailed
+        }
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw WeatherServiceError.invalidResponse
+        }
+        guard let payload = try? JSONDecoder().decode(WeatherAPIResponse.self, from: data) else {
+            throw WeatherServiceError.invalidResponse
+        }
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        let now = Date()
+        let days = payload.forecast.forecastday.enumerated().compactMap { index, item -> WeatherDayForecast? in
+            guard let rawDate = item.date,
+                  let date = formatter.date(from: rawDate),
+                  let condition = item.day.condition else { return nil }
+            return WeatherDayForecast(
+                offset: index,
+                date: date,
+                minTemperature: item.day.mintempC,
+                maxTemperature: item.day.maxtempC,
+                precipitationProbability: item.day.dailyChanceOfRain.map { Double($0) / 100.0 },
+                condition: condition.text,
+                isStale: false
+            )
+        }
+        return WeatherForecast(city: configuration.city.isEmpty ? payload.location.name : configuration.city, days: days, fetchedAt: now, isStale: false)
+    }
 }
 
 private struct WeatherAPIResponse: Decodable {
@@ -118,6 +181,7 @@ private struct WeatherAPIResponse: Decodable {
         }
     }
     struct Day: Decodable {
+        let condition: Condition?
         let maxtempC: Double
         let mintempC: Double
         let dailyChanceOfRain: Int?
@@ -129,6 +193,7 @@ private struct WeatherAPIResponse: Decodable {
         }
     }
     struct ForecastDay: Decodable {
+        let date: String?
         let day: Day
     }
     struct Forecast: Decodable {
@@ -149,6 +214,7 @@ actor WeatherService {
     private let provider: any WeatherProviding
     private let defaults: UserDefaults
     private let cacheKey = "xzg.weather.current.v1"
+    private let forecastCacheKey = "xzg.weather.forecast.v1"
     private let freshInterval: TimeInterval = 30 * 60
     private let staleFallbackInterval: TimeInterval = 6 * 60 * 60
 
@@ -180,6 +246,30 @@ actor WeatherService {
         }
     }
 
+    func forecast(days: Int = 3, forceRefresh: Bool = false) async throws -> WeatherForecast {
+        let cached = loadForecastCache()
+        if !forceRefresh, let cached, Date().timeIntervalSince(cached.cachedAt) < freshInterval {
+            return cached.forecast
+        }
+        do {
+            let forecast = try await provider.fetchForecast(days: min(max(days, 1), 3))
+            saveForecast(forecast)
+            return forecast
+        } catch {
+            if let cached, Date().timeIntervalSince(cached.cachedAt) < staleFallbackInterval {
+                var stale = cached.forecast
+                stale.isStale = true
+                stale.days = stale.days.map { day in
+                    var copy = day
+                    copy.isStale = true
+                    return copy
+                }
+                return stale
+            }
+            throw error
+        }
+    }
+
     private func loadCache() -> CachedWeather? {
         guard let data = defaults.data(forKey: cacheKey) else { return nil }
         return try? JSONDecoder().decode(CachedWeather.self, from: data)
@@ -189,6 +279,21 @@ actor WeatherService {
         guard let data = try? JSONEncoder().encode(CachedWeather(snapshot: snapshot, cachedAt: Date())) else { return }
         defaults.set(data, forKey: cacheKey)
     }
+
+    private func loadForecastCache() -> CachedForecast? {
+        guard let data = defaults.data(forKey: forecastCacheKey) else { return nil }
+        return try? JSONDecoder().decode(CachedForecast.self, from: data)
+    }
+
+    private func saveForecast(_ forecast: WeatherForecast) {
+        guard let data = try? JSONEncoder().encode(CachedForecast(forecast: forecast, cachedAt: Date())) else { return }
+        defaults.set(data, forKey: forecastCacheKey)
+    }
+}
+
+private struct CachedForecast: Codable {
+    let forecast: WeatherForecast
+    let cachedAt: Date
 }
 
 @MainActor

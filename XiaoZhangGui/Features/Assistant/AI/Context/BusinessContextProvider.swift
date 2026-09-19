@@ -24,9 +24,23 @@ struct ScopedBusinessContext: Equatable, Sendable {
     static let empty = ScopedBusinessContext()
 }
 
+/// AI 侧商品只保留可回答问题所需的数值投影，不携带图片、备注或 SwiftData 对象。
+struct GoodsSummary: Equatable, Sendable {
+    let name: String
+    let purchasePrice: Double
+    let salePrice: Double
+    let stock: Int
+    let minStock: Int
+}
+
 protocol BusinessContextProviding: Sendable {
     /// 按问题需要的种类取最小上下文；kinds 为空必须返回空上下文（0 数据外发）。
     func scopedContext(for kinds: [BusinessRecordKind]) async -> ScopedBusinessContext
+    func goods(named query: String) async -> [GoodsSummary]
+}
+
+extension BusinessContextProviding {
+    func goods(named query: String) async -> [GoodsSummary] { [] }
 }
 
 /// Foundation：尚未接 Repository，统一返回空上下文。
@@ -37,4 +51,6 @@ struct UnavailableBusinessContextProvider: BusinessContextProviding {
         // 预览阶段不读取业务库
         return .empty
     }
+
+    func goods(named query: String) async -> [GoodsSummary] { [] }
 }

@@ -68,7 +68,7 @@ final class AIRealDeviceP0FixTests: XCTestCase {
         let result = await harness.agent.send("明天恩平什么天气啊，帮我查下")
 
         let reply = try XCTUnwrap(result.assistantMessage?.content)
-        XCTAssertTrue(reply.contains("当前无法查询实时天气"))
+        XCTAssertTrue(reply.contains("天气服务暂未配置") || reply.contains("数据可能不是最新"))
         XCTAssertNil(result.proposal, "天气查询绝不能出 ActionCard")
         let calls = await harness.provider.callCount
         XCTAssertEqual(calls, 0, "天气回复必须 0 Token")

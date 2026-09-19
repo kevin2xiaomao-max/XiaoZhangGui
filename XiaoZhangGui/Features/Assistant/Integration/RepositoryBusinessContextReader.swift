@@ -27,6 +27,14 @@ final class RepositoryBusinessContextReader: BusinessContextProviding {
         scopedContextSync(for: kinds)
     }
 
+    func goods(named query: String) async -> [GoodsSummary] {
+        let normalized = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty, let rows = try? context.fetch(FetchDescriptor<Goods>()) else { return [] }
+        return rows
+            .filter { normalized.contains($0.name) || $0.name.contains(normalized) }
+            .map { GoodsSummary(name: $0.name, purchasePrice: $0.purchasePrice, salePrice: $0.salePrice, stock: $0.stock, minStock: $0.minStock) }
+    }
+
     /// 同步测试接缝：查询本身无异步等待，同步实现便于单测与 AgentCore 共用同一份派生逻辑。
     func scopedContextSync(for kinds: [BusinessRecordKind]) -> ScopedBusinessContext {
         guard !kinds.isEmpty else { return .empty }

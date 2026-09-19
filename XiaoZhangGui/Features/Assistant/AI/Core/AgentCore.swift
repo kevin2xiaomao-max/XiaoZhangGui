@@ -45,6 +45,7 @@ struct AgentEnvironment: Sendable {
     let pending: any PendingActionStoring
     let gate: WriteGate
     let tier: ModelTier
+    let weatherService: WeatherService? = nil
 
     // MARK: Foundation 预览装配（全 Mock + 预览执行器，不写业务库）
 
@@ -67,7 +68,8 @@ struct AgentEnvironment: Sendable {
             conversation: conversation,
             pending: pending,
             gate: .preview,
-            tier: .freeFirst
+            tier: .freeFirst,
+            weatherService: nil
         )
     }
 
@@ -82,7 +84,8 @@ struct AgentEnvironment: Sendable {
         pending: any PendingActionStoring,
         journal: any ExecutionJournaling,
         modelRouter: any ModelRouting = FreeFirstModelRouter(),
-        tier: ModelTier = .freeFirst
+        tier: ModelTier = .freeFirst,
+        weatherService: WeatherService? = WeatherService(provider: WeatherAPIProvider(configuration: .current()))
     ) throws -> AgentEnvironment {
         // Release 红线：live 环境绝不允许 Mock 假装成功
         if provider is MockAIProvider || fallback is MockAIProvider {
@@ -102,7 +105,8 @@ struct AgentEnvironment: Sendable {
             conversation: conversation,
             pending: pending,
             gate: .live,
-            tier: tier
+            tier: tier,
+            weatherService: weatherService
         )
     }
 }
@@ -252,10 +256,34 @@ final class AgentCore {
                 userMessage: userMessage)
 
         case .weatherQuery:
-            // P0-1：READ 意图，但本版本没有天气工具 → 明确告知，0 Token、不出卡、不写库。
-            return try await appendAssistant(Self.weatherUnsupportedText, userMessage: userMessage)
+            guard let weatherService = env.weatherService else {
+                return try await appendAssistant(Self.weatherUnsupportedText, userMessage: userMessage)
+            }
+            do {
+                let forecast = try await weatherService.forecast(days: 3)
+                return try await appendAssistant(
+                    WeatherSkill.answer(for: workingText, forecast: forecast), userMessage: userMessage)
+            } catch WeatherServiceError.notConfigured {
+                return try await appendAssistant("天气服务暂未配置，首页天气入口仍可查看本地缓存。", userMessage: userMessage)
+            } catch {
+                return try await appendAssistant("暂时拿不到天气预报，请稍后再试；如果看到缓存，数据可能不是最新。", userMessage: userMessage)
+            }
+
+        case .goodsQuery(let query):
+            let matches = await env.contextProvider.goods(named: query)
+            switch GoodsLookupSkill.lookup(query, in: matches) {
+            case .reply(let content):
+                return try await appendAssistant(content, userMessage: userMessage)
+            case .clarify(let names):
+                return try await appendAssistant("找到多个商品：\(names.joined(separator: "、"))。你想查哪一个？", userMessage: userMessage)
+            case .notFound(let content):
+                return try await appendAssistant(content, userMessage: userMessage)
+            }
 
         case .worldChat, .localZeroToken:
+            if let meta = MetaReply.reply(for: workingText) {
+                return try await appendAssistant(meta, userMessage: userMessage)
+            }
             return try await remoteTurn(
                 intent: intent, workingText: workingText, originalText: originalText,
                 userMessage: userMessage)
@@ -277,6 +305,7 @@ final class AgentCore {
             case .businessQuery: return .businessAnswer
             case .localZeroToken: return .simpleExtraction
             case .worldChat, .weatherQuery: return .chat
+            case .goodsQuery: return .businessAnswer
             }
         }()
         let route = env.modelRouter.route(task: task, intent: intent, tier: env.tier)

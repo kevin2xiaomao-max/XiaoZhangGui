@@ -19,6 +19,8 @@ enum IntentKind: Equatable, Sendable {
     case worldChat
     /// 实时外部信息查询（天气等）：本版本没有对应工具，本地直接明确告知（0 Token）
     case weatherQuery
+    /// 店内商品 READ，不生成 ActionCard
+    case goodsQuery(String)
 }
 
 struct IntentRouter {
@@ -56,6 +58,8 @@ struct IntentRouter {
         // 0) 实时外部信息查询（天气）优先于一切 CREATE：
         //    「明天恩平什么天气啊，帮我查下」是 READ，不是「明天 + 新建待办」。
         if isWeatherQuery(text) { return .weatherQuery }
+
+        if isGoodsQuery(text) { return .goodsQuery(text) }
 
         // 1) 经营读问答优先（避免“今天还有几单配送”被当成新建配送）
         if let query = classifyQuery(text) { return query }
@@ -157,6 +161,13 @@ struct IntentRouter {
         guard Self.weatherKeywords.contains(where: { text.contains($0) }) else { return false }
         if Self.createCueWords.contains(where: { text.contains($0) }) { return false }
         return true
+    }
+
+    private func isGoodsQuery(_ text: String) -> Bool {
+        let markers = ["多少钱", "进价", "售价", "库存", "毛利", "有没有", "还有多少"]
+        guard markers.contains(where: { text.contains($0) }) else { return false }
+        let nonGoodsPhrases = ["天气", "配送", "送货", "待办", "备忘", "临期", "过期", "明显下降", "什么问题"]
+        return !nonGoodsPhrases.contains(where: { text.contains($0) })
     }
 
     private func classifyQuery(_ text: String) -> IntentKind? {
