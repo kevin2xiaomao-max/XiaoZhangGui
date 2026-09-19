@@ -160,7 +160,7 @@ struct HomeView: View {
                         .overlay(Circle().strokeBorder(V32.cardOutline, lineWidth: 1))
                 )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(V32PressButtonStyle())
     }
 
     private var weatherButton: some View {
@@ -182,7 +182,7 @@ struct HomeView: View {
                     .overlay(Capsule().strokeBorder(V32.cardOutline, lineWidth: 1))
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(V32PressButtonStyle())
         .accessibilityLabel(weatherModel.snapshot.map { "\($0.city)，\($0.roundedTemperature)度" } ?? "天气")
     }
 
@@ -279,9 +279,15 @@ struct HomeView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: V32Layout.cardGap) {
                     ForEach(topDeliveries, id: \.persistentModelID) { request in
-                        DeliveryCard(request: request)
-                            .frame(width: deliveryCardWidth)
-                            .onTapGesture { route = .customer }
+                        Button {
+                            route = .customer
+                            Haptic.light()
+                        } label: {
+                            DeliveryCard(request: request)
+                                .frame(width: deliveryCardWidth)
+                        }
+                        .buttonStyle(V32PressButtonStyle())
+                        .accessibilityLabel("查看配送：\(request.displayTitle)")
                     }
                 }
                 .scrollTargetLayout()
@@ -363,7 +369,7 @@ struct HomeView: View {
                     .padding(.vertical, 8)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(V32PressButtonStyle())
             }
         }
     }
@@ -510,4 +516,3 @@ private struct HomeSparkline: View {
         .accessibilityLabel("最近七日营业额趋势")
     }
 }
-

@@ -79,7 +79,7 @@ struct TodoView: View {
                     .frame(width: V32Layout.toolCircle, height: V32Layout.toolCircle)
                     .background(Circle().fill(V32.hero))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(V32PressButtonStyle())
             .accessibilityLabel(tab == .records ? "新增记录" : "新增待办")
         }
     }
@@ -226,7 +226,9 @@ struct TodoView: View {
 
     private func delete(_ todo: Todo) {
         Haptic.warning()
-        try? TodoRepository(context: context).delete(todo)
+        withAnimation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion))) {
+            try? TodoRepository(context: context).delete(todo)
+        }
     }
 }
 
@@ -235,12 +237,15 @@ struct TodoView: View {
 struct V32SegmentedPicker: View {
     let tabs: [String]
     @Binding var selectionIndex: Int
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: 4) {
             ForEach(tabs.indices, id: \.self) { index in
                 Button {
-                    withAnimation(V32Motion.quick) { selectionIndex = index }
+                    withAnimation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion))) {
+                        selectionIndex = index
+                    }
                     Haptic.light()
                 } label: {
                     Text(tabs[index])
@@ -256,7 +261,7 @@ struct V32SegmentedPicker: View {
                             Capsule().strokeBorder(index == selectionIndex ? V32.cardOutline : Color.clear, lineWidth: 1)
                         )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(V32PressButtonStyle())
             }
         }
         .padding(4)
@@ -293,7 +298,7 @@ private struct TodoListRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(V32PressButtonStyle())
 
             Text(timeText)
                 .v32Text(.caption)
@@ -306,7 +311,7 @@ private struct TodoListRow: View {
                     .frame(width: 30, height: 30)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(V32PressButtonStyle())
             .accessibilityLabel("删除待办")
         }
         .padding(.horizontal, 12)

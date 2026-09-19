@@ -110,7 +110,7 @@ struct ScheduleView: View {
                             .overlay(Circle().strokeBorder(V32.cardOutline, lineWidth: 1))
                     )
             }
-            .buttonStyle(.plain)
+            .buttonStyle(V32PressButtonStyle())
             .accessibilityLabel("完整月历")
         }
     }
@@ -159,7 +159,7 @@ struct ScheduleView: View {
                         .overlay(Circle().strokeBorder(V32.cardOutline, lineWidth: 1))
                 )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(V32PressButtonStyle())
     }
 
     private func weekDayCell(_ date: Date) -> some View {
@@ -195,7 +195,7 @@ struct ScheduleView: View {
                 }
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(V32PressButtonStyle())
     }
 
     private func shiftMonth(_ value: Int) {
@@ -231,7 +231,7 @@ struct ScheduleView: View {
                 NavigationLink { CustomerView() } label: {
                     timelineCard(event, chevron: true)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(V32PressButtonStyle())
             case .todo:
                 timelineCard(event, chevron: false)
             }
@@ -309,7 +309,7 @@ struct ScheduleView: View {
                                     done: done
                                 )
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(V32PressButtonStyle())
                         }
                         ForEach(scheduleDay.allDay.expiry, id: \.persistentModelID) { item in
                             expiryRow(item)
@@ -318,7 +318,7 @@ struct ScheduleView: View {
                             NavigationLink { MemoView() } label: {
                                 iconRow(icon: "note.text", tone: .neutral, title: memo.title, subtitle: memo.content)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(V32PressButtonStyle())
                         }
                     }
                 }
@@ -390,7 +390,7 @@ struct ScheduleView: View {
 
         return VStack(spacing: 0) {
             Button {
-                withAnimation(reduceMotion ? nil : V32Motion.softSpring) {
+                withAnimation(V32Motion.animation(V32Motion.resolve(.spring, reduceMotion: reduceMotion))) {
                     if isExpanded { expandedExpiry.remove(item.notificationID) } else { expandedExpiry.insert(item.notificationID) }
                 }
             } label: {
@@ -415,7 +415,7 @@ struct ScheduleView: View {
                 .frame(minHeight: 54)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(V32PressButtonStyle())
 
             if isExpanded {
                 VStack(alignment: .leading, spacing: 10) {
@@ -470,7 +470,7 @@ struct ScheduleView: View {
                     }
                 }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(V32PressButtonStyle())
         }
     }
 
