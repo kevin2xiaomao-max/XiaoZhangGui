@@ -10,6 +10,8 @@ struct ChatInputBar: View {
     let onVoice: () -> Void
 
     @FocusState private var focused: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
         HStack(spacing: 9) {
@@ -20,7 +22,7 @@ struct ChatInputBar: View {
                     .frame(width: 38, height: 38)
                     .background(Circle().fill(V32.brandSoft))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(V32PressButtonStyle())
             .disabled(!voiceAvailable)
             .accessibilityLabel("语音输入")
 
@@ -39,6 +41,7 @@ struct ChatInputBar: View {
                         )
                 )
                 .onSubmit(onSend)
+                .animation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion)), value: focused)
                 .accessibilityIdentifier("ai.input")
 
             Button(action: onSend) {
@@ -50,7 +53,7 @@ struct ChatInputBar: View {
                         Circle().fill(canSend ? V32.brand : V32.textTertiary.opacity(0.35))
                     )
             }
-            .buttonStyle(.plain)
+            .buttonStyle(V32PressButtonStyle())
             .disabled(!canSend)
             .accessibilityLabel("发送")
             .accessibilityIdentifier("ai.send")
@@ -58,7 +61,7 @@ struct ChatInputBar: View {
         .padding(.horizontal, V32Layout.pageMargin)
         .padding(.top, 8)
         .padding(.bottom, 6)
-        .background(.ultraThinMaterial)
+        .background(reduceTransparency ? AnyShapeStyle(V32.card) : AnyShapeStyle(.ultraThinMaterial))
     }
 
     private var canSend: Bool {

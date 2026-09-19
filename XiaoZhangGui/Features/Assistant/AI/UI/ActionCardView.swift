@@ -28,8 +28,10 @@ struct ActionCardView: View {
             }
         }
         .transition(.opacity.combined(with: reduceMotion ? .identity : .move(edge: .bottom)))
-        .animation(V32Motion.standard, value: proposal.status)
-        .animation(V32Motion.standard, value: proposal.previewAcknowledged)
+        .animation(V32Motion.animation(V32Motion.resolve(.spring, reduceMotion: reduceMotion)),
+                   value: proposal.status)
+        .animation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion)),
+                   value: proposal.previewAcknowledged)
         .accessibilityIdentifier("ai.action-card")
     }
 

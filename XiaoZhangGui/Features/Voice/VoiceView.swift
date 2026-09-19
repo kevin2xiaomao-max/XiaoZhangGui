@@ -335,6 +335,7 @@ struct VoiceView: View {
 
 struct CompactVoiceWaveform: View {
     @State private var phase = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: 3) {
@@ -344,14 +345,15 @@ struct CompactVoiceWaveform: View {
                     .fill(V32.brand.opacity(0.7))
                     .frame(width: 2.5, height: height)
                     .animation(
-                        .easeInOut(duration: 0.55)
+                        reduceMotion ? nil : V32Motion.slow
                             .repeatForever(autoreverses: true)
                             .delay(Double(index % 5) * 0.07),
                         value: phase
                     )
             }
         }
-        .onAppear { phase = true }
+        .onAppear { phase = !reduceMotion }
+        .accessibilityHidden(true)
     }
 
     @MainActor
@@ -370,6 +372,7 @@ struct CompactVoiceWaveform: View {
 @MainActor
 struct SpatialRipples: View {
     @State private var animate = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
@@ -379,14 +382,15 @@ struct SpatialRipples: View {
                     .scaleEffect(animate ? 2.6 : 0.4)
                     .opacity(animate ? 0 : 0.5)
                     .animation(
-                        .linear(duration: 4)
+                        reduceMotion ? nil : .linear(duration: 4)
                             .repeatForever(autoreverses: false)
                             .delay(Double(index) * 1.3),
                         value: animate
                     )
             }
         }
-        .onAppear { animate = true }
+        .onAppear { animate = !reduceMotion }
         .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }

@@ -54,7 +54,7 @@ struct AIChatView: View {
                                             .font(.system(size: 18, weight: .medium))
                                             .foregroundStyle(V32.textSecondary)
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(V32PressButtonStyle())
                                     .accessibilityLabel("对话菜单")
                                     .accessibilityIdentifier("ai.menu")
                                 }
@@ -103,7 +103,8 @@ struct AIChatView: View {
         // V3.3 真机 hotfix：短语音面板展示 / 聆听期间隐藏底部 Tab 栏（Dock），
         // 让面板完整使用底部安全区；取消 / 完成 / 失败关闭后自动恢复。
         .toolbar(model.showVoicePanel ? .hidden : .visible, for: .tabBar)
-        .animation(V32Motion.standard, value: model.showVoicePanel)
+        .animation(V32Motion.animation(V32Motion.resolve(.spring, reduceMotion: reduceMotion)),
+                   value: model.showVoicePanel)
         .onChange(of: voiceDeepLink?.wrappedValue ?? false) { _, triggered in
             if triggered {
                 model.startVoice()
@@ -157,7 +158,7 @@ struct AIChatView: View {
                                     .foregroundStyle(V32.textTertiary)
                             }
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(V32PressButtonStyle())
                     }
                 }
             }
@@ -171,6 +172,7 @@ struct AIChatView: View {
         VStack(alignment: .leading, spacing: 8) {
             bubble(message)
                 .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
+                .transition(.opacity.combined(with: reduceMotion ? .identity : .move(edge: .bottom)))
 
             if let proposalID = message.proposalID,
                let proposal = model.proposals[proposalID] {
@@ -181,6 +183,7 @@ struct AIChatView: View {
                     onCancel: { model.cancelCard(proposalID) }
                 )
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .transition(.opacity.combined(with: reduceMotion ? .identity : .move(edge: .bottom)))
             }
         }
     }
@@ -212,7 +215,7 @@ struct AIChatView: View {
                             .v32Text(.caption)
                             .foregroundStyle(V32.brand)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(V32PressButtonStyle())
                 }
             }
             .padding(.horizontal, 14)
@@ -246,7 +249,7 @@ struct AIChatView: View {
                 onCancel: { model.cancelVoice() },
                 onEditText: { model.retainVoiceTranscriptToInput() }
             )
-            .transition(.move(edge: .bottom).combined(with: .opacity))
+            .transition(.opacity.combined(with: reduceMotion ? .identity : .move(edge: .bottom)))
         }
     }
 
