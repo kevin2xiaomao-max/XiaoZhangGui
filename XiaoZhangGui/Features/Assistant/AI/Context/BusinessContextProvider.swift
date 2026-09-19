@@ -33,14 +33,54 @@ struct GoodsSummary: Equatable, Sendable {
     let minStock: Int
 }
 
+struct DailyRevenueSummary: Equatable, Sendable {
+    let date: Date
+    let amount: Double
+}
+
+/// AI 2.0 唯一经营上下文入口。只保留聚合值和短标题，不承载 SwiftData 对象或客户隐私。
+struct GroundingPack: Equatable, Sendable {
+    var todayRevenue: Double?
+    var yesterdayRevenue: Double?
+    var sevenDayRevenue: [DailyRevenueSummary]
+    var unfinishedTodoTitles: [String]
+    var deliveryPendingCount: Int
+    var deliveryDeliveringCount: Int
+    var expiryTitles: [String]
+    var goods: [GoodsSummary]
+    var localSummary: String?
+
+    static let empty = GroundingPack(
+        todayRevenue: nil, yesterdayRevenue: nil, sevenDayRevenue: [],
+        unfinishedTodoTitles: [], deliveryPendingCount: 0, deliveryDeliveringCount: 0,
+        expiryTitles: [], goods: [], localSummary: nil
+    )
+
+    var hasBusinessData: Bool {
+        todayRevenue != nil || yesterdayRevenue != nil || sevenDayRevenue.contains { $0.amount != 0 }
+            || !unfinishedTodoTitles.isEmpty || deliveryPendingCount > 0
+            || deliveryDeliveringCount > 0 || !expiryTitles.isEmpty || !goods.isEmpty
+    }
+}
+
+enum BusinessInsightKind: Equatable, Sendable {
+    case overview
+    case comparison
+    case sevenDayTrend
+    case inventory
+    case advice
+}
+
 protocol BusinessContextProviding: Sendable {
     /// 按问题需要的种类取最小上下文；kinds 为空必须返回空上下文（0 数据外发）。
     func scopedContext(for kinds: [BusinessRecordKind]) async -> ScopedBusinessContext
     func goods(named query: String) async -> [GoodsSummary]
+    func groundingPack() async -> GroundingPack
 }
 
 extension BusinessContextProviding {
     func goods(named query: String) async -> [GoodsSummary] { [] }
+    func groundingPack() async -> GroundingPack { .empty }
 }
 
 /// Foundation：尚未接 Repository，统一返回空上下文。
@@ -53,4 +93,5 @@ struct UnavailableBusinessContextProvider: BusinessContextProviding {
     }
 
     func goods(named query: String) async -> [GoodsSummary] { [] }
+    func groundingPack() async -> GroundingPack { .empty }
 }

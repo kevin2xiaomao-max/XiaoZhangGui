@@ -25,6 +25,24 @@ actor ScriptedAIProvider: AIProvider {
     }
 }
 
+actor CapturingAIProvider: AIProvider {
+    nonisolated let id = "capturing"
+    private(set) var requests: [ProviderRequest] = []
+    private let response: ProviderTurn
+
+    init(response: ProviderTurn = .text("测试回复")) {
+        self.response = response
+    }
+
+    func complete(_ request: ProviderRequest) async throws -> ProviderTurn {
+        requests.append(request)
+        return response
+    }
+
+    func requestCount() -> Int { requests.count }
+    func firstRequest() -> ProviderRequest? { requests.first }
+}
+
 /// 测试专用：记录调用并返回成功（App target 内不存在此类，Release 无法假成功）
 actor SuccessToolExecutor: ToolExecuting {
     private(set) var executed: [ToolCall] = []
@@ -55,10 +73,12 @@ actor CountingAIProvider: AIProvider {
 /// 脚本化业务上下文（不碰 SwiftData，用于本地 READ 测试）
 actor ScriptedBusinessContextProvider: BusinessContextProviding {
     private let context: ScopedBusinessContext
+    private let pack: GroundingPack
     private(set) var requestedKinds: [[BusinessRecordKind]] = []
 
-    init(_ context: ScopedBusinessContext) {
+    init(_ context: ScopedBusinessContext, pack: GroundingPack = .empty) {
         self.context = context
+        self.pack = pack
     }
 
     func scopedContext(for kinds: [BusinessRecordKind]) async -> ScopedBusinessContext {
@@ -66,6 +86,8 @@ actor ScriptedBusinessContextProvider: BusinessContextProviding {
         guard !kinds.isEmpty else { return .empty }
         return context
     }
+
+    func groundingPack() async -> GroundingPack { pack }
 }
 
 enum AITestFactory {

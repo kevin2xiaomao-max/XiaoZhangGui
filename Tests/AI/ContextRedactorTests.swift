@@ -6,7 +6,7 @@ final class ContextRedactorTests: XCTestCase {
 
     func testWorldChatCarriesZeroBusinessData() {
         XCTAssertNil(redactor.sanitizeForWorldChat().json)
-        XCTAssertNil(redactor.sanitize(.empty).json)
+        XCTAssertNil(redactor.sanitize(ScopedBusinessContext.empty).json)
     }
 
     func testPhoneNumberIsMaskedBeforeLeavingDevice() throws {

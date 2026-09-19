@@ -21,6 +21,8 @@ enum IntentKind: Equatable, Sendable {
     case weatherQuery
     /// 店内商品 READ，不生成 ActionCard
     case goodsQuery(String)
+    /// AI 2.0 店铺经营分析。除 advice 外均本地 0-token 回答。
+    case businessInsight(BusinessInsightKind)
 }
 
 struct IntentRouter {
@@ -58,6 +60,8 @@ struct IntentRouter {
         // 0) 实时外部信息查询（天气）优先于一切 CREATE：
         //    「明天恩平什么天气啊，帮我查下」是 READ，不是「明天 + 新建待办」。
         if isWeatherQuery(text) { return .weatherQuery }
+
+        if let insight = classifyBusinessInsight(text) { return .businessInsight(insight) }
 
         if isGoodsQuery(text) { return .goodsQuery(text) }
 
@@ -198,5 +202,31 @@ struct IntentRouter {
         // 是问句但不属于店内经营实体：交云端正常回答。
         // 关键：此时即便句中含「明天」等时间词，也绝不能继续落入 CREATE（P0-1 / P0-4）。
         return .worldChat
+    }
+
+    private func classifyBusinessInsight(_ text: String) -> BusinessInsightKind? {
+        // 明确的跨日比较本身就是经营分析信号；不能要求用户重复说“营业额”。
+        if text.contains("今天"), text.contains("昨天"),
+           ["比", "对比", "相比", "较"].contains(where: { text.contains($0) }) {
+            return .comparison
+        }
+        let businessWords = ["生意", "经营", "店里", "店铺", "我的店", "库存", "营业额", "营收"]
+        guard businessWords.contains(where: { text.contains($0) }) else { return nil }
+        if text.contains("结合") && ["建议", "分析", "怎么办"].contains(where: { text.contains($0) }) {
+            return .advice
+        }
+        if text.contains("库存") && ["注意", "怎么样", "哪些", "风险", "低库存"].contains(where: { text.contains($0) }) {
+            return .inventory
+        }
+        if text.contains("7天") || text.contains("七天") || text.contains("最近生意") || text.contains("趋势") {
+            return .sevenDayTrend
+        }
+        if text.contains("比昨天") || text.contains("昨天比") || text.contains("较昨天") {
+            return .comparison
+        }
+        if text.contains("今天") && ["怎么样", "如何", "情况", "好不好"].contains(where: { text.contains($0) }) {
+            return .overview
+        }
+        return nil
     }
 }

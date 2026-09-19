@@ -35,6 +35,73 @@ final class RepositoryBusinessContextReader: BusinessContextProviding {
             .map { GoodsSummary(name: $0.name, purchasePrice: $0.purchasePrice, salePrice: $0.salePrice, stock: $0.stock, minStock: $0.minStock) }
     }
 
+    func groundingPack() async -> GroundingPack {
+        do {
+            let now = Date()
+            let startToday = calendar.startOfDay(for: now)
+            let startTomorrow = calendar.date(byAdding: .day, value: 1, to: startToday) ?? now
+            let startYesterday = calendar.date(byAdding: .day, value: -1, to: startToday) ?? startToday
+            let startSevenDays = calendar.date(byAdding: .day, value: -6, to: startToday) ?? startToday
+
+            let revenues = try context.fetch(FetchDescriptor<Performance>())
+            let todos = try context.fetch(FetchDescriptor<Todo>())
+            let customers = try context.fetch(FetchDescriptor<CustomerRequest>())
+            let expiry = try context.fetch(FetchDescriptor<ExpiryItem>())
+            let goodsRows = try context.fetch(FetchDescriptor<Goods>())
+            let expenses = (try? context.fetch(FetchDescriptor<Expense>())) ?? []
+            let memos = (try? context.fetch(FetchDescriptor<Memo>())) ?? []
+
+            let todayRows = revenues.filter { $0.date >= startToday && $0.date < startTomorrow }
+            let yesterdayRows = revenues.filter { $0.date >= startYesterday && $0.date < startToday }
+            let trend = (0..<7).compactMap { offset -> DailyRevenueSummary? in
+                guard let day = calendar.date(byAdding: .day, value: offset, to: startSevenDays),
+                      let next = calendar.date(byAdding: .day, value: 1, to: day) else { return nil }
+                return DailyRevenueSummary(
+                    date: day,
+                    amount: revenues.filter { $0.date >= day && $0.date < next }.reduce(0) { $0 + $1.amount }
+                )
+            }
+            let unfinished = todos
+                .filter { todo in
+                    guard !todo.isCompleted, let due = todo.dueDate else { return false }
+                    return due < startTomorrow
+                }
+                .sorted { ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture) }
+                .prefix(5).map(\.title)
+            let todayDeliveries = customers.filter { $0.createdAt >= startToday && $0.createdAt < startTomorrow }
+            let expiryTitles = expiry
+                .filter { $0.returnStatus == ReturnStatus.pending.rawValue }
+                .sorted { $0.expiryDate < $1.expiryDate }
+                .prefix(5).map(\.name)
+            let goods = goodsRows
+                .sorted { lhs, rhs in
+                    let lhsLow = lhs.stock <= lhs.minStock
+                    let rhsLow = rhs.stock <= rhs.minStock
+                    return lhsLow == rhsLow ? lhs.name < rhs.name : lhsLow && !rhsLow
+                }
+                .prefix(8)
+                .map { GoodsSummary(name: $0.name, purchasePrice: $0.purchasePrice,
+                                    salePrice: $0.salePrice, stock: $0.stock, minStock: $0.minStock) }
+
+            let input = BusinessAssistantInput(
+                now: now, monthGoal: 0, performances: revenues, expenses: expenses,
+                todos: todos, memos: memos, customers: customers, expiryItems: expiry, weather: nil)
+            let localSummary = await BusinessAssistantEngine().analyze(input).summary.text
+
+            return GroundingPack(
+                todayRevenue: todayRows.isEmpty ? nil : todayRows.reduce(0) { $0 + $1.amount },
+                yesterdayRevenue: yesterdayRows.isEmpty ? nil : yesterdayRows.reduce(0) { $0 + $1.amount },
+                sevenDayRevenue: revenues.isEmpty ? [] : trend,
+                unfinishedTodoTitles: Array(unfinished),
+                deliveryPendingCount: todayDeliveries.filter { $0.statusEnum == .pending }.count,
+                deliveryDeliveringCount: todayDeliveries.filter { $0.statusEnum == .delivering }.count,
+                expiryTitles: Array(expiryTitles), goods: goods, localSummary: localSummary
+            )
+        } catch {
+            return .empty
+        }
+    }
+
     /// 同步测试接缝：查询本身无异步等待，同步实现便于单测与 AgentCore 共用同一份派生逻辑。
     func scopedContextSync(for kinds: [BusinessRecordKind]) -> ScopedBusinessContext {
         guard !kinds.isEmpty else { return .empty }

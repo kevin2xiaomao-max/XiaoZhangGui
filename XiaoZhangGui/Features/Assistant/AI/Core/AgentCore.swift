@@ -308,6 +308,21 @@ final class AgentCore {
                 return try await appendAssistant(content, userMessage: userMessage)
             }
 
+        case .businessInsight(let insight):
+            let pack = await env.contextProvider.groundingPack()
+            if insight == .advice {
+                guard pack.hasBusinessData else {
+                    return try await appendAssistant(
+                        "目前还没有足够的店铺数据可以分析。先记录营业额、待办或商品库存后再问我吧。",
+                        userMessage: userMessage)
+                }
+                return try await remoteTurn(
+                    intent: intent, workingText: workingText, originalText: originalText,
+                    userMessage: userMessage, context: env.redactor.sanitize(pack))
+            }
+            return try await appendAssistant(
+                BusinessAnswerComposer.answer(for: insight, pack: pack), userMessage: userMessage)
+
         case .worldChat, .localZeroToken:
             if let meta = MetaReply.reply(for: workingText) {
                 return try await appendAssistant(meta, userMessage: userMessage)
@@ -325,7 +340,8 @@ final class AgentCore {
         intent: IntentKind,
         workingText: String,
         originalText: String,
-        userMessage: AIMessage
+        userMessage: AIMessage,
+        context: ProviderContextPayload = .empty
     ) async throws -> AgentTurnResult {
         let task: ModelTask = {
             switch intent {
@@ -334,6 +350,7 @@ final class AgentCore {
             case .localZeroToken: return .simpleExtraction
             case .worldChat, .weatherQuery: return .chat
             case .goodsQuery: return .businessAnswer
+            case .businessInsight: return .businessAnswer
             }
         }()
         let route = env.modelRouter.route(task: task, intent: intent, tier: env.tier)
@@ -347,7 +364,7 @@ final class AgentCore {
                 role: .user, content: workingText,
                 proposalID: original.proposalID, isError: original.isError)
         }
-        let request = ProviderRequest(messages: cloudMessages, tools: toolDefinitions, route: route, context: .empty)
+        let request = ProviderRequest(messages: cloudMessages, tools: toolDefinitions, route: route, context: context)
 
         let turn: ProviderTurn
         do {

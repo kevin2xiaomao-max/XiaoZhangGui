@@ -11,6 +11,8 @@ struct ContextRedactor: Sendable {
     var maxTitles = 3
     /// 单条标题最大长度
     var maxTitleLength = 20
+    var maxGoods = 5
+    var maxPayloadCharacters = 420
 
     func sanitize(_ context: ScopedBusinessContext) -> ProviderContextPayload {
         var object: [String: Any] = [:]
@@ -47,6 +49,41 @@ struct ContextRedactor: Sendable {
     /// 世界知识问题：强制空载荷（0 经营数据）
     func sanitizeForWorldChat() -> ProviderContextPayload { .empty }
 
+    /// AI 2.0 经营建议专用载荷：统一生成一段紧凑摘要，并在最终 Provider 边界硬截断。
+    func sanitize(_ pack: GroundingPack) -> ProviderContextPayload {
+        guard pack.hasBusinessData else { return .empty }
+        var parts: [String] = []
+        if let today = pack.todayRevenue { parts.append("今日营业额¥\(money(today))") }
+        if let yesterday = pack.yesterdayRevenue { parts.append("昨日营业额¥\(money(yesterday))") }
+        if !pack.sevenDayRevenue.isEmpty {
+            let values = pack.sevenDayRevenue.suffix(7).map { money($0.amount) }.joined(separator: ",")
+            parts.append("近7日营业额[\(values)]")
+        }
+        let todos = clean(pack.unfinishedTodoTitles)
+        if !todos.isEmpty { parts.append("未完成待办[\(todos.joined(separator: "、"))]") }
+        if pack.deliveryPendingCount > 0 || pack.deliveryDeliveringCount > 0 {
+            parts.append("配送待处理\(pack.deliveryPendingCount)单/配送中\(pack.deliveryDeliveringCount)单")
+        }
+        let expiry = clean(pack.expiryTitles)
+        if !expiry.isEmpty { parts.append("临期[\(expiry.joined(separator: "、"))]") }
+        let goods = pack.goods.prefix(maxGoods).map { item in
+            let name = Self.maskSensitiveText(item.name, maxLength: 12)
+            return "\(name):进¥\(money(item.purchasePrice))/售¥\(money(item.salePrice))/存\(item.stock)/警\(item.minStock)"
+        }
+        if !goods.isEmpty { parts.append("商品[\(goods.joined(separator: ";"))]") }
+        if let summary = pack.localSummary, !summary.isEmpty {
+            parts.append("本地摘要:\(Self.maskSensitiveText(summary, maxLength: 80))")
+        }
+
+        var text = parts.joined(separator: "；")
+        if text.count > maxPayloadCharacters {
+            text = String(text.prefix(maxPayloadCharacters))
+        }
+        guard let data = try? JSONSerialization.data(
+            withJSONObject: ["grounding": text], options: [.sortedKeys]) else { return .empty }
+        return ProviderContextPayload(json: data)
+    }
+
     /// 列表清洗：脱敏手机号 / 房号完整串、截断长度与条数
     private func clean(_ items: [String]) -> [String] {
         Array(items
@@ -79,5 +116,9 @@ struct ContextRedactor: Sendable {
             result = String(result.prefix(maxLength)) + "…"
         }
         return result
+    }
+
+    private func money(_ value: Double) -> String {
+        String(format: value.rounded() == value ? "%.0f" : "%.2f", value)
     }
 }

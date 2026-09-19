@@ -70,6 +70,9 @@ final class AIRealBusinessContextReaderTests: XCTestCase {
         context.insert(CustomerRequest(customer: "昨天客", content: "昨天单", status: "待处理",
                                        createdAt: yesterday))
 
+        context.insert(Goods(name: "百威啤酒", stock: 2, minStock: 5,
+                             purchasePrice: 4, salePrice: 6))
+
         try context.save()
     }
 
@@ -189,5 +192,21 @@ final class AIRealBusinessContextReaderTests: XCTestCase {
         }
         XCTAssertFalse(raw.contains("13800138000"), "完整手机号不得外发")
         XCTAssertTrue(raw.contains("1**********"), "应脱敏为 1**********")
+    }
+
+    @MainActor
+    func testGroundingPackUsesRealLocalAggregates() async throws {
+        let context = try makeContext()
+        try seed(context)
+        let pack = await RepositoryBusinessContextReader(context: context).groundingPack()
+
+        XCTAssertEqual(pack.todayRevenue ?? 0, 680.5, accuracy: 0.01)
+        XCTAssertEqual(pack.yesterdayRevenue ?? 0, 999, accuracy: 0.01)
+        XCTAssertEqual(pack.sevenDayRevenue.count, 7)
+        XCTAssertEqual(Set(pack.unfinishedTodoTitles), ["今日下可乐", "逾期未拿货"])
+        XCTAssertEqual(pack.deliveryPendingCount, 2)
+        XCTAssertEqual(pack.deliveryDeliveringCount, 1)
+        XCTAssertEqual(pack.goods.first?.name, "百威啤酒")
+        XCTAssertEqual(pack.goods.first?.stock, 2)
     }
 }
