@@ -164,6 +164,11 @@ struct IntentRouter {
     }
 
     private func isGoodsQuery(_ text: String) -> Bool {
+        // 解释 / 定义类问题讨论经营概念，不是在查询店内某个商品。
+        // 先排除这些知识问法，避免“什么是毛利率”等问题被“毛利” marker 截走。
+        let explanationPhrases = ["什么是", "是什么", "是什么意思", "怎么计算", "如何计算", "怎么提高", "如何提高"]
+        guard !explanationPhrases.contains(where: { text.contains($0) }) else { return false }
+
         let markers = ["多少钱", "进价", "售价", "库存", "毛利", "有没有", "还有多少"]
         guard markers.contains(where: { text.contains($0) }) else { return false }
         let nonGoodsPhrases = ["天气", "配送", "送货", "待办", "备忘", "临期", "过期", "明显下降", "什么问题"]

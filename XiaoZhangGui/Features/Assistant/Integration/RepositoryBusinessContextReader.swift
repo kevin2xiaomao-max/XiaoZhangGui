@@ -96,10 +96,13 @@ final class RepositoryBusinessContextReader: BusinessContextProviding {
     }
 
     private func todaysTodos() throws -> [String] {
-        let (_, end) = dayBounds()
+        let tomorrowStart = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: Date())) ?? Date()
         let rows = try context.fetch(FetchDescriptor<Todo>())
         return rows
-            .filter { !$0.isCompleted && ($0.dueDate ?? .distantFuture) <= end }
+            .filter { todo in
+                guard !todo.isCompleted, let due = todo.dueDate else { return false }
+                return due < tomorrowStart
+            }
             .sorted { ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture) }
             .prefix(5)
             .map(\.title)

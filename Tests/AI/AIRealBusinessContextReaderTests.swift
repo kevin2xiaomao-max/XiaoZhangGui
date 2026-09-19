@@ -16,10 +16,12 @@ import SwiftData
 // 规避预发布版 CI 模拟器运行约 5~6 分钟后出现的连接停滞 / 宿主重启级联。
 final class AIRealBusinessContextReaderTests: XCTestCase {
 
+    private var container: ModelContainer?
+
     @MainActor
     private func makeContext() throws -> ModelContext {
-        let container = try AppDatabase.makeInMemoryContainer()
-        return container.mainContext
+        container = try AppDatabase.makeInMemoryContainer()
+        return container!.mainContext
     }
 
     @MainActor
