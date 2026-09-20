@@ -29,8 +29,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.xiaozhanggui.ios
-        MARKETING_VERSION: "3.4.0"
-        CURRENT_PROJECT_VERSION: "34"
+        MARKETING_VERSION: "3.5.0"
+        CURRENT_PROJECT_VERSION: "35"
         CODE_SIGN_ENTITLEMENTS: XiaoZhangGui/XiaoZhangGui.entitlements
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: 你的小掌柜
@@ -41,11 +41,6 @@ targets:
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UIUserInterfaceStyle: Automatic
         INFOPLIST_KEY_NSSupportsLiveActivities: YES
-        # P0-1：天气 API Key 注入链
-        # GitHub Secret XZG_WEATHER_API_KEY → CI xcodebuild 命令行覆盖同名 build setting →
-        # INFOPLIST_KEY 引用展开进生成的 Info.plist → WeatherConfiguration.current()；
-        # CI 打包前另有「为空才注入产物 plist」的兜底与非空强校验（见 build.yml）。
-        # 仓库内默认空串（本地未配置即未配置）；绝不把 Key 写进仓库。
         XZG_WEATHER_API_KEY: ""
         INFOPLIST_KEY_XZGWeatherAPIKey: "$(XZG_WEATHER_API_KEY)"
         INFOPLIST_KEY_CFBundleURLTypes:
@@ -69,9 +64,6 @@ targets:
     sources:
       - path: XiaoZhangGuiWidget
       - path: SharedKernel
-      # V3.3 Widget 2.0 Interactive：AppIntent 在扩展内直接写同一个 App Group store。
-      # 以下为「同一源文件、双 target 编译」复用（非复制第二套逻辑/数据库）：
-      # 7 个 @Model 与 App 完全相同的 SwiftData schema；容器/快照/通知/LA 全部用 App 原文件。
       - path: XiaoZhangGui/Models
       - path: XiaoZhangGui/DesignSystem/V21Color.swift
       - path: XiaoZhangGui/Data/ModelContainer.swift
@@ -84,8 +76,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.xiaozhanggui.ios.widget
-        MARKETING_VERSION: "3.4.0"
-        CURRENT_PROJECT_VERSION: "34"
+        MARKETING_VERSION: "3.5.0"
+        CURRENT_PROJECT_VERSION: "35"
         SKIP_INSTALL: YES
         CODE_SIGN_ENTITLEMENTS: XiaoZhangGuiWidget/XiaoZhangGuiWidgetExtension.entitlements
         GENERATE_INFOPLIST_FILE: NO
@@ -102,13 +94,6 @@ targets:
           - "**/*.md"
     dependencies:
       - target: XiaoZhangGui
-      # AI REAL：Provider 适配层测试需要直接构造 LLMRequest / LLMResponse / LLMError
-      # （仅测试 target 链接；业务代码仍只有 OpenAICompatProvider.swift 可 import）
-      # 链接一致性：App target 同时链接 core + OpenAI 两个 product，测试 target 必须
-      # 保持相同 product 集合，Xcode 才会把两个 product 统一构建为共享动态框架。
-      # 否则 OpenAI 静态链入 App 二进制时会把 core 类一并静态复制，而测试侧又生成
-      # PackageFrameworks 动态 core，出现 “Class implemented in both ...” 重复类，
-      # 可导致测试宿主重启时神秘崩溃（objc 明确警告）。
       - package: LLMProviderKit
         product: LLMProviderKit
       - package: LLMProviderKit
