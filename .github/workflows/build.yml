@@ -274,6 +274,8 @@ jobs:
         run: |
           set -o pipefail
           NAME="${{ steps.sim.outputs.name }}"
+          EXPECTED_UI=$(grep -rEho 'func[[:space:]]+test[A-Za-z0-9_]+' Tests/UITests --include='*.swift' | wc -l | tr -d '[:space:]')
+          test "$EXPECTED_UI" -gt 0
           xcodebuild test \
             -project XiaoZhangGui.xcodeproj \
             -scheme XiaoZhangGui \
@@ -284,7 +286,7 @@ jobs:
             XZG_WEATHER_API_KEY="${{ secrets.XZG_WEATHER_API_KEY }}" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO | tee "$RUNNER_TEMP/xcuitest.log"
-          grep -Eq 'Executed 9 tests, with 0 failures' "$RUNNER_TEMP/xcuitest.log"
+          grep -Eq "Executed $EXPECTED_UI tests, with 0 failures" "$RUNNER_TEMP/xcuitest.log"
 
       - name: iPhone Air 窄屏编译校验（无该设备时回退最接近的 iPhone 旗舰）
         id: aircheck
