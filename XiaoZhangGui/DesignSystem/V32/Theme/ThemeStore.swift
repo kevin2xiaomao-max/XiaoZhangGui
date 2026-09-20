@@ -41,10 +41,14 @@ final class ThemeStore {
 
         // T26 一次性迁移：旧 app_theme_name → 新 accent + background
         if !defaults.bool(forKey: Keys.migrated) {
-            let legacy = defaults.string(forKey: Keys.legacyAppThemeName) ?? ""
-            let mapped = ThemeMigration.map(legacy: legacy)
-            defaults.set(mapped.accent.rawValue, forKey: Keys.accent)
-            defaults.set(mapped.background.rawValue, forKey: Keys.background)
+            let hasSavedAccent = defaults.string(forKey: Keys.accent) != nil
+            let hasSavedBackground = defaults.string(forKey: Keys.background) != nil
+            if !hasSavedAccent || !hasSavedBackground {
+                let legacy = defaults.string(forKey: Keys.legacyAppThemeName)
+                let mapped = ThemeMigration.map(legacy: legacy)
+                if !hasSavedAccent { defaults.set(mapped.accent.rawValue, forKey: Keys.accent) }
+                if !hasSavedBackground { defaults.set(mapped.background.rawValue, forKey: Keys.background) }
+            }
             defaults.set(true, forKey: Keys.migrated)
         }
 
@@ -160,14 +164,14 @@ final class ThemeStore {
 /// 旧 app_theme_name → 新 (Accent, Background) 映射（spec Migration 章节）
 enum ThemeMigration {
     static func map(legacy: String?) -> (accent: AccentTheme, background: BackgroundTheme) {
-        guard let legacy else { return (.default, .default) }
+        guard let legacy, !legacy.isEmpty else { return (.blue, .default) }
         switch legacy {
         case "Emerald", "Mint": return (.emerald, .warmCream)
         case "Blue Purple": return (.purple, .warmCream)
         case "Graphite": return (.graphite, .warmCream)
         case "Glacier Blue": return (.blue, .warmCream)
         case "Coral": return (.coral, .warmCream)
-        default: return (.default, .default)
+        default: return (.blue, .default)
         }
     }
 }

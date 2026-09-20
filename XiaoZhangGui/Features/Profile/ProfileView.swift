@@ -22,6 +22,7 @@ struct ProfileView: View {
     @State private var shopDialog = false
     @State private var goalDialog = false
     @State private var themeDialog = false
+    @State private var appearanceSheet = false
     @State private var accentSheet = false
     @State private var backgroundSheet = false
     @State private var wallpaperSheet = false
@@ -109,6 +110,7 @@ struct ProfileView: View {
         .sheet(isPresented: $shopDialog) { ShopEditSheet() }
         .sheet(isPresented: $goalDialog) { GoalEditSheet() }
         .sheet(isPresented: $themeDialog) { ThemeChoiceSheet() }
+        .sheet(isPresented: $appearanceSheet) { AppearanceSettingsView() }
         .sheet(isPresented: $accentSheet) { AccentThemeSheet() }
         .sheet(isPresented: $backgroundSheet) { BackgroundThemeSheet() }
         .sheet(isPresented: $wallpaperSheet) { WallpaperSheet() }
@@ -214,8 +216,8 @@ struct ProfileView: View {
             }
             divider
             ProfileRow(icon: "paintpalette", tone: .brand,
-                       title: "主题色", value: themeStore.accentTheme.displayName) {
-                accentSheet = true
+                       title: "外观", value: themeStore.accentTheme.displayName) {
+                appearanceSheet = true
             }
             divider
             ProfileRow(icon: "square.on.square", tone: .neutral,

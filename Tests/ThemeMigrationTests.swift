@@ -51,19 +51,19 @@ final class ThemeMigrationTests: XCTestCase {
 
     func testMapUnrecognizedStringFallsBackToDefault() {
         let mapped = ThemeMigration.map(legacy: "Some Unknown Theme")
-        XCTAssertEqual(mapped.accent, AccentTheme.default)
+        XCTAssertEqual(mapped.accent, .blue)
         XCTAssertEqual(mapped.background, BackgroundTheme.default)
     }
 
     func testMapNilFallsBackToDefault() {
         let mapped = ThemeMigration.map(legacy: nil)
-        XCTAssertEqual(mapped.accent, AccentTheme.default)
+        XCTAssertEqual(mapped.accent, .blue)
         XCTAssertEqual(mapped.background, BackgroundTheme.default)
     }
 
     func testMapEmptyStringFallsBackToDefault() {
         let mapped = ThemeMigration.map(legacy: "")
-        XCTAssertEqual(mapped.accent, AccentTheme.default)
+        XCTAssertEqual(mapped.accent, .blue)
         XCTAssertEqual(mapped.background, BackgroundTheme.default)
     }
 
@@ -130,9 +130,21 @@ final class ThemeMigrationTests: XCTestCase {
         defaults.removePersistentDomain(forName: "theme.migration.test.none")
 
         let store = ThemeStore(defaults: defaults)
-        XCTAssertEqual(store.accentTheme, AccentTheme.default)
+        XCTAssertEqual(store.accentTheme, .blue)
         XCTAssertEqual(store.backgroundTheme, BackgroundTheme.default)
         XCTAssertTrue(defaults.bool(forKey: "v32_theme_migrated"))
+    }
+
+    @MainActor
+    func testExistingSavedThemeWinsBeforeMigrationFlag() {
+        let defaults = UserDefaults(suiteName: "theme.migration.test.saved")!
+        defaults.removePersistentDomain(forName: "theme.migration.test.saved")
+        defaults.set("rose", forKey: "v32.theme.accent")
+        defaults.set("warm_cream", forKey: "v32.theme.background")
+
+        let store = ThemeStore(defaults: defaults)
+        XCTAssertEqual(store.accentTheme, .rose)
+        XCTAssertEqual(store.backgroundTheme, .warmCream)
     }
 
     // MARK: - 验证迁移后业务代码不依赖旧键
