@@ -109,12 +109,12 @@ jobs:
           set -uo pipefail
           NAME="${{ steps.sim.outputs.name }}"
           # 期望用例总数直接从源码统计，新增 / 删除测试自动跟随，不写死数字。
-          EXPECTED=$(grep -rEho 'func[[:space:]]+test[A-Za-z0-9_]+' Tests --include='*.swift' | wc -l | tr -d '[:space:]')
+          EXPECTED=$(grep -rEho 'func[[:space:]]+test[A-Za-z0-9_]+' Tests --include='*.swift' --exclude-dir=UITests | wc -l | tr -d '[:space:]')
           echo "期望测试用例数: $EXPECTED"
           test "$EXPECTED" -gt 0
           # 测试类套件数（每个含 func test 的 Swift 文件对应一个类套件），
           # 供“碎片化启动并集判定”使用，新增 / 删除测试自动跟随。
-          EXPECTED_SUITES=$(grep -rlE 'func[[:space:]]+test[A-Za-z0-9_]+' Tests --include='*.swift' | wc -l | tr -d '[:space:]')
+          EXPECTED_SUITES=$(grep -rlE 'func[[:space:]]+test[A-Za-z0-9_]+' Tests --include='*.swift' --exclude-dir=UITests | wc -l | tr -d '[:space:]')
           echo "期望测试类套件数: $EXPECTED_SUITES"
           test "$EXPECTED_SUITES" -gt 0
           LOG="$RUNNER_TEMP/xctest.log"
@@ -179,6 +179,7 @@ jobs:
               -project XiaoZhangGui.xcodeproj \
               -scheme XiaoZhangGui \
               -destination "platform=iOS Simulator,name=$NAME" \
+              -only-testing:XiaoZhangGuiTests \
               -derivedDataPath build/Simulator \
               XZG_WEATHER_API_KEY="${{ secrets.XZG_WEATHER_API_KEY }}" \
               CODE_SIGNING_ALLOWED=NO \
@@ -267,6 +268,23 @@ jobs:
           grep -oE 'Executed [0-9]+ tests, with [0-9]+ failures' "$LOG" | sort -u | tail -n 5 || true
           tail -n 120 "$LOG" || true
           exit 1
+
+      - name: XCUITest
+        timeout-minutes: 20
+        run: |
+          set -o pipefail
+          NAME="${{ steps.sim.outputs.name }}"
+          xcodebuild test \
+            -project XiaoZhangGui.xcodeproj \
+            -scheme XiaoZhangGui \
+            -destination "platform=iOS Simulator,name=$NAME" \
+            -only-testing:XiaoZhangGuiUITests \
+            -parallel-testing-enabled NO \
+            -derivedDataPath build/Simulator \
+            XZG_WEATHER_API_KEY="${{ secrets.XZG_WEATHER_API_KEY }}" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO | tee "$RUNNER_TEMP/xcuitest.log"
+          grep -Eq 'Executed 9 tests, with 0 failures' "$RUNNER_TEMP/xcuitest.log"
 
       - name: iPhone Air 窄屏编译校验（无该设备时回退最接近的 iPhone 旗舰）
         id: aircheck
