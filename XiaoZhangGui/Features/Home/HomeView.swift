@@ -39,25 +39,17 @@ struct HomeView: View {
         demo.isEnabled ? DemoCatalog.monthlyGoal : settings.monthGoal
     }
 
-    private var goalProgress: Double {
-        guard monthGoal > 0 else { return 0 }
-        return min(max(monthRevenue / monthGoal, 0), 1)
-    }
-
     private var recentRecords: [MoneyRecord] {
         MoneyRecord.merged(performances: performances, expenses: expenses, range: (Date().startOfMonth, Date().endOfDay))
     }
 
     private var handlingItems: [HomeInboxItem] {
-        // 已在横卡展示的配送从今日事项去重；未在横卡的其它待处理配送仍可入列（Q4 定稿）
         let stripIDs = Set(topDeliveries.map { "delivery-\($0.notificationID)" })
         return HomeInbox.items(todos: summary.todos, deliveries: summary.deliveries,
                                expiryItems: summary.pendingExpiry, limit: 4,
                                excludingDeliveryIDs: stripIDs)
     }
 
-    /// P1-1：今日已完成计数（Todo + 配送），与日程「当天完成」共用 ScheduleAgenda 同一口径：
-    /// Todo 按 completedAt、配送按 done+updatedAt 归属当天，点进日程每项都可追踪。
     private var todayCompletedCount: Int {
         let now = Date()
         let doneTodos = ScheduleAgenda.completedTodos(todos.filter(\.isCompleted), on: now).count
@@ -65,7 +57,6 @@ struct HomeView: View {
         return doneTodos + doneDeliveries
     }
 
-    /// 配送中优先、待处理其次，最多 2 张横滑小卡
     private var topDeliveries: [CustomerRequest] {
         Array(summary.deliveries.sorted { lhs, rhs in
             if lhs.statusEnum != rhs.statusEnum {
@@ -81,7 +72,7 @@ struct HomeView: View {
                 header
                 V35HomeRevenueHero(summary: summary, monthRevenue: monthRevenue, monthGoal: monthGoal) { route = .performance }
                     .modifier(V32HomeEntrance(delay: 0, reduceMotion: reduceMotion))
-                V35HomeOverviewGrid(todoCount: summary.todos.count, expiryCount: summary.pendingExpiry.count, customerCount: summary.deliveries.count, unreadCount: summary.todos.count)
+                V35HomeOverviewGrid(todoCount: summary.todos.count, expiryCount: summary.pendingExpiry.count, customerCount: summary.deliveries.count, focusCount: handlingItems.count)
                     .modifier(V32HomeEntrance(delay: 0.04, reduceMotion: reduceMotion))
                 V35HomeFocusSection(items: handlingItems) { open($0.route) }
                     .modifier(V32HomeEntrance(delay: 0.06, reduceMotion: reduceMotion))
@@ -98,8 +89,6 @@ struct HomeView: View {
             .padding(.top, 8)
         }
         .scrollIndicators(.hidden)
-        // Keep the first scroll content below the translucent system navigation bar.
-        // The microphone remains a real toolbar item; this is only a container inset.
         .safeAreaPadding(.top, 12)
         .v32PageBackground()
         .v32PageBottomInset()
@@ -126,7 +115,6 @@ struct HomeView: View {
             }
         }
         .sheet(isPresented: $showWeatherSheet) {
-            // P1-4：跟随 ThemeStore / V32 tokens，不再走旧 AppTheme 链路
             WeatherDetailSheet(model: weatherModel)
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
@@ -139,8 +127,6 @@ struct HomeView: View {
                 }
             }
         }
-        // Home root only: the leading edge is reserved for the utility drawer.
-        // Pushed NavigationStack destinations do not contain this gesture.
         .overlay(alignment: .leading) {
             if !showUtilityDrawer {
                 Color.clear
@@ -163,8 +149,6 @@ struct HomeView: View {
             }
         }
     }
-
-    // MARK: 顶部：问候 / 日期 / 天气 / 快速记录 / 头像
 
     private var header: some View {
         HStack(alignment: .center, spacing: 10) {
@@ -204,21 +188,6 @@ struct HomeView: View {
         return name.isEmpty ? "老板" : name
     }
 
-    private func toolCircle(_ systemName: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: V32Layout.toolIcon, weight: .semibold))
-                .foregroundStyle(V32.textSecondary)
-                .frame(width: V32Layout.toolCircle, height: V32Layout.toolCircle)
-                .background(
-                    Circle()
-                        .fill(V32.card)
-                        .overlay(Circle().strokeBorder(V32.cardOutline, lineWidth: 1))
-                )
-        }
-        .buttonStyle(V32PressButtonStyle())
-    }
-
     private var weatherButton: some View {
         Button { showWeatherSheet = true } label: {
             HStack(spacing: 3) {
@@ -241,91 +210,6 @@ struct HomeView: View {
         .buttonStyle(V32PressButtonStyle())
         .accessibilityLabel(weatherModel.snapshot.map { "\($0.city)，\($0.roundedTemperature)度" } ?? "天气")
     }
-
-    // MARK: 深墨绿主卡：今日营业额
-
-    private var heroCard: some View {
-        V32HeroCard {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("今日营业额")
-                            .v32Text(.caption)
-                            .foregroundStyle(V32.textOnHeroSecondary)
-                        Text("¥" + Fmt.groupedAmount(summary.revenue))
-                            .v32Text(.heroMoney)
-                            .foregroundStyle(V32.textOnHero)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.5)
-                            .contentTransition(.numericText(value: summary.revenue))
-                            .animation(
-                                V32Motion.animation(V32Motion.resolve(.numeric, reduceMotion: reduceMotion)),
-                                value: summary.revenue
-                            )
-                        revenueChange
-                    }
-                    Spacer(minLength: 8)
-                    if summary.trend.contains(where: { $0.value > 0 }) {
-                        HomeSparkline(points: summary.trend)
-                            .frame(width: 84, height: 34)
-                            .padding(.top, 18)
-                    }
-                }
-
-                Rectangle()
-                    .fill(V32.dividerOnHero)
-                    .frame(height: 1)
-
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 10) {
-                        Text("本月 ¥\(Fmt.groupedAmount(monthRevenue))")
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.75)
-                        Text("目标 ¥\(Fmt.groupedAmount(monthGoal))")
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.75)
-                        Spacer(minLength: 4)
-                        Text("\(Int((goalProgress * 100).rounded()))%")
-                            .font(.system(size: 13, weight: .bold, design: .rounded).monospacedDigit())
-                    }
-                    .v32Text(.caption)
-                    .foregroundStyle(V32.textOnHeroSecondary)
-
-                    V32ProgressBar(progress: goalProgress, onHero: true)
-
-                    Text(goalRemainText)
-                        .v32Text(.caption)
-                        .foregroundStyle(V32.textOnHeroSecondary)
-                }
-            }
-        }
-    }
-
-    private var goalRemainText: String {
-        guard monthGoal > 0 else { return "去「我的 → 月营业目标」设定目标" }
-        let remain = monthGoal - monthRevenue
-        if remain > 0 { return "距月目标还差 ¥\(Fmt.groupedAmount(remain))" }
-        return "已完成月目标，继续保持"
-    }
-
-    @ViewBuilder
-    private var revenueChange: some View {
-        if let change = summary.changePercent {
-            HStack(spacing: 3) {
-                Image(systemName: change >= 0 ? "arrow.up.right" : "arrow.down.right")
-                    .font(.system(size: 11, weight: .heavy))
-                Text("\(String(format: "%.1f", abs(change)))% 较昨日")
-                    .v32Text(.caption)
-            }
-            .foregroundStyle(change >= 0 ? V32.brandOnHero : V32.amberOnHero)
-        } else {
-            Text("暂无昨日对比")
-                .v32Text(.caption)
-                .foregroundStyle(V32.textOnHeroSecondary)
-        }
-    }
-
-    // MARK: 客户配送横滑卡
 
     private var deliverySection: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -357,8 +241,6 @@ struct HomeView: View {
         }
     }
 
-    // MARK: 今日事项（≤4，动作摘要）
-
     private var todaySection: some View {
         VStack(alignment: .leading, spacing: 12) {
             V32SectionHeader("今日事项") {
@@ -378,7 +260,7 @@ struct HomeView: View {
                         .padding(.vertical, 4)
                         if showsVoiceButton {
                             V32SecondaryButton(title: "语音记一笔", systemName: "mic.fill") {
-                                showVoice = true
+                                showQuickRecord = true
                             }
                             .padding(.horizontal, 24)
                         }
@@ -403,7 +285,6 @@ struct HomeView: View {
                 }
             }
 
-            // P1-2：有完成项才显示，点击跳日程当天
             if todayCompletedCount > 0 {
                 Button {
                     tab = .schedule
@@ -446,8 +327,6 @@ struct HomeView: View {
 
 private enum HomeRoute: Hashable { case customer, expiry, performance, transactions }
 
-// MARK: - 首页首次出现轻入场（opacity + y 8，standard；Reduce Motion 仅短淡入、无位移）
-
 private struct V32HomeEntrance: ViewModifier {
     let delay: Double
     let reduceMotion: Bool
@@ -464,8 +343,6 @@ private struct V32HomeEntrance: ViewModifier {
             .onAppear { if !appeared { appeared = true } }
     }
 }
-
-// MARK: - 配送横滑小卡
 
 private struct DeliveryCard: View {
     let request: CustomerRequest
@@ -495,7 +372,6 @@ private struct DeliveryCard: View {
                 HStack(spacing: 4) {
                     Image(systemName: "clock")
                         .font(.system(size: 11, weight: .semibold))
-                    // P1-2：这一行只表达配送时间，不重复表达状态（状态唯一来源是右上 Pill）
                     Text(info.deliveryTime.map(Fmt.time) ?? "未设配送时间")
                         .v32Text(.caption)
                 }
@@ -504,8 +380,6 @@ private struct DeliveryCard: View {
         }
     }
 }
-
-// MARK: - 今日事项行（圆形勾选）
 
 struct HomeActionRow: View {
     let item: HomeInboxItem
@@ -552,8 +426,6 @@ struct HomeActionRow: View {
         }
     }
 }
-
-// MARK: - 七日火花线（hero 内）
 
 struct HomeSparkline: View {
     let points: [TrendPoint]
