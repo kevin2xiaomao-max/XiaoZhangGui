@@ -18,6 +18,7 @@ struct HomeView: View {
     @Query private var performances: [Performance]
     @Query private var expiryItems: [ExpiryItem]
     @Query private var customers: [CustomerRequest]
+    @Query private var expenses: [Expense]
     @State private var route: HomeRoute?
     @State private var showUtilityDrawer = false
     @State private var showWeatherSheet = false
@@ -41,6 +42,10 @@ struct HomeView: View {
     private var goalProgress: Double {
         guard monthGoal > 0 else { return 0 }
         return min(max(monthRevenue / monthGoal, 0), 1)
+    }
+
+    private var recentRecords: [MoneyRecord] {
+        MoneyRecord.merged(performances: performances, expenses: expenses, range: (Date().startOfMonth, Date().endOfDay))
     }
 
     private var handlingItems: [HomeInboxItem] {
@@ -74,8 +79,14 @@ struct HomeView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: V32Layout.sectionGap) {
                 header
-                heroCard
+                V35HomeRevenueHero(summary: summary, monthRevenue: monthRevenue, monthGoal: monthGoal) { route = .performance }
                     .modifier(V32HomeEntrance(delay: 0, reduceMotion: reduceMotion))
+                V35HomeOverviewGrid(todoCount: summary.todos.count, expiryCount: summary.pendingExpiry.count, customerCount: summary.deliveries.count, unreadCount: summary.todos.count)
+                    .modifier(V32HomeEntrance(delay: 0.04, reduceMotion: reduceMotion))
+                V35HomeFocusSection(items: handlingItems) { open($0.route) }
+                    .modifier(V32HomeEntrance(delay: 0.06, reduceMotion: reduceMotion))
+                V35HomeRecentRecords(records: recentRecords) { route = .transactions }
+                    .modifier(V32HomeEntrance(delay: 0.08, reduceMotion: reduceMotion))
                 if !topDeliveries.isEmpty {
                     deliverySection
                         .modifier(V32HomeEntrance(delay: 0.04, reduceMotion: reduceMotion))
@@ -110,6 +121,8 @@ struct HomeView: View {
             switch destination {
             case .customer: CustomerView()
             case .expiry: ExpiryView()
+            case .performance: PerformanceView()
+            case .transactions: TransactionHistoryView()
             }
         }
         .sheet(isPresented: $showWeatherSheet) {
@@ -431,7 +444,7 @@ struct HomeView: View {
     }
 }
 
-private enum HomeRoute: Hashable { case customer, expiry }
+private enum HomeRoute: Hashable { case customer, expiry, performance, transactions }
 
 // MARK: - 首页首次出现轻入场（opacity + y 8，standard；Reduce Motion 仅短淡入、无位移）
 
@@ -494,7 +507,7 @@ private struct DeliveryCard: View {
 
 // MARK: - 今日事项行（圆形勾选）
 
-private struct HomeActionRow: View {
+struct HomeActionRow: View {
     let item: HomeInboxItem
     let onTodoToggle: () -> Void
 
@@ -542,7 +555,7 @@ private struct HomeActionRow: View {
 
 // MARK: - 七日火花线（hero 内）
 
-private struct HomeSparkline: View {
+struct HomeSparkline: View {
     let points: [TrendPoint]
     var body: some View {
         Chart(points) { point in

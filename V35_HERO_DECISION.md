@@ -35,3 +35,9 @@
 - Widget / Lock Screen / Live Activity：沿用 Preflight 的 NO-GO，不在本轮改造。
 
 本文件不替产品负责人或实际使用者选择 winner。正式首页替换前应在同一台真机、相同假数据下分别体验 A/B/C，并由产品负责人记录选择与理由。
+# V3.5 Production Direction
+
+- A / A3 / B prototypes rejected as final production Hero directions.
+- Neutral Hero prototype exploration is closed.
+- Production direction is now a theme-capable Business Cockpit.
+- P5.2 integrates real Home data with the shared V32 ThemeStore and role-based palette.
