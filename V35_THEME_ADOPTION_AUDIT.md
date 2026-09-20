@@ -12,6 +12,11 @@ No second theme storage or parallel environment was introduced.
 | --- | --- | --- |
 | `XiaoZhangGui/Features/Home/HeroPrototypeGallery.swift` | Prototype-only progress accents still use `Color.green` in two preview components. | P5.3: route prototype previews through `AccentPalette`; not part of production Home. |
 
+P5.3 also routes AI controls through `aiAccent`, Performance source values through
+`chartAccent`, and Schedule selected days through `selectedTint`. The remaining
+`V32.brand` uses in production pages are interaction accents, not hardcoded colors;
+semantic warning/danger/success colors remain intentionally independent.
+
 The scan found no hardcoded green/hex accent in the production feature views covered by
 this pass. Import parser hexadecimal values are file-format signatures, not UI colors.
 

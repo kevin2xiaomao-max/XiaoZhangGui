@@ -158,7 +158,7 @@ struct AIChatView: View {
                             HStack {
                                 Image(systemName: "text.bubble")
                                     .font(.system(size: 13, weight: .semibold))
-                                    .foregroundStyle(V32.brand)
+                                    .foregroundStyle(ThemeStore.shared.accentPalette.aiAccent)
                                 Text(example)
                                     .v32Text(.body)
                                     .foregroundStyle(V32.textPrimary)
@@ -220,7 +220,7 @@ struct AIChatView: View {
                     } label: {
                         Label("重试", systemImage: "arrow.clockwise")
                             .v32Text(.caption)
-                            .foregroundStyle(V32.brand)
+                            .foregroundStyle(ThemeStore.shared.accentPalette.aiAccent)
                     }
                     .buttonStyle(V32PressButtonStyle())
                 }

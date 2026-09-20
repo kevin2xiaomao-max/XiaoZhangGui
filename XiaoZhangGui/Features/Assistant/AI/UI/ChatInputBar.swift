@@ -18,7 +18,7 @@ struct ChatInputBar: View {
             Button(action: onVoice) {
                 Image(systemName: "mic.fill")
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(voiceAvailable ? V32.brand : V32.textTertiary)
+                    .foregroundStyle(voiceAvailable ? ThemeStore.shared.accentPalette.aiAccent : V32.textTertiary)
                     .frame(width: 38, height: 38)
                     .background(Circle().fill(V32.brandSoft))
             }
@@ -37,7 +37,7 @@ struct ChatInputBar: View {
                         .fill(V32.card)
                         .overlay(
                             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                .strokeBorder(focused ? V32.brand.opacity(0.5) : V32.cardOutline, lineWidth: 1)
+                                .strokeBorder(focused ? ThemeStore.shared.accentPalette.aiAccent.opacity(0.5) : V32.cardOutline, lineWidth: 1)
                         )
                 )
                 .onSubmit(sendAndDismiss)
@@ -56,7 +56,7 @@ struct ChatInputBar: View {
                     .foregroundStyle(.white)
                     .frame(width: 38, height: 38)
                     .background(
-                        Circle().fill(canSend ? V32.brand : V32.textTertiary.opacity(0.35))
+                        Circle().fill(canSend ? ThemeStore.shared.accentPalette.aiAccent : V32.textTertiary.opacity(0.35))
                     )
             }
             .buttonStyle(V32PressButtonStyle())

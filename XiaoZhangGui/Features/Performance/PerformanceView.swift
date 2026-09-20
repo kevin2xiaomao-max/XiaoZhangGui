@@ -167,7 +167,7 @@ struct PerformanceView: View {
                             Spacer(minLength: 12)
                             Text(Fmt.money(item.amount))
                                 .v32Text(.headline)
-                                .foregroundStyle(V32.brand)
+                                .foregroundStyle(ThemeStore.shared.accentPalette.chartAccent)
                             Text("·\(String(format: "%.0f%%", item.ratio * 100))")
                                 .v32Text(.caption)
                                 .foregroundStyle(V32.textTertiary)

@@ -190,12 +190,12 @@ struct ScheduleView: View {
                 Text("\(day)")
                     .v32Text(.headline)
             }
-            .foregroundStyle(isSelected ? Color.white : (isToday ? V32.brand : V32.textSecondary))
+            .foregroundStyle(isSelected ? ThemeStore.shared.accentPalette.onAccent : (isToday ? V32.brand : V32.textSecondary))
             .frame(maxWidth: .infinity)
             .padding(.vertical, 9)
             .background(
                 RoundedRectangle(cornerRadius: 13, style: .continuous)
-                    .fill(isSelected ? V32.hero : Color.clear)
+                    .fill(isSelected ? ThemeStore.shared.accentPalette.selectedTint : Color.clear)
             )
             .overlay(alignment: .bottom) {
                 if isToday && !isSelected {
