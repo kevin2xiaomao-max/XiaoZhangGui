@@ -40,35 +40,13 @@ struct ProfileView: View {
         demo.isEnabled ? DemoCatalog.monthlyGoal : settings.monthGoal
     }
 
-    private var monthRange: (start: Date, end: Date) {
-        let cal = Calendar.current
-        let now = Date()
-        let start = cal.dateInterval(of: .month, for: now)?.start ?? now.startOfDay
-        let end = cal.date(byAdding: .month, value: 1, to: start) ?? now
-        return (start, end)
-    }
-
-    private var monthRevenue: Double {
-        let r = monthRange
-        return performances
-            .filter { $0.date >= r.start && $0.date < r.end }
-            .reduce(0) { $0 + $1.amount }
-    }
-
-    private var monthCount: Int {
-        let r = monthRange
-        return performances.filter { $0.date >= r.start && $0.date < r.end }.count
-    }
-
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 profileHero
-                businessEntry
                 personalSection
                 businessSection
                 demoSection
-                toolsSection
                 dataSection
                 Text("v\(appVersion)")
                     .v32Text(.caption)
@@ -173,39 +151,6 @@ struct ProfileView: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: 经营数据入口
-
-    private var businessEntry: some View {
-        Button {
-            Haptic.light()
-            toolRoute = "performance"
-        } label: {
-            V32Card(fill: V32.cardElevated) {
-                HStack(spacing: 14) {
-                    V32IconBubble(systemName: "chart.bar.fill", tone: .brand, size: 44, icon: 20)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("经营数据")
-                            .v32Text(.headline)
-                            .foregroundStyle(V32.textPrimary)
-                        Text("本月 ¥\(Fmt.groupedAmount(monthRevenue)) · \(monthCount) 笔")
-                            .v32Text(.caption)
-                            .foregroundStyle(V32.textTertiary)
-                            .lineLimit(1)
-                    }
-                    Spacer(minLength: 8)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(V32.textQuaternary)
-                }
-            }
-            .overlay(
-                RoundedRectangle(cornerRadius: V32Radius.card, style: .continuous)
-                    .strokeBorder(V32.brand.opacity(0.25), lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-    }
-
     // MARK: 分组
 
     private var personalSection: some View {
@@ -266,28 +211,8 @@ struct ProfileView: View {
         }
     }
 
-    private var toolsSection: some View {
-        settingsGroup("工具") {
-            ProfileRow(icon: "calendar", tone: .info, title: "日程") { toolRoute = "calendar" }
-            divider
-            ProfileRow(icon: "shippingbox", tone: .brand, title: "客户配送") { toolRoute = "customer" }
-            divider
-            ProfileRow(icon: "clock.badge.exclamationmark", tone: .amber, title: "临期商品") { toolRoute = "expiry" }
-            divider
-            ProfileRow(icon: "tag", tone: .neutral, title: "货品") { toolRoute = "goods" }
-            divider
-            // V3.3 Lite Payment QR：收款码入口（功能实现位于 Features/PaymentCode/）
-            ProfileRow(icon: "qrcode", tone: .brand, title: "收款码") { toolRoute = "paymentCode" }
-        }
-    }
-
     private var dataSection: some View {
         settingsGroup("数据与应用") {
-            ProfileRow(icon: "banknote", tone: .brand,
-                       title: "营业额记录", value: "\(performances.count) 条") {
-                toolRoute = "performance"
-            }
-            divider
             // P0-1：备份生成真正的 .json 文件（含状态/时间/图片 base64），经系统面板分享
             ProfileRow(icon: "square.and.arrow.down", tone: .neutral,
                        title: "数据备份", value: "JSON 文件", chevron: false) {
