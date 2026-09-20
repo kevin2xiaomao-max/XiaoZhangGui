@@ -24,8 +24,16 @@ struct ReleaseNotes: Equatable {
     }
 
     static let current = ReleaseNotes(
-        headline: "AI 更懂你的店，经营信息一问就懂",
+        headline: "V3.5 Liquid Glass Leap",
         sections: [
+            ReleaseNoteSection(icon: "paintpalette", title: "V3.5 视觉升级", items: [
+                "全新主题化首页经营驾驶舱",
+                "Ocean Blue、Violet、Emerald、Warm Orange、Rose、Graphite 六套主题",
+                "经营快捷中心 Drawer，集中高频经营工具",
+                "Performance、Todo、Schedule、AI 与 Profile 视觉统一",
+                "深色模式、iPhone Air、动态字体与辅助功能体验优化",
+                "Widget 与 Live Activity 视觉层级升级"
+            ]),
             ReleaseNoteSection(icon: "sparkles", title: "小掌柜 AI", items: [
                 "AI 现在能查询天气和商品信息",
                 "能结合店铺真实数据分析今日经营与近 7 天趋势",
