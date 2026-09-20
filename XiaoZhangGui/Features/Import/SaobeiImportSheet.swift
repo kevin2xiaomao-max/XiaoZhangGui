@@ -55,9 +55,9 @@ struct SaobeiImportSheet: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                header
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
                 pickerCard
                 if isParsing { parsingCard }
                 if let errorText { errorCard(errorText) }
@@ -67,17 +67,31 @@ struct SaobeiImportSheet: View {
                     newRowsCard
                 }
                 if let commitResult { resultCard(commitResult) }
-                V32PrimaryButton(title: "确认导入", systemName: "tray.and.arrow.down") { commit() }
-                    .disabled(displayNewCount == 0 || commitResult != nil)
-                    .opacity((displayNewCount == 0 || commitResult != nil) ? 0.5 : 1)
+                    V32PrimaryButton(
+                        title: commitResult == nil ? "确认导入" : "完成",
+                        systemName: commitResult == nil ? "tray.and.arrow.down" : "checkmark"
+                    ) {
+                        if commitResult == nil { commit() } else { dismiss() }
+                    }
+                    .disabled(commitResult == nil && displayNewCount == 0)
+                    .opacity(commitResult == nil && displayNewCount == 0 ? 0.5 : 1)
+                }
+                .padding(.horizontal, V32Layout.pageMargin)
+                .padding(.top, 14)
+                .padding(.bottom, V32Layout.bottomPad)
             }
-            .padding(.horizontal, V32Layout.pageMargin)
-            .padding(.top, 14)
-            .padding(.bottom, V32Layout.bottomPad)
+            .scrollIndicators(.hidden)
+            .v32PageBackground()
+            .navigationTitle("扫呗导入")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("关闭") { dismiss() }
+                }
+            }
         }
-        .scrollIndicators(.hidden)
-        .v32PageBackground()
-        .v32Sheet([.large])
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
         .fileImporter(
             isPresented: $showPicker,
             allowedContentTypes: Self.allowedTypes,
@@ -87,18 +101,6 @@ struct SaobeiImportSheet: View {
         }
         .task {
             if demo.isEnabled && parseResult == nil { loadDemoPreview() }
-        }
-    }
-
-    private var header: some View {
-        ZStack {
-            Text("扫呗导入").v32Text(.headline).foregroundStyle(V32.textPrimary)
-            HStack {
-                Button("关闭") { dismiss() }
-                    .v32Text(.body)
-                    .foregroundStyle(V32.textTertiary)
-                Spacer()
-            }
         }
     }
 
