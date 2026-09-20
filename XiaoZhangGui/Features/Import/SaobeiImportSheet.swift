@@ -330,17 +330,14 @@ struct SaobeiImportSheet: View {
         isOCR = true
         defer { isOCR = false; screenshotItem = nil }
         do {
-            guard let data = try await item.loadTransferable(type: Data.self), let image = UIImage(data: data), let cgImage = image.cgImage else { throw SaobeiImportError.noHeader }
-            let request = VNRecognizeTextRequest()
-            request.recognitionLevel = .accurate
-            request.recognitionLanguages = ["zh-Hans", "en-US"]
-            try VNImageRequestHandler(cgImage: cgImage).perform([request])
-            let text = (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }.joined(separator: "\n")
-            let candidates = SaobeiScreenshotOCR.candidates(from: text)
+            guard let data = try await item.loadTransferable(type: Data.self) else { throw SaobeiImportError.noHeader }
+            let candidates = try await Task.detached(priority: .userInitiated) {
+                try SaobeiScreenshotOCR.recognize(imageData: data)
+            }.value
             guard !candidates.isEmpty else { throw SaobeiImportError.noHeader }
             parseResult = SaobeiParseResult(rows: candidates.map { candidate in
-                let fingerprint = "ocr-\(candidate.date.timeIntervalSince1970)-\(candidate.amount)"
-                return SaobeiParsedRow(date: candidate.date, amount: candidate.amount, status: "成功", orderNo: fingerprint, paymentMethod: "扫呗截图", fingerprint: fingerprint, isSuccess: true, rawLine: "OCR")
+                let fingerprint = "ocr-\(candidate.sourceKey)"
+                return SaobeiParsedRow(date: candidate.date, amount: candidate.amount, status: "成功", orderNo: candidate.orderNo ?? fingerprint, paymentMethod: candidate.paymentMethod ?? "扫呗截图", fingerprint: fingerprint, isSuccess: true, rawLine: "OCR")
             }, skipped: [], errors: [], sourceFileName: "扫呗截图（本地 OCR）")
             errorText = nil
             commitResult = nil

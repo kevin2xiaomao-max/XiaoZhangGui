@@ -15,6 +15,18 @@ final class Build34RepairTests: XCTestCase {
         XCTAssertTrue(SaobeiScreenshotOCR.candidates(from: "2026-09-20 26805").isEmpty)
     }
 
+    func testScreenshotOCRSupportsDateAndAmountOnSeparateLines() {
+        let result = SaobeiScreenshotOCR.candidates(from: "2026-09-20\n收款金额\n¥68.00")
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(try XCTUnwrap(result.first?.amount), 68, accuracy: 0.001)
+    }
+
+    func testScreenshotOCRKeepsSameDaySameAmountTransactionsSeparate() {
+        let result = SaobeiScreenshotOCR.candidates(from: "2026-09-20\n¥68.00\n¥68.00")
+        XCTAssertEqual(result.count, 2)
+        XCTAssertNotEqual(result[0].sourceKey, result[1].sourceKey)
+    }
+
     func testBusinessPeriodParserCoversBuild34Phrases() {
         let parser = BusinessPeriodParser()
         XCTAssertEqual(parser.parse("最近一周的生意怎么样"), .lastSevenDays)
