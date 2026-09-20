@@ -19,6 +19,13 @@ settings and personal/store configuration.
 
 - iPhone 17 / iPhone Air / generic iOS device builds: PASS.
 - Final gate rerun: Widget2Tests 18/18 PASS after replacing runtime-relative dates with deterministic UTC test fixtures. Full non-UI XCTest: 369/369 PASS, 0 failures, 0 skipped. XCUITest smoke and the complete UI suite: 10/10 PASS after a lightweight Simulator shutdown/boot cycle.
+- Final source SHA: `d4accb5a37d17b6de6118a2f3612e454e6460762`.
+- Final local unsigned IPA: `XiaoZhangGui-3.5.0-b34-d4accb5.ipa`.
+- IPA SHA-256: `7a1ff47b215c68218649795241a861373483bc714713a83bc88516f029494de6`.
+- IPA metadata: version `3.4.0`, build `34`; App `com.xiaozhanggui.ios`, embedded Widget `com.xiaozhanggui.ios.widget`.
+- Archive/export: generic Release device build and local Payload zip validation PASS.
+- Signature gate: `SIGNED IPA APP GROUP UNAVAILABLE` — both app and extension report “code object is not signed at all”; `SIGNED IPA UNVERIFIED` and `TRUE DEVICE UNVERIFIED` remain in force.
+- Installation / true-device checks: not performed because this IPA is unsigned and no connected Apple-signed device is available. Chinese 9-key, real Saobei screenshot, deep links, Widget shared data, App Group, and Live Activity remain pending.
 - Theme, Drawer, Home, AI, Widget regression coverage remains in the repository test targets.
 - `git diff --check`: required PASS before final commit.
 
