@@ -11,19 +11,19 @@ import SwiftUI
 /// Accent 主题（点缀色 5 套，spec FR-22.4）。
 /// rawValue 即持久化键。
 enum AccentTheme: String, CaseIterable, Sendable {
-    case emerald = "emerald"      // 墨绿（默认）
-    case blue = "blue"
+    case emerald = "emerald"      // 墨绿
+    case blue = "blue"            // 雾蓝（新装默认 / Ocean Blue）
     case purple = "purple"
     case coral = "coral"          // 珊瑚 / 柔橙
     case graphite = "graphite"    // 石墨
     case rose = "rose"            // 克制玫瑰
 
-    static let `default`: AccentTheme = .emerald
+    static let `default`: AccentTheme = .blue
 
     var displayName: String {
         switch self {
         case .emerald: return "墨绿"
-        case .blue: return "霁蓝"
+        case .blue: return "雾蓝"
         case .purple: return "紫罗兰"
         case .coral: return "珊瑚"
         case .graphite: return "石墨"
