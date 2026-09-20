@@ -57,11 +57,14 @@ struct ActionCardView: View {
                     Text(row.label)
                         .v32Text(.subhead)
                         .foregroundStyle(V32.textTertiary)
-                        .frame(width: 56, alignment: .leading)
+                        .frame(minWidth: 56, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .layoutPriority(1)
                     Text(row.value)
                         .v32Text(.body)
                         .foregroundStyle(V32.textPrimary)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .layoutPriority(0)
                 }
             }
         }

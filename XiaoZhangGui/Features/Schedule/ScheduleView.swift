@@ -68,7 +68,6 @@ struct ScheduleView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: V32Layout.sectionGap) {
-                header
                 weekStrip
                 timelineSection
                 allDaySection
@@ -81,7 +80,19 @@ struct ScheduleView: View {
         .scrollIndicators(.hidden)
         .v32PageBackground()
         .v32PageBottomInset()
-        .toolbar(.hidden, for: .navigationBar)
+        .navigationTitle("日程")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button("今天") { selectedDate = Date() }
+                NavigationLink {
+                    CalendarView()
+                } label: {
+                    Image(systemName: "calendar")
+                }
+                .accessibilityLabel("完整月历")
+            }
+        }
     }
 
     // MARK: 顶部
@@ -225,7 +236,8 @@ struct ScheduleView: View {
             Text(Fmt.time(event.date))
                 .v32Text(.subhead)
                 .foregroundStyle(V32.textTertiary)
-                .frame(width: 46, alignment: .trailing)
+                .fixedSize(horizontal: true, vertical: false)
+                .layoutPriority(1)
             switch event {
             case .delivery:
                 NavigationLink { CustomerView() } label: {

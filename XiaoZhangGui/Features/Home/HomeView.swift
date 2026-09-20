@@ -88,7 +88,14 @@ struct HomeView: View {
         .scrollIndicators(.hidden)
         .v32PageBackground()
         .v32PageBottomInset()
-        .toolbar(.hidden, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { showQuickRecord = true } label: {
+                    Image(systemName: "mic.fill")
+                }
+                .accessibilityLabel("一句话快速记录")
+            }
+        }
         .navigationDestination(item: $route) { destination in
             switch destination {
             case .customer: CustomerView()
@@ -127,10 +134,6 @@ struct HomeView: View {
                     .padding(.top, 1)
             }
             Spacer(minLength: 4)
-            // V3.3 真机 hotfix：右上角固定为「一句话快速记录」（半屏 QuickRecord，
-            // 弹出即听）；与小掌柜对话的唯一入口是底部 Dock 的「小掌柜」。
-            toolCircle("mic.fill") { showQuickRecord = true }
-                .accessibilityLabel("一句话快速记录")
             weatherButton
         }
     }
@@ -284,7 +287,12 @@ struct HomeView: View {
                             Haptic.light()
                         } label: {
                             DeliveryCard(request: request)
-                                .frame(width: deliveryCardWidth)
+                                .containerRelativeFrame(
+                                    .horizontal,
+                                    alignment: .center
+                                ) { length, _ in
+                                    max(220, (length - V32Layout.cardGap) / 1.175)
+                                }
                         }
                         .buttonStyle(V32PressButtonStyle())
                         .accessibilityLabel("查看配送：\(request.displayTitle)")
@@ -294,13 +302,6 @@ struct HomeView: View {
             }
             .scrollTargetBehavior(.viewAligned)
         }
-    }
-
-    /// 横卡宽度：按屏宽计算，静止时自然露出下一张约 15%~20%（含 cardGap）。
-    /// 不使用固定 248；不写死机型数值。
-    private var deliveryCardWidth: CGFloat {
-        let content = UIScreen.main.bounds.width - V32Layout.pageMargin * 2
-        return max(220, (content - V32Layout.cardGap) / 1.175)
     }
 
     // MARK: 今日事项（≤4，动作摘要）
