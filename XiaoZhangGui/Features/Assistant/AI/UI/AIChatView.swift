@@ -27,37 +27,13 @@ struct AIChatView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(alignment: .leading, spacing: 12) {
-                            V32PageHeader("小掌柜", subtitle: "说句话，帮你记账、派单、备忘") {
-                                HStack(spacing: 8) {
-                                    V32StatusPill(
-                                        text: model.isRemoteConfigured ? "Key 已保存" : "未配置",
-                                        status: model.isRemoteConfigured ? .pending : .expiry)
-                                    Menu {
-                                        Button {
-                                            showClearConfirm = true
-                                        } label: {
-                                            Label("新对话", systemImage: "square.and.pencil")
-                                        }
-                                        Button(role: .destructive) {
-                                            showClearConfirm = true
-                                        } label: {
-                                            Label("清空当前对话", systemImage: "trash")
-                                        }
-                                        Divider()
-                                        Button {
-                                            showSettings = true
-                                        } label: {
-                                            Label("AI 设置", systemImage: "gearshape")
-                                        }
-                                    } label: {
-                                        Image(systemName: "ellipsis.circle")
-                                            .font(.system(size: 18, weight: .medium))
-                                            .foregroundStyle(V32.textSecondary)
-                                    }
-                                    .buttonStyle(V32PressButtonStyle())
-                                    .accessibilityLabel("对话菜单")
-                                    .accessibilityIdentifier("ai.menu")
-                                }
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("说句话，帮你记账、派单、备忘")
+                                    .v32Text(.subhead)
+                                    .foregroundStyle(V32.textSecondary)
+                                V32StatusPill(
+                                    text: model.isRemoteConfigured ? "Key 已保存" : "未配置",
+                                    status: model.isRemoteConfigured ? .pending : .expiry)
                             }
                             if model.messages.isEmpty {
                                 if DemoMode.shared.isEnabled {
@@ -100,7 +76,8 @@ struct AIChatView: View {
                     onVoice: { model.startVoice() }
                 )
             }
-            .toolbar(.hidden, for: .navigationBar)
+            .navigationTitle("小掌柜")
+            .navigationBarTitleDisplayMode(.inline)
 
             if model.showVoicePanel {
                 voiceOverlay
@@ -109,6 +86,26 @@ struct AIChatView: View {
         // V3.3 真机 hotfix：短语音面板展示 / 聆听期间隐藏底部 Tab 栏（Dock），
         // 让面板完整使用底部安全区；取消 / 完成 / 失败关闭后自动恢复。
         .toolbar(model.showVoicePanel ? .hidden : .visible, for: .tabBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button { showClearConfirm = true } label: {
+                        Label("新对话", systemImage: "square.and.pencil")
+                    }
+                    Button(role: .destructive) { showClearConfirm = true } label: {
+                        Label("清空当前对话", systemImage: "trash")
+                    }
+                    Divider()
+                    Button { showSettings = true } label: {
+                        Label("AI 设置", systemImage: "gearshape")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .accessibilityLabel("对话菜单")
+                .accessibilityIdentifier("ai.menu")
+            }
+        }
         .animation(V32Motion.animation(V32Motion.resolve(.spring, reduceMotion: reduceMotion)),
                    value: model.showVoicePanel)
         .onChange(of: voiceDeepLink?.wrappedValue ?? false) { _, triggered in

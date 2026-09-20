@@ -38,7 +38,6 @@ struct TodoView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                header
                 // P0-2：切换控件必须始终可见——切到「记录」后用户必须有入口回到其它 tab。
                 // 只隐藏统计数字区域，不隐藏 tab 导航。
                 tabPicker
@@ -51,7 +50,18 @@ struct TodoView: View {
         .scrollIndicators(.hidden)
         .v32PageBackground()
         .v32PageBottomInset()
-        .toolbar(.hidden, for: .navigationBar)
+        .navigationTitle("待办")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    if tab == .records { showNewRecord = true } else { showNewEditor = true }
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .accessibilityLabel(tab == .records ? "新增记录" : "新增待办")
+            }
+        }
         .sheet(isPresented: $showNewEditor) { TodoEditorSheet(todo: nil) }
         .sheet(isPresented: $showNewRecord) { RecordEditorSheet() }
         .sheet(item: $editingTodo) { TodoEditorSheet(todo: $0) }

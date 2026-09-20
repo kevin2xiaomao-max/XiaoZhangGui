@@ -81,7 +81,8 @@ struct ProfileView: View {
         .scrollIndicators(.hidden)
         .v32PageBackground()
         .v32PageBottomInset()
-        .toolbar(.hidden, for: .navigationBar)
+        .navigationTitle("我的")
+        .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(item: $toolRoute) { route in
             switch route {
             case "calendar": CalendarView()

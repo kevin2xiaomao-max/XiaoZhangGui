@@ -31,12 +31,13 @@ struct RootView: View {
             Tab("待办", systemImage: "checkmark.circle", value: AppTab.todo) {
                 NavigationStack { TodoView() }
             }
-            Tab("我的", systemImage: "person", value: AppTab.profile) {
+        Tab("我的", systemImage: "person", value: AppTab.profile) {
                 NavigationStack {
                     ProfileView(tab: $tab, showVoice: $showVoice, showsVoiceButton: canInitializeSpeechRecognizer)
                 }
             }
         }
+        .modifier(RootTabBarBehavior())
             .tint(V32.brand)
             .onChange(of: tab) { _, newValue in
                 lastContentTab = newValue
@@ -70,6 +71,17 @@ struct RootView: View {
         case .ai(let voiceMode):
             tab = .assistant
             if voiceMode { showAIVoice = true }
+        }
+    }
+}
+
+private struct RootTabBarBehavior: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.tabBarMinimizeBehavior(.onScrollDown)
+        } else {
+            content
         }
     }
 }

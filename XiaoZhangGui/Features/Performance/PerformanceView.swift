@@ -3,7 +3,6 @@ import SwiftData
 
 struct PerformanceView: View {
     @Environment(\.modelContext) private var context
-    @Environment(\.dismiss) private var dismiss
     @Query private var performances: [Performance]
     @Query private var expenses: [Expense]
     @State private var showImport = false
@@ -46,7 +45,6 @@ struct PerformanceView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                header
                 heroCard
                 metricsCard
                 sourcesCard
@@ -58,43 +56,24 @@ struct PerformanceView: View {
         .scrollIndicators(.hidden)
         .v32PageBackground()
         .v32PageBottomInset()
-        .toolbar(.hidden, for: .navigationBar)
+        .navigationTitle("经营数据")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button("记收入") { newRecordKind = .income }
+                    Button("记支出") { newRecordKind = .expense }
+                    Button("扫呗导入", systemImage: "square.and.arrow.down") { showImport = true }
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .accessibilityLabel("经营数据操作")
+            }
+        }
         .sheet(isPresented: $showImport) { SaobeiImportSheet() }
         .sheet(item: $newRecordKind) { MoneyEditorSheet(mode: .new($0)) }
         .sheet(item: $editingPerformance) { MoneyEditorSheet(mode: .editPerformance($0)) }
         .sheet(item: $editingExpense) { MoneyEditorSheet(mode: .editExpense($0)) }
-    }
-
-    // MARK: 顶部
-
-    private var header: some View {
-        HStack(alignment: .center) {
-            Button { dismiss() } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(V32.textPrimary)
-                    .frame(width: V32Layout.toolCircle, height: V32Layout.toolCircle)
-                    .background(Circle().fill(V32.pageBGSecondary))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("返回")
-            Text("经营数据")
-                .v32Text(.pageTitle)
-                .foregroundStyle(V32.textPrimary)
-                .padding(.leading, 4)
-            Spacer()
-            Menu {
-                Button("记收入") { newRecordKind = .income }
-                Button("记支出") { newRecordKind = .expense }
-                Button("扫呗导入", systemImage: "square.and.arrow.down") { showImport = true }
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: V32Layout.toolCircle, height: V32Layout.toolCircle)
-                    .background(Circle().fill(V32.hero))
-            }
-        }
     }
 
     // MARK: Hero
