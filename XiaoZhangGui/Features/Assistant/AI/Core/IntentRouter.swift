@@ -209,8 +209,11 @@ struct IntentRouter {
 
     private func classifyBusinessInsight(_ text: String) -> BusinessInsightKind? {
         if let period = BusinessPeriodParser().parse(text),
-           period != .today, period != .yesterday, period != .lastSevenDays,
-           ["生意", "业绩", "营业额", "营收", "经营"].contains(where: { text.contains($0) }) {
+           period != .today, period != .yesterday,
+           (period != .lastSevenDays || ["生意", "业绩", "经营"].contains(where: { text.contains($0) })) ,
+           ( ["生意", "业绩", "营业额", "营收", "经营"].contains(where: { text.contains($0) })
+             || period == .thisMonthComparedWithLastMonth
+             || period == .lastThreeMonthsComparedWithThisMonth ) {
             return .period(period)
         }
         // 明确的跨日比较本身就是经营分析信号；不能要求用户重复说“营业额”。
@@ -227,7 +230,7 @@ struct IntentRouter {
         if text.contains("库存") && ["注意", "怎么样", "哪些", "风险", "低库存"].contains(where: { text.contains($0) }) {
             return .inventory
         }
-        if text.contains("7天") || text.contains("七天") || text.contains("最近生意") || text.contains("趋势") {
+        if text.contains("7天") || text.contains("七天") || text.contains("一周") || text.contains("最近生意") || text.contains("趋势") {
             return .sevenDayTrend
         }
         if text.contains("比昨天") || text.contains("昨天比") || text.contains("较昨天") {

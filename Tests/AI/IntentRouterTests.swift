@@ -66,4 +66,26 @@ final class IntentRouterTests: XCTestCase {
         XCTAssertTrue(router.hasAmount("六十八元"))
         XCTAssertFalse(router.hasAmount("明天周末"))
     }
+
+    func testP41BusinessPeriodPhrasesRouteLocally() {
+        let cases: [(String, BusinessInsightKind)] = [
+            ("最近一周生意怎么样", .period(.lastSevenDays)),
+            ("最近7天生意怎么样", .period(.lastSevenDays)),
+            ("这个月业绩", .period(.thisMonth)),
+            ("本月营业额", .period(.thisMonth)),
+            ("上个月业绩", .period(.lastMonth)),
+            ("最近3个月业绩", .period(.lastThreeMonths)),
+            ("最近6个月业绩", .period(.lastSixMonths)),
+            ("近半年业绩", .period(.lastSixMonths)),
+            ("上个月和这个月的对比", .period(.thisMonthComparedWithLastMonth)),
+            ("本月和上月对比", .period(.thisMonthComparedWithLastMonth)),
+            ("三个月和这个月的对比", .period(.lastThreeMonthsComparedWithThisMonth))
+        ]
+        for (text, expected) in cases { XCTAssertEqual(router.classify(text), .businessInsight(expected), text) }
+    }
+
+    func testTimeOnlyStillDoesNotCreateTodo() {
+        XCTAssertEqual(router.classify("明天"), .worldChat)
+        XCTAssertEqual(router.classify("下午3点"), .worldChat)
+    }
 }

@@ -56,16 +56,17 @@ enum BusinessAnswerComposer {
                 case .lastThreeMonthsComparedWithThisMonth: return "本月至今与前 3 个完整自然月"
                 }
             }()
-            guard summary.count > 0 else { return "\(label)暂无营业额记录。" }
-            var answer = "\(label)营业额 \(money(summary.amount))，共 \(summary.count) 笔。"
-            if let comparison = summary.comparisonAmount {
-                if let months = summary.comparisonMonthCount, let average = summary.comparisonAverageAmount {
-                    answer += " 前 3 个完整自然月中有数据的 \(months) 个月合计 \(money(comparison))，月均 \(money(average))。"
-                    if months < 3 { answer += "历史数据不足 3 个月，实际比较了 \(months) 个月。" }
-                } else {
-                    answer += " 对比区间营业额 \(money(comparison))。"
-                }
+            let current = "\(label)营业额 \(money(summary.amount))，\(summary.count > 0 ? "共 \(summary.count) 笔" : "暂无记录")。"
+            guard let comparison = summary.comparisonAmount else {
+                return current
             }
+            if period == .thisMonthComparedWithLastMonth {
+                return current + " 上月营业额 \(money(comparison))。"
+            }
+            let months = summary.comparisonMonthCount ?? 0
+            let average = summary.comparisonAverageAmount ?? 0
+            var answer = current + " 前 3 个完整自然月中目前有数据的 \(months) 个月，合计 \(money(comparison))，月均 \(money(average))。"
+            if months < 3 { answer += "历史数据不足 3 个月，本次实际比较了 \(months) 个月。" }
             return answer
         }
     }

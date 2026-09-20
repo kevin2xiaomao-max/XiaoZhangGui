@@ -68,7 +68,7 @@ struct GroundingPack: Equatable, Sendable {
 
     var hasBusinessData: Bool {
         todayRevenue != nil || yesterdayRevenue != nil || sevenDayRevenue.contains { $0.amount != 0 }
-            || periodSummaries.contains { $0.amount != 0 }
+            || periodSummaries.contains { $0.amount != 0 || ($0.comparisonAmount ?? 0) != 0 || $0.count > 0 }
             || !unfinishedTodoTitles.isEmpty || deliveryPendingCount > 0
             || deliveryDeliveringCount > 0 || !expiryTitles.isEmpty || !goods.isEmpty
     }

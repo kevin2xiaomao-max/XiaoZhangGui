@@ -37,6 +37,39 @@ final class AI20GroundingTests: XCTestCase {
     }
 
     @MainActor
+    func testP41ExactPeriodPhrasesUseRepositoryGroundingAndLocalAnswer() async {
+        let periods = [
+            BusinessPeriodSummary(period: .lastSevenDays, amount: 420, count: 3, comparisonAmount: nil, comparisonMonthCount: nil, comparisonAverageAmount: nil),
+            BusinessPeriodSummary(period: .thisMonth, amount: 0, count: 0, comparisonAmount: nil, comparisonMonthCount: nil, comparisonAverageAmount: nil),
+            BusinessPeriodSummary(period: .thisMonthComparedWithLastMonth, amount: 0, count: 0, comparisonAmount: 180, comparisonMonthCount: nil, comparisonAverageAmount: nil),
+            BusinessPeriodSummary(period: .lastThreeMonthsComparedWithThisMonth, amount: 0, count: 0, comparisonAmount: 180, comparisonMonthCount: 1, comparisonAverageAmount: 180),
+            BusinessPeriodSummary(period: .lastSixMonths, amount: 600, count: 5, comparisonAmount: nil, comparisonMonthCount: nil, comparisonAverageAmount: nil)
+        ]
+        let pack = GroundingPack(
+            todayRevenue: nil, yesterdayRevenue: nil, sevenDayRevenue: [],
+            unfinishedTodoTitles: [], deliveryPendingCount: 0, deliveryDeliveringCount: 0,
+            expiryTitles: [], goods: [], localSummary: nil, periodSummaries: periods)
+        let context = ScriptedBusinessContextProvider(.empty, pack: pack)
+        let provider = CapturingAIProvider()
+        let harness = AITestFactory.live(provider: provider, contextProvider: context)
+
+        let answers = await [
+            harness.agent.send("最近一周生意怎么样"),
+            harness.agent.send("这个月业绩"),
+            harness.agent.send("上个月和这个月的对比"),
+            harness.agent.send("三个月和这个月的对比"),
+            harness.agent.send("最近6个月业绩")
+        ]
+        XCTAssertTrue(answers[0].assistantMessage?.content.contains("最近 7 天") == true)
+        XCTAssertTrue(answers[1].assistantMessage?.content.contains("本月营业额 ¥0") == true)
+        XCTAssertTrue(answers[2].assistantMessage?.content.contains("上月营业额 ¥180") == true)
+        XCTAssertTrue(answers[3].assistantMessage?.content.contains("实际比较了 1 个月") == true)
+        XCTAssertTrue(answers[4].assistantMessage?.content.contains("最近 6 个月") == true)
+        let requestCount = await provider.requestCount()
+        XCTAssertEqual(requestCount, 0)
+    }
+
+    @MainActor
     func testAdviceSendsOnlyCappedRedactedGrounding() async throws {
         let provider = CapturingAIProvider()
         let context = ScriptedBusinessContextProvider(.empty, pack: pack)
