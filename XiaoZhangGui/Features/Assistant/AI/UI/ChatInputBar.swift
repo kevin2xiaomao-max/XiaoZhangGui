@@ -61,10 +61,23 @@ struct ChatInputBar: View {
         .padding(.horizontal, V32Layout.pageMargin)
         .padding(.top, 8)
         .padding(.bottom, 6)
-        .background(reduceTransparency ? AnyShapeStyle(V32.card) : AnyShapeStyle(.ultraThinMaterial))
+        .modifier(ComposerControlSurface(reduceTransparency: reduceTransparency))
     }
 
     private var canSend: Bool {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isProcessing
+    }
+}
+
+private struct ComposerControlSurface: ViewModifier {
+    let reduceTransparency: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *), !reduceTransparency {
+            content.glassEffect(.regular, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        } else {
+            content.background(reduceTransparency ? AnyShapeStyle(V32.card) : AnyShapeStyle(.ultraThinMaterial))
+        }
     }
 }

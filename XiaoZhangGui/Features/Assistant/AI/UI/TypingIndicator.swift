@@ -25,14 +25,7 @@ struct TypingIndicator: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 11)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(V32.card)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .strokeBorder(V32.cardOutline, lineWidth: 1)
-                )
-        )
+        .modifier(ThinkingSurface(reduceTransparency: false))
         .onAppear {
             if !reduceMotion {
                 animating = true
@@ -40,5 +33,25 @@ struct TypingIndicator: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("小掌柜\(label)")
+    }
+}
+
+private struct ThinkingSurface: ViewModifier {
+    let reduceTransparency: Bool
+
+    @Environment(\.accessibilityReduceTransparency) private var environmentReduceTransparency
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        let reduce = reduceTransparency || environmentReduceTransparency
+        if #available(iOS 26.0, *), !reduce {
+            content.glassEffect(.regular, in: Capsule())
+        } else {
+            content.background(
+                Capsule()
+                    .fill(V32.card)
+                    .overlay(Capsule().strokeBorder(V32.cardOutline, lineWidth: 1))
+            )
+        }
     }
 }

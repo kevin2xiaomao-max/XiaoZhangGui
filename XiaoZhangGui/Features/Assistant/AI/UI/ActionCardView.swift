@@ -12,6 +12,7 @@ struct ActionCardView: View {
     let onCancel: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
         V32Card {
@@ -122,6 +123,7 @@ struct ActionCardView: View {
                     .disabled(resolved)
             }
         }
+        .modifier(ActionControlSurface(reduceTransparency: reduceTransparency))
     }
 
     private var confirmTitle: String {
@@ -162,6 +164,21 @@ struct ActionCardView: View {
         case .createMemo: return "新建备忘"
         case .createDelivery: return "新建配送"
         case .searchRecords: return "查询经营记录"
+        }
+    }
+}
+
+private struct ActionControlSurface: ViewModifier {
+    let reduceTransparency: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *), !reduceTransparency {
+            content
+                .padding(8)
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        } else {
+            content
         }
     }
 }
