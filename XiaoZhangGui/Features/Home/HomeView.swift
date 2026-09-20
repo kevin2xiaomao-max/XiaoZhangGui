@@ -19,6 +19,7 @@ struct HomeView: View {
     @Query private var expiryItems: [ExpiryItem]
     @Query private var customers: [CustomerRequest]
     @State private var route: HomeRoute?
+    @State private var showUtilityDrawer = false
     @State private var showWeatherSheet = false
     @State private var weatherModel = WeatherViewModel()
 
@@ -92,6 +93,12 @@ struct HomeView: View {
         .v32PageBackground()
         .v32PageBottomInset()
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button { showUtilityDrawer = true } label: {
+                    Image(systemName: "line.3.horizontal")
+                }
+                .accessibilityLabel("打开经营快捷中心")
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button { showQuickRecord = true } label: {
                     Image(systemName: "mic.fill")
@@ -112,6 +119,36 @@ struct HomeView: View {
                 .presentationDragIndicator(.visible)
         }
         .task { weatherModel.loadIfNeeded() }
+        .overlay {
+            if showUtilityDrawer {
+                V35DrawerContainer(isPresented: $showUtilityDrawer) {
+                    tab = .profile
+                }
+            }
+        }
+        // Home root only: the leading edge is reserved for the utility drawer.
+        // Pushed NavigationStack destinations do not contain this gesture.
+        .overlay(alignment: .leading) {
+            if !showUtilityDrawer {
+                Color.clear
+                    .frame(width: 26)
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 12)
+                            .onEnded { value in
+                                let width = UIScreen.main.bounds.width * 0.84
+                                if V35DrawerGestureLogic.shouldOpen(
+                                    translation: value.translation.width,
+                                    predicted: value.predictedEndTranslation.width,
+                                    width: width
+                                ) {
+                                    showUtilityDrawer = true
+                                    Haptic.light()
+                                }
+                            }
+                    )
+            }
+        }
     }
 
     // MARK: 顶部：问候 / 日期 / 天气 / 快速记录 / 头像
