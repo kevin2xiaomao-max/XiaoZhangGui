@@ -51,14 +51,20 @@ enum BusinessAnswerComposer {
                 case .thisMonth: return "本月"
                 case .lastMonth: return "上月"
                 case .lastThreeMonths: return "最近 3 个月"
+                case .lastSixMonths: return "最近 6 个月"
                 case .thisMonthComparedWithLastMonth: return "本月与上月"
-                case .lastThreeMonthsComparedWithThisMonth: return "最近 3 个月与本月"
+                case .lastThreeMonthsComparedWithThisMonth: return "本月至今与前 3 个完整自然月"
                 }
             }()
             guard summary.count > 0 else { return "\(label)暂无营业额记录。" }
             var answer = "\(label)营业额 \(money(summary.amount))，共 \(summary.count) 笔。"
             if let comparison = summary.comparisonAmount {
-                answer += " 对比区间营业额 \(money(comparison))。"
+                if let months = summary.comparisonMonthCount, let average = summary.comparisonAverageAmount {
+                    answer += " 前 3 个完整自然月中有数据的 \(months) 个月合计 \(money(comparison))，月均 \(money(average))。"
+                    if months < 3 { answer += "历史数据不足 3 个月，实际比较了 \(months) 个月。" }
+                } else {
+                    answer += " 对比区间营业额 \(money(comparison))。"
+                }
             }
             return answer
         }

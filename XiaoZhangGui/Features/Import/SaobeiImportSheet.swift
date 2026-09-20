@@ -18,8 +18,6 @@ struct SaobeiImportSheet: View {
     @State private var screenshotItem: PhotosPickerItem?
     @State private var isOCR = false
 
-    private let importer = SaobeiImporter()
-
     private var existing: Set<String> {
         Set(performances.map(\.fingerprint).filter { !$0.isEmpty })
     }
@@ -302,17 +300,12 @@ struct SaobeiImportSheet: View {
             // UI 几乎不显示「正在解析」；且同步 parse 阻塞 main thread。
             // 改用 Task @MainActor 异步解析，让 UI 状态变化先渲染再执行重活。
             isParsing = true
-            let importer = importer
             let fileName = url.lastPathComponent
             Task { @MainActor in
-                let accessed = url.startAccessingSecurityScopedResource()
-                defer { if accessed { url.stopAccessingSecurityScopedResource() } }
                 do {
-                    let data = try Data(contentsOf: url)
-                    guard SaobeiFileValidator.kind(for: fileName, data: data) != nil else {
-                        throw SaobeiImportError.noHeader
-                    }
-                    let parsed = try importer.parse(data: data, fileName: fileName)
+                    let parsed = try await Task.detached(priority: .userInitiated) {
+                        try SaobeiImportWorker.parse(url: url, fileName: fileName)
+                    }.value
                     parseResult = parsed
                     errorText = nil
                 } catch {

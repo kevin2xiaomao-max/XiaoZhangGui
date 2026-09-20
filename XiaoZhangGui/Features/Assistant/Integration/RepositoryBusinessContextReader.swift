@@ -88,19 +88,33 @@ final class RepositoryBusinessContextReader: BusinessContextProviding {
                 todos: todos, memos: memos, customers: customers, expiryItems: expiry, weather: nil)
             let localSummary = await BusinessAssistantEngine().analyze(input).summary.text
             let periodParser = BusinessPeriodParser()
-            let periods: [BusinessPeriod] = [.today, .yesterday, .lastSevenDays, .thisMonth, .lastMonth, .lastThreeMonths, .thisMonthComparedWithLastMonth, .lastThreeMonthsComparedWithThisMonth]
+            let periods: [BusinessPeriod] = [.today, .yesterday, .lastSevenDays, .thisMonth, .lastMonth, .lastThreeMonths, .lastSixMonths, .thisMonthComparedWithLastMonth, .lastThreeMonthsComparedWithThisMonth]
             let periodSummaries = periods.compactMap { period -> BusinessPeriodSummary? in
                 guard let bounds = periodParser.bounds(for: period, now: now, calendar: calendar) else { return nil }
-                let rows = revenues.filter { $0.date >= bounds.start && $0.date < bounds.end }
+                let isThreeMonthComparison = period == .lastThreeMonthsComparedWithThisMonth
+                let currentMonthStart = calendar.dateInterval(of: .month, for: now)?.start ?? bounds.start
+                let rows = isThreeMonthComparison
+                    ? revenues.filter { $0.date >= currentMonthStart && $0.date <= now }
+                    : revenues.filter { $0.date >= bounds.start && $0.date < bounds.end }
                 let comparison: Double? = {
                     guard period == .thisMonthComparedWithLastMonth || period == .lastThreeMonthsComparedWithThisMonth else { return nil }
                     let previousStart = period == .thisMonthComparedWithLastMonth
-                        ? (calendar.date(byAdding: .month, value: -1, to: bounds.start) ?? bounds.start)
-                        : (calendar.date(byAdding: .month, value: -3, to: bounds.start) ?? bounds.start)
-                    let previousRows = revenues.filter { $0.date >= previousStart && $0.date < bounds.start }
+                        ? (calendar.date(byAdding: .month, value: -1, to: currentMonthStart) ?? currentMonthStart)
+                        : (calendar.date(byAdding: .month, value: -3, to: currentMonthStart) ?? currentMonthStart)
+                    let previousRows = revenues.filter { $0.date >= previousStart && $0.date < currentMonthStart }
                     return previousRows.reduce(0) { $0 + $1.amount }
                 }()
-                return BusinessPeriodSummary(period: period, amount: rows.reduce(0) { $0 + $1.amount }, count: rows.count, comparisonAmount: comparison)
+                let comparisonMonthCount: Int? = isThreeMonthComparison ? (0..<3).reduce(0) { count, offset in
+                    guard let monthStart = calendar.date(byAdding: .month, value: -offset - 1, to: currentMonthStart),
+                          let monthEnd = calendar.date(byAdding: .month, value: 1, to: monthStart),
+                          revenues.contains(where: { $0.date >= monthStart && $0.date < monthEnd }) else { return count }
+                    return count + 1
+                } : nil
+                let comparisonAverageAmount = comparison.map { amount in
+                    let divisor = max(comparisonMonthCount ?? 1, 1)
+                    return amount / Double(divisor)
+                }
+                return BusinessPeriodSummary(period: period, amount: rows.reduce(0) { $0 + $1.amount }, count: rows.count, comparisonAmount: comparison, comparisonMonthCount: comparisonMonthCount, comparisonAverageAmount: comparisonAverageAmount)
             }
 
             return GroundingPack(

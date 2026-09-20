@@ -65,6 +65,12 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["记录营业额"].exists)
     }
 
+    func testThreeMonthComparisonUsesNaturalLanguage() {
+        send("三个月和这个月的对比")
+        XCTAssertTrue(waitForAssistantReply())
+        XCTAssertFalse(element("ai.action-card").exists)
+    }
+
     func testClearConversationDoesNotDeleteBusinessData() {
         send("那我还要AI干嘛")
         XCTAssertTrue(waitForAssistantReply())

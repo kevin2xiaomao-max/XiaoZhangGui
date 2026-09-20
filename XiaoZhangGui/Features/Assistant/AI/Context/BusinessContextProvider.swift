@@ -43,6 +43,8 @@ struct BusinessPeriodSummary: Equatable, Sendable {
     let amount: Double
     let count: Int
     let comparisonAmount: Double?
+    let comparisonMonthCount: Int?
+    let comparisonAverageAmount: Double?
 }
 
 /// AI 2.0 唯一经营上下文入口。只保留聚合值和短标题，不承载 SwiftData 对象或客户隐私。

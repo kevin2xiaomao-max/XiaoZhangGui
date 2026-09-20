@@ -7,6 +7,7 @@ enum BusinessPeriod: Equatable, Sendable {
     case thisMonth
     case lastMonth
     case lastThreeMonths
+    case lastSixMonths
     case thisMonthComparedWithLastMonth
     case lastThreeMonthsComparedWithThisMonth
 }
@@ -16,7 +17,7 @@ struct BusinessPeriodParser {
         let t = text.replacingOccurrences(of: " ", with: "")
         if (t.contains("三个月") || t.contains("3个月")) && (t.contains("这个月") || t.contains("本月")) && t.contains("对比") { return .lastThreeMonthsComparedWithThisMonth }
         if (t.contains("这个月") || t.contains("本月")) && (t.contains("上个月") || t.contains("上月")) && t.contains("对比") { return .thisMonthComparedWithLastMonth }
-        if t.contains("最近6个月") || t.contains("近6个月") || t.contains("近半年") { return .lastThreeMonths }
+        if t.contains("最近6个月") || t.contains("近6个月") || t.contains("近半年") { return .lastSixMonths }
         if t.contains("最近3个月") || t.contains("近三个月") || t.contains("三个月") { return .lastThreeMonths }
         if t.contains("上个月") || t.contains("上月") { return .lastMonth }
         if t.contains("这个月") || t.contains("本月") { return .thisMonth }
@@ -42,6 +43,9 @@ struct BusinessPeriodParser {
             return calendar.dateInterval(of: .month, for: month)
         case .lastThreeMonths, .lastThreeMonthsComparedWithThisMonth:
             let start = calendar.date(byAdding: .month, value: -3, to: today) ?? today
+            return DateInterval(start: start, end: today)
+        case .lastSixMonths:
+            let start = calendar.date(byAdding: .month, value: -6, to: today) ?? today
             return DateInterval(start: start, end: today)
         case .thisMonthComparedWithLastMonth: return calendar.dateInterval(of: .month, for: now)
         }
