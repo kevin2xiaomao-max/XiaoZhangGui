@@ -86,6 +86,9 @@ struct HomeView: View {
             .padding(.top, 8)
         }
         .scrollIndicators(.hidden)
+        // Keep the first scroll content below the translucent system navigation bar.
+        // The microphone remains a real toolbar item; this is only a container inset.
+        .safeAreaPadding(.top, 12)
         .v32PageBackground()
         .v32PageBottomInset()
         .toolbar {
