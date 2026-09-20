@@ -334,7 +334,8 @@ private struct MetricCell: View {
 
 enum BusinessLiveStyle {
     /// 品牌绿
-    static let green = Color(red: 0x27/255, green: 0xC5/255, blue: 0x6F/255)
+    // Signed-widget-safe Ocean fallback; semantic amber/danger remain separate.
+    static let green = Color(red: 0x3A/255, green: 0x70/255, blue: 0xB7/255)
     /// 临期琥珀
     static let amber = Color(red: 0xFF/255, green: 0xB0/255, blue: 0x20/255)
     /// 锁屏背景兜底色（渐变覆盖其上）

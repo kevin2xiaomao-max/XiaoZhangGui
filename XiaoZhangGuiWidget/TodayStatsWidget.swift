@@ -76,7 +76,8 @@ private extension Date {
 // MARK: - 品牌色（Widget target 内联定义，与主 App V21Color 对齐）
 
 private enum WidgetBrand {
-    static let green = Color(red: 0x27 / 255, green: 0xC5 / 255, blue: 0x6F / 255)
+    // Restrained Ocean fallback until signed App Group theme propagation is verified.
+    static let green = Color(red: 0x3A / 255, green: 0x70 / 255, blue: 0xB7 / 255)
     static let warning = Color(red: 0xFF / 255, green: 0x9F / 255, blue: 0x0A / 255)
     static let danger = Color(red: 0xFF / 255, green: 0x6B / 255, blue: 0x6B / 255)
 }

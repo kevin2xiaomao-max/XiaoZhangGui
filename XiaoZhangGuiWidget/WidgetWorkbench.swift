@@ -15,7 +15,8 @@ import WidgetKit
 /// - 文字一律 .primary / .secondary，标题/图标可被系统单色化，不会在 Tinted 下消失
 /// - 金额与事项行均 minimumScaleFactor + lineLimit，大字号/窄屏不崩
 
-private let workbenchInk = V21.brandGreen
+// Ocean fallback keeps the Widget readable without claiming unverified theme sync.
+private let workbenchInk = Color(red: 0x3A / 255, green: 0x70 / 255, blue: 0xB7 / 255)
 
 // MARK: - Small
 
