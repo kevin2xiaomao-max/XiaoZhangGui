@@ -2,8 +2,6 @@ name: 小掌柜 3.5 构建
 
 on:
   push:
-    # main / ios-dev 保持不变；3.5 封版分支自动跑完整 CI。
-    # Release 步骤仍有分支条件，不会在其它分支发版。
     branches: [ios-dev, main, feature/v3.5-liquid-glass-leap, feature/v3.4-intelligence-experience, fix/v3.4-build34-real-data-repair]
   workflow_dispatch:
 
@@ -13,3 +11,119 @@ permissions:
 concurrency:
   group: xzg-ios-${{ github.ref }}
   cancel-in-progress: true
+
+jobs:
+  build:
+    name: 小掌柜 Xcode 构建、测试与 IPA
+    runs-on: xcode-27
+    timeout-minutes: 75
+    steps:
+      - name: 检出源码
+        uses: actions/checkout@v4
+
+      - name: V3.3 AI 写隔离检查（AI 层禁止 import SwiftData）
+        run: |
+          set -euo pipefail
+          AI_DIR="XiaoZhangGui/Features/Assistant/AI"
+          if [ -d "$AI_DIR" ]; then
+            if grep -RnE '^[[:space:]]*import[[:space:]]+SwiftData' "$AI_DIR"; then
+              echo "FAIL: AI 层禁止 import SwiftData"
+              exit 1
+            fi
+            echo "AI write-isolation guard PASS"
+          fi
+
+      - name: 检查 Xcode 版本
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcode-select -p
+          xcrun simctl list runtimes
+          xcrun simctl list devices available
+
+      - name: 安装并生成 Xcode 工程
+        run: |
+          set -euo pipefail
+          brew install xcodegen
+          xcodegen generate
+          test -d XiaoZhangGui.xcodeproj
+
+      - name: 显示工程信息
+        run: xcodebuild -list -project XiaoZhangGui.xcodeproj
+
+      - name: Resolve Swift Packages
+        run: |
+          set -euo pipefail
+          xcodebuild -resolvePackageDependencies -project XiaoZhangGui.xcodeproj -scheme XiaoZhangGui || true
+
+      - name: 选择 iPhone 模拟器
+        id: sim
+        run: |
+          set -euo pipefail
+          NAME=""
+          for cand in "iPhone 17" "iPhone 17 Pro" "iPhone 16" "iPhone 16 Pro" "iPhone 15" "iPhone 15 Pro"; do
+            if xcrun simctl list devices available | grep -F "$cand (" >/dev/null; then
+              NAME="$cand"
+              break
+            fi
+          done
+          if [ -z "$NAME" ]; then
+            NAME=$(xcrun simctl list devices available | sed -n 's/^[[:space:]]*\(iPhone [^()]*\) (.*$/\1/p' | sed 's/[[:space:]]*$//' | tail -n 1)
+          fi
+          test -n "$NAME"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "使用模拟器: $NAME"
+
+      - name: Simulator compile
+        run: |
+          set -euo pipefail
+          xcodebuild build \
+            -project XiaoZhangGui.xcodeproj \
+            -scheme XiaoZhangGui \
+            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+            -derivedDataPath build/Simulator \
+            XZG_WEATHER_API_KEY="${{ secrets.XZG_WEATHER_API_KEY }}" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+
+      - name: Device generic unsigned build + IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          export XZG_WEATHER_API_KEY="${{ secrets.XZG_WEATHER_API_KEY }}"
+          test -n "$XZG_WEATHER_API_KEY"
+          xcodebuild build \
+            -project XiaoZhangGui.xcodeproj \
+            -scheme XiaoZhangGui \
+            -destination 'generic/platform=iOS' \
+            -configuration Release \
+            -derivedDataPath build/Device \
+            XZG_WEATHER_API_KEY="$XZG_WEATHER_API_KEY" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM=""
+          app=$(find build/Device/Build/Products/Release-iphoneos -name '*.app' -type d -maxdepth 1 | head -n 1)
+          test -n "${app:-}"
+          test -d "$app"
+          SHORT_SHA="$(git rev-parse --short=7 HEAD)"
+          MARKETING_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Info.plist")"
+          CURRENT_PROJECT_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app/Info.plist")"
+          IPA="XiaoZhangGui-${MARKETING_VERSION}-b${CURRENT_PROJECT_VERSION}-${SHORT_SHA}.ipa"
+          rm -rf ipa
+          mkdir -p ipa/Payload
+          cp -R "$app" "ipa/Payload/你的小掌柜.app"
+          (cd ipa && zip -qry "../$IPA" Payload)
+          test -f "$IPA"
+          echo "XZG_VERSION=$MARKETING_VERSION" >> "$GITHUB_ENV"
+          echo "XZG_BUILD=$CURRENT_PROJECT_VERSION" >> "$GITHUB_ENV"
+          echo "XZG_COMMIT=$SHORT_SHA" >> "$GITHUB_ENV"
+          echo "IPA_FILENAME=$IPA" >> "$GITHUB_ENV"
+
+      - name: 上传版本化 IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: XiaoZhangGui-${{ env.XZG_VERSION }}-b${{ env.XZG_BUILD }}-${{ env.XZG_COMMIT }}-IPA
+          path: ${{ env.IPA_FILENAME }}
+          if-no-files-found: error
+          retention-days: 14
