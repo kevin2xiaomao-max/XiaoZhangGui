@@ -6,6 +6,18 @@ struct V35HomeOverviewGrid: View {
     let customerCount: Int
     let focusCount: Int
 
+    init(todoCount: Int, expiryCount: Int, customerCount: Int, focusCount: Int) {
+        self.todoCount = todoCount
+        self.expiryCount = expiryCount
+        self.customerCount = customerCount
+        self.focusCount = focusCount
+    }
+
+    /// 兼容旧调用方。新代码请传 focusCount（今日待处理件数），不要再把待办数当成未读。
+    init(todoCount: Int, expiryCount: Int, customerCount: Int, unreadCount: Int) {
+        self.init(todoCount: todoCount, expiryCount: expiryCount, customerCount: customerCount, focusCount: unreadCount)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             V32SectionHeader("今日概览")

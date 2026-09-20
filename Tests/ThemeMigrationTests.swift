@@ -1,17 +1,7 @@
 import XCTest
 @testable import XiaoZhangGui
 
-/// T26：旧 app_theme_name → 新 Accent + Background 迁移单测
-///
-/// 覆盖：
-///   - ThemeMigration.map(legacy:) 6 个已知旧值映射
-///   - 未识别字符串 → 默认 (.emerald, .warmCream)
-///   - nil → 默认 (.emerald, .warmCream)
-///   - ThemeStore init 一次性迁移（含幂等：第二次 init 不再读旧键）
-///   - 迁移后 v32_theme_migrated 标记为 true，业务代码不再读 app_theme_name
 final class ThemeMigrationTests: XCTestCase {
-
-    // MARK: - 纯函数 ThemeMigration.map(legacy:)
 
     func testMapEmeraldLegacy() {
         let mapped = ThemeMigration.map(legacy: "Emerald")
@@ -49,25 +39,28 @@ final class ThemeMigrationTests: XCTestCase {
         XCTAssertEqual(mapped.background, .warmCream)
     }
 
+    func testDefaultAccentIsBlueForNewInstalls() {
+        XCTAssertEqual(AccentTheme.default, .blue)
+        XCTAssertEqual(BackgroundTheme.default, .warmCream)
+    }
+
     func testMapUnrecognizedStringFallsBackToDefault() {
         let mapped = ThemeMigration.map(legacy: "Some Unknown Theme")
-        XCTAssertEqual(mapped.accent, .blue)
+        XCTAssertEqual(mapped.accent, AccentTheme.default)
         XCTAssertEqual(mapped.background, BackgroundTheme.default)
     }
 
     func testMapNilFallsBackToDefault() {
         let mapped = ThemeMigration.map(legacy: nil)
-        XCTAssertEqual(mapped.accent, .blue)
+        XCTAssertEqual(mapped.accent, AccentTheme.default)
         XCTAssertEqual(mapped.background, BackgroundTheme.default)
     }
 
     func testMapEmptyStringFallsBackToDefault() {
         let mapped = ThemeMigration.map(legacy: "")
-        XCTAssertEqual(mapped.accent, .blue)
+        XCTAssertEqual(mapped.accent, AccentTheme.default)
         XCTAssertEqual(mapped.background, BackgroundTheme.default)
     }
-
-    // MARK: - P5.0 palette compatibility
 
     func testAccentRawValuesRemainCompatibleAndRoseIsAdditive() {
         XCTAssertEqual(AccentTheme.emerald.rawValue, "emerald")
@@ -87,9 +80,6 @@ final class ThemeMigrationTests: XCTestCase {
         }
     }
 
-    // MARK: - ThemeStore 一次性迁移（幂等）
-
-    /// 第一次 init 时若有旧 app_theme_name，应映射到新键并标记 v32_theme_migrated
     @MainActor
     func testThemeStoreMigratesLegacyOnFirstInit() {
         let defaults = UserDefaults(suiteName: "theme.migration.test.first")!
@@ -104,33 +94,28 @@ final class ThemeMigrationTests: XCTestCase {
         XCTAssertEqual(defaults.string(forKey: "v32.theme.background"), "warm_cream")
     }
 
-    /// 迁移后再次 init 应保留新键，不再读 app_theme_name
-    /// 即使将旧键改为别的值，也不会再迁移
     @MainActor
     func testThemeStoreMigrationIsIdempotent() {
         let defaults = UserDefaults(suiteName: "theme.migration.test.idem")!
         defaults.removePersistentDomain(forName: "theme.migration.test.idem")
         defaults.set("Coral", forKey: "app_theme_name")
 
-        // 第一次 init 触发迁移 → coral
         _ = ThemeStore(defaults: defaults)
         XCTAssertEqual(defaults.string(forKey: "v32.theme.accent"), "coral")
 
-        // 修改旧键，不应触发再次迁移
         defaults.set("Graphite", forKey: "app_theme_name")
         let store = ThemeStore(defaults: defaults)
         XCTAssertEqual(store.accentTheme, .coral, "已迁移后不应再次读取旧 app_theme_name")
         XCTAssertTrue(defaults.bool(forKey: "v32_theme_migrated"))
     }
 
-    /// 无旧 app_theme_name 时，init 后应使用默认主题但迁移标记仍置 true
     @MainActor
     func testThemeStoreNoLegacyStillMarksMigrated() {
         let defaults = UserDefaults(suiteName: "theme.migration.test.none")!
         defaults.removePersistentDomain(forName: "theme.migration.test.none")
 
         let store = ThemeStore(defaults: defaults)
-        XCTAssertEqual(store.accentTheme, .blue)
+        XCTAssertEqual(store.accentTheme, AccentTheme.default)
         XCTAssertEqual(store.backgroundTheme, BackgroundTheme.default)
         XCTAssertTrue(defaults.bool(forKey: "v32_theme_migrated"))
     }
@@ -147,10 +132,6 @@ final class ThemeMigrationTests: XCTestCase {
         XCTAssertEqual(store.backgroundTheme, .warmCream)
     }
 
-    // MARK: - 验证迁移后业务代码不依赖旧键
-
-    /// 迁移完成后，业务代码只读 v32.theme.accent / v32.theme.background；
-    /// app_theme_name 仍可留在磁盘（不删），但 ThemeStore 不再使用它。
     @MainActor
     func testThemeStoreDoesNotDeleteLegacyKey() {
         let defaults = UserDefaults(suiteName: "theme.migration.test.keep")!
@@ -158,7 +139,6 @@ final class ThemeMigrationTests: XCTestCase {
         defaults.set("Emerald", forKey: "app_theme_name")
 
         _ = ThemeStore(defaults: defaults)
-        // 旧键仍存在（不删，仅不再读取）
         XCTAssertEqual(defaults.string(forKey: "app_theme_name"), "Emerald")
     }
 }
