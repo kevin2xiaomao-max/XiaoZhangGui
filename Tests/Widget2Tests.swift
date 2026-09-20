@@ -221,16 +221,25 @@ final class Widget2Tests: XCTestCase {
     func testBuilderFocusItemsPickOverdueThenToday() throws {
         let container = try makeContainer()
         let ctx = container.mainContext
-        let cal = Calendar.current
-        ctx.insert(Todo(title: "逾期待办", dueDate: cal.date(byAdding: .day, value: -1, to: Date().startOfDay)))
-        ctx.insert(Todo(title: "今日待办", dueDate: Date(timeIntervalSinceNow: 3600)))
-        ctx.insert(Todo(title: "未来待办", dueDate: cal.date(byAdding: .day, value: 2, to: Date())))
-        ctx.insert(Todo(title: "已完成", dueDate: Date(timeIntervalSinceNow: 3600), isCompleted: true))
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(secondsFromGMT: 0)!
+        let reference = cal.date(from: DateComponents(timeZone: cal.timeZone, year: 2026, month: 1, day: 15, hour: 12))!
+        let yesterday = cal.date(byAdding: .day, value: -1, to: reference)!
+        let today = cal.date(byAdding: .hour, value: 1, to: reference)!
+        let future = cal.date(byAdding: .day, value: 2, to: reference)!
+        ctx.insert(Todo(title: "逾期待办", dueDate: yesterday))
+        ctx.insert(Todo(title: "今日待办", dueDate: today))
+        ctx.insert(Todo(title: "未来待办", dueDate: future))
+        ctx.insert(Todo(title: "已完成", dueDate: today, isCompleted: true))
         ctx.insert(CustomerRequest(customer: "王姐", content: "送牛奶", status: CustomerStatus.delivering.rawValue))
-        ctx.insert(ExpiryItem(name: "鲜牛奶", expiryDate: cal.date(byAdding: .day, value: 3, to: Date().startOfDay)!))
+        ctx.insert(ExpiryItem(name: "鲜牛奶", expiryDate: cal.date(byAdding: .day, value: 3, to: reference)!))
         try ctx.save()
 
-        let snapshot = try XCTUnwrap(SnapshotSyncManager.buildSnapshot(context: ctx))
+        let todos = try ctx.fetch(FetchDescriptor<Todo>())
+        let performances = try ctx.fetch(FetchDescriptor<Performance>())
+        let expiryItems = try ctx.fetch(FetchDescriptor<ExpiryItem>())
+        let customers = try ctx.fetch(FetchDescriptor<CustomerRequest>())
+        let snapshot = SnapshotBuilder.makeSnapshot(todos: todos, performances: performances, expiryItems: expiryItems, customers: customers, now: reference)
         XCTAssertEqual(snapshot.focusItems.map(\.title), ["逾期待办", "今日待办"])
         XCTAssertEqual(snapshot.focusItems.map(\.completable), [true, true])
     }

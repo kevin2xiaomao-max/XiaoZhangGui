@@ -18,7 +18,7 @@ settings and personal/store configuration.
 ## Gates
 
 - iPhone 17 / iPhone Air / generic iOS device builds: PASS.
-- Full XCTest and XCUITest: executed in the final local run; results recorded in the final report.
+- Final gate rerun: Widget2 time-dependent test was converted to a fixed UTC reference date. A subsequent simulator test-runner invocation stalled before producing a completed result; XCTest is therefore not claimed PASS until that runner issue is rerun in a clean simulator session.
 - Theme, Drawer, Home, AI, Widget regression coverage remains in the repository test targets.
 - `git diff --check`: required PASS before final commit.
 
