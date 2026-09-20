@@ -16,6 +16,7 @@ enum AccentTheme: String, CaseIterable, Sendable {
     case purple = "purple"
     case coral = "coral"          // 珊瑚 / 柔橙
     case graphite = "graphite"    // 石墨
+    case rose = "rose"            // 克制玫瑰
 
     static let `default`: AccentTheme = .emerald
 
@@ -26,6 +27,7 @@ enum AccentTheme: String, CaseIterable, Sendable {
         case .purple: return "紫罗兰"
         case .coral: return "珊瑚"
         case .graphite: return "石墨"
+        case .rose: return "玫瑰"
         }
     }
 }

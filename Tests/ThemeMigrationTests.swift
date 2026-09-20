@@ -67,6 +67,26 @@ final class ThemeMigrationTests: XCTestCase {
         XCTAssertEqual(mapped.background, BackgroundTheme.default)
     }
 
+    // MARK: - P5.0 palette compatibility
+
+    func testAccentRawValuesRemainCompatibleAndRoseIsAdditive() {
+        XCTAssertEqual(AccentTheme.emerald.rawValue, "emerald")
+        XCTAssertEqual(AccentTheme.blue.rawValue, "blue")
+        XCTAssertEqual(AccentTheme.purple.rawValue, "purple")
+        XCTAssertEqual(AccentTheme.coral.rawValue, "coral")
+        XCTAssertEqual(AccentTheme.graphite.rawValue, "graphite")
+        XCTAssertEqual(AccentTheme.rose.rawValue, "rose")
+    }
+
+    func testEveryAccentPaletteProvidesExtendedRoleTokens() {
+        for theme in AccentTheme.allCases {
+            let palette = theme.palette
+            _ = [palette.accent, palette.secondaryAccent, palette.heroStart, palette.heroEnd,
+                 palette.selectedTint, palette.chartAccent, palette.aiAccent, palette.subtleTint]
+            XCTAssertFalse(theme.displayName.isEmpty)
+        }
+    }
+
     // MARK: - ThemeStore 一次性迁移（幂等）
 
     /// 第一次 init 时若有旧 app_theme_name，应映射到新键并标记 v32_theme_migrated

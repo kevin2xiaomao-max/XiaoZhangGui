@@ -30,6 +30,13 @@ struct AccentPalette: Sendable {
     let accent: Color          // 对应 V32.brand 的交互用途
     let accentSoft: Color      // 对应 V32.brandSoft
     let onAccent: Color        // 按钮 / 胶囊上的前景色
+    let secondaryAccent: Color // 次级强调 / paired accent
+    let heroStart: Color       // Hero 主题起始色
+    let heroEnd: Color         // Hero 主题结束色
+    let selectedTint: Color    // 选中态背景 tint
+    let chartAccent: Color     // 趋势图 / 数据可视化
+    let aiAccent: Color        // AI 控制层专用强调
+    let subtleTint: Color      // 非卡片大面积的轻 tint
 }
 
 // MARK: - 默认调色板（等同 b27，light/dark 双值与 V32Color.swift 一致）
@@ -151,31 +158,79 @@ extension AccentTheme {
             return AccentPalette(
                 accent: Color.v32Dynamic(light: 0x2F6B4F, dark: 0x35D083),
                 accentSoft: Color.v32Dynamic(light: 0xE2EFE7, dark: 0x153225),
-                onAccent: Color.v32Dynamic(light: 0xFFFFFF, dark: 0x0F1F18)
+                onAccent: Color.v32Dynamic(light: 0xFFFFFF, dark: 0x0F1F18),
+                secondaryAccent: Color.v32Dynamic(light: 0x6C927C, dark: 0x7FE0A8),
+                heroStart: Color.v32Dynamic(light: 0x234D3A, dark: 0x173A2B),
+                heroEnd: Color.v32Dynamic(light: 0x4C8767, dark: 0x246B49),
+                selectedTint: Color.v32Dynamic(light: 0xDCEDE3, dark: 0x193B2A),
+                chartAccent: Color.v32Dynamic(light: 0x2F8A5C, dark: 0x63D895),
+                aiAccent: Color.v32Dynamic(light: 0x327E5A, dark: 0x75DFA3),
+                subtleTint: Color.v32Dynamic(light: 0xEDF5F0, dark: 0x17251D)
             )
         case .blue:
             return AccentPalette(
                 accent: Color.v32Dynamic(light: 0x3A6FB8, dark: 0x6CA6F0),
                 accentSoft: Color.v32Dynamic(light: 0xE2EBF6, dark: 0x152638),
-                onAccent: Color.v32Dynamic(light: 0xFFFFFF, dark: 0x0A1A2E)
+                onAccent: Color.v32Dynamic(light: 0xFFFFFF, dark: 0x0A1A2E),
+                secondaryAccent: Color.v32Dynamic(light: 0x6689B2, dark: 0x92BDF5),
+                heroStart: Color.v32Dynamic(light: 0x344F70, dark: 0x1D2E43),
+                heroEnd: Color.v32Dynamic(light: 0x5A82AC, dark: 0x345B84),
+                selectedTint: Color.v32Dynamic(light: 0xDCE8F4, dark: 0x1B314A),
+                chartAccent: Color.v32Dynamic(light: 0x477FBF, dark: 0x83B7F2),
+                aiAccent: Color.v32Dynamic(light: 0x3A78BE, dark: 0x8BB9F1),
+                subtleTint: Color.v32Dynamic(light: 0xEDF3F9, dark: 0x182431)
             )
         case .purple:
             return AccentPalette(
                 accent: Color.v32Dynamic(light: 0x7C5BC9, dark: 0xB08CE0),
                 accentSoft: Color.v32Dynamic(light: 0xECDEF6, dark: 0x251938),
-                onAccent: Color.v32Dynamic(light: 0xFFFFFF, dark: 0x1A0E2A)
+                onAccent: Color.v32Dynamic(light: 0xFFFFFF, dark: 0x1A0E2A),
+                secondaryAccent: Color.v32Dynamic(light: 0x9A82C9, dark: 0xC5A9EB),
+                heroStart: Color.v32Dynamic(light: 0x554078, dark: 0x30234A),
+                heroEnd: Color.v32Dynamic(light: 0x8B6AC1, dark: 0x634C91),
+                selectedTint: Color.v32Dynamic(light: 0xEAE1F5, dark: 0x332647),
+                chartAccent: Color.v32Dynamic(light: 0x866BD0, dark: 0xC09BEF),
+                aiAccent: Color.v32Dynamic(light: 0x795BC5, dark: 0xC4A4EF),
+                subtleTint: Color.v32Dynamic(light: 0xF3EFF9, dark: 0x211A2C)
             )
         case .coral:
             return AccentPalette(
                 accent: Color.v32Dynamic(light: 0xE0654A, dark: 0xFF8466),
                 accentSoft: Color.v32Dynamic(light: 0xFBE4DC, dark: 0x381F18),
-                onAccent: Color.v32Dynamic(light: 0xFFFFFF, dark: 0x2A0E06)
+                onAccent: Color.v32Dynamic(light: 0xFFFFFF, dark: 0x2A0E06),
+                secondaryAccent: Color.v32Dynamic(light: 0xC77D63, dark: 0xFFA98D),
+                heroStart: Color.v32Dynamic(light: 0x8A4633, dark: 0x4C271F),
+                heroEnd: Color.v32Dynamic(light: 0xC06A4B, dark: 0x8B4937),
+                selectedTint: Color.v32Dynamic(light: 0xF7E5DE, dark: 0x42231C),
+                chartAccent: Color.v32Dynamic(light: 0xD86D4E, dark: 0xFF9A79),
+                aiAccent: Color.v32Dynamic(light: 0xCF6549, dark: 0xFFAA8D),
+                subtleTint: Color.v32Dynamic(light: 0xFBF1ED, dark: 0x2B1B17)
             )
         case .graphite:
             return AccentPalette(
                 accent: Color.v32Dynamic(light: 0x3A3F45, dark: 0xC4C9CF),
                 accentSoft: Color.v32Dynamic(light: 0xE3E5E8, dark: 0x25282C),
-                onAccent: Color.v32Dynamic(light: 0xFFFFFF, dark: 0x101316)
+                onAccent: Color.v32Dynamic(light: 0xFFFFFF, dark: 0x101316),
+                secondaryAccent: Color.v32Dynamic(light: 0x727982, dark: 0xE0E3E8),
+                heroStart: Color.v32Dynamic(light: 0x292E34, dark: 0x22262A),
+                heroEnd: Color.v32Dynamic(light: 0x555D66, dark: 0x444B53),
+                selectedTint: Color.v32Dynamic(light: 0xE6E8EA, dark: 0x2E3338),
+                chartAccent: Color.v32Dynamic(light: 0x56616C, dark: 0xD1D7DD),
+                aiAccent: Color.v32Dynamic(light: 0x4A525B, dark: 0xD7DCE2),
+                subtleTint: Color.v32Dynamic(light: 0xF0F1F2, dark: 0x1D2023)
+            )
+        case .rose:
+            return AccentPalette(
+                accent: Color.v32Dynamic(light: 0xB05270, dark: 0xE39AAF),
+                accentSoft: Color.v32Dynamic(light: 0xF6E3EA, dark: 0x38212B),
+                onAccent: Color.v32Dynamic(light: 0xFFFFFF, dark: 0x2B121C),
+                secondaryAccent: Color.v32Dynamic(light: 0xB8758C, dark: 0xEDB6C7),
+                heroStart: Color.v32Dynamic(light: 0x743A51, dark: 0x462635),
+                heroEnd: Color.v32Dynamic(light: 0xB86682, dark: 0x744257),
+                selectedTint: Color.v32Dynamic(light: 0xF2DEE6, dark: 0x412531),
+                chartAccent: Color.v32Dynamic(light: 0xB95B79, dark: 0xE9A0B8),
+                aiAccent: Color.v32Dynamic(light: 0xA94D6C, dark: 0xE5A0B6),
+                subtleTint: Color.v32Dynamic(light: 0xFAF0F4, dark: 0x291B22)
             )
         }
     }
