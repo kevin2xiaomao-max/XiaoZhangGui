@@ -250,6 +250,10 @@ struct ProfileView: View {
         settingsGroup("演示") {
             ProfileToggleRow(icon: "wand.and.stars", tone: .info, title: "Demo Mode", isOn: $demo.isEnabled)
             if demo.isEnabled {
+                Text("当前页面和 AI 使用演示数据，导入不会写入真实数据。")
+                    .v32Text(.caption)
+                    .foregroundStyle(V32.amber)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 divider
                 ProfileRow(icon: "arrow.clockwise", tone: .neutral, title: "重置演示数据", value: "独立内存", chevron: false) {
                     demo.resetDemoData()

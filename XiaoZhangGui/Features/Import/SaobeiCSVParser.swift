@@ -4,6 +4,9 @@ import CryptoKit
 enum SaobeiCSVParser {
     static func parse(data: Data, fileName: String) throws -> SaobeiParseResult {
         guard !data.isEmpty else { throw SaobeiImportError.emptyFile }
+        guard SaobeiFileValidator.kind(for: fileName, data: data) == .csv else {
+            throw SaobeiImportError.noHeader
+        }
         guard let text = decodeText(data) else { throw SaobeiImportError.unreadableEncoding }
         return try parse(text: text, fileName: fileName)
     }

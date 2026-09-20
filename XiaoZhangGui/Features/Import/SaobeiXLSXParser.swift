@@ -18,6 +18,9 @@ import Compression
 
 enum SaobeiXLSXParser {
     static func parse(data: Data, fileName: String) throws -> SaobeiParseResult {
+        guard SaobeiFileValidator.kind(for: fileName, data: data) == .xlsx else {
+            throw SaobeiImportError.unsupportedExcel("文件不是有效的 XLSX，请重新导出 XLSX 或 CSV")
+        }
         // ZIP 魔数（PK\x03\x04）
         guard data.starts(with: [0x50, 0x4b, 0x03, 0x04]) else {
             throw SaobeiImportError.unsupportedExcel("无法识别 Excel 格式，请在扫呗里另存为 CSV")

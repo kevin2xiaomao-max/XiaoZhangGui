@@ -39,6 +39,28 @@ enum BusinessAnswerComposer {
             return "有 \(low.count) 个商品需要注意库存：\(names)。"
         case .advice:
             return ""
+        case .period(let period):
+            guard let summary = pack.periodSummaries.first(where: { $0.period == period }) else {
+                return "该时间范围暂无营业额记录。"
+            }
+            let label: String = {
+                switch period {
+                case .today: return "今天"
+                case .yesterday: return "昨天"
+                case .lastSevenDays: return "最近 7 天"
+                case .thisMonth: return "本月"
+                case .lastMonth: return "上月"
+                case .lastThreeMonths: return "最近 3 个月"
+                case .thisMonthComparedWithLastMonth: return "本月与上月"
+                case .lastThreeMonthsComparedWithThisMonth: return "最近 3 个月与本月"
+                }
+            }()
+            guard summary.count > 0 else { return "\(label)暂无营业额记录。" }
+            var answer = "\(label)营业额 \(money(summary.amount))，共 \(summary.count) 笔。"
+            if let comparison = summary.comparisonAmount {
+                answer += " 对比区间营业额 \(money(comparison))。"
+            }
+            return answer
         }
     }
 

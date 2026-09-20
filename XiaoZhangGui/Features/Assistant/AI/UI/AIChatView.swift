@@ -60,6 +60,12 @@ struct AIChatView: View {
                                 }
                             }
                             if model.messages.isEmpty {
+                                if DemoMode.shared.isEnabled {
+                                    Text("演示数据")
+                                        .v32Text(.caption)
+                                        .foregroundStyle(V32.amber)
+                                        .accessibilityLabel("当前使用演示数据")
+                                }
                                 emptyState
                             } else {
                                 ForEach(model.messages) { message in

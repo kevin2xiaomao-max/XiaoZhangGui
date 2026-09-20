@@ -20,7 +20,8 @@ final class DemoMode {
 
     private init() {
         if UserDefaults.standard.object(forKey: Self.userDefaultsKey) == nil {
-            isEnabled = true
+            // 新安装默认使用真实持久化数据；演示模式仍可由用户主动开启。
+            isEnabled = false
         } else {
             isEnabled = UserDefaults.standard.bool(forKey: Self.userDefaultsKey)
         }

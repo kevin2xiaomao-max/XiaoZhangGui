@@ -155,8 +155,11 @@ struct IntentRouter {
                            "周五", "周六", "周日", "周末", "月底", "早上", "晚上", "下午", "上午"]
         let actionMarkers = ["记得", "提醒", "下货", "下单", "进货", "补货", "买", "带",
                              "联系", "打电话", "收拾", "整理", "安排", "要做", "跟进"]
-        return timeMarkers.contains(where: { text.contains($0) })
-            || actionMarkers.contains(where: { text.contains($0) })
+        let hasAction = actionMarkers.contains(where: { text.contains($0) })
+        let timeOnly = ["今天", "明天", "后天", "下午3点", "上午3点", "晚上8点"].contains(text.trimmingCharacters(in: .whitespacesAndNewlines))
+        // 时间词本身不是写入意图；但“明天下两箱可乐”仍有明确事项内容。
+        if timeOnly { return false }
+        return hasAction || (timeMarkers.contains(where: { text.contains($0) }) && text.count > 2)
     }
 
     /// 天气等实时外部查询：含天气类词，且不是「记/提醒/备忘」式 CREATE。
@@ -205,6 +208,11 @@ struct IntentRouter {
     }
 
     private func classifyBusinessInsight(_ text: String) -> BusinessInsightKind? {
+        if let period = BusinessPeriodParser().parse(text),
+           period != .today, period != .yesterday, period != .lastSevenDays,
+           ["生意", "业绩", "营业额", "营收", "经营"].contains(where: { text.contains($0) }) {
+            return .period(period)
+        }
         // 明确的跨日比较本身就是经营分析信号；不能要求用户重复说“营业额”。
         if text.contains("今天"), text.contains("昨天"),
            ["比", "对比", "相比", "较"].contains(where: { text.contains($0) }) {
@@ -212,6 +220,7 @@ struct IntentRouter {
         }
         let businessWords = ["生意", "经营", "店里", "店铺", "我的店", "库存", "营业额", "营收"]
         guard businessWords.contains(where: { text.contains($0) }) else { return nil }
+        if text.contains("多少") || text.contains("几笔") || text.contains("几单") { return nil }
         if text.contains("结合") && ["建议", "分析", "怎么办"].contains(where: { text.contains($0) }) {
             return .advice
         }

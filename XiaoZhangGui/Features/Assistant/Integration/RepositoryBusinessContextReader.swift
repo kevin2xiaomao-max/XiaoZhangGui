@@ -87,6 +87,21 @@ final class RepositoryBusinessContextReader: BusinessContextProviding {
                 now: now, monthGoal: 0, performances: revenues, expenses: expenses,
                 todos: todos, memos: memos, customers: customers, expiryItems: expiry, weather: nil)
             let localSummary = await BusinessAssistantEngine().analyze(input).summary.text
+            let periodParser = BusinessPeriodParser()
+            let periods: [BusinessPeriod] = [.today, .yesterday, .lastSevenDays, .thisMonth, .lastMonth, .lastThreeMonths, .thisMonthComparedWithLastMonth, .lastThreeMonthsComparedWithThisMonth]
+            let periodSummaries = periods.compactMap { period -> BusinessPeriodSummary? in
+                guard let bounds = periodParser.bounds(for: period, now: now, calendar: calendar) else { return nil }
+                let rows = revenues.filter { $0.date >= bounds.start && $0.date < bounds.end }
+                let comparison: Double? = {
+                    guard period == .thisMonthComparedWithLastMonth || period == .lastThreeMonthsComparedWithThisMonth else { return nil }
+                    let previousStart = period == .thisMonthComparedWithLastMonth
+                        ? (calendar.date(byAdding: .month, value: -1, to: bounds.start) ?? bounds.start)
+                        : (calendar.date(byAdding: .month, value: -3, to: bounds.start) ?? bounds.start)
+                    let previousRows = revenues.filter { $0.date >= previousStart && $0.date < bounds.start }
+                    return previousRows.reduce(0) { $0 + $1.amount }
+                }()
+                return BusinessPeriodSummary(period: period, amount: rows.reduce(0) { $0 + $1.amount }, count: rows.count, comparisonAmount: comparison)
+            }
 
             return GroundingPack(
                 todayRevenue: todayRows.isEmpty ? nil : todayRows.reduce(0) { $0 + $1.amount },
@@ -95,7 +110,8 @@ final class RepositoryBusinessContextReader: BusinessContextProviding {
                 unfinishedTodoTitles: Array(unfinished),
                 deliveryPendingCount: todayDeliveries.filter { $0.statusEnum == .pending }.count,
                 deliveryDeliveringCount: todayDeliveries.filter { $0.statusEnum == .delivering }.count,
-                expiryTitles: Array(expiryTitles), goods: goods, localSummary: localSummary
+                expiryTitles: Array(expiryTitles), goods: goods, localSummary: localSummary,
+                periodSummaries: periodSummaries
             )
         } catch {
             return .empty

@@ -38,6 +38,13 @@ struct DailyRevenueSummary: Equatable, Sendable {
     let amount: Double
 }
 
+struct BusinessPeriodSummary: Equatable, Sendable {
+    let period: BusinessPeriod
+    let amount: Double
+    let count: Int
+    let comparisonAmount: Double?
+}
+
 /// AI 2.0 唯一经营上下文入口。只保留聚合值和短标题，不承载 SwiftData 对象或客户隐私。
 struct GroundingPack: Equatable, Sendable {
     var todayRevenue: Double?
@@ -49,6 +56,7 @@ struct GroundingPack: Equatable, Sendable {
     var expiryTitles: [String]
     var goods: [GoodsSummary]
     var localSummary: String?
+    var periodSummaries: [BusinessPeriodSummary] = []
 
     static let empty = GroundingPack(
         todayRevenue: nil, yesterdayRevenue: nil, sevenDayRevenue: [],
@@ -58,6 +66,7 @@ struct GroundingPack: Equatable, Sendable {
 
     var hasBusinessData: Bool {
         todayRevenue != nil || yesterdayRevenue != nil || sevenDayRevenue.contains { $0.amount != 0 }
+            || periodSummaries.contains { $0.amount != 0 }
             || !unfinishedTodoTitles.isEmpty || deliveryPendingCount > 0
             || deliveryDeliveringCount > 0 || !expiryTitles.isEmpty || !goods.isEmpty
     }
@@ -69,6 +78,7 @@ enum BusinessInsightKind: Equatable, Sendable {
     case sevenDayTrend
     case inventory
     case advice
+    case period(BusinessPeriod)
 }
 
 protocol BusinessContextProviding: Sendable {

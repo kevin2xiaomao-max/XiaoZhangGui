@@ -1,6 +1,8 @@
 import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
+import PhotosUI
+import Vision
 
 struct SaobeiImportSheet: View {
     @Environment(\.dismiss) private var dismiss
@@ -13,6 +15,8 @@ struct SaobeiImportSheet: View {
     @State private var commitResult: SaobeiImportCommitResult?
     @State private var showPicker = false
     @State private var isParsing = false
+    @State private var screenshotItem: PhotosPickerItem?
+    @State private var isOCR = false
 
     private let importer = SaobeiImporter()
 
@@ -105,6 +109,16 @@ struct SaobeiImportSheet: View {
             V32SecondaryButton(title: "选择扫呗导出文件", systemName: "square.and.arrow.down") {
                 showPicker = true
             }
+            PhotosPicker(selection: $screenshotItem, matching: .images) {
+                Label("从扫呗截图识别预览", systemImage: "text.viewfinder")
+                    .v32Text(.subhead)
+                    .foregroundStyle(V32.brand)
+            }
+            .onChange(of: screenshotItem) { _, item in
+                guard let item else { return }
+                Task { await handleScreenshot(item) }
+            }
+            if isOCR { ProgressView("正在本地识别截图…") }
             Text("支持 CSV / XLSX。旧版 XLS 请另存为 XLSX 或 CSV。")
                 .v32Text(.caption)
                 .foregroundStyle(V32.textTertiary)
@@ -119,7 +133,7 @@ struct SaobeiImportSheet: View {
                     .foregroundStyle(V32.brand)
                 }
                 .buttonStyle(.plain)
-                Text("演示模式只展示完整流程，确认后也不会写入真实数据库。")
+                Text("当前为演示模式，导入不会写入真实数据。")
                     .v32Text(.caption)
                     .foregroundStyle(V32.textTertiary)
             }
@@ -295,6 +309,9 @@ struct SaobeiImportSheet: View {
                 defer { if accessed { url.stopAccessingSecurityScopedResource() } }
                 do {
                     let data = try Data(contentsOf: url)
+                    guard SaobeiFileValidator.kind(for: fileName, data: data) != nil else {
+                        throw SaobeiImportError.noHeader
+                    }
                     let parsed = try importer.parse(data: data, fileName: fileName)
                     parseResult = parsed
                     errorText = nil
@@ -311,6 +328,28 @@ struct SaobeiImportSheet: View {
         parseResult = DemoImportPreview.parseResult()
         commitResult = nil
         errorText = nil
+    }
+
+    @MainActor
+    private func handleScreenshot(_ item: PhotosPickerItem) async {
+        isOCR = true
+        defer { isOCR = false; screenshotItem = nil }
+        do {
+            guard let data = try await item.loadTransferable(type: Data.self), let image = UIImage(data: data), let cgImage = image.cgImage else { throw SaobeiImportError.noHeader }
+            let request = VNRecognizeTextRequest()
+            request.recognitionLevel = .accurate
+            request.recognitionLanguages = ["zh-Hans", "en-US"]
+            try VNImageRequestHandler(cgImage: cgImage).perform([request])
+            let text = (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }.joined(separator: "\n")
+            let candidates = SaobeiScreenshotOCR.candidates(from: text)
+            guard !candidates.isEmpty else { throw SaobeiImportError.noHeader }
+            parseResult = SaobeiParseResult(rows: candidates.map { candidate in
+                let fingerprint = "ocr-\(candidate.date.timeIntervalSince1970)-\(candidate.amount)"
+                return SaobeiParsedRow(date: candidate.date, amount: candidate.amount, status: "成功", orderNo: fingerprint, paymentMethod: "扫呗截图", fingerprint: fingerprint, isSuccess: true, rawLine: "OCR")
+            }, skipped: [], errors: [], sourceFileName: "扫呗截图（本地 OCR）")
+            errorText = nil
+            commitResult = nil
+        } catch { errorText = "截图无法识别，请确认日期和金额清晰后重试。" }
     }
 
     private func commit() {
