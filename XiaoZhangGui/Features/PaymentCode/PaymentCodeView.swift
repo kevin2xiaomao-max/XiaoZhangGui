@@ -37,10 +37,6 @@ struct PaymentCodeView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                V32PageHeader("收款码", subtitle: "仅保存在本机 · 不会上传") {
-                    V32ToolButton(systemName: "plus") { editorTarget = .add }
-                }
-
                 if store.codes.isEmpty {
                     emptyState
                 } else {
@@ -62,7 +58,14 @@ struct PaymentCodeView: View {
         .scrollIndicators(.hidden)
         .v32PageBackground()
         .v32PageBottomInset()
-        .toolbar(.hidden, for: .navigationBar)
+        .navigationTitle("收款码")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { editorTarget = .add } label: { Image(systemName: "plus") }
+                    .accessibilityLabel("新增收款码")
+            }
+        }
         .fullScreenCover(item: $fullScreenSession) { session in
             PaymentCodeFullScreenView(store: store,
                                       codes: store.codes,

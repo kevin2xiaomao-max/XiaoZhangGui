@@ -34,6 +34,12 @@ struct AIChatView: View {
                                 V32StatusPill(
                                     text: model.isRemoteConfigured ? "Key 已保存" : "未配置",
                                     status: model.isRemoteConfigured ? .pending : .expiry)
+                                if DemoMode.shared.isEnabled {
+                                    Text("演示模式")
+                                        .v32Text(.caption)
+                                        .foregroundStyle(V32.amber)
+                                        .accessibilityLabel("当前使用演示数据")
+                                }
                             }
                             if model.messages.isEmpty {
                                 if DemoMode.shared.isEnabled {
@@ -59,6 +65,7 @@ struct AIChatView: View {
                         .padding(.bottom, V32Layout.pageBottomBreathing)
                     }
                     .scrollIndicators(.hidden)
+                    .scrollDismissesKeyboard(.interactively)
                     .onChange(of: model.messages.count) { _, _ in scrollToBottom(proxy) }
                     .onChange(of: model.isProcessing) { _, processing in
                         if processing { scrollToBottom(proxy) }
@@ -206,10 +213,7 @@ struct AIChatView: View {
                 .frame(maxWidth: 300, alignment: .trailing)
         } else {
             VStack(alignment: .leading, spacing: 6) {
-                Text(message.content)
-                    .v32Text(.body)
-                    .foregroundStyle(message.isError ? V32.danger : V32.textPrimary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                assistantMarkdown(message.content, color: message.isError ? V32.danger : V32.textPrimary)
                 if message.isError {
                     Button {
                         model.retryLastFailed()
@@ -233,6 +237,21 @@ struct AIChatView: View {
             )
             .frame(maxWidth: 320, alignment: .leading)
             .accessibilityIdentifier(message.role == .assistant ? "ai.message.assistant" : "ai.message.user")
+        }
+    }
+
+    @ViewBuilder
+    private func assistantMarkdown(_ content: String, color: Color) -> some View {
+        if let markdown = try? AttributedString(markdown: content) {
+            Text(markdown)
+                .v32Text(.body)
+                .foregroundStyle(color)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            Text(content)
+                .v32Text(.body)
+                .foregroundStyle(color)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

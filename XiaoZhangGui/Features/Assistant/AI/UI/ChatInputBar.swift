@@ -40,11 +40,17 @@ struct ChatInputBar: View {
                                 .strokeBorder(focused ? V32.brand.opacity(0.5) : V32.cardOutline, lineWidth: 1)
                         )
                 )
-                .onSubmit(onSend)
+                .onSubmit(sendAndDismiss)
+                .toolbar {
+                    ToolbarItemGroup(placement: .keyboard) {
+                        Spacer()
+                        Button("完成") { focused = false }
+                    }
+                }
                 .animation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion)), value: focused)
                 .accessibilityIdentifier("ai.input")
 
-            Button(action: onSend) {
+            Button(action: sendAndDismiss) {
                 Image(systemName: "arrow.up")
                     .font(.system(size: 16, weight: .heavy))
                     .foregroundStyle(.white)
@@ -66,6 +72,11 @@ struct ChatInputBar: View {
 
     private var canSend: Bool {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isProcessing
+    }
+
+    private func sendAndDismiss() {
+        onSend()
+        focused = false
     }
 }
 

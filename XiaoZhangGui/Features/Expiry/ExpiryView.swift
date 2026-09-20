@@ -12,9 +12,6 @@ struct ExpiryView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                V32PageHeader("临期提醒") {
-                    V32ToolButton(systemName: "plus") { showNewEditor = true }
-                }
                 statCard
                 if items.isEmpty {
                     V32Card {
@@ -52,7 +49,14 @@ struct ExpiryView: View {
         .scrollIndicators(.hidden)
         .v32PageBackground()
         .v32PageBottomInset()
-        .toolbar(.hidden, for: .navigationBar)
+        .navigationTitle("临期提醒")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { showNewEditor = true } label: { Image(systemName: "plus") }
+                    .accessibilityLabel("新增临期商品")
+            }
+        }
         .sheet(isPresented: $showNewEditor) { ExpiryEditorSheet(item: nil) }
         .sheet(item: $editingItem) { ExpiryEditorSheet(item: $0) }
     }

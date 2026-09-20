@@ -20,9 +20,6 @@ struct GoodsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                V32PageHeader("临时商品") {
-                    V32ToolButton(systemName: "plus") { showNewEditor = true }
-                }
                 V32SearchField(placeholder: "搜索商品 / 条码", text: $query)
                 statCard
                 V32PillBar(items: GoodsCategory.filters, selection: $category)
@@ -50,7 +47,14 @@ struct GoodsView: View {
         .scrollIndicators(.hidden)
         .v32PageBackground()
         .v32PageBottomInset()
-        .toolbar(.hidden, for: .navigationBar)
+        .navigationTitle("临时商品")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { showNewEditor = true } label: { Image(systemName: "plus") }
+                    .accessibilityLabel("新增商品")
+            }
+        }
         .sheet(isPresented: $showNewEditor) {
             GoodsEditorSheet(goods: nil)
         }

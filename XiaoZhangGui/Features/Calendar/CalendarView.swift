@@ -38,7 +38,6 @@ struct CalendarView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: V32Layout.sectionGap) {
-                V32PageHeader("日历", subtitle: "营业额 · 待办 · 临期 · 客户需求一览")
                 monthNavigator
                 V32Card {
                     VStack(spacing: 4) {
@@ -53,7 +52,8 @@ struct CalendarView: View {
         }
         .v32PageBackground()
         .v32PageBottomInset()
-        .toolbar(.hidden, for: .navigationBar)
+        .navigationTitle("日历")
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     // MARK: - 月份导航

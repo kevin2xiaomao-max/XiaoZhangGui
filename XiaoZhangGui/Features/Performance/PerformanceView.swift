@@ -218,6 +218,15 @@ struct PerformanceView: View {
                         }
                     }
                 }
+                NavigationLink {
+                    TransactionHistoryView()
+                } label: {
+                    Label("查看全部", systemImage: "list.bullet")
+                        .v32Text(.subhead)
+                        .foregroundStyle(V32.brand)
+                        .frame(maxWidth: .infinity)
+                }
+                .padding(.top, 4)
             }
         }
     }

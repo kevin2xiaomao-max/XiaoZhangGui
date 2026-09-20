@@ -20,9 +20,6 @@ struct CustomerView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                V32PageHeader("客户配送") {
-                    V32ToolButton(systemName: "plus") { showNewEditor = true }
-                }
                 V32SegmentedPicker(
                     tabs: CustomerFilter.allCases.map(\.rawValue),
                     selectionIndex: Binding(
@@ -84,7 +81,14 @@ struct CustomerView: View {
         .scrollIndicators(.hidden)
         .v32PageBackground()
         .v32PageBottomInset()
-        .toolbar(.hidden, for: .navigationBar)
+        .navigationTitle("客户配送")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { showNewEditor = true } label: { Image(systemName: "plus") }
+                    .accessibilityLabel("新增配送")
+            }
+        }
         .overlay(alignment: .bottom) {
             if showDoneToast {
                 Text("✓ 已完成配送")

@@ -27,9 +27,6 @@ struct MemoView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                V32PageHeader("记录") {
-                    V32ToolButton(systemName: "square.and.pencil") { showNewEditor = true }
-                }
                 V32SearchField(placeholder: "搜索记录…", text: $searchQuery)
                 V32PillBar(items: MemoFilter.allCases.map(\.rawValue), selection: filterBinding)
 
@@ -54,7 +51,14 @@ struct MemoView: View {
         .scrollIndicators(.hidden)
         .v32PageBackground()
         .v32PageBottomInset()
-        .toolbar(.hidden, for: .navigationBar)
+        .navigationTitle("记录")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { showNewEditor = true } label: { Image(systemName: "square.and.pencil") }
+                    .accessibilityLabel("新建记录")
+            }
+        }
         .sheet(isPresented: $showNewEditor) {
             MemoEditorSheet(memo: nil)
         }
