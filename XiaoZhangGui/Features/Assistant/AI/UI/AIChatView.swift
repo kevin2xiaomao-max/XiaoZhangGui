@@ -1,4 +1,6 @@
 import SwiftUI
+import PhotosUI
+import UniformTypeIdentifiers
 
 // MARK: - 小掌柜独立 AI 页（V3.3 第三个 Tab）
 //
@@ -12,6 +14,9 @@ struct AIChatView: View {
     @State private var model = AIConversationViewModel()
     @State private var showSettings = false
     @State private var showClearConfirm = false
+    @State private var showPhotoPicker = false
+    @State private var selectedPhoto: PhotosPickerItem?
+    @State private var showFileImporter = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let examples = [
@@ -80,7 +85,9 @@ struct AIChatView: View {
                     voiceAvailable: model.voiceAvailable,
                     isProcessing: model.isProcessing,
                     onSend: { model.send() },
-                    onVoice: { model.startVoice() }
+                    onVoice: { model.startVoice() },
+                    onPhoto: { showPhotoPicker = true },
+                    onFile: { showFileImporter = true }
                 )
             }
             .navigationTitle("小掌柜")
@@ -128,6 +135,30 @@ struct AIChatView: View {
         }
         .sheet(isPresented: $showSettings) {
             AIProviderSettingsSheet()
+        }
+        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
+        .onChange(of: selectedPhoto) { _, item in
+            guard let item else { return }
+            let mimeType = item.supportedContentTypes.first?.preferredMIMEType ?? "image/jpeg"
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self) {
+                    model.analyzeImage(data: data, mimeType: mimeType)
+                }
+                selectedPhoto = nil
+            }
+        }
+        .fileImporter(
+            isPresented: $showFileImporter,
+            allowedContentTypes: [.pdf, .plainText, .text, UTType(filenameExtension: "md") ?? .plainText],
+            allowsMultipleSelection: false
+        ) { result in
+            guard case .success(let urls) = result, let url = urls.first else { return }
+            let accessed = url.startAccessingSecurityScopedResource()
+            defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+            guard let data = try? Data(contentsOf: url) else { return }
+            let mimeType = UTType(filenameExtension: url.pathExtension)?.preferredMIMEType
+                ?? "application/octet-stream"
+            model.analyzeDocument(data: data, fileName: url.lastPathComponent, mimeType: mimeType)
         }
         .alert("清空此对话？", isPresented: $showClearConfirm) {
             Button("取消", role: .cancel) {}

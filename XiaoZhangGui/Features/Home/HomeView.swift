@@ -18,6 +18,7 @@ struct HomeView: View {
     @Query private var performances: [Performance]
     @Query private var expiryItems: [ExpiryItem]
     @Query private var customers: [CustomerRequest]
+    @Query(sort: \Memo.updatedAt, order: .reverse) private var memos: [Memo]
     @State private var route: HomeRoute?
     @State private var showUtilityDrawer = false
     @State private var showWeatherSheet = false
@@ -41,22 +42,34 @@ struct HomeView: View {
 
     private var handlingItems: [HomeInboxItem] {
         return HomeInbox.items(todos: summary.todos, deliveries: summary.deliveries,
-                               expiryItems: summary.pendingExpiry, limit: 2)
+                               expiryItems: summary.pendingExpiry, limit: 3)
     }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: V32Layout.sectionGap) {
+            VStack(alignment: .leading, spacing: 24) {
                 header
                 V35HomeRevenueHero(summary: summary, monthRevenue: monthRevenue, monthGoal: monthGoal) { route = .performance }
                     .modifier(V32HomeEntrance(delay: 0, reduceMotion: reduceMotion))
+                weekRail
                 V35HomeFocusSection(items: handlingItems, onTodoToggle: toggleTodo) { open($0.route) }
                     .modifier(V32HomeEntrance(delay: 0.04, reduceMotion: reduceMotion))
-                V35HomeOverviewGrid(todoCount: summary.todos.count, expiryCount: summary.pendingExpiry.count, customerCount: summary.deliveries.count)
-                    .modifier(V32HomeEntrance(delay: 0.06, reduceMotion: reduceMotion))
+                if !memos.isEmpty {
+                    V35HomeRecentMemo(memos: Array(memos.prefix(2))) { route = .memo }
+                        .padding(.top, 4)
+                        .modifier(V32HomeEntrance(delay: 0.06, reduceMotion: reduceMotion))
+                }
+                V35HomeOverviewGrid(todoCount: summary.todos.count, expiryCount: summary.pendingExpiry.count, customerCount: summary.deliveries.count,
+                                    todoInsight: summary.todos.filter { $0.dueDate?.isToday == true }.count > 0 ? "今天到期" : nil,
+                                    customerInsight: summary.deliveries.count > 0 ? "待配送" : nil,
+                                    expiryInsight: summary.pendingExpiry.filter { $0.daysLeft() <= 3 }.count > 0 ? "≤3天" : nil,
+                                    onTodo: { tab = .todo },
+                                    onCustomer: { route = .customer },
+                                    onExpiry: { route = .expiry })
+                    .modifier(V32HomeEntrance(delay: 0.08, reduceMotion: reduceMotion))
             }
-            .padding(.horizontal, V32Layout.pageMargin)
-            .padding(.top, 8)
+            .padding(.horizontal, 20)
+            .padding(.top, 6)
         }
         .scrollIndicators(.hidden)
         // Keep the first scroll content below the translucent system navigation bar.
@@ -87,6 +100,7 @@ struct HomeView: View {
             case .customer: CustomerView()
             case .expiry: ExpiryView()
             case .performance: PerformanceView()
+            case .memo: MemoView()
             }
         }
         .sheet(isPresented: $showWeatherSheet) {
@@ -129,26 +143,24 @@ struct HomeView: View {
     // MARK: 顶部：问候 / 日期 / 天气 / 快速记录 / 头像
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 10) {
+        HStack(alignment: .bottom, spacing: 16) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(greetingPrefix)
-                    .v32Text(.body)
+                    .font(.subheadline.weight(.medium))
                     .foregroundStyle(V32.textSecondary)
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(ownerDisplayName)
-                        .v32Text(.display)
+                        .font(.system(size: 30, weight: .bold, design: .rounded))
                         .foregroundStyle(V32.textPrimary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
-                    Text("👋")
-                        .font(.system(size: 24))
                 }
                 Text(Date(), format: .dateTime.month().day().weekday(.wide).locale(Locale(identifier: "zh_CN")))
-                    .v32Text(.subhead)
+                    .font(.footnote.weight(.medium))
                     .foregroundStyle(V32.textTertiary)
                     .padding(.top, 1)
             }
-            Spacer(minLength: 4)
+            Spacer(minLength: 12)
             weatherButton
         }
     }
@@ -166,42 +178,45 @@ struct HomeView: View {
         return name.isEmpty ? "老板" : name
     }
 
-    private func toolCircle(_ systemName: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: V32Layout.toolIcon, weight: .semibold))
-                .foregroundStyle(V32.textSecondary)
-                .frame(width: V32Layout.toolCircle, height: V32Layout.toolCircle)
-                .background(
-                    Circle()
-                        .fill(V32.card)
-                        .overlay(Circle().strokeBorder(V32.cardOutline, lineWidth: 1))
-                )
-        }
-        .buttonStyle(V32PressButtonStyle())
-    }
-
     private var weatherButton: some View {
         Button { showWeatherSheet = true } label: {
-            HStack(spacing: 3) {
+            HStack(spacing: 5) {
                 Image(systemName: weatherModel.snapshot?.symbolName ?? "cloud.sun")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 16, weight: .medium))
                 if let weather = weatherModel.snapshot {
                     Text("\(weather.roundedTemperature)°")
-                        .v32Text(.metricSmall)
+                        .font(.subheadline.weight(.semibold).monospacedDigit())
                 }
             }
             .foregroundStyle(V32.textSecondary)
-            .padding(.horizontal, 8)
-            .frame(minHeight: V32Layout.toolCircle)
-            .background(
-                Capsule()
-                    .fill(V32.card)
-                    .overlay(Capsule().strokeBorder(V32.cardOutline, lineWidth: 1))
-            )
+            .padding(.horizontal, 2)
+            .frame(minHeight: 44)
         }
         .buttonStyle(V32PressButtonStyle())
         .accessibilityLabel(weatherModel.snapshot.map { "\($0.city)，\($0.roundedTemperature)度" } ?? "天气")
+    }
+
+    private var weekRail: some View {
+        let calendar = Calendar.current
+        let today = Date()
+        let start = calendar.dateInterval(of: .weekOfYear, for: today)?.start ?? today
+        let dates = (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
+        let symbols = ["一", "二", "三", "四", "五", "六", "日"]
+        return HStack(spacing: 6) {
+            ForEach(Array(dates.enumerated()), id: \.element) { index, date in
+                VStack(spacing: 5) {
+                    Text(symbols[index])
+                        .font(.caption2.weight(.medium))
+                    Text(date, format: .dateTime.day())
+                        .font(.subheadline.weight(.semibold).monospacedDigit())
+                }
+                .foregroundStyle(date.isToday ? ThemeStore.shared.accentPalette.onAccent : V32.textSecondary)
+                .frame(maxWidth: .infinity, minHeight: 48)
+                .background(date.isToday ? ThemeStore.shared.accentPalette.accent : Color.clear, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("本周日期，今天是\(today.formatted(.dateTime.day()))日")
     }
 
     private func toggleTodo(for item: HomeInboxItem) {
@@ -225,7 +240,7 @@ struct HomeView: View {
     }
 }
 
-private enum HomeRoute: Hashable { case customer, expiry, performance }
+private enum HomeRoute: Hashable { case customer, expiry, performance, memo }
 
 // MARK: - 首页首次出现轻入场（opacity + y 8，standard；Reduce Motion 仅短淡入、无位移）
 
@@ -253,7 +268,7 @@ struct HomeActionRow: View {
     let onTodoToggle: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 14) {
             leading
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.title)
@@ -276,8 +291,8 @@ struct HomeActionRow: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(V32.textQuaternary)
         }
-        .padding(.horizontal, 12)
-        .frame(minHeight: 60)
+        .padding(.vertical, 14)
+        .frame(minHeight: 64)
         .contentShape(Rectangle())
     }
 
@@ -287,9 +302,17 @@ struct HomeActionRow: View {
         case .todo:
             V32Checkbox(checked: false, action: onTodoToggle)
         case .customer:
-            V32IconBubble(systemName: "box.truck.fill", tone: .brand, size: 34, icon: 15)
+            Image(systemName: "box.truck.fill")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(V32.brand)
+                .frame(width: 28, height: 28)
+                .accessibilityHidden(true)
         case .expiry:
-            V32IconBubble(systemName: "hourglass", tone: .amber, size: 34, icon: 15)
+            Image(systemName: "hourglass")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(V32.amber)
+                .frame(width: 28, height: 28)
+                .accessibilityHidden(true)
         }
     }
 }

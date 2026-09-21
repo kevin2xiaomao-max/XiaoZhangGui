@@ -29,8 +29,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.xiaozhanggui.ios
-        MARKETING_VERSION: "3.5.0"
-        CURRENT_PROJECT_VERSION: "35"
+        MARKETING_VERSION: "3.6.0"
+        CURRENT_PROJECT_VERSION: "36"
         CODE_SIGN_ENTITLEMENTS: XiaoZhangGui/XiaoZhangGui.entitlements
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: 你的小掌柜
@@ -84,8 +84,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.xiaozhanggui.ios.widget
-        MARKETING_VERSION: "3.5.0"
-        CURRENT_PROJECT_VERSION: "35"
+        MARKETING_VERSION: "3.6.0"
+        CURRENT_PROJECT_VERSION: "36"
         SKIP_INSTALL: YES
         CODE_SIGN_ENTITLEMENTS: XiaoZhangGuiWidget/XiaoZhangGuiWidgetExtension.entitlements
         GENERATE_INFOPLIST_FILE: NO

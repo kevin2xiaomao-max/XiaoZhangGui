@@ -34,6 +34,33 @@ enum AIAssembly {
             ? try? XZGAIProviderAdapter.makeFallback(settings: settings)
             : nil
 
+        let capabilityCredentials = AICapabilityCredentials.keychain()
+        let searchCapability: WebSearchCapability = capabilityCredentials.searchAPIKey.isEmpty
+            ? WebSearchCapability()
+            : WebSearchCapability(provider: TavilyWebSearchProvider(apiKey: capabilityCredentials.searchAPIKey))
+
+        let multimodalVision: VisionCapability
+        let multimodalDocument: DocumentCapability
+        if settings.isPrimaryConfigured,
+           let baseURL = URL(string: settings.resolvedPrimaryBaseURL) {
+            let key = KeychainAIProviderCredentials().primaryAPIKey()
+            multimodalVision = VisionCapability(provider: OpenAICompatibleVisionProvider(
+                id: "openai-compatible-vision",
+                endpoint: baseURL,
+                apiKey: key,
+                model: settings.resolvedPrimaryModel
+            ))
+            multimodalDocument = DocumentCapability(provider: OpenAICompatibleDocumentProvider(
+                id: "openai-compatible-document",
+                endpoint: baseURL,
+                apiKey: key,
+                model: settings.resolvedPrimaryModel
+            ))
+        } else {
+            multimodalVision = VisionCapability()
+            multimodalDocument = DocumentCapability()
+        }
+
         let env = try AgentEnvironment.makeLive(
             provider: primary,
             fallback: fallback,
@@ -42,7 +69,10 @@ enum AIAssembly {
             conversation: conversation,
             pending: pending,
             journal: journal,
-            tier: settings.tier
+            tier: settings.tier,
+            webSearchCapability: searchCapability,
+            visionCapability: multimodalVision,
+            documentCapability: multimodalDocument
         )
         return AgentCore(env)
     }

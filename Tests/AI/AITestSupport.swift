@@ -129,7 +129,8 @@ enum AITestFactory {
         provider: any AIProvider,
         fallback: (any AIProvider)? = nil,
         contextProvider: any BusinessContextProviding = UnavailableBusinessContextProvider(),
-        toolExecutor: any ToolExecuting = SuccessToolExecutor()
+        toolExecutor: any ToolExecuting = SuccessToolExecutor(),
+        webSearchCapability: WebSearchCapability = WebSearchCapability()
     ) -> (agent: AgentCore, journal: InMemoryExecutionJournal, pending: InMemoryPendingActionStore,
           conversation: InMemoryConversationStore) {
         let journal = InMemoryExecutionJournal()
@@ -142,7 +143,8 @@ enum AITestFactory {
             toolExecutor: toolExecutor,
             conversation: conversation,
             pending: pending,
-            journal: journal
+            journal: journal,
+            webSearchCapability: webSearchCapability
         )
         return (AgentCore(env), journal, pending, conversation)
     }

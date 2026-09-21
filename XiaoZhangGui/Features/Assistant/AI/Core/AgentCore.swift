@@ -46,6 +46,11 @@ struct AgentEnvironment: Sendable {
     let gate: WriteGate
     let tier: ModelTier
     let weatherService: WeatherService?
+    let capabilityRouter: AICapabilityRouter
+    let urlReadingCapability: URLReadingCapability
+    let webSearchCapability: WebSearchCapability
+    let visionCapability: VisionCapability
+    let documentCapability: DocumentCapability
 
     init(
         provider: any AIProvider,
@@ -59,7 +64,12 @@ struct AgentEnvironment: Sendable {
         pending: any PendingActionStoring,
         gate: WriteGate,
         tier: ModelTier,
-        weatherService: WeatherService? = nil
+        weatherService: WeatherService? = nil,
+        capabilityRouter: AICapabilityRouter = AICapabilityRouter(),
+        urlReadingCapability: URLReadingCapability = URLReadingCapability(),
+        webSearchCapability: WebSearchCapability = WebSearchCapability(),
+        visionCapability: VisionCapability = VisionCapability(),
+        documentCapability: DocumentCapability = DocumentCapability()
     ) {
         self.provider = provider
         self.intentRouter = intentRouter
@@ -73,6 +83,11 @@ struct AgentEnvironment: Sendable {
         self.gate = gate
         self.tier = tier
         self.weatherService = weatherService
+        self.capabilityRouter = capabilityRouter
+        self.urlReadingCapability = urlReadingCapability
+        self.webSearchCapability = webSearchCapability
+        self.visionCapability = visionCapability
+        self.documentCapability = documentCapability
     }
 
     // MARK: Foundation 预览装配（全 Mock + 预览执行器，不写业务库）
@@ -113,7 +128,10 @@ struct AgentEnvironment: Sendable {
         journal: any ExecutionJournaling,
         modelRouter: any ModelRouting = FreeFirstModelRouter(),
         tier: ModelTier = .freeFirst,
-        weatherService: WeatherService? = WeatherService(provider: WeatherAPIProvider(configuration: .current()))
+        weatherService: WeatherService? = WeatherService(provider: WeatherAPIProvider(configuration: .current())),
+        webSearchCapability: WebSearchCapability = WebSearchCapability(),
+        visionCapability: VisionCapability = VisionCapability(),
+        documentCapability: DocumentCapability = DocumentCapability()
     ) throws -> AgentEnvironment {
         // Release 红线：live 环境绝不允许 Mock 假装成功
         if provider is MockAIProvider || fallback is MockAIProvider {
@@ -134,7 +152,10 @@ struct AgentEnvironment: Sendable {
             pending: pending,
             gate: .live,
             tier: tier,
-            weatherService: weatherService
+            weatherService: weatherService,
+            webSearchCapability: webSearchCapability,
+            visionCapability: visionCapability,
+            documentCapability: documentCapability
         )
     }
 }
@@ -199,6 +220,43 @@ final class AgentCore {
         }
     }
 
+    /// Multimodal read-only lane. It appends only a safe textual placeholder
+    /// to the conversation; image/file bytes never enter SwiftData or the chat
+    /// store. No ActionCard is created by these capabilities.
+    func analyzeImage(data: Data, mimeType: String, prompt: String = "请描述这张图片") async -> AgentTurnResult {
+        let userMessage = AIMessage(role: .user, content: "[图片] \(prompt)")
+        await env.conversation.append(userMessage)
+        do {
+            let result = try await env.visionCapability.execute(
+                imageData: data, mimeType: mimeType, prompt: prompt)
+            return try await appendAssistant(result.userFacingText, userMessage: userMessage)
+        } catch let error as AICapabilityError {
+            return try! await appendAssistant(
+                error.errorDescription ?? "图片分析失败，请稍后重试。",
+                userMessage: userMessage,
+                isError: true)
+        } catch {
+            return try! await appendAssistant("图片分析失败，请稍后重试。", userMessage: userMessage, isError: true)
+        }
+    }
+
+    func analyzeDocument(data: Data, fileName: String, mimeType: String, prompt: String = "请总结这个文件") async -> AgentTurnResult {
+        let userMessage = AIMessage(role: .user, content: "[文件] \(fileName)：\(prompt)")
+        await env.conversation.append(userMessage)
+        do {
+            let result = try await env.documentCapability.execute(
+                data: data, fileName: fileName, mimeType: mimeType, prompt: prompt)
+            return try await appendAssistant(result.userFacingText, userMessage: userMessage)
+        } catch let error as AICapabilityError {
+            return try! await appendAssistant(
+                error.errorDescription ?? "文件分析失败，请稍后重试。",
+                userMessage: userMessage,
+                isError: true)
+        } catch {
+            return try! await appendAssistant("文件分析失败，请稍后重试。", userMessage: userMessage, isError: true)
+        }
+    }
+
     private func runTurn(text: String, userMessage: AIMessage) async throws -> AgentTurnResult {
         // P0-6：客户订单「未收款」语义。当前模型没有收款状态字段，只能明确告知，
         // 绝不降级成 Todo / Memo，也不写任何业务数据（schema 方案见交付报告）。
@@ -210,6 +268,36 @@ final class AgentCore {
         // P0-5：仅当挂着未确认卡片时才识别纠正话术（避免普通否定句误伤）。
         // 命中后：旧 pending 全部立即取消 → 剥掉纠正话术 → 按（可能被点名的）新类型重走。
         let activePending = await env.pending.pending()
+
+        // External read-only capabilities are a separate lane from the
+        // deterministic business IntentRouter. URL reading never receives
+        // business context and never gets a ToolExecuting / SwiftData handle.
+        if activePending.isEmpty, let capability = env.capabilityRouter.request(for: text) {
+            switch capability.capability {
+            case .urlReading:
+                do {
+                    let result = try await env.urlReadingCapability.execute(urlString: capability.input)
+                    return try await appendAssistant(result.userFacingText, userMessage: userMessage)
+                } catch let error as AICapabilityError {
+                    return try await appendAssistant(
+                        error.errorDescription ?? "网页读取失败，请稍后重试。",
+                        userMessage: userMessage,
+                        isError: true)
+                }
+            case .webSearch:
+                do {
+                    let result = try await env.webSearchCapability.execute(query: capability.input)
+                    return try await appendAssistant(result.userFacingText, userMessage: userMessage)
+                } catch let error as AICapabilityError {
+                    return try await appendAssistant(
+                        error.errorDescription ?? "联网搜索失败，请稍后重试。",
+                        userMessage: userMessage,
+                        isError: true)
+                }
+            case .generalAssistant, .vision, .documentUnderstanding:
+                break
+            }
+        }
 
         if activePending.count == 1, var proposal = activePending.first,
            let fieldCorrection = PendingFieldCorrectionParser.parse(text, current: proposal.call.arguments) {

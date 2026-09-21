@@ -91,6 +91,28 @@ final class AIConversationViewModel {
         }
     }
 
+    func analyzeImage(data: Data, mimeType: String) {
+        guard !isProcessing else { return }
+        isProcessing = true
+        processingLabel = "正在分析图片"
+        Task {
+            _ = await agent.analyzeImage(data: data, mimeType: mimeType)
+            await refresh()
+            isProcessing = false
+        }
+    }
+
+    func analyzeDocument(data: Data, fileName: String, mimeType: String) {
+        guard !isProcessing else { return }
+        isProcessing = true
+        processingLabel = "正在分析文件"
+        Task {
+            _ = await agent.analyzeDocument(data: data, fileName: fileName, mimeType: mimeType)
+            await refresh()
+            isProcessing = false
+        }
+    }
+
     func retryLastFailed() {
         // 找到最后一条错误回复之前的用户原文，重新发送
         guard let errorIndex = messages.lastIndex(where: { $0.isError }),

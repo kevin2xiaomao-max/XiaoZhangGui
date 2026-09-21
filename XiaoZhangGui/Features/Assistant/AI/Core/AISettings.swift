@@ -100,6 +100,12 @@ final class AISettings {
         get { AIKeychain.read(Keys.fallbackKey) ?? "" }
         set { AIKeychain.write(newValue, forKey: Keys.fallbackKey) }
     }
+    /// Tavily search credential; stored separately so search cannot silently reuse
+    /// a chat credential or enter the business-provider path.
+    var searchAPIKey: String {
+        get { AIKeychain.read(Keys.searchKey) ?? "" }
+        set { AIKeychain.write(newValue, forKey: Keys.searchKey) }
+    }
 
     /// 留空即回退 DeepSeek 官方默认端点
     var resolvedPrimaryBaseURL: String {
@@ -120,6 +126,7 @@ final class AISettings {
 
     /// 仅代表 Key 已存入 Keychain；UI 文案必须用「Key 已保存」，不得暗示连接可用。
     var isPrimaryKeySaved: Bool { !primaryAPIKey.isEmpty }
+    var isSearchKeySaved: Bool { !searchAPIKey.isEmpty }
 
     /// Fallback 仅在端点 / 模型 / Key 三者齐全时启用；否则禁用（fail-closed，不回退 Mock）
     var isFallbackConfigured: Bool {
@@ -167,6 +174,7 @@ final class AISettings {
         static let fallbackModel = "ai_fallback_model"
         static let primaryKey = "ai.primary.apiKey"
         static let fallbackKey = "ai.fallback.apiKey"
+        static let searchKey = "ai.search.apiKey"
     }
 }
 
@@ -192,6 +200,9 @@ final class AISettingsDraft {
     var stagedFallbackKey = ""
     var fallbackKeySaved: Bool
     var clearFallbackKeyRequested = false
+    var stagedSearchKey = ""
+    var searchKeySaved: Bool
+    var clearSearchKeyRequested = false
 
     init(settings: AISettings) {
         tier = settings.tier
@@ -202,6 +213,7 @@ final class AISettingsDraft {
         fallbackModel = settings.fallbackModel
         primaryKeySaved = settings.isPrimaryKeySaved
         fallbackKeySaved = settings.isFallbackConfigured || !settings.fallbackAPIKey.isEmpty
+        searchKeySaved = settings.isSearchKeySaved
     }
 
     /// 保存：trim 后一次性写入。调用方负责随后发出 .aiProviderConfigChanged。
@@ -225,6 +237,13 @@ final class AISettingsDraft {
             settings.fallbackAPIKey = newFallbackKey
         } else if clearFallbackKeyRequested {
             settings.fallbackAPIKey = ""
+        }
+
+        let newSearchKey = stagedSearchKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !newSearchKey.isEmpty {
+            settings.searchAPIKey = newSearchKey
+        } else if clearSearchKeyRequested {
+            settings.searchAPIKey = ""
         }
     }
 }

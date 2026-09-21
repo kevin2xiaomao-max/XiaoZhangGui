@@ -8,6 +8,8 @@ struct ChatInputBar: View {
     let isProcessing: Bool
     let onSend: () -> Void
     let onVoice: () -> Void
+    let onPhoto: () -> Void
+    let onFile: () -> Void
 
     @FocusState private var focused: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -15,6 +17,18 @@ struct ChatInputBar: View {
 
     var body: some View {
         HStack(spacing: 9) {
+            Menu {
+                Button(action: onPhoto) { Label("选择图片", systemImage: "photo") }
+                Button(action: onFile) { Label("选择文件", systemImage: "doc") }
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(ThemeStore.shared.accentPalette.aiAccent)
+                    .frame(width: 34, height: 34)
+            }
+            .accessibilityLabel("添加图片或文件")
+            .disabled(isProcessing)
+
             Button(action: onVoice) {
                 Image(systemName: "mic.fill")
                     .font(.system(size: 18, weight: .semibold))

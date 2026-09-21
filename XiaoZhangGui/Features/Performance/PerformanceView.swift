@@ -46,14 +46,14 @@ struct PerformanceView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                heroCard
-                metricsCard
-                sourcesCard
+            VStack(alignment: .leading, spacing: 30) {
+                performanceHero
+                secondaryMetrics
+                sourcesSection
                 recordsSection
             }
-            .padding(.horizontal, V32Layout.pageMargin)
-            .padding(.top, 8)
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
         }
         .scrollIndicators(.hidden)
         .v32PageBackground()
@@ -93,27 +93,48 @@ struct PerformanceView: View {
 
     // MARK: Hero
 
-    private var heroCard: some View {
-        V32HeroCard {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("今日营业额")
-                    .v32Text(.subhead)
+    private var performanceHero: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("本月营业额")
+                    .font(.subheadline.weight(.medium))
                     .foregroundStyle(V32.textOnHeroSecondary)
-                HStack(alignment: .bottom, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(Fmt.money(todayRevenue))
-                            .font(V32Font.heroMoney)
-                            .foregroundStyle(V32.textOnHero)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.55)
-                        changeBadge
-                    }
-                    Spacer(minLength: 4)
-                    TrendChart(points: trend, height: 48, onHero: true)
-                        .frame(width: 104)
+                Spacer()
+                Text("经营数据")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(V32.textOnHeroSecondary)
+            }
+            Text(Fmt.money(monthRevenue))
+                .font(.system(size: 46, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(V32.textOnHero)
+                .lineLimit(1)
+                .minimumScaleFactor(0.55)
+            HStack(alignment: .bottom, spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("今日")
+                        .font(.caption)
+                        .foregroundStyle(V32.textOnHeroSecondary)
+                    Text(Fmt.money(todayRevenue))
+                        .font(.subheadline.weight(.semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(V32.textOnHero)
+                }
+                changeBadge
+                Spacer(minLength: 8)
+                if !trend.isEmpty {
+                    TrendChart(points: trend, height: 52, onHero: true)
+                        .frame(width: 120)
                 }
             }
         }
+        .padding(.horizontal, 22)
+        .padding(.vertical, 24)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            LinearGradient(colors: [ThemeStore.shared.accentPalette.heroStart, ThemeStore.shared.accentPalette.heroEnd], startPoint: .topLeading, endPoint: .bottomTrailing),
+            in: RoundedRectangle(cornerRadius: 24, style: .continuous)
+        )
     }
 
     @ViewBuilder
@@ -140,16 +161,28 @@ struct PerformanceView: View {
 
     // MARK: 指标
 
-    private var metricsCard: some View {
-        V32Card {
-            HStack(spacing: 8) {
-                V32MetricCell(label: "昨日", value: Fmt.money(yesterdayRevenue))
+    private var secondaryMetrics: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("关键指标")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(V32.textTertiary)
+            HStack(spacing: 0) {
+                metric("昨日", Fmt.money(yesterdayRevenue))
                 metricDivider
-                V32MetricCell(label: "本月", value: Fmt.money(monthRevenue))
-                metricDivider
-                V32MetricCell(label: "本年", value: Fmt.money(yearRevenue))
+                metric("本年", Fmt.money(yearRevenue))
             }
+            .padding(.vertical, 12)
+            .overlay(alignment: .top) { Divider() }
+            .overlay(alignment: .bottom) { Divider() }
         }
+    }
+
+    private func metric(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label).font(.caption).foregroundStyle(V32.textTertiary)
+            Text(value).font(.subheadline.weight(.semibold)).monospacedDigit().foregroundStyle(V32.textSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var metricDivider: some View {
@@ -158,45 +191,44 @@ struct PerformanceView: View {
 
     // MARK: 来源拆分（P0-3 美团）
 
-    private var sourcesCard: some View {
+    private var sourcesSection: some View {
         let summaries = IncomeSourceSummary.compute(
             performances: performances,
             range: (Date().startOfMonth, Date().endOfDay)
         )
         let active = summaries.filter { $0.amount > 0 }
         return VStack(alignment: .leading, spacing: 10) {
-            Text("本月来源拆分")
-                .v32Text(.caption)
+            Text("收入来源")
+                .font(.caption.weight(.medium))
                 .foregroundStyle(V32.textTertiary)
-                .padding(.leading, 4)
-            V32FieldGroup {
-                VStack(spacing: 0) {
+            VStack(spacing: 0) {
                     ForEach(Array(active.enumerated()), id: \.element.id) { index, item in
                         if index > 0 {
-                            Rectangle().fill(V32.divider).frame(height: 1).padding(.leading, 0)
+                            Divider().padding(.leading, 12)
                         }
                         HStack(alignment: .firstTextBaseline) {
                             Text(item.source.rawValue)
-                                .v32Text(.title)
+                                .font(.body.weight(.medium))
                                 .foregroundStyle(V32.textPrimary)
                             Spacer(minLength: 12)
                             Text(Fmt.money(item.amount))
-                                .v32Text(.headline)
+                                .font(.subheadline.weight(.semibold).monospacedDigit())
                                 .foregroundStyle(ThemeStore.shared.accentPalette.chartAccent)
-                            Text("·\(String(format: "%.0f%%", item.ratio * 100))")
-                                .v32Text(.caption)
+                            Text("\(String(format: "%.0f%%", item.ratio * 100))")
+                                .font(.caption.monospacedDigit())
                                 .foregroundStyle(V32.textTertiary)
                         }
-                        .padding(.vertical, 10)
+                        .padding(.vertical, 13)
                     }
                     if active.isEmpty {
                         Text("本月暂无收入")
-                            .v32Text(.subhead)
+                            .font(.subheadline)
                             .foregroundStyle(V32.textTertiary)
                             .padding(.vertical, 12)
                     }
-                }
             }
+            .overlay(alignment: .top) { Divider() }
+            .overlay(alignment: .bottom) { Divider() }
         }
     }
 
@@ -204,24 +236,20 @@ struct PerformanceView: View {
 
     private var recordsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("最近交易")
-                .v32Text(.caption)
+            Text("交易流水")
+                .font(.caption.weight(.medium))
                 .foregroundStyle(V32.textTertiary)
-                .padding(.leading, 4)
             if records.isEmpty {
-            V32FieldGroup {
-                    VStack(spacing: 12) {
-                        V32EmptyState(systemName: "tray", title: "暂无记录", message: nil)
-                        V32PrimaryButton(title: "记一笔", systemName: "plus") { newRecordKind = .income }
-                            .padding(.horizontal, 24)
-                    }
-                    .padding(.vertical, 8)
+                VStack(alignment: .leading, spacing: 12) {
+                    Label("暂无交易记录", systemImage: "tray")
+                        .foregroundStyle(V32.textTertiary)
+                    V32PrimaryButton(title: "记一笔", systemName: "plus") { newRecordKind = .income }
                 }
+                .padding(.vertical, 12)
             } else {
-                V32FieldGroup(padding: 4) {
                     VStack(spacing: 0) {
                         ForEach(Array(records.prefix(12).enumerated()), id: \.element.id) { index, record in
-                            if index > 0 { Rectangle().fill(V32.divider).frame(height: 1).padding(.leading, 48) }
+                            if index > 0 { Divider().padding(.leading, 48) }
                             PerformanceRecordRow(
                                 record: record,
                                 onEdit: {
@@ -232,7 +260,6 @@ struct PerformanceView: View {
                             )
                         }
                     }
-                }
                 NavigationLink {
                     TransactionHistoryView()
                 } label: {
@@ -241,7 +268,7 @@ struct PerformanceView: View {
                         .foregroundStyle(V32.brand)
                         .frame(maxWidth: .infinity)
                 }
-                .padding(.top, 4)
+                .padding(.top, 10)
             }
         }
     }
@@ -292,8 +319,8 @@ private struct PerformanceRecordRow: View {
             .buttonStyle(.plain)
             .accessibilityLabel("删除记录")
         }
-        .padding(.horizontal, 12)
-        .frame(minHeight: 56)
+        .padding(.vertical, 14)
+        .frame(minHeight: 64)
     }
 
     private var subtitle: String {

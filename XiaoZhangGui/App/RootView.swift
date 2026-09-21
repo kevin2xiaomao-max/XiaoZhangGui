@@ -41,7 +41,6 @@ struct RootView: View {
             .tint(V32.brand)
             .onChange(of: tab) { _, newValue in
                 lastContentTab = newValue
-                Haptic.light()
             }
             // Deep Link：xzg://voice 旧语音、xzg://quickrecord 快速记录、
             // xzg://ai 小掌柜、xzg://ai?mode=voice 小掌柜短语音

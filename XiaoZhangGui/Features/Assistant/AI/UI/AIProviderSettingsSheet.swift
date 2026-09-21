@@ -21,6 +21,7 @@ struct AIProviderSettingsSheet: View {
                 VStack(alignment: .leading, spacing: 14) {
                     tierCard
                     primaryCard
+                    searchCard
                     advancedCard
                     privacyNote
                 }
@@ -41,6 +42,44 @@ struct AIProviderSettingsSheet: View {
             }
             .onAppear {
                 tester.synchronize(hasEffectiveKey: !effectivePrimaryKey.isEmpty)
+            }
+        }
+    }
+
+    // MARK: 联网搜索
+
+    private var searchCard: some View {
+        V32FieldGroup {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("联网搜索").v32Text(.section).foregroundStyle(V32.textPrimary)
+                    Spacer()
+                    Text(draft.searchKeySaved && !draft.clearSearchKeyRequested ? "已配置" : "未配置")
+                        .v32Text(.caption)
+                        .foregroundStyle(draft.searchKeySaved && !draft.clearSearchKeyRequested ? V32.brand : V32.textTertiary)
+                }
+                Text("使用 Tavily 获取实时网页结果；搜索只读，不会写入经营数据。Key 仅存本机 Keychain。")
+                    .v32Text(.caption)
+                    .foregroundStyle(V32.textSecondary)
+                SecureField(draft.searchKeySaved && !draft.clearSearchKeyRequested
+                            ? "已保存，如需更换请粘贴新 Key" : "粘贴 Tavily API Key",
+                            text: $draft.stagedSearchKey)
+                    .textFieldStyle(.roundedBorder)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .onChange(of: draft.stagedSearchKey) { _, value in
+                        if !value.isEmpty { draft.clearSearchKeyRequested = false }
+                    }
+                if draft.searchKeySaved {
+                    Button(role: draft.clearSearchKeyRequested ? nil : .destructive) {
+                        draft.clearSearchKeyRequested.toggle()
+                        if draft.clearSearchKeyRequested { draft.stagedSearchKey = "" }
+                    } label: {
+                        Text(draft.clearSearchKeyRequested ? "保留已保存的搜索 Key" : "清除已保存的搜索 Key")
+                            .v32Text(.caption)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
         }
     }

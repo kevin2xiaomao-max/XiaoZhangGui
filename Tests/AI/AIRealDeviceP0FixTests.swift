@@ -42,7 +42,12 @@ final class AIRealDeviceP0FixTests: XCTestCase {
             toolExecutor: RepositoryToolExecutor(context: context, journal: journal),
             conversation: InMemoryConversationStore(),
             pending: pending,
-            journal: journal
+            journal: journal,
+            // 该 harness 验证本地未配置天气时的 0-token fail-closed 行为；
+            // 显式注入空配置，避免继承测试机环境变量而产生网络依赖。
+            weatherService: WeatherService(provider: WeatherAPIProvider(configuration: WeatherConfiguration(
+                apiKey: "", city: "恩平", latitude: 22.183, longitude: 112.305
+            )))
         )
         return (AgentCore(env), context, pending, counting)
     }

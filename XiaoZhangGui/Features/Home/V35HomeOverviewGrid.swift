@@ -4,18 +4,24 @@ struct V35HomeOverviewGrid: View {
     let todoCount: Int
     let expiryCount: Int
     let customerCount: Int
+    let todoInsight: String?
+    let customerInsight: String?
+    let expiryInsight: String?
+    let onTodo: () -> Void
+    let onCustomer: () -> Void
+    let onExpiry: () -> Void
     var body: some View {
         HStack(spacing: 0) {
-            statusItem("待办", todoCount, "checkmark.circle", V32.brand)
+            statusItem("待办", todoCount, todoInsight, "checkmark.circle", V32.brand, action: onTodo)
             divider
-            statusItem("客户需求", customerCount, "person.2", V32.info)
+            statusItem("配送", customerCount, customerInsight, "box.truck", V32.info, action: onCustomer)
             divider
-            statusItem("临期", expiryCount, "clock.badge.exclamationmark", V32.amber)
+            statusItem("临期", expiryCount, expiryInsight, "clock.badge.exclamationmark", V32.amber, action: onExpiry)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 12)
         .frame(maxWidth: .infinity)
-        .background(V32.card.opacity(0.72), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(V32.cardOutline.opacity(0.7), lineWidth: 1))
+        .overlay(alignment: .top) { Divider().opacity(0.6) }
+        .overlay(alignment: .bottom) { Divider().opacity(0.6) }
         .accessibilityElement(children: .contain)
     }
 
@@ -25,8 +31,9 @@ struct V35HomeOverviewGrid: View {
             .frame(width: 1, height: 24)
     }
 
-    private func statusItem(_ title: String, _ count: Int, _ icon: String, _ color: Color) -> some View {
-        HStack(spacing: 6) {
+    private func statusItem(_ title: String, _ count: Int, _ insight: String?, _ icon: String, _ color: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
             Image(systemName: icon)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(color)
@@ -38,10 +45,21 @@ struct V35HomeOverviewGrid: View {
                     .font(.subheadline.weight(.semibold))
                     .monospacedDigit()
                     .foregroundStyle(V32.textSecondary)
+                if let insight {
+                    Text(insight)
+                        .font(.caption2)
+                        .foregroundStyle(V32.textTertiary)
+                }
             }
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
+            .contentShape(Rectangle())
         }
-        .frame(maxWidth: .infinity, alignment: .center)
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, minHeight: 44)
+        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel("今天\(title)\(count)项")
+        .accessibilityHint("打开\(title)")
     }
 }
