@@ -45,13 +45,15 @@ final class ExternalCapabilityTests: XCTestCase {
 
     func testWebSearchReturnsSourcesAndMetadata() async throws {
         let provider = ScriptedSearchProvider(
-            response: AICapabilityWebSearchResponse(
+            response: WebSearchResponse(
                 answer: "苹果今天发布了新消息。",
-                hits: [AICapabilityWebSearchHit(
+                results: [WebSearchResult(
                     title: "新闻来源",
-                    url: URL(string: "https://example.com/news")!,
-                    snippet: "来源摘要"
-                )]
+                    content: "来源摘要",
+                    sourceURL: URL(string: "https://example.com/news")!,
+                    provider: "scripted-search"
+                )],
+                provider: "scripted-search"
             )
         )
         let result = try await WebSearchCapability(provider: provider).execute(query: "苹果今天新闻")
@@ -65,13 +67,15 @@ final class ExternalCapabilityTests: XCTestCase {
     @MainActor
     func testAgentSearchPathDoesNotCreateActionCard() async {
         let provider = ScriptedSearchProvider(
-            response: AICapabilityWebSearchResponse(
+            response: WebSearchResponse(
                 answer: "实时回答",
-                hits: [AICapabilityWebSearchHit(
+                results: [WebSearchResult(
                     title: "来源",
-                    url: URL(string: "https://example.com/source")!,
-                    snippet: "摘要"
-                )]
+                    content: "摘要",
+                    sourceURL: URL(string: "https://example.com/source")!,
+                    provider: "scripted-search"
+                )],
+                provider: "scripted-search"
             )
         )
         let live = AITestFactory.live(
@@ -120,6 +124,46 @@ final class ExternalCapabilityTests: XCTestCase {
         } catch { XCTFail("unexpected error: \(error)") }
     }
 
+    func testNormalizedSearchResponsePreservesProviderAndSourceMetadata() throws {
+        let data = Data(#"{"answer":"answer","results":[{"title":"source","content":"snippet","sourceURL":"https://example.com/a"}]}"#.utf8)
+        let response = try JSONWebSearchProvider.decode(data, provider: "domestic-proxy")
+
+        XCTAssertEqual(response.provider, "domestic-proxy")
+        XCTAssertEqual(response.results.first?.provider, "domestic-proxy")
+        XCTAssertEqual(response.results.first?.title, "source")
+        XCTAssertEqual(response.results.first?.content, "snippet")
+        XCTAssertEqual(response.results.first?.sourceURL.absoluteString, "https://example.com/a")
+    }
+
+    func testFreeFirstIgnoresProvidersWithoutExplicitUserEligibility() async {
+        let paid = ScriptedSearchProvider(response: Self.searchResponse(provider: "not-approved"))
+        let provider = FreeFirstWebSearchProvider(candidates: [
+            FreeFirstSearchProviderCandidate(provider: paid, userConfirmedFreeEligible: false)
+        ])
+
+        do {
+            _ = try await provider.search(query: "latest", timeout: 1)
+            XCTFail("未明确允许的 Provider 不得被自动调用")
+        } catch let error as AICapabilityError {
+            XCTAssertEqual(error, .notConfigured(.webSearch))
+        } catch { XCTFail("unexpected error: \(error)") }
+    }
+
+    func testFreeFirstFailsOverOnlyAcrossApprovedProviders() async throws {
+        let failed = ScriptedSearchProvider(error: .networkFailure, id: "approved-failed")
+        let working = ScriptedSearchProvider(
+            response: Self.searchResponse(provider: "approved-working"),
+            id: "approved-working"
+        )
+        let provider = FreeFirstWebSearchProvider(candidates: [
+            FreeFirstSearchProviderCandidate(provider: failed, userConfirmedFreeEligible: true),
+            FreeFirstSearchProviderCandidate(provider: working, userConfirmedFreeEligible: true)
+        ])
+
+        let response = try await provider.search(query: "latest", timeout: 1)
+        XCTAssertEqual(response.provider, "approved-working")
+    }
+
     func testVisionAndDocumentSlicesValidateInputAndFailClosed() async {
         do {
             _ = try await VisionCapability().execute(imageData: Data(), mimeType: "image/png")
@@ -145,6 +189,19 @@ final class ExternalCapabilityTests: XCTestCase {
             XCTAssertEqual(error, .cancelled)
         } catch { XCTFail("unexpected error: \(error)") }
     }
+
+    private static func searchResponse(provider: String) -> WebSearchResponse {
+        WebSearchResponse(
+            answer: "result",
+            results: [WebSearchResult(
+                title: "source",
+                content: "content",
+                sourceURL: URL(string: "https://example.com")!,
+                provider: provider
+            )],
+            provider: provider
+        )
+    }
 }
 
 private struct StubURLFetcher: AICapabilityURLFetching {
@@ -156,28 +213,41 @@ private struct StubURLFetcher: AICapabilityURLFetching {
     }
 }
 
-private struct ScriptedSearchProvider: AICapabilityWebSearchProvider {
-    let id = "scripted-search"
-    let response: AICapabilityWebSearchResponse?
+private struct ScriptedSearchProvider: WebSearchProvider {
+    let id: String
+    let response: WebSearchResponse?
+    let error: AICapabilityError?
     let cancellation: Bool
 
-    init(response: AICapabilityWebSearchResponse) {
+    init(response: WebSearchResponse, id: String = "scripted-search") {
+        self.id = id
         self.response = response
+        self.error = nil
         self.cancellation = false
     }
 
     init(cancellation: Bool) {
+        self.id = "scripted-search"
         self.response = nil
+        self.error = nil
         self.cancellation = cancellation
     }
 
-    func search(query: String, timeout: TimeInterval) async throws -> AICapabilityWebSearchResponse {
+    init(error: AICapabilityError, id: String = "scripted-search") {
+        self.id = id
+        self.response = nil
+        self.error = error
+        self.cancellation = false
+    }
+
+    func search(query: String, timeout: TimeInterval) async throws -> WebSearchResponse {
         if cancellation { throw CancellationError() }
+        if let error { throw error }
         return response!
     }
 }
 
-private struct StubSearchHTTPFetcher: AICapabilitySearchHTTPFetching {
+private struct StubSearchHTTPFetcher: WebSearchHTTPFetching {
     let statusCode: Int
     let body: Data
 

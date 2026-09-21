@@ -50,6 +50,24 @@ enum DeepSeekModel: String, CaseIterable, Sendable {
     }
 }
 
+/// Search routing is configuration, not capability logic. The router only
+/// requests Web Search; this value decides which adapter fulfills it.
+enum SearchProviderSelection: String, CaseIterable, Sendable {
+    case disabled
+    case automaticFreeFirst
+    case tavily
+    case customJSON
+
+    var displayName: String {
+        switch self {
+        case .disabled: return "未配置"
+        case .automaticFreeFirst: return "自动（免费优先）"
+        case .tavily: return "Tavily"
+        case .customJSON: return "自定义 JSON Search"
+        }
+    }
+}
+
 @Observable
 final class AISettings {
     static let shared = AISettings()
@@ -100,11 +118,31 @@ final class AISettings {
         get { AIKeychain.read(Keys.fallbackKey) ?? "" }
         set { AIKeychain.write(newValue, forKey: Keys.fallbackKey) }
     }
-    /// Tavily search credential; stored separately so search cannot silently reuse
-    /// a chat credential or enter the business-provider path.
-    var searchAPIKey: String {
-        get { AIKeychain.read(Keys.searchKey) ?? "" }
-        set { AIKeychain.write(newValue, forKey: Keys.searchKey) }
+    var searchProviderSelection: SearchProviderSelection {
+        didSet { ud.set(searchProviderSelection.rawValue, forKey: Keys.searchProviderSelection) }
+    }
+    var tavilySearchBaseURL: String {
+        didSet { ud.set(tavilySearchBaseURL, forKey: Keys.tavilySearchBaseURL) }
+    }
+    var customSearchBaseURL: String {
+        didSet { ud.set(customSearchBaseURL, forKey: Keys.customSearchBaseURL) }
+    }
+    /// Pricing changes outside the app. Automatic routing is allowed only after
+    /// the user explicitly confirms that this configured provider is eligible.
+    var tavilySearchFreeFirstEnabled: Bool {
+        didSet { ud.set(tavilySearchFreeFirstEnabled, forKey: Keys.tavilySearchFreeFirstEnabled) }
+    }
+    var customSearchFreeFirstEnabled: Bool {
+        didSet { ud.set(customSearchFreeFirstEnabled, forKey: Keys.customSearchFreeFirstEnabled) }
+    }
+
+    var tavilySearchAPIKey: String {
+        get { AIKeychain.read(Keys.tavilySearchKey) ?? "" }
+        set { AIKeychain.write(newValue, forKey: Keys.tavilySearchKey) }
+    }
+    var customSearchAPIKey: String {
+        get { AIKeychain.read(Keys.customSearchKey) ?? "" }
+        set { AIKeychain.write(newValue, forKey: Keys.customSearchKey) }
     }
 
     /// 留空即回退 DeepSeek 官方默认端点
@@ -126,7 +164,16 @@ final class AISettings {
 
     /// 仅代表 Key 已存入 Keychain；UI 文案必须用「Key 已保存」，不得暗示连接可用。
     var isPrimaryKeySaved: Bool { !primaryAPIKey.isEmpty }
-    var isSearchKeySaved: Bool { !searchAPIKey.isEmpty }
+    var isTavilySearchKeySaved: Bool { !tavilySearchAPIKey.isEmpty }
+    var isCustomSearchKeySaved: Bool { !customSearchAPIKey.isEmpty }
+
+    var isTavilySearchConfigured: Bool {
+        Self.isValidHTTPURL(tavilySearchBaseURL) && isTavilySearchKeySaved
+    }
+
+    var isCustomSearchConfigured: Bool {
+        Self.isValidHTTPURL(customSearchBaseURL) && isCustomSearchKeySaved
+    }
 
     /// Fallback 仅在端点 / 模型 / Key 三者齐全时启用；否则禁用（fail-closed，不回退 Mock）
     var isFallbackConfigured: Bool {
@@ -150,6 +197,16 @@ final class AISettings {
         primaryModel = defaults.string(forKey: Keys.primaryModel) ?? ""
         fallbackBaseURL = defaults.string(forKey: Keys.fallbackBaseURL) ?? ""
         fallbackModel = defaults.string(forKey: Keys.fallbackModel) ?? ""
+        searchProviderSelection = SearchProviderSelection(
+            rawValue: defaults.string(forKey: Keys.searchProviderSelection) ?? ""
+        ) ?? .disabled
+        tavilySearchBaseURL = defaults.string(forKey: Keys.tavilySearchBaseURL)
+            ?? "https://api.tavily.com/search"
+        customSearchBaseURL = defaults.string(forKey: Keys.customSearchBaseURL) ?? ""
+        tavilySearchFreeFirstEnabled = defaults.bool(forKey: Keys.tavilySearchFreeFirstEnabled)
+        customSearchFreeFirstEnabled = defaults.bool(forKey: Keys.customSearchFreeFirstEnabled)
+
+        migrateLegacySearchCredentialIfNeeded()
     }
 
     /// 旧版用户迁移：deepseek-chat / deepseek-reasoner / "DeepSeek" 等旧值或非法自由输入
@@ -164,6 +221,23 @@ final class AISettings {
         }
     }
 
+    private func migrateLegacySearchCredentialIfNeeded() {
+        guard tavilySearchAPIKey.isEmpty,
+              let legacy = AIKeychain.read(Keys.legacySearchKey),
+              !legacy.isEmpty else { return }
+        tavilySearchAPIKey = legacy
+        AIKeychain.delete(Keys.legacySearchKey)
+        if searchProviderSelection == .disabled {
+            searchProviderSelection = .tavily
+        }
+    }
+
+    private static func isValidHTTPURL(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: trimmed), let scheme = url.scheme else { return false }
+        return scheme == "https" || scheme == "http"
+    }
+
     private enum Keys {
         static let tier = "ai_model_tier"
         static let primaryKind = "ai_primary_kind"
@@ -174,7 +248,14 @@ final class AISettings {
         static let fallbackModel = "ai_fallback_model"
         static let primaryKey = "ai.primary.apiKey"
         static let fallbackKey = "ai.fallback.apiKey"
-        static let searchKey = "ai.search.apiKey"
+        static let searchProviderSelection = "ai_search_provider_selection"
+        static let tavilySearchBaseURL = "ai_search_tavily_base_url"
+        static let customSearchBaseURL = "ai_search_custom_json_base_url"
+        static let tavilySearchFreeFirstEnabled = "ai_search_tavily_free_first_enabled"
+        static let customSearchFreeFirstEnabled = "ai_search_custom_free_first_enabled"
+        static let tavilySearchKey = "ai.search.tavily.apiKey"
+        static let customSearchKey = "ai.search.customJSON.apiKey"
+        static let legacySearchKey = "ai.search.apiKey"
     }
 }
 
@@ -192,6 +273,11 @@ final class AISettingsDraft {
     var fallbackKind: String
     var fallbackBaseURL: String
     var fallbackModel: String
+    var searchProviderSelection: SearchProviderSelection
+    var tavilySearchBaseURL: String
+    var customSearchBaseURL: String
+    var tavilySearchFreeFirstEnabled: Bool
+    var customSearchFreeFirstEnabled: Bool
 
     /// 新粘贴的 Key；空表示「不动已保存的 Key」
     var stagedPrimaryKey = ""
@@ -200,9 +286,12 @@ final class AISettingsDraft {
     var stagedFallbackKey = ""
     var fallbackKeySaved: Bool
     var clearFallbackKeyRequested = false
-    var stagedSearchKey = ""
-    var searchKeySaved: Bool
-    var clearSearchKeyRequested = false
+    var stagedTavilySearchKey = ""
+    var tavilySearchKeySaved: Bool
+    var clearTavilySearchKeyRequested = false
+    var stagedCustomSearchKey = ""
+    var customSearchKeySaved: Bool
+    var clearCustomSearchKeyRequested = false
 
     init(settings: AISettings) {
         tier = settings.tier
@@ -211,9 +300,15 @@ final class AISettingsDraft {
         fallbackKind = settings.fallbackKind
         fallbackBaseURL = settings.fallbackBaseURL
         fallbackModel = settings.fallbackModel
+        searchProviderSelection = settings.searchProviderSelection
+        tavilySearchBaseURL = settings.tavilySearchBaseURL
+        customSearchBaseURL = settings.customSearchBaseURL
+        tavilySearchFreeFirstEnabled = settings.tavilySearchFreeFirstEnabled
+        customSearchFreeFirstEnabled = settings.customSearchFreeFirstEnabled
         primaryKeySaved = settings.isPrimaryKeySaved
         fallbackKeySaved = settings.isFallbackConfigured || !settings.fallbackAPIKey.isEmpty
-        searchKeySaved = settings.isSearchKeySaved
+        tavilySearchKeySaved = settings.isTavilySearchKeySaved
+        customSearchKeySaved = settings.isCustomSearchKeySaved
     }
 
     /// 保存：trim 后一次性写入。调用方负责随后发出 .aiProviderConfigChanged。
@@ -224,6 +319,11 @@ final class AISettingsDraft {
         settings.fallbackKind = fallbackKind.trimmingCharacters(in: .whitespacesAndNewlines)
         settings.fallbackBaseURL = fallbackBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         settings.fallbackModel = fallbackModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        settings.searchProviderSelection = searchProviderSelection
+        settings.tavilySearchBaseURL = tavilySearchBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        settings.customSearchBaseURL = customSearchBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        settings.tavilySearchFreeFirstEnabled = tavilySearchFreeFirstEnabled
+        settings.customSearchFreeFirstEnabled = customSearchFreeFirstEnabled
 
         let newPrimaryKey = stagedPrimaryKey.trimmingCharacters(in: .whitespacesAndNewlines)
         if !newPrimaryKey.isEmpty {
@@ -239,11 +339,18 @@ final class AISettingsDraft {
             settings.fallbackAPIKey = ""
         }
 
-        let newSearchKey = stagedSearchKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !newSearchKey.isEmpty {
-            settings.searchAPIKey = newSearchKey
-        } else if clearSearchKeyRequested {
-            settings.searchAPIKey = ""
+        let newTavilyKey = stagedTavilySearchKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !newTavilyKey.isEmpty {
+            settings.tavilySearchAPIKey = newTavilyKey
+        } else if clearTavilySearchKeyRequested {
+            settings.tavilySearchAPIKey = ""
+        }
+
+        let newCustomKey = stagedCustomSearchKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !newCustomKey.isEmpty {
+            settings.customSearchAPIKey = newCustomKey
+        } else if clearCustomSearchKeyRequested {
+            settings.customSearchAPIKey = ""
         }
     }
 }

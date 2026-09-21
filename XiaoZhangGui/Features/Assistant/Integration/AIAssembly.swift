@@ -34,10 +34,7 @@ enum AIAssembly {
             ? try? XZGAIProviderAdapter.makeFallback(settings: settings)
             : nil
 
-        let capabilityCredentials = AICapabilityCredentials.keychain()
-        let searchCapability: WebSearchCapability = capabilityCredentials.searchAPIKey.isEmpty
-            ? WebSearchCapability()
-            : WebSearchCapability(provider: TavilyWebSearchProvider(apiKey: capabilityCredentials.searchAPIKey))
+        let searchCapability = WebSearchProviderFactory.makeCapability(settings: settings)
 
         let multimodalVision: VisionCapability
         let multimodalDocument: DocumentCapability

@@ -1,34 +1,24 @@
 import Foundation
 import PDFKit
 
-/// Production capability credentials. Values are read only from Keychain and
-/// are never copied into UserDefaults, logs, or model prompts.
-struct AICapabilityCredentials: Sendable {
-    let searchAPIKey: String
-
-    static func keychain() -> AICapabilityCredentials {
-        AICapabilityCredentials(searchAPIKey: AIKeychain.read("ai.search.apiKey") ?? "")
-    }
-}
-
 /// Tavily's response is normalized into the provider-neutral search model.
-struct TavilyWebSearchProvider: AICapabilityWebSearchProvider {
+struct TavilyWebSearchProvider: WebSearchProvider {
     let id = "tavily"
     let apiKey: String
     let endpoint: URL
-    private let fetcher: any AICapabilitySearchHTTPFetching
+    private let fetcher: any WebSearchHTTPFetching
 
     init(
         apiKey: String,
         endpoint: URL = URL(string: "https://api.tavily.com/search")!,
-        fetcher: any AICapabilitySearchHTTPFetching = FoundationSearchHTTPFetcher()
+        fetcher: any WebSearchHTTPFetching = FoundationWebSearchHTTPFetcher()
     ) {
         self.apiKey = apiKey
         self.endpoint = endpoint
         self.fetcher = fetcher
     }
 
-    func search(query: String, timeout: TimeInterval) async throws -> AICapabilityWebSearchResponse {
+    func search(query: String, timeout: TimeInterval) async throws -> WebSearchResponse {
         guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw AICapabilityError.notConfigured(.webSearch)
         }
@@ -60,21 +50,90 @@ struct TavilyWebSearchProvider: AICapabilityWebSearchProvider {
                 let results: [Result]?
             }
             let payload = try JSONDecoder().decode(Payload.self, from: data)
-            let hits = (payload.results ?? []).map {
-                AICapabilityWebSearchHit(title: $0.title, url: $0.url, snippet: $0.content)
+            let retrievedAt = Date.now
+            let results = (payload.results ?? []).map {
+                WebSearchResult(
+                    title: $0.title,
+                    content: $0.content,
+                    sourceURL: $0.url,
+                    provider: id,
+                    retrievedAt: retrievedAt
+                )
             }
             let answer = payload.answer?.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !(answer?.isEmpty ?? true) || !hits.isEmpty else { throw AICapabilityError.noResults }
-            return AICapabilityWebSearchResponse(answer: answer, hits: hits)
+            guard !(answer?.isEmpty ?? true) || !results.isEmpty else { throw AICapabilityError.noResults }
+            return WebSearchResponse(
+                answer: answer,
+                results: results,
+                provider: id,
+                retrievedAt: retrievedAt
+            )
         } catch is CancellationError {
             throw AICapabilityError.cancelled
         } catch let error as AICapabilityError {
             throw error
         } catch let error as URLError where error.code == .timedOut {
             throw AICapabilityError.timeout
-        } catch {
+        } catch is DecodingError {
             throw AICapabilityError.malformedResponse
+        } catch {
+            throw AICapabilityError.networkFailure
         }
+    }
+}
+
+/// The only production composition point aware of concrete search adapters.
+/// Capability Router and AgentCore remain vendor-blind.
+enum WebSearchProviderFactory {
+    static func makeCapability(settings: AISettings) -> WebSearchCapability {
+        switch settings.searchProviderSelection {
+        case .disabled:
+            return WebSearchCapability()
+        case .automaticFreeFirst:
+            return WebSearchCapability(provider: FreeFirstWebSearchProvider(candidates: candidates(settings)))
+        case .tavily:
+            guard let provider = tavily(settings) else { return WebSearchCapability() }
+            return WebSearchCapability(provider: provider)
+        case .customJSON:
+            guard let provider = customJSON(settings) else { return WebSearchCapability() }
+            return WebSearchCapability(provider: provider)
+        }
+    }
+
+    private static func candidates(_ settings: AISettings) -> [FreeFirstSearchProviderCandidate] {
+        var result: [FreeFirstSearchProviderCandidate] = []
+        if let provider = tavily(settings) {
+            result.append(FreeFirstSearchProviderCandidate(
+                provider: provider,
+                userConfirmedFreeEligible: settings.tavilySearchFreeFirstEnabled
+            ))
+        }
+        if let provider = customJSON(settings) {
+            result.append(FreeFirstSearchProviderCandidate(
+                provider: provider,
+                userConfirmedFreeEligible: settings.customSearchFreeFirstEnabled
+            ))
+        }
+        return result
+    }
+
+    private static func tavily(_ settings: AISettings) -> (any WebSearchProvider)? {
+        guard settings.isTavilySearchConfigured,
+              let endpoint = URL(string: settings.tavilySearchBaseURL) else { return nil }
+        return TavilyWebSearchProvider(
+            apiKey: settings.tavilySearchAPIKey,
+            endpoint: endpoint
+        )
+    }
+
+    private static func customJSON(_ settings: AISettings) -> (any WebSearchProvider)? {
+        guard settings.isCustomSearchConfigured,
+              let endpoint = URL(string: settings.customSearchBaseURL) else { return nil }
+        return JSONWebSearchProvider(
+            id: "custom-json-search",
+            endpoint: endpoint,
+            apiKey: settings.customSearchAPIKey
+        )
     }
 }
 

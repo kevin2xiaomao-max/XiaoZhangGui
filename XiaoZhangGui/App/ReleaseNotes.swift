@@ -37,10 +37,11 @@ struct ReleaseNotes: Equatable {
                 "AI Provider 设置与外部能力路由进一步完善"
             ]),
             ReleaseNoteSection(icon: "globe", title: "外部能力框架", items: [
-                "Web Search / Tavily wiring 已完成，支持结构化来源与链接",
+                "Web Search 已完成 Provider 通用化，支持 Tavily 与自定义 Search adapter",
+                "免费优先仅使用用户明确允许的已配置 Provider，不会静默产生付费调用",
                 "Vision 图片能力框架已完成，相册选图链路已接入",
                 "PDF / TXT / MD 文件提取与分析链路已完成",
-                "搜索、图片和文件能力代码完成，真机 API 验证待完成"
+                "Search / Vision / File 代码完成，DEVICE/API SMOKE PENDING"
             ]),
             ReleaseNoteSection(icon: "lock.shield", title: "安全与稳定性", items: [
                 "API Key 仅通过本机 Keychain 配置，不写入源码或聊天记录",
