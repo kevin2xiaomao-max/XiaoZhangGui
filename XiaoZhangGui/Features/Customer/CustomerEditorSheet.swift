@@ -17,6 +17,7 @@ struct CustomerEditorSheet: View {
     @State private var note = ""
     @State private var imageData: Data?
     @State private var isInitialized = false
+    @State private var saveError: String?
 
     private var canSave: Bool {
         !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -44,6 +45,10 @@ struct CustomerEditorSheet: View {
         .v32PageBackground()
         .v32Sheet([.large])
         .onAppear(perform: initializeIfNeeded)
+        .alert("保存失败", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
+            Button("重试") { save() }
+            Button("取消", role: .cancel) { saveError = nil }
+        } message: { Text(saveError ?? "请稍后重试") }
     }
 
     private var header: some View {
@@ -63,7 +68,7 @@ struct CustomerEditorSheet: View {
     private var contentCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             V32SectionHeader("购买内容")
-            V32Card {
+            V32FieldGroup {
                 TextField("例：矿泉水2箱、啤酒10瓶、纸巾2包", text: $content, axis: .vertical)
                     .v32Text(.body)
                     .foregroundStyle(V32.textPrimary)
@@ -76,7 +81,7 @@ struct CustomerEditorSheet: View {
     private var addressCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             V32SectionHeader("地址与联系")
-            V32Card {
+            V32FieldGroup {
                 VStack(alignment: .leading, spacing: 12) {
                     TextField("配送地址 / 别墅地址，例：清泉八街24号", text: $roomOrAddress)
                         .v32Text(.body)
@@ -96,7 +101,7 @@ struct CustomerEditorSheet: View {
     private var timeCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             V32SectionHeader("配送时间")
-            V32Card {
+            V32FieldGroup {
                 VStack(spacing: 12) {
                     HStack {
                         Text("设置配送时间")
@@ -121,7 +126,7 @@ struct CustomerEditorSheet: View {
     private var noteCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             V32SectionHeader("备注")
-            V32Card {
+            V32FieldGroup {
                 TextField("例：到了打电话 / 放门口 / 晚上8点送", text: $note, axis: .vertical)
                     .v32Text(.body)
                     .foregroundStyle(V32.textSecondary)
@@ -134,7 +139,7 @@ struct CustomerEditorSheet: View {
     private var imageCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             V32SectionHeader("图片")
-            V32Card { PhotoPickerField(imageData: imageData) { imageData = $0 } }
+            V32FieldGroup { PhotoPickerField(imageData: imageData) { imageData = $0 } }
         }
     }
 
@@ -185,6 +190,7 @@ struct CustomerEditorSheet: View {
             dismiss()
         } catch {
             Haptic.error()
+            saveError = "配送需求未保存，请重试。"
         }
     }
 }

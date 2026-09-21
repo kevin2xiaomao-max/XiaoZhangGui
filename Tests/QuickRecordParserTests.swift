@@ -77,4 +77,39 @@ final class QuickRecordParserTests: XCTestCase {
         XCTAssertEqual(draft.kind, .customer)
         XCTAssertEqual(draft.customer, "302")
     }
+
+    func testExplicitMemoIntentWinsOverEmbeddedTodoWords() {
+        XCTAssertEqual(parser.parse("记一下，进货时带发票", now: now).kind, .memo)
+        XCTAssertEqual(parser.parse("记个备忘，明天供应商来", now: now).kind, .memo)
+        XCTAssertEqual(parser.parse("提醒我明天进货", now: now).kind, .todo)
+        XCTAssertEqual(parser.parse("明天下午3点提醒我补货", now: now).kind, .todo)
+        XCTAssertEqual(parser.parse("新增待办：进货", now: now).kind, .todo)
+    }
+
+    func testChineseMonthDayUsesCurrentYearOrNextYear() {
+        let calendar = Calendar.current
+        let currentYear = calendar.component(.year, from: now)
+        let currentMonth = calendar.component(.month, from: now)
+        let currentDay = calendar.component(.day, from: now)
+
+        let futureMonth = currentMonth == 12 ? 1 : currentMonth + 1
+        let futureYear = currentMonth == 12 ? currentYear + 1 : currentYear
+        let future = parser.parse("临期商品，可乐，\(futureMonth)月1日处理", now: now).date
+        XCTAssertEqual(calendar.component(.year, from: future!), futureYear)
+        XCTAssertEqual(calendar.component(.month, from: future!), futureMonth)
+
+        let past = parser.parse("临期商品，可乐，\(max(1, currentMonth - 1))月1日处理", now: now).date
+        if currentMonth > 1 {
+            XCTAssertEqual(calendar.component(.year, from: past!), currentYear + 1)
+            XCTAssertEqual(calendar.component(.month, from: past!), currentMonth - 1)
+        }
+        _ = currentDay
+    }
+
+    func testChineseMonthDayValidatesCalendarDates() {
+        let date = parser.parse("临期商品，可乐，2月30日处理", now: now).date
+        let calendar = Calendar.current
+        XCTAssertNotEqual(calendar.component(.month, from: date!), 2)
+        XCTAssertNotEqual(calendar.component(.day, from: date!), 30)
+    }
 }

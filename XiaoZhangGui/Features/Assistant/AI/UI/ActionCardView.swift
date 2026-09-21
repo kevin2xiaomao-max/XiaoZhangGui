@@ -15,7 +15,7 @@ struct ActionCardView: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
-        V32Card {
+        V32FieldGroup {
             VStack(alignment: .leading, spacing: 12) {
                 header
                 fields
@@ -69,11 +69,7 @@ struct ActionCardView: View {
                 }
             }
         }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: V32Radius.inset, style: .continuous)
-                .fill(V32.cardInset)
-        )
+        .padding(.vertical, 4)
     }
 
     private var previewBanner: some View {
@@ -85,12 +81,7 @@ struct ActionCardView: View {
             Spacer(minLength: 0)
         }
         .foregroundStyle(V32.amber)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 9)
-        .background(
-            RoundedRectangle(cornerRadius: V32Radius.inset, style: .continuous)
-                .fill(V32.amberSoft)
-        )
+        .padding(.vertical, 4)
     }
 
     private func resultRow(_ text: String) -> some View {
@@ -106,11 +97,10 @@ struct ActionCardView: View {
     }
 
     private var actions: some View {
-        let resolved = proposal.status != .pending || proposal.previewAcknowledged
+        let resolved = (proposal.status != .pending && proposal.status != .failed) || proposal.previewAcknowledged
         return VStack(spacing: 9) {
             V32PrimaryButton(title: confirmTitle, systemName: "checkmark") {
                 onConfirm()
-                Haptic.success()
             }
             .disabled(resolved)
             .opacity(resolved ? 0.55 : 1)
@@ -131,7 +121,7 @@ struct ActionCardView: View {
         switch proposal.status {
         case .executed: return "已记录"
         case .duplicate: return "已跳过重复项"
-        case .failed: return "执行失败"
+        case .failed: return "重试保存"
         default: return proposal.isPreviewOnly ? "确认（仅预览）" : "确认记录"
         }
     }
@@ -139,7 +129,7 @@ struct ActionCardView: View {
     private var statusCaption: String {
         switch proposal.status {
         case .pending: return proposal.isPreviewOnly ? "Foundation 预览 · 不写库" : "待你确认"
-        case .confirmed: return "已确认"
+        case .confirmed: return "正在保存…"
         case .executed: return "已保存"
         case .duplicate: return "重复，已跳过"
         case .failed: return "失败，可重试"

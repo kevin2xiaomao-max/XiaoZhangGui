@@ -53,7 +53,7 @@ struct WeatherDetailSheet: View {
     }
 
     private func heroCard(_ weather: WeatherSnapshot) -> some View {
-        V32HeroCard {
+        V32FieldGroup {
             HStack(spacing: 16) {
                 Image(systemName: weather.symbolName)
                     .font(.system(size: 40, weight: .medium))
@@ -72,7 +72,7 @@ struct WeatherDetailSheet: View {
     }
 
     private func detailCard(_ weather: WeatherSnapshot) -> some View {
-        V32Card {
+        V32FieldGroup {
             VStack(spacing: 0) {
                 if let maxV = weather.roundedMax, let minV = weather.roundedMin {
                     detailRow("今日最高 / 最低", value: "\(maxV)° / \(minV)°")
@@ -115,7 +115,7 @@ struct WeatherDetailSheet: View {
     }
 
     private var emptyCard: some View {
-        V32Card {
+        V32FieldGroup {
             VStack(spacing: 14) {
                 V32EmptyState(
                     systemName: emptySymbol,

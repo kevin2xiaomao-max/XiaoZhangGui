@@ -12,9 +12,13 @@ import SwiftUI
 // - Sheet / modal 不使用本修饰器——它们只使用系统自身 safe area，不计算 Dock 高度。
 
 extension View {
-    /// 在页面滚动内容底部叠加「系统安全区之上的呼吸间距」。
-    /// - Parameter breathing: 设计常量 V32Layout.pageBottomBreathing（非设备测量值）
+    /// 为浮动 Tab Bar 预留共享内容区域，并保留底部呼吸间距。
+    /// 该区域由页面根容器统一提供，避免各页面针对设备写死 padding。
     func v32PageBottomInset(breathing: CGFloat = V32Layout.pageBottomBreathing) -> some View {
-        safeAreaPadding(.bottom, breathing)
+        safeAreaInset(edge: .bottom, spacing: 0) {
+            Color.clear
+                .frame(height: V32Layout.floatingTabBarReservation + breathing)
+                .allowsHitTesting(false)
+        }
     }
 }

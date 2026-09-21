@@ -16,6 +16,7 @@ struct ExpiryEditorSheet: View {
     @State private var note = ""
     @State private var imageData: Data?
     @State private var isInitialized = false
+    @State private var saveError: String?
 
     private var quantity: Int {
         Int(quantityText.filter(\.isNumber)) ?? 0
@@ -49,6 +50,10 @@ struct ExpiryEditorSheet: View {
         .v32PageBackground()
         .v32Sheet([.large])
         .onAppear(perform: initializeIfNeeded)
+        .alert("保存失败", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
+            Button("重试") { save() }
+            Button("取消", role: .cancel) { saveError = nil }
+        } message: { Text(saveError ?? "请稍后重试") }
     }
 
     private var header: some View {
@@ -68,7 +73,7 @@ struct ExpiryEditorSheet: View {
     private var nameCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             V32SectionHeader("商品名称")
-            V32Card {
+            V32FieldGroup {
                 TextField("例如：牛奶 250ml", text: $name)
                     .v32Text(.body)
                     .foregroundStyle(V32.textPrimary)
@@ -80,7 +85,7 @@ struct ExpiryEditorSheet: View {
     private var quantityCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             V32SectionHeader("数量")
-            V32Card {
+            V32FieldGroup {
                 Stepper(value: Binding(
                     get: { max(quantity, 1) },
                     set: { quantityText = String($0) }
@@ -99,7 +104,7 @@ struct ExpiryEditorSheet: View {
     private var expiryCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             V32SectionHeader("到期日期")
-            V32Card {
+            V32FieldGroup {
                 DatePicker(
                     "到期",
                     selection: $expiryDate,
@@ -128,7 +133,7 @@ struct ExpiryEditorSheet: View {
     private var noteCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             V32SectionHeader("备注")
-            V32Card {
+            V32FieldGroup {
                 TextField("供应商、批次等", text: $note)
                     .v32Text(.body)
                     .foregroundStyle(V32.textSecondary)
@@ -140,7 +145,7 @@ struct ExpiryEditorSheet: View {
     private var imageCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             V32SectionHeader("图片")
-            V32Card { PhotoPickerField(imageData: imageData) { imageData = $0 } }
+            V32FieldGroup { PhotoPickerField(imageData: imageData) { imageData = $0 } }
         }
     }
 
@@ -183,6 +188,7 @@ struct ExpiryEditorSheet: View {
             dismiss()
         } catch {
             Haptic.error()
+            saveError = "临期记录未保存，请重试。"
         }
     }
 }

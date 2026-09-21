@@ -20,6 +20,7 @@ struct MoneyEditorSheet: View {
     @State private var category = "其他"
     @State private var date = Date()
     @State private var incomeSource: IncomeSource = .store
+    @State private var saveError: String?
 
     private let incomeSources: [IncomeSource] = IncomeSource.allCases
 
@@ -68,6 +69,10 @@ struct MoneyEditorSheet: View {
         .v32PageBackground()
         .v32Sheet([.medium, .large])
         .onAppear(perform: loadEditing)
+        .alert("保存失败", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
+            Button("重试") { save() }
+            Button("取消", role: .cancel) { saveError = nil }
+        } message: { Text(saveError ?? "请稍后重试") }
     }
 
     // MARK: 头部
@@ -89,19 +94,24 @@ struct MoneyEditorSheet: View {
     // MARK: 金额
 
     private var amountCard: some View {
-        V32HeroCard {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(kind == .income ? "收入金额" : "支出金额")
+                .v32Text(.caption)
+                .foregroundStyle(V32.textSecondary)
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text("¥")
-                    .font(.system(size: 26, weight: .bold, design: .rounded))
-                    .foregroundStyle(V32.brandOnHero)
+                    .font(.system(size: 26, weight: .semibold, design: .rounded))
+                    .foregroundStyle(V32.textSecondary)
                 TextField("0.00", text: $amountText)
                     .font(V32Font.heroMoney)
-                    .foregroundStyle(V32.textOnHero)
-                    .tint(V32.brandOnHero)
+                    .foregroundStyle(V32.textPrimary)
+                    .tint(V32.brand)
                     .keyboardType(.decimalPad)
                     .minimumScaleFactor(0.5)
             }
+            Rectangle().fill(V32.brand.opacity(0.45)).frame(height: 2)
         }
+        .padding(.top, 8)
     }
 
     // MARK: 明细
@@ -109,7 +119,7 @@ struct MoneyEditorSheet: View {
     private var detailCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             V32SectionHeader("明细")
-            V32Card {
+            V32FieldGroup {
                 VStack(alignment: .leading, spacing: 12) {
                     TextField(kind == .income ? "备注（选填）" : "备注（选填，如：进了两箱可乐）", text: $note)
                         .v32Text(.body)
@@ -209,6 +219,7 @@ struct MoneyEditorSheet: View {
             dismiss()
         } catch {
             Haptic.error()
+            saveError = "经营记录未保存，请重试。"
         }
     }
 }

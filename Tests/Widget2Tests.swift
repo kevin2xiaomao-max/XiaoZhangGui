@@ -219,32 +219,50 @@ final class Widget2Tests: XCTestCase {
 
     @MainActor
     func testBuilderFocusItemsPickOverdueThenToday() throws {
+        let container = try makeContainer()
+        let ctx = container.mainContext
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = TimeZone(secondsFromGMT: 0)!
         let reference = cal.date(from: DateComponents(timeZone: cal.timeZone, year: 2026, month: 1, day: 15, hour: 12))!
-        let overdue = WidgetFocusItem(id: "overdue-20260114", kind: .todoOverdue, title: "逾期待办", detail: "逾期", completable: true)
-        let today = WidgetFocusItem(id: "today-20260115", kind: .todoToday, title: "今日待办", detail: "12:00", completable: true)
-        let delivery = WidgetFocusItem(id: "delivery-20260115", kind: .delivery, title: "送牛奶", detail: "王姐", completable: false)
-        let picked = WidgetDashboard.selectFocusItems(overdueTodos: [overdue], todayTodos: [today], deliveries: [delivery], expiries: [])
-        XCTAssertEqual(reference, cal.date(from: DateComponents(timeZone: cal.timeZone, year: 2026, month: 1, day: 15, hour: 12)))
-        XCTAssertEqual(picked.map(\.title), ["逾期待办", "今日待办"])
-        XCTAssertEqual(picked.map(\.completable), [true, true])
+        let overdueDate = cal.date(byAdding: .day, value: -1, to: reference)!
+        ctx.insert(Todo(title: "逾期待办", dueDate: overdueDate))
+        ctx.insert(CustomerRequest(customer: "王姐", content: "送牛奶", status: CustomerStatus.delivering.rawValue))
+        try ctx.save()
+        let todos = try ctx.fetch(FetchDescriptor<Todo>())
+        let performances = try ctx.fetch(FetchDescriptor<Performance>())
+        let expiryItems = try ctx.fetch(FetchDescriptor<ExpiryItem>())
+        let customers = try ctx.fetch(FetchDescriptor<CustomerRequest>())
+        let snapshot = SnapshotBuilder.makeSnapshot(todos: todos, performances: performances, expiryItems: expiryItems, customers: customers, now: reference)
+        XCTAssertEqual(snapshot.focusItems.map(\.title), ["逾期待办", "送牛奶"])
+        XCTAssertEqual(snapshot.focusItems.map(\.completable), [true, false])
     }
 
     @MainActor
     func testBuilderFocusItemsFallbackToDeliveryExpiryAndExcludesGenericTitles() throws {
         let container = try makeContainer()
         let ctx = container.mainContext
-        let cal = Calendar.current
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(secondsFromGMT: 0)!
+        let reference = cal.date(from: DateComponents(timeZone: cal.timeZone, year: 2026, month: 1, day: 15, hour: 12))!
         // 无意义标题的待办不进焦点事项（但仍计入计数口径）
-        ctx.insert(Todo(title: "记录", dueDate: Date(timeIntervalSinceNow: 3600)))
+        ctx.insert(Todo(title: "记录", dueDate: cal.date(byAdding: .hour, value: 1, to: reference)!))
         let request = CustomerRequest(customer: "王姐", roomOrAddress: "3 栋 502",
                                       content: "鲜牛奶两箱", status: CustomerStatus.delivering.rawValue)
         ctx.insert(request)
-        ctx.insert(ExpiryItem(name: "酸奶", expiryDate: cal.date(byAdding: .day, value: 1, to: Date().startOfDay)!))
+        ctx.insert(ExpiryItem(name: "酸奶", expiryDate: cal.date(byAdding: .day, value: 1, to: reference)!))
         try ctx.save()
 
-        let snapshot = try XCTUnwrap(SnapshotSyncManager.buildSnapshot(context: ctx))
+        let todos = try ctx.fetch(FetchDescriptor<Todo>())
+        let performances = try ctx.fetch(FetchDescriptor<Performance>())
+        let expiryItems = try ctx.fetch(FetchDescriptor<ExpiryItem>())
+        let customers = try ctx.fetch(FetchDescriptor<CustomerRequest>())
+        let snapshot = SnapshotBuilder.makeSnapshot(
+            todos: todos,
+            performances: performances,
+            expiryItems: expiryItems,
+            customers: customers,
+            now: reference
+        )
         XCTAssertEqual(snapshot.focusItems.count, 2)
         XCTAssertEqual(snapshot.focusItems.first?.kind, .delivery)
         XCTAssertEqual(snapshot.focusItems.first?.id, "delivery-\(request.notificationID)")

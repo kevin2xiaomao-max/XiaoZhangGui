@@ -101,7 +101,7 @@ struct PaymentCodeView: View {
     }
 
     private var emptyState: some View {
-        V32Card {
+        V32FieldGroup {
             VStack(spacing: 16) {
                 V32EmptyState(systemName: "qrcode",
                               title: "还没有收款码",
@@ -142,7 +142,7 @@ private struct PaymentCodeRow: View {
     let onDelete: () -> Void
 
     var body: some View {
-        V32Card {
+        V32FieldGroup {
             HStack(spacing: 12) {
                 Button(action: onOpen) {
                     HStack(spacing: 12) {

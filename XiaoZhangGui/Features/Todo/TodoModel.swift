@@ -7,7 +7,7 @@ enum TodoTab: String, CaseIterable, Identifiable, Hashable {
     case tomorrow = "明天"
     case overdue = "逾期"
     case done = "已完成"
-    case records = "记录"
+    case records = "备忘"
 
     var id: String { rawValue }
 }
@@ -74,7 +74,7 @@ enum TodoFilter {
         case .tomorrow: return "明天暂无待办"
         case .overdue: return "没有逾期事项，真棒"
         case .done: return "还没有已完成的任务"
-        case .records: return "暂无记录"
+        case .records: return "暂无备忘"
         }
     }
 }

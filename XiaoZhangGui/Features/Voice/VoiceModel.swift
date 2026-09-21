@@ -15,11 +15,11 @@ enum VoicePhase: Equatable {
     var statusText: String {
         switch self {
         case .idle: return "点击麦克风开始"
-        case .listening: return "正在聆听"
-        case .recognized: return "正在识别…"
-        case .parsing: return "正在解析…"
-        case .preview: return "确认一下"
-        case .saving: return "正在保存…"
+        case .listening: return QuickCaptureSemantic.listening
+        case .recognized: return QuickCaptureSemantic.processing
+        case .parsing: return QuickCaptureSemantic.processing
+        case .preview: return QuickCaptureSemantic.ready
+        case .saving: return QuickCaptureSemantic.saving
         case .error(let message): return message
         case .textFallback: return "手动输入内容"
         }

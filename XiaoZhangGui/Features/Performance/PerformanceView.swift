@@ -9,6 +9,8 @@ struct PerformanceView: View {
     @State private var newRecordKind: NewMoneyKind?
     @State private var editingPerformance: Performance?
     @State private var editingExpense: Expense?
+    @State private var deletingRecord: MoneyRecord?
+    @State private var deleteError: String?
 
     private var todayRevenue: Double {
         performances.filter { $0.date.isToday }.reduce(0) { $0 + $1.amount }
@@ -74,6 +76,19 @@ struct PerformanceView: View {
         .sheet(item: $newRecordKind) { MoneyEditorSheet(mode: .new($0)) }
         .sheet(item: $editingPerformance) { MoneyEditorSheet(mode: .editPerformance($0)) }
         .sheet(item: $editingExpense) { MoneyEditorSheet(mode: .editExpense($0)) }
+        .confirmationDialog("删除这条经营记录？", isPresented: Binding(get: { deletingRecord != nil }, set: { if !$0 { deletingRecord = nil } }), titleVisibility: .visible) {
+            Button("删除", role: .destructive) {
+                if let record = deletingRecord {
+                    do { try deleteRecord(record) }
+                    catch { deleteError = "经营记录未删除，请重试。" }
+                }
+                deletingRecord = nil
+            }
+            Button("取消", role: .cancel) { deletingRecord = nil }
+        }
+        .alert("删除失败", isPresented: Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })) {
+            Button("知道了", role: .cancel) { deleteError = nil }
+        } message: { Text(deleteError ?? "请稍后重试") }
     }
 
     // MARK: Hero
@@ -154,7 +169,7 @@ struct PerformanceView: View {
                 .v32Text(.caption)
                 .foregroundStyle(V32.textTertiary)
                 .padding(.leading, 4)
-            V32Card {
+            V32FieldGroup {
                 VStack(spacing: 0) {
                     ForEach(Array(active.enumerated()), id: \.element.id) { index, item in
                         if index > 0 {
@@ -194,7 +209,7 @@ struct PerformanceView: View {
                 .foregroundStyle(V32.textTertiary)
                 .padding(.leading, 4)
             if records.isEmpty {
-                V32Card {
+            V32FieldGroup {
                     VStack(spacing: 12) {
                         V32EmptyState(systemName: "tray", title: "暂无记录", message: nil)
                         V32PrimaryButton(title: "记一笔", systemName: "plus") { newRecordKind = .income }
@@ -203,7 +218,7 @@ struct PerformanceView: View {
                     .padding(.vertical, 8)
                 }
             } else {
-                V32Card(padding: 4) {
+                V32FieldGroup(padding: 4) {
                     VStack(spacing: 0) {
                         ForEach(Array(records.prefix(12).enumerated()), id: \.element.id) { index, record in
                             if index > 0 { Rectangle().fill(V32.divider).frame(height: 1).padding(.leading, 48) }
@@ -213,7 +228,7 @@ struct PerformanceView: View {
                                     if let value = record.performance { editingPerformance = value }
                                     if let value = record.expense { editingExpense = value }
                                 },
-                                onDelete: { deleteRecord(record) }
+                                onDelete: { deletingRecord = record }
                             )
                         }
                     }
@@ -231,10 +246,10 @@ struct PerformanceView: View {
         }
     }
 
-    private func deleteRecord(_ record: MoneyRecord) {
+    private func deleteRecord(_ record: MoneyRecord) throws {
         Haptic.warning()
-        if let value = record.performance { try? PerformanceRepository(context: context).delete(value) }
-        if let value = record.expense { try? ExpenseRepository(context: context).delete(value) }
+        if let value = record.performance { try PerformanceRepository(context: context).delete(value) }
+        if let value = record.expense { try ExpenseRepository(context: context).delete(value) }
     }
 }
 

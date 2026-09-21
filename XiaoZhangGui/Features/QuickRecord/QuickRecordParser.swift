@@ -61,6 +61,18 @@ struct LocalQuickRecordParser: QuickRecordParsing {
                 raw: trimmed
             )
         }
+        if isExplicitMemo(trimmed) {
+            return QuickRecordDraft(
+                kind: .memo,
+                title: String(trimmed.prefix(20)),
+                amount: nil,
+                date: date,
+                quantity: nil,
+                customer: nil,
+                note: trimmed,
+                raw: trimmed
+            )
+        }
         if isTodo(trimmed) {
             return QuickRecordDraft(
                 kind: .todo,
@@ -132,6 +144,10 @@ struct LocalQuickRecordParser: QuickRecordParsing {
 
     private func isTodo(_ text: String) -> Bool {
         Self.todoSignals.contains(where: text.contains)
+    }
+
+    private func isExplicitMemo(_ text: String) -> Bool {
+        ["记一下", "记个备忘", "备忘", "记下来"].contains(where: text.contains)
     }
 
     private func isCustomer(_ text: String) -> Bool {
@@ -230,11 +246,41 @@ enum DatePhraseParser {
             date = weekday
             matched = true
         }
+        if let monthDay = monthDay(in: text, from: now) {
+            date = monthDay
+            matched = true
+        }
         if let time = parseTime(text, on: date) {
             date = time
             matched = true
         }
         return matched ? date : nil
+    }
+
+    private static func monthDay(in text: String, from now: Date) -> Date? {
+        guard let regex = try? NSRegularExpression(pattern: #"(\d{1,2})月(\d{1,2})日"#),
+              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+              let monthRange = Range(match.range(at: 1), in: text),
+              let dayRange = Range(match.range(at: 2), in: text),
+              let month = Int(text[monthRange]),
+              let day = Int(text[dayRange]),
+              (1...12).contains(month), (1...31).contains(day) else { return nil }
+
+        var calendar = Calendar.current
+        let nowComponents = calendar.dateComponents([.year, .month, .day], from: now)
+        var components = DateComponents(year: nowComponents.year, month: month, day: day)
+        guard let candidate = calendar.date(from: components),
+              calendar.component(.month, from: candidate) == month,
+              calendar.component(.day, from: candidate) == day else { return nil }
+
+        if candidate < calendar.startOfDay(for: now) {
+            components.year = (nowComponents.year ?? calendar.component(.year, from: now)) + 1
+            guard let next = calendar.date(from: components),
+                  calendar.component(.month, from: next) == month,
+                  calendar.component(.day, from: next) == day else { return nil }
+            return next
+        }
+        return candidate
     }
 
     private static func weekdayOffset(in text: String, from now: Date) -> Date? {

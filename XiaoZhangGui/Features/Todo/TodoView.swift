@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftData
 import PhotosUI
 
-// MARK: - 待办（V32）：仅负责 Todo 生命周期管理
+// MARK: - 待办：负责 Todo 生命周期管理与清晰的 flat list 呈现
 
 struct TodoView: View {
     @Environment(\.modelContext) private var context
@@ -13,10 +13,14 @@ struct TodoView: View {
     @State private var tab: TodoTab = .today
     @State private var showNewEditor = false
     @State private var showNewRecord = false
+    @State private var showNewMemo = false
     @State private var editingTodo: Todo?
     @State private var togglingIDs: Set<PersistentIdentifier> = []
     /// 完成瞬间本地暂留的行：数据已写库，但视觉上留约 0.3s 做 fade/收缩后再移出（T21）
     @State private var finishingIDs: Set<PersistentIdentifier> = []
+    @State private var deletingTodo: Todo?
+    @State private var deleteError: String?
+    @State private var stateActionError: String?
 
     private var list: [Todo] {
         if tab == .records { return [] }
@@ -38,7 +42,7 @@ struct TodoView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                // P0-2：切换控件必须始终可见——切到「记录」后用户必须有入口回到其它 tab。
+                // 切换控件始终可见；「备忘」展示独立 Memo 内容。
                 // 只隐藏统计数字区域，不隐藏 tab 导航。
                 tabPicker
                 if tab != .records { statsCard }
@@ -55,16 +59,34 @@ struct TodoView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    if tab == .records { showNewRecord = true } else { showNewEditor = true }
+                    if tab == .records { showNewMemo = true } else { showNewEditor = true }
                 } label: {
                     Image(systemName: "plus")
                 }
-                .accessibilityLabel(tab == .records ? "新增记录" : "新增待办")
+                .accessibilityLabel(tab == .records ? "新增备忘" : "新增待办")
             }
         }
         .sheet(isPresented: $showNewEditor) { TodoEditorSheet(todo: nil) }
         .sheet(isPresented: $showNewRecord) { RecordEditorSheet() }
+        .sheet(isPresented: $showNewMemo) { MemoEditorSheet(memo: nil) }
         .sheet(item: $editingTodo) { TodoEditorSheet(todo: $0) }
+        .sheet(item: $editingMemo) { MemoEditorSheet(memo: $0) }
+        .confirmationDialog("删除这条待办？", isPresented: Binding(get: { deletingTodo != nil }, set: { if !$0 { deletingTodo = nil } }), titleVisibility: .visible) {
+            Button("删除", role: .destructive) {
+                if let todo = deletingTodo {
+                    do { try TodoRepository(context: context).delete(todo); Haptic.warning() }
+                    catch { deleteError = "待办未删除，请重试。" }
+                }
+                deletingTodo = nil
+            }
+            Button("取消", role: .cancel) { deletingTodo = nil }
+        }
+        .alert("删除失败", isPresented: Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })) {
+            Button("知道了", role: .cancel) { deleteError = nil }
+        } message: { Text(deleteError ?? "请稍后重试") }
+        .alert("操作失败", isPresented: Binding(get: { stateActionError != nil }, set: { if !$0 { stateActionError = nil } })) {
+            Button("知道了", role: .cancel) { stateActionError = nil }
+        } message: { Text(stateActionError ?? "待办状态未改变，请重试") }
     }
 
     // MARK: 顶部
@@ -81,7 +103,7 @@ struct TodoView: View {
             }
             Spacer()
             Button {
-                if tab == .records { showNewRecord = true } else { showNewEditor = true }
+                if tab == .records { showNewMemo = true } else { showNewEditor = true }
             } label: {
                 Image(systemName: "plus")
                     .font(.system(size: 18, weight: .bold))
@@ -90,7 +112,7 @@ struct TodoView: View {
                     .background(Circle().fill(V32.hero))
             }
             .buttonStyle(V32PressButtonStyle())
-            .accessibilityLabel(tab == .records ? "新增记录" : "新增待办")
+            .accessibilityLabel(tab == .records ? "新增备忘" : "新增待办")
         }
     }
 
@@ -104,7 +126,7 @@ struct TodoView: View {
         ))
     }
 
-    /// 统计数字区域（仅非「记录」tab 显示）
+    /// 统计数字区域（仅非「备忘」tab 显示）
     private var statsCard: some View {
         HStack(spacing: 8) {
             statCell(value: todayCount, label: "待办", icon: "sun.max", tint: V32.brand)
@@ -160,21 +182,19 @@ struct TodoView: View {
                         .v32Text(.caption)
                         .foregroundStyle(V32.textTertiary)
                         .padding(.leading, 4)
-                    V32Card(padding: 4) {
-                        VStack(spacing: 0) {
-                            ForEach(Array(group.items.enumerated()), id: \.element.persistentModelID) { index, todo in
-                                if index > 0 {
-                                    Rectangle().fill(V32.divider).frame(height: 1).padding(.leading, 48)
-                                }
-                                TodoListRow(
-                                    todo: todo,
-                                    isOverdueTab: tab == .overdue,
-                                    isFinishing: finishingIDs.contains(todo.persistentModelID),
-                                    onToggle: { toggle(todo) },
-                                    onEdit: { editingTodo = todo },
-                                    onDelete: { delete(todo) }
-                                )
+                    VStack(spacing: 0) {
+                        ForEach(Array(group.items.enumerated()), id: \.element.persistentModelID) { index, todo in
+                            if index > 0 {
+                                Rectangle().fill(V32.divider).frame(height: 1).padding(.leading, 48)
                             }
+                            TodoListRow(
+                                todo: todo,
+                                isOverdueTab: tab == .overdue,
+                                isFinishing: finishingIDs.contains(todo.persistentModelID),
+                                onToggle: { toggle(todo) },
+                                onEdit: { editingTodo = todo },
+                                onDelete: { delete(todo) }
+                            )
                         }
                     }
                 }
@@ -186,34 +206,24 @@ struct TodoView: View {
         VStack(alignment: .leading, spacing: 10) {
             if memos.isEmpty {
                 V32Card {
-                    V32EmptyState(systemName: "note.text", title: "暂无记录", message: nil)
+                    V32EmptyState(systemName: "note.text", title: "暂无备忘", message: nil)
                         .padding(.vertical, 8)
                 }
             } else {
-                V32Card(padding: 4) {
-                    VStack(spacing: 0) {
-                        ForEach(Array(memos.sorted { $0.updatedAt > $1.updatedAt }.enumerated()), id: \.element.persistentModelID) { index, memo in
-                            if index > 0 { Rectangle().fill(V32.divider).frame(height: 1).padding(.leading, 48) }
-                            HStack(spacing: 12) {
-                                V32IconBubble(systemName: "note.text", tone: .neutral, size: 34, icon: 15)
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(memo.title)
-                                        .v32Text(.title)
-                                        .foregroundStyle(V32.textPrimary)
-                                        .lineLimit(2)
-                                    Text(Fmt.shortDateTime(memo.updatedAt))
-                                        .v32Text(.caption)
-                                        .foregroundStyle(V32.textTertiary)
-                                }
-                                Spacer()
-                            }
-                            .padding(.horizontal, 12)
-                            .frame(minHeight: 54)
-                        }
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                    ForEach(memos.sorted { $0.updatedAt > $1.updatedAt }) { memo in
+                        MemoCard(memo: memo, onEdit: { editingMemo = memo }, onDelete: { deleteMemo(memo) })
                     }
                 }
             }
         }
+    }
+
+    @State private var editingMemo: Memo?
+
+    private func deleteMemo(_ memo: Memo) {
+        do { try MemoRepository(context: context).delete(memo); Haptic.warning() }
+        catch { stateActionError = "备忘未删除，请重试。" }
     }
 
     /// 立即写库；动画只做视觉，不延迟业务保存。防重复点击：动画窗口内忽略同一项。
@@ -222,9 +232,14 @@ struct TodoView: View {
         guard !togglingIDs.contains(pid) else { return }
         togglingIDs.insert(pid)
         finishingIDs.insert(pid)
-        Haptic.light()
         withAnimation(V32Motion.animation(V32Motion.resolve(.spring, reduceMotion: reduceMotion))) {
-            try? TodoRepository(context: context).toggleComplete(todo)
+            do {
+                try TodoRepository(context: context).toggleComplete(todo)
+                todo.isCompleted ? Haptic.success() : Haptic.light()
+            } catch {
+                Haptic.error()
+                stateActionError = "待办状态未改变，请重试。"
+            }
         }
         // 数据已立即写库；仅视觉层暂留行 ~0.3s 后让其淡出移出
         Task { @MainActor in
@@ -235,10 +250,7 @@ struct TodoView: View {
     }
 
     private func delete(_ todo: Todo) {
-        Haptic.warning()
-        withAnimation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion))) {
-            try? TodoRepository(context: context).delete(todo)
-        }
+        deletingTodo = todo
     }
 }
 

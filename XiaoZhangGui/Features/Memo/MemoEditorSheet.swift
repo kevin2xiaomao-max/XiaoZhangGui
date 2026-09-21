@@ -13,6 +13,7 @@ struct MemoEditorSheet: View {
     @State private var content = ""
     @State private var imageData: Data?
     @State private var isInitialized = false
+    @State private var saveError: String?
 
     private var canSave: Bool {
         !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
@@ -38,6 +39,10 @@ struct MemoEditorSheet: View {
         .v32PageBackground()
         .v32Sheet([.medium, .large])
         .onAppear(perform: initializeIfNeeded)
+        .alert("保存失败", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
+            Button("重试") { save() }
+            Button("取消", role: .cancel) { saveError = nil }
+        } message: { Text(saveError ?? "请稍后重试") }
     }
 
     private var header: some View {
@@ -57,7 +62,7 @@ struct MemoEditorSheet: View {
     private var titleCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             V32SectionHeader("标题")
-            V32Card {
+            V32FieldGroup {
                 TextField("记录标题", text: $title)
                     .v32Text(.headline)
                     .foregroundStyle(V32.textPrimary)
@@ -69,7 +74,7 @@ struct MemoEditorSheet: View {
     private var contentCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             V32SectionHeader("内容")
-            V32Card {
+            V32FieldGroup {
                 TextField("记点什么…", text: $content, axis: .vertical)
                     .v32Text(.body)
                     .foregroundStyle(V32.textSecondary)
@@ -82,7 +87,7 @@ struct MemoEditorSheet: View {
     private var imageCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             V32SectionHeader("图片")
-            V32Card { PhotoPickerField(imageData: imageData) { imageData = $0 } }
+            V32FieldGroup { PhotoPickerField(imageData: imageData) { imageData = $0 } }
         }
     }
 
@@ -112,6 +117,7 @@ struct MemoEditorSheet: View {
             dismiss()
         } catch {
             Haptic.error()
+            saveError = "备忘未保存，请重试。"
         }
     }
 }

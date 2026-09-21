@@ -1,11 +1,10 @@
 import Foundation
 
 enum V35DrawerDestination: String, CaseIterable, Identifiable {
-    case performance, transactions, dailyReport, customer, expiry, goods, memo, quickRecord, saobeiImport, profile
+    case transactions, dailyReport, customer, expiry, goods, memo, quickRecord, saobeiImport
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .performance: return "经营数据"
         case .transactions: return "交易记录"
         case .dailyReport: return "今日经营报告"
         case .customer: return "客户需求"
@@ -14,12 +13,10 @@ enum V35DrawerDestination: String, CaseIterable, Identifiable {
         case .memo: return "备忘"
         case .quickRecord: return "快速记一笔"
         case .saobeiImport: return "扫呗导入"
-        case .profile: return "我的设置"
         }
     }
     var icon: String {
         switch self {
-        case .performance: return "chart.line.uptrend.xyaxis"
         case .transactions: return "list.bullet.rectangle"
         case .dailyReport: return "doc.text.magnifyingglass"
         case .customer: return "person.2"
@@ -28,7 +25,6 @@ enum V35DrawerDestination: String, CaseIterable, Identifiable {
         case .memo: return "note.text"
         case .quickRecord: return "plus.circle"
         case .saobeiImport: return "square.and.arrow.down"
-        case .profile: return "person.crop.circle"
         }
     }
 }

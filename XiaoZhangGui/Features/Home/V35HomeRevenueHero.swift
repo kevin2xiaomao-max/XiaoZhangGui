@@ -19,7 +19,7 @@ struct V35HomeRevenueHero: View {
                         if let change = summary.changePercent { Label(String(format: "%+.1f%% 较昨日", change), systemImage: change >= 0 ? "arrow.up.right" : "arrow.down.right").font(.caption.weight(.semibold)).foregroundStyle(V32.brandOnHero) }
                     }
                     Spacer(minLength: 12)
-                    if summary.trend.contains(where: { $0.value > 0 }) { HomeSparkline(points: summary.trend).foregroundStyle(ThemeStore.shared.accentPalette.chartAccent).frame(width: 92, height: 42).padding(.top, 18) }
+                    if summary.trend.contains(where: { $0.value > 0 }) { HomeSparkline(points: summary.trend, lineColor: ThemeStore.shared.accentPalette.chartAccent).frame(width: 92, height: 42).padding(.top, 18) }
                 }
                 Rectangle().fill(V32.dividerOnHero).frame(height: 1)
                 HStack(spacing: 18) {

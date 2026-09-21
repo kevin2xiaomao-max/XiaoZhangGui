@@ -11,6 +11,7 @@ struct CustomerView: View {
     @State private var editingRequest: CustomerRequest?
     @State private var deletingRequest: CustomerRequest?
     @State private var showDoneToast = false
+    @State private var deleteError: String?
 
     private var shown: [CustomerRequest] {
         let list = filter == .all ? requests : requests.filter { $0.statusEnum == filter.status }
@@ -32,11 +33,15 @@ struct CustomerView: View {
                     )
                 )
                 if shown.isEmpty {
-                    V32Card {
+                    V32FieldGroup {
                         VStack(spacing: 12) {
-                            V32EmptyState(systemName: "shippingbox", title: "当前没有配送需求", message: nil)
-                            V32PrimaryButton(title: "新增配送", systemName: "plus") { showNewEditor = true }
-                                .padding(.horizontal, 24)
+                            if requests.isEmpty {
+                                V32EmptyState(systemName: "shippingbox", title: "暂无客户需求", message: "可以先新增一条配送需求")
+                                V32PrimaryButton(title: "新增配送", systemName: "plus") { showNewEditor = true }
+                                    .padding(.horizontal, 24)
+                            } else {
+                                V32EmptyState(systemName: "line.3.horizontal.decrease.circle", title: "当前筛选暂无结果", message: "可以切换筛选查看其他需求")
+                            }
                         }
                         .padding(.vertical, 8)
                     }
@@ -44,8 +49,6 @@ struct CustomerView: View {
                     // P0-2：每个 Row 用 V32SwipeRow 包装，
                     // 让 pending → 右滑露出「开始配送」、delivering → 右滑露出「✓ 完成」。
                     // done 状态 actions 为空，不允许 swipe。
-                    // 整体保留 b27 的 V32Card 外观（圆角 + 白底 + 描边），
-                    // 额外加 clipShape 让 swipe 偏移不溢出圆角边界。
                     VStack(spacing: 0) {
                         ForEach(Array(shown.enumerated()), id: \.element.persistentModelID) { index, request in
                             if index > 0 {
@@ -60,19 +63,10 @@ struct CustomerView: View {
                                     onDelete: { deletingRequest = request }
                                 )
                             }
-                            .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                            .transition(.opacity.combined(with: reduceMotion ? .identity : .scale(scale: 0.98)))
                         }
                     }
-                    .padding(4)
-                    .background(
-                        RoundedRectangle(cornerRadius: V32Radius.card, style: .continuous)
-                            .fill(V32.card)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: V32Radius.card, style: .continuous)
-                            .strokeBorder(V32.cardOutline, lineWidth: 1)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: V32Radius.card, style: .continuous))
+                    .padding(.vertical, 2)
                 }
             }
             .padding(.horizontal, V32Layout.pageMargin)
@@ -111,12 +105,16 @@ struct CustomerView: View {
             Button("删除", role: .destructive) {
                 if let request = deletingRequest {
                     Haptic.warning()
-                    try? CustomerRepository(context: context).delete(request)
+                    do { try CustomerRepository(context: context).delete(request) }
+                    catch { deleteError = "客户需求未删除，请重试。" }
                 }
                 deletingRequest = nil
             }
             Button("取消", role: .cancel) { deletingRequest = nil }
         }
+        .alert("删除失败", isPresented: Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })) {
+            Button("知道了", role: .cancel) { deleteError = nil }
+        } message: { Text(deleteError ?? "请稍后重试") }
     }
 
     private func advance(_ request: CustomerRequest) {
@@ -124,9 +122,9 @@ struct CustomerView: View {
         try? CustomerRepository(context: context).advanceStatus(request)
         if willComplete {
             Haptic.success()
-            withAnimation(V32Motion.softSpring) { showDoneToast = true }
+            withAnimation(reduceMotion ? nil : V32Motion.softSpring) { showDoneToast = true }
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                withAnimation(V32Motion.softSpring) { showDoneToast = false }
+                withAnimation(reduceMotion ? nil : V32Motion.softSpring) { showDoneToast = false }
             }
         } else {
             Haptic.light()
@@ -371,7 +369,7 @@ private struct V32SwipeRow<Content: View>: View {
                                 offsetX = snapped
                             }
                         }
-                )
+        )
         }
     }
 

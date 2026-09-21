@@ -3,10 +3,9 @@ import XCTest
 
 final class V35DrawerTests: XCTestCase {
     func testDestinationMappingHasStableTitlesAndIcons() {
-        XCTAssertEqual(V35DrawerDestination.performance.title, "经营数据")
         XCTAssertEqual(V35DrawerDestination.transactions.title, "交易记录")
         XCTAssertEqual(V35DrawerDestination.quickRecord.icon, "plus.circle")
-        XCTAssertEqual(V35DrawerDestination.allCases.count, 10)
+        XCTAssertEqual(V35DrawerDestination.allCases.count, 8)
     }
 
     func testDrawerProgressAndPredictedEndDecision() {

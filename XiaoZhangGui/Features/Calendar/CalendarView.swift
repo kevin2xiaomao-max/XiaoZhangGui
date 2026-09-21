@@ -39,7 +39,7 @@ struct CalendarView: View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: V32Layout.sectionGap) {
                 monthNavigator
-                V32Card {
+                V32FieldGroup {
                     VStack(spacing: 4) {
                         weekdayHeader
                         monthGrid
@@ -202,7 +202,7 @@ struct CalendarView: View {
                 .v32Text(.headline)
                 .foregroundStyle(V32.textPrimary)
 
-            V32Card {
+            V32FieldGroup {
                 if detailItems.isEmpty {
                     Text("当天暂无经营记录")
                         .v32Text(.subhead)

@@ -16,6 +16,7 @@ struct ScheduleView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectedDate = Date()
     @State private var expandedExpiry: Set<String> = []
+    @State private var stateActionError: String?
 
     private var calendar: Calendar {
         var c = Calendar.current
@@ -80,6 +81,9 @@ struct ScheduleView: View {
         .scrollIndicators(.hidden)
         .v32PageBackground()
         .v32PageBottomInset()
+        .alert("操作失败", isPresented: Binding(get: { stateActionError != nil }, set: { if !$0 { stateActionError = nil } })) {
+            Button("知道了", role: .cancel) { stateActionError = nil }
+        } message: { Text(stateActionError ?? "事项状态未改变，请重试") }
         .navigationTitle("日程")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -190,7 +194,7 @@ struct ScheduleView: View {
                 Text("\(day)")
                     .v32Text(.headline)
             }
-            .foregroundStyle(isSelected ? ThemeStore.shared.accentPalette.onAccent : (isToday ? V32.brand : V32.textSecondary))
+            .foregroundStyle(isSelected ? V32.textPrimary : (isToday ? V32.brand : V32.textSecondary))
             .frame(maxWidth: .infinity)
             .padding(.vertical, 9)
             .background(
@@ -263,8 +267,7 @@ struct ScheduleView: View {
 
     private func timelineCard(_ event: ScheduleEvent, chevron: Bool) -> some View {
         let done = isCompletedTodo(event) || isCompletedDelivery(event)
-        return V32Card {
-            HStack(spacing: 12) {
+        return HStack(spacing: 12) {
                 eventIcon(event)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(eventTitle(event))
@@ -284,7 +287,8 @@ struct ScheduleView: View {
                         .foregroundStyle(V32.textQuaternary)
                 }
             }
-        }
+            .padding(.vertical, 10)
+            .contentShape(Rectangle())
     }
 
     // MARK: 全天事项
@@ -301,11 +305,11 @@ struct ScheduleView: View {
             }
 
             if scheduleDay.allDay.isEmpty && scheduleDay.timedEvents.isEmpty {
-                V32Card {
-                    V32EmptyState(systemName: "sun.max", title: "这天没有安排", message: "好好经营，也别忘了休息")
+                V32FieldGroup {
+                    V32EmptyState(systemName: "sun.max", title: "该日期暂无事项", message: "这一天还没有安排")
                 }
             } else if !scheduleDay.allDay.isEmpty {
-                V32Card(padding: 4) {
+                V32FieldGroup {
                     VStack(spacing: 0) {
                         ForEach(scheduleDay.allDay.todos, id: \.persistentModelID) { todo in
                             allDayTodoRow(todo)
@@ -349,8 +353,14 @@ struct ScheduleView: View {
     private func allDayTodoRow(_ todo: Todo) -> some View {
         HStack(spacing: 12) {
             V32Checkbox(checked: todo.isCompleted) {
-                try? TodoRepository(context: modelContext).toggleComplete(todo)
-                Haptic.light()
+                let wasCompleted = todo.isCompleted
+                do {
+                    try TodoRepository(context: modelContext).toggleComplete(todo)
+                    wasCompleted ? Haptic.light() : Haptic.success()
+                } catch {
+                    Haptic.error()
+                    stateActionError = "事项状态未改变，请重试。"
+                }
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(DisplayText.visible(todo.title, fallback: "待办事项"))
@@ -472,7 +482,7 @@ struct ScheduleView: View {
         VStack(alignment: .leading, spacing: 12) {
             V32SectionHeader("当日经营")
             NavigationLink { PerformanceView() } label: {
-                V32Card {
+                V32FieldGroup {
                     HStack(spacing: 8) {
                         V32MetricCell(label: "当日收入", value: "¥" + Fmt.groupedAmount(s.revenue))
                         divider

@@ -29,6 +29,7 @@ struct QuickRecordSheet: View {
     /// 用户手动改类型时覆盖自动识别；重新输入后回到自动识别。
     @State private var overriddenKind: QuickRecordKind?
     @State private var savedMessage: String?
+    @State private var errorMessage: String?
     @State private var voice = QuickRecordVoiceRecorder()
 
     private let parser = LocalQuickRecordParser()
@@ -64,7 +65,12 @@ struct QuickRecordSheet: View {
                         Text(savedMessage).v32Text(.body).foregroundStyle(V32.textSecondary)
                     }
                 }
-                V32PrimaryButton(title: "保存", systemName: "checkmark.circle.fill") { commit() }
+                if let errorMessage {
+                    Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                        .v32Text(.caption)
+                        .foregroundStyle(V32.danger)
+                }
+                V32PrimaryButton(title: "确认保存", systemName: "checkmark.circle.fill") { commit() }
                     .disabled(!canSave)
                     .opacity(canSave ? 1 : 0.5)
                     .accessibilityHint(canSave ? "" : "说一句话或输入内容后即可保存")
@@ -80,6 +86,7 @@ struct QuickRecordSheet: View {
         .onDisappear { voice.cancel() }
         .onChange(of: text) { _, newValue in
             overriddenKind = nil
+            errorMessage = nil
             let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
             parsedDraft = trimmed.isEmpty ? nil : parser.parse(trimmed)
         }
@@ -112,7 +119,7 @@ struct QuickRecordSheet: View {
                     micButton
                 }
             }
-            V32Card {
+            V32FieldGroup {
                 TextField("例如：今天美团680", text: $text, axis: .vertical)
                     .v32Text(.body)
                     .foregroundStyle(V32.textPrimary)
@@ -157,7 +164,7 @@ struct QuickRecordSheet: View {
     }
 
     private var voiceCard: some View {
-        V32Card {
+        V32FieldGroup {
             HStack(alignment: .center, spacing: 12) {
                 ZStack {
                     Circle()
@@ -229,7 +236,7 @@ struct QuickRecordSheet: View {
     private func resultCard(_ draft: QuickRecordDraft) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             V32SectionHeader("识别结果")
-            V32Card {
+            V32FieldGroup {
                 VStack(spacing: 0) {
                     kindRow(draft)
                     divider
@@ -341,10 +348,12 @@ struct QuickRecordSheet: View {
                 try MemoRepository(context: context).add(title: draft.title, content: draft.note)
             }
             Haptic.success()
-            savedMessage = "已保存：\(kindLabel(draft.kind))"
+            errorMessage = nil
+            savedMessage = QuickCaptureSemantic.savedMessage(destination: kindLabel(draft.kind))
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { dismiss() }
         } catch {
             Haptic.error()
+            errorMessage = QuickCaptureSemantic.failed
         }
     }
 }

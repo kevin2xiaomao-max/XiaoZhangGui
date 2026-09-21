@@ -3,7 +3,7 @@ import SwiftData
 import PhotosUI
 import UniformTypeIdentifiers
 
-// MARK: - 我的（V32）：个人头部 + 经营数据入口 + 分组设置
+// MARK: - 我的：个人身份与分组设置
 
 struct ProfileView: View {
     @Binding var tab: AppTab
@@ -128,9 +128,11 @@ struct ProfileView: View {
 
     private var profileHero: some View {
         Button { shopDialog = true } label: {
-            V32Card {
-                HStack(spacing: 12) {
-                    V32IconBubble(systemName: "storefront.fill", tone: .brand, size: 40, icon: 18)
+            HStack(spacing: 12) {
+                    Image(systemName: "storefront.fill")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(V32.brand)
+                        .frame(width: 28)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(DisplayText.visible(settings.shopName, fallback: "我的小店"))
                             .v32Text(.section)
@@ -146,7 +148,7 @@ struct ProfileView: View {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(V32.textQuaternary)
                 }
-            }
+                .padding(.vertical, 10)
         }
         .buttonStyle(.plain)
     }
@@ -241,9 +243,7 @@ struct ProfileView: View {
                 .v32Text(.caption)
                 .foregroundStyle(V32.textTertiary)
                 .padding(.leading, 4)
-            V32Card(padding: 4) {
-                VStack(spacing: 0) { content() }
-            }
+            VStack(spacing: 0) { content() }
         }
     }
 
@@ -331,7 +331,10 @@ struct ProfileRowLabel: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            V32IconBubble(systemName: icon, tone: tone, size: 34, icon: 15)
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(tone.tint)
+                .frame(width: 24)
             Text(title)
                 .v32Text(.title)
                 .foregroundStyle(V32.textPrimary)
@@ -365,7 +368,10 @@ private struct ProfileToggleRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            V32IconBubble(systemName: icon, tone: tone, size: 34, icon: 15)
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(tone.tint)
+                .frame(width: 24)
             Text(title)
                 .v32Text(.title)
                 .foregroundStyle(V32.textPrimary)
@@ -1058,7 +1064,7 @@ private struct AboutSheet: View {
                             HStack(spacing: 8) {
                                 Image(systemName: "sparkles")
                                     .font(.system(size: 14, weight: .semibold))
-                                Text("查看完整更新说明")
+                                    Text("V3.5 新变化")
                                     .v32Text(.title)
                                 Spacer()
                                 Image(systemName: "chevron.right")

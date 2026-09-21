@@ -48,7 +48,7 @@ struct AIProviderSettingsSheet: View {
     // MARK: 档位
 
     private var tierCard: some View {
-        V32Card {
+        V32FieldGroup {
             VStack(alignment: .leading, spacing: 10) {
                 Text("模型策略").v32Text(.section).foregroundStyle(V32.textPrimary)
                 Picker("模型策略", selection: $draft.tier) {
@@ -67,7 +67,7 @@ struct AIProviderSettingsSheet: View {
     // MARK: 主 Provider（DeepSeek）
 
     private var primaryCard: some View {
-        V32Card {
+        V32FieldGroup {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text("DeepSeek").v32Text(.section).foregroundStyle(V32.textPrimary)
@@ -149,7 +149,7 @@ struct AIProviderSettingsSheet: View {
     // MARK: 高级 / 自定义 Provider（备用 fallback）
 
     private var advancedCard: some View {
-        V32Card {
+        V32FieldGroup {
             VStack(alignment: .leading, spacing: 10) {
                 Text("高级 / 自定义 Provider（可选）").v32Text(.section).foregroundStyle(V32.textPrimary)
                 Text("任意 OpenAI 兼容端点；主 Provider 网络失败 / 超时 / 限流时自动切换一次，三项都填才启用。")

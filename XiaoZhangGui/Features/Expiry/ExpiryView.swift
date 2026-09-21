@@ -6,6 +6,8 @@ struct ExpiryView: View {
     @Query private var items: [ExpiryItem]
     @State private var showNewEditor = false
     @State private var editingItem: ExpiryItem?
+    @State private var deletingItem: ExpiryItem?
+    @State private var deleteError: String?
 
     private var stats: ExpiryStats { ExpiryStats(items: items) }
 
@@ -14,8 +16,12 @@ struct ExpiryView: View {
             VStack(alignment: .leading, spacing: 18) {
                 statCard
                 if items.isEmpty {
-                    V32Card {
-                        V32EmptyState(systemName: "shippingbox", title: "暂无临期商品", message: nil)
+                    V32FieldGroup {
+                        VStack(spacing: 12) {
+                            V32EmptyState(systemName: "shippingbox", title: "暂无临期商品", message: "可以新增一条临期记录")
+                            V32PrimaryButton(title: "新增临期商品", systemName: "plus") { showNewEditor = true }
+                                .padding(.horizontal, 24)
+                        }
                             .padding(.vertical, 8)
                     }
                 } else {
@@ -25,7 +31,7 @@ struct ExpiryView: View {
                                 .v32Text(.caption)
                                 .foregroundStyle(V32.textTertiary)
                                 .padding(.leading, 4)
-                            V32Card(padding: 4) {
+                            V32FieldGroup {
                                 VStack(spacing: 0) {
                                     ForEach(Array(bucket.items.enumerated()), id: \.element.persistentModelID) { index, item in
                                         if index > 0 { Rectangle().fill(V32.divider).frame(height: 1).padding(.leading, 48) }
@@ -59,12 +65,25 @@ struct ExpiryView: View {
         }
         .sheet(isPresented: $showNewEditor) { ExpiryEditorSheet(item: nil) }
         .sheet(item: $editingItem) { ExpiryEditorSheet(item: $0) }
+        .confirmationDialog("删除这条临期记录？", isPresented: Binding(get: { deletingItem != nil }, set: { if !$0 { deletingItem = nil } }), titleVisibility: .visible) {
+            Button("删除", role: .destructive) {
+                if let item = deletingItem {
+                    do { try ExpiryRepository(context: context).delete(item); Haptic.warning() }
+                    catch { deleteError = "临期记录未删除，请重试。" }
+                }
+                deletingItem = nil
+            }
+            Button("取消", role: .cancel) { deletingItem = nil }
+        }
+        .alert("删除失败", isPresented: Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })) {
+            Button("知道了", role: .cancel) { deleteError = nil }
+        } message: { Text(deleteError ?? "请稍后重试") }
     }
 
     // MARK: 三格统计
 
     private var statCard: some View {
-        V32Card {
+        V32FieldGroup {
             HStack(spacing: 8) {
                 statCell(count: stats.urgentCount, label: "3天内到期", color: V32.danger)
                 statDivider
@@ -93,13 +112,13 @@ struct ExpiryView: View {
     }
 
     private func delete(_ item: ExpiryItem) {
-        Haptic.warning()
-        try? ExpiryRepository(context: context).delete(item)
+        deletingItem = item
     }
 
     private func toggleReturn(_ item: ExpiryItem) {
-        Haptic.light()
+        let wasReturned = item.status == .returned
         try? ExpiryRepository(context: context).toggleReturn(item)
+        wasReturned ? Haptic.light() : Haptic.success()
     }
 }
 
@@ -158,9 +177,7 @@ private struct ExpiryRow: View {
                           systemImage: item.status == .returned ? "arrow.counterclockwise" : "arrow.uturn.left")
                         .v32Text(.pill)
                         .foregroundStyle(V32.amber)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Capsule().fill(V32.amberSoft))
+                        .frame(minHeight: 44)
                         .labelStyle(.titleAndIcon)
                 }
                 .buttonStyle(.plain)
@@ -168,8 +185,7 @@ private struct ExpiryRow: View {
                     Image(systemName: "trash")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(V32.textQuaternary)
-                        .frame(width: 30, height: 30)
-                        .background(Circle().fill(V32.pageBGSecondary))
+                        .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("删除")

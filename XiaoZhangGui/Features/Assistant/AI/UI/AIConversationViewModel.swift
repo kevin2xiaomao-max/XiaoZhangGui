@@ -124,6 +124,7 @@ final class AIConversationViewModel {
         Task {
             if let updated = await agent.confirm(proposalID: proposalID) {
                 proposals[updated.id] = updated
+                if updated.status == .executed { Haptic.success() }
             }
         }
     }

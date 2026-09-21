@@ -163,22 +163,9 @@ private struct LockScreenLiveActivityView: View {
 
     var body: some View {
         ZStack {
-            // 品牌深绿渐变 + 右上角微光
-            LinearGradient(
-                colors: [
-                    Color(red: 0.06, green: 0.12, blue: 0.09),
-                    Color(red: 0.02, green: 0.04, blue: 0.03)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            RadialGradient(
-                colors: [BusinessLiveStyle.green.opacity(0.18), .clear],
-                center: .topTrailing,
-                startRadius: 4,
-                endRadius: 220
-            )
-            .ignoresSafeArea()
+            // 实体背景保持锁屏上的可读性；颜色只用于状态和重点数字。
+            BusinessLiveStyle.deepBackground
+                .ignoresSafeArea()
 
             VStack(alignment: .leading, spacing: 10) {
                 headerRow
@@ -264,11 +251,7 @@ private struct LockScreenLiveActivityView: View {
         }
         .padding(11)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(.white.opacity(0.07), lineWidth: 0.5)
-        }
+        .background(.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     // MARK: 底部指标条：待办 / 配送 / 临期
@@ -297,7 +280,7 @@ private struct LockScreenLiveActivityView: View {
             )
         }
         .padding(.vertical, 9)
-        .background(.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private var stripDivider: some View {

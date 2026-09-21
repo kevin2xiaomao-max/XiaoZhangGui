@@ -166,6 +166,18 @@ struct V32Card<Content: View>: View {
     }
 }
 
+/// Lightweight grouped fields without the full dashboard-card treatment.
+struct V32FieldGroup<Content: View>: View {
+    var padding: CGFloat = 0
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        content
+            .padding(.vertical, padding == 0 ? 4 : padding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 // MARK: 深墨绿主视觉卡
 
 struct V32HeroCard<Content: View>: View {

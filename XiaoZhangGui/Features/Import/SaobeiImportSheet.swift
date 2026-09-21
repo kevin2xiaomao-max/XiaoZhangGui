@@ -141,7 +141,7 @@ struct SaobeiImportSheet: View {
     }
 
     private var parsingCard: some View {
-        V32Card {
+        V32FieldGroup {
             HStack(spacing: 10) {
                 ProgressView().tint(V32.brand)
                 Text("正在解析…").v32Text(.body).foregroundStyle(V32.textSecondary)
@@ -150,7 +150,7 @@ struct SaobeiImportSheet: View {
     }
 
     private func errorCard(_ text: String) -> some View {
-        V32Card {
+        V32FieldGroup {
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(V32.danger)
@@ -166,7 +166,7 @@ struct SaobeiImportSheet: View {
     private func overviewCard(_ result: SaobeiParseResult) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             V32SectionHeader("文件概览")
-            V32Card {
+            V32FieldGroup {
                 VStack(spacing: 0) {
                     overviewRow("文件", value: result.sourceFileName)
                     divider
@@ -213,7 +213,7 @@ struct SaobeiImportSheet: View {
     private func errorsCard(_ errors: [String]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             V32SectionHeader("错误行")
-            V32Card {
+            V32FieldGroup {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(Array(errors.prefix(20).enumerated()), id: \.offset) { _, line in
                         Text(line)
@@ -229,7 +229,7 @@ struct SaobeiImportSheet: View {
     private var newRowsCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             V32SectionHeader("将写入业绩")
-            V32Card {
+            V32FieldGroup {
                 if displayNewCount == 0 {
                     Text("没有新的成功交易。重复导入不会让营业额翻倍。")
                         .v32Text(.subhead)
@@ -263,7 +263,7 @@ struct SaobeiImportSheet: View {
     private func resultCard(_ result: SaobeiImportCommitResult) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             V32SectionHeader("导入结果")
-            V32Card {
+            V32FieldGroup {
                 VStack(spacing: 0) {
                     overviewRow("新增", value: "\(result.inserted)")
                     divider

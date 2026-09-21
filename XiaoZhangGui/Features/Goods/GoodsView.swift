@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftData
 
-// MARK: - 临时商品页（V32：搜索 + 四格统计 + 分类胶囊 + 商品卡片）
+// MARK: - 商品页：库存概览与可扫描的商品列表
 
 struct GoodsView: View {
     @Environment(\.modelContext) private var context
@@ -66,8 +66,7 @@ struct GoodsView: View {
     // MARK: 统计
 
     private var statCard: some View {
-        V32Card {
-            HStack(spacing: 6) {
+        HStack(spacing: 6) {
                 statCell(label: "全部商品", count: allGoods.count, color: V32.brand)
                 statDivider
                 statCell(label: "库存不足", count: GoodsStats.lowStock(allGoods), color: V32.amber)
@@ -76,7 +75,7 @@ struct GoodsView: View {
                 statDivider
                 statCell(label: "总库存", count: GoodsStats.totalStock(allGoods), color: V32.textSecondary)
             }
-        }
+            .padding(.vertical, 4)
     }
 
     private var statDivider: some View {
@@ -99,9 +98,10 @@ struct GoodsView: View {
     }
 
     private func mockRow(_ item: (String, String, String)) -> some View {
-        V32Card {
-            HStack(spacing: 12) {
-                V32IconBubble(systemName: "shippingbox", tone: item.2 == "高优先级" ? .danger : .amber, size: 38, icon: 17)
+        HStack(spacing: 12) {
+                Image(systemName: "shippingbox")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(item.2 == "高优先级" ? V32.danger : V32.amber)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(item.0).v32Text(.title).foregroundStyle(V32.textPrimary)
                     Text(item.1).v32Text(.caption).foregroundStyle(V32.textTertiary)
@@ -111,7 +111,7 @@ struct GoodsView: View {
                     Text(item.2).v32Text(.pill).foregroundStyle(V32.danger)
                 }
             }
-        }
+            .padding(.vertical, 12)
     }
 
     private func delete(_ goods: Goods) {
@@ -120,7 +120,7 @@ struct GoodsView: View {
     }
 }
 
-// MARK: - 商品卡片（V32）
+// MARK: - 商品行
 
 struct GoodsCard: View {
     let goods: Goods
@@ -146,8 +146,7 @@ struct GoodsCard: View {
     }
 
     var body: some View {
-        V32Card {
-            VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .top, spacing: 12) {
                     thumb
                     VStack(alignment: .leading, spacing: 4) {
@@ -205,7 +204,7 @@ struct GoodsCard: View {
                     .accessibilityLabel("删除商品")
                 }
             }
-        }
+            .padding(.vertical, 12)
         .onTapGesture(perform: onEdit)
     }
 
@@ -214,7 +213,10 @@ struct GoodsCard: View {
             if let data = goods.imageData {
                 ImageThumb(imageData: data, size: 52)
             } else {
-                V32IconBubble(systemName: "shippingbox", tone: stateTone, size: 52, icon: 22)
+                Image(systemName: "shippingbox")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(stateColor)
+                    .frame(width: 52, height: 52)
             }
         }
     }

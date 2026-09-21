@@ -146,7 +146,7 @@ struct AIChatView: View {
                 title: "我是小掌柜",
                 message: "说句话或点个例子，我先整理成确认卡，你确认后才记录。"
             )
-            V32Card {
+            V32FieldGroup {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("试试这样说")
                         .v32Text(.section)

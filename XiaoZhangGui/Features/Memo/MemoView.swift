@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftData
 
-// MARK: - 备忘页（V32：搜索 + 过滤胶囊 + 双列卡片）
+// MARK: - 备忘页：内容优先的记录列表
 
 struct MemoView: View {
     @Environment(\.modelContext) private var context
@@ -11,6 +11,8 @@ struct MemoView: View {
     @State private var filter: MemoFilter = .all
     @State private var showNewEditor = false
     @State private var editingMemo: Memo?
+    @State private var deletingMemo: Memo?
+    @State private var deleteError: String?
     private var isMockPreview: Bool { RuntimeMode.allowsMockData }
 
     private var filtered: [Memo] {
@@ -42,7 +44,7 @@ struct MemoView: View {
                             .padding(.vertical, 8)
                     }
                 } else {
-                    memoGrid
+                    memoList
                 }
             }
             .padding(.horizontal, V32Layout.pageMargin)
@@ -65,23 +67,34 @@ struct MemoView: View {
         .sheet(item: $editingMemo) { memo in
             MemoEditorSheet(memo: memo)
         }
+        .confirmationDialog("删除这条备忘？", isPresented: Binding(get: { deletingMemo != nil }, set: { if !$0 { deletingMemo = nil } }), titleVisibility: .visible) {
+            Button("删除", role: .destructive) {
+                if let memo = deletingMemo {
+                    do { try MemoRepository(context: context).delete(memo); Haptic.warning() }
+                    catch { deleteError = "备忘未删除，请重试。" }
+                }
+                deletingMemo = nil
+            }
+            Button("取消", role: .cancel) { deletingMemo = nil }
+        }
+        .alert("删除失败", isPresented: Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })) {
+            Button("知道了", role: .cancel) { deleteError = nil }
+        } message: { Text(deleteError ?? "请稍后重试") }
     }
 
-    private var memoGrid: some View {
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+    private var memoList: some View {
+        VStack(spacing: 0) {
             ForEach(filtered) { memo in
-                MemoCard(memo: memo) {
-                    editingMemo = memo
-                } onDelete: {
-                    delete(memo)
+                if memo.persistentModelID != filtered.first?.persistentModelID {
+                    Rectangle().fill(V32.divider).frame(height: 1).padding(.leading, 12)
                 }
+                MemoCard(memo: memo) { editingMemo = memo } onDelete: { delete(memo) }
             }
         }
     }
 
     private func mockCard(_ item: (String, String, String)) -> some View {
-        V32Card {
-            VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 8) {
                 Text(item.0)
                     .v32Text(.title)
                     .foregroundStyle(V32.textPrimary)
@@ -94,16 +107,15 @@ struct MemoView: View {
                     .v32Text(.pill)
                     .foregroundStyle(V32.textQuaternary)
             }
-        }
+            .padding(.vertical, 14)
     }
 
     private func delete(_ memo: Memo) {
-        Haptic.warning()
-        try? MemoRepository(context: context).delete(memo)
+        deletingMemo = memo
     }
 }
 
-// MARK: - 备忘卡片（V32：白卡 + 左侧色条 + 图片/标题/内容/时间）
+// MARK: - 备忘行
 
 struct MemoCard: View {
     let memo: Memo
@@ -120,54 +132,51 @@ struct MemoCard: View {
 
     var body: some View {
         Button(action: onEdit) {
-            V32Card {
-                VStack(alignment: .leading, spacing: 0) {
-                    if let data = memo.imageData {
-                        ImageThumb(imageData: data, size: 120)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 120)
-                            .clipShape(RoundedRectangle(cornerRadius: V32Radius.inset, style: .continuous))
-                            .padding(.bottom, 10)
-                    }
-
-                    HStack(alignment: .top, spacing: 8) {
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(accentColor)
-                            .frame(width: 3, height: 16)
-                            .padding(.top, 2)
-                        Text(memo.title.isEmpty ? "无标题" : memo.title)
-                            .v32Text(.title)
-                            .foregroundStyle(V32.textPrimary)
-                            .lineLimit(2)
-                    }
-
-                    if !memo.content.isEmpty {
-                        Text(memo.content)
-                            .v32Text(.caption)
-                            .foregroundStyle(V32.textTertiary)
-                            .lineLimit(3)
-                            .lineSpacing(2)
-                            .padding(.top, 6)
-                    }
-
-                    HStack {
-                        Text(Fmt.memoTime(memo.updatedAt))
-                            .v32Text(.pill)
-                            .foregroundStyle(V32.textQuaternary)
-                        Spacer()
-                        Button {
-                            onDelete()
-                        } label: {
-                            Image(systemName: "trash")
-                                .font(.system(size: 13))
-                                .foregroundStyle(V32.textQuaternary)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .padding(.top, 10)
+            VStack(alignment: .leading, spacing: 0) {
+                if let data = memo.imageData {
+                    ImageThumb(imageData: data, size: 120)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 120)
+                        .clipShape(RoundedRectangle(cornerRadius: V32Radius.inset, style: .continuous))
+                        .padding(.bottom, 10)
                 }
+
+                HStack(alignment: .top, spacing: 8) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(accentColor)
+                        .frame(width: 3, height: 16)
+                        .padding(.top, 2)
+                    Text(memo.title.isEmpty ? "无标题" : memo.title)
+                        .v32Text(.title)
+                        .foregroundStyle(V32.textPrimary)
+                        .lineLimit(2)
+                }
+
+                if !memo.content.isEmpty {
+                    Text(memo.content)
+                        .v32Text(.caption)
+                        .foregroundStyle(V32.textTertiary)
+                        .lineLimit(3)
+                        .lineSpacing(2)
+                        .padding(.top, 6)
+                }
+
+                HStack {
+                    Text(Fmt.memoTime(memo.updatedAt))
+                        .v32Text(.pill)
+                        .foregroundStyle(V32.textQuaternary)
+                    Spacer()
+                    Button { onDelete() } label: {
+                        Image(systemName: "trash")
+                            .font(.system(size: 13))
+                            .foregroundStyle(V32.textQuaternary)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.top, 10)
             }
+            .padding(.vertical, 12)
         }
         .buttonStyle(.plain)
     }

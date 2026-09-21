@@ -496,6 +496,8 @@ final class AgentCore {
         }
 
         // FINAL：真实执行（live 执行器在 Foundation 不会被装配）
+        proposal.status = .confirmed
+        await env.pending.upsert(proposal)
         let result = await env.toolExecutor.execute(proposal.call)
         switch result {
         case .previewNotPersisted:

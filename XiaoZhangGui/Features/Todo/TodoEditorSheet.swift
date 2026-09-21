@@ -13,6 +13,7 @@ struct TodoEditorSheet: View {
     @State private var priority: TodoPriority = .low
     @State private var imageData: Data?
     @State private var isInitialized = false
+    @State private var saveError: String?
 
     private var canSave: Bool {
         !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -20,7 +21,7 @@ struct TodoEditorSheet: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 14) {
                 header
                 titleCard
                 timeCard
@@ -32,13 +33,17 @@ struct TodoEditorSheet: View {
                     .padding(.top, 2)
             }
             .padding(.horizontal, V32Layout.pageMargin)
-            .padding(.top, 14)
+            .padding(.top, 10)
             .padding(.bottom, V32Layout.bottomPad)
         }
         .scrollIndicators(.hidden)
         .v32PageBackground()
         .v32Sheet([.large])
         .onAppear(perform: initializeIfNeeded)
+        .alert("保存失败", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
+            Button("重试") { save() }
+            Button("取消", role: .cancel) { saveError = nil }
+        } message: { Text(saveError ?? "请稍后重试") }
     }
 
     // MARK: 头部
@@ -63,7 +68,7 @@ struct TodoEditorSheet: View {
     private var titleCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             V32SectionHeader("标题")
-            V32Card {
+            V32FieldGroup {
                 VStack(alignment: .leading, spacing: 12) {
                     TextField("要做什么？", text: $title)
                         .v32Text(.headline)
@@ -85,7 +90,7 @@ struct TodoEditorSheet: View {
     private var timeCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             V32SectionHeader("时间")
-            V32Card {
+            V32FieldGroup {
                 VStack(spacing: 12) {
                     HStack {
                         Text("设置截止时间")
@@ -127,7 +132,7 @@ struct TodoEditorSheet: View {
     private var imageCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             V32SectionHeader("图片")
-            V32Card {
+            V32FieldGroup {
                 PhotoPickerField(imageData: imageData) { imageData = $0 }
             }
         }
@@ -173,6 +178,7 @@ struct TodoEditorSheet: View {
             dismiss()
         } catch {
             Haptic.error()
+            saveError = "内容未保存，请重试。"
         }
     }
 }

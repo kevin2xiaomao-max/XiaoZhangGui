@@ -9,8 +9,8 @@ struct DailyReportSheet: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 header
-                heroCard
-                statsCard
+                summary
+                detailRows
                 HStack(spacing: 12) {
                     V32SecondaryButton(title: "复制文本", systemName: "doc.on.doc") {
                         UIPasteboard.general.string = report.shareText
@@ -42,37 +42,45 @@ struct DailyReportSheet: View {
         }
     }
 
-    private var heroCard: some View {
-        V32HeroCard {
+    private var summary: some View {
             VStack(alignment: .leading, spacing: 10) {
                 Text("今日营业额")
                     .v32Text(.subhead)
-                    .foregroundStyle(V32.textOnHeroSecondary)
+                    .foregroundStyle(V32.textSecondary)
                 Text(Fmt.money(report.todayRevenue))
                     .font(V32Font.heroMoney)
-                    .foregroundStyle(V32.textOnHero)
+                    .foregroundStyle(V32.textPrimary)
                 Text(report.changeText)
                     .v32Text(.caption)
-                    .foregroundStyle(V32.textOnHeroSecondary)
+                    .foregroundStyle(V32.textSecondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 8)
+    }
+
+    private var detailRows: some View {
+        VStack(spacing: 0) {
+            reportRow("已完成待办", value: "\(report.completedTodos)")
+            divider
+            reportRow("未完成待办", value: "\(report.pendingTodos)")
+            divider
+            reportRow("配送待处理", value: "\(report.deliveries)")
+            divider
+            reportRow("临期待处理", value: "\(report.pendingExpiry)")
         }
     }
 
-    private var statsCard: some View {
-        V32Card {
-            VStack(spacing: 0) {
-                HStack(spacing: 12) {
-                    V32MetricCell(label: "已完成待办", value: "\(report.completedTodos)")
-                    V32MetricCell(label: "未完成待办", value: "\(report.pendingTodos)")
-                }
-                Rectangle().fill(V32.divider).frame(height: 1).padding(.vertical, 12)
-                HStack(spacing: 12) {
-                    V32MetricCell(label: "配送待处理", value: "\(report.deliveries)")
-                    V32MetricCell(label: "临期待处理", value: "\(report.pendingExpiry)")
-                }
-            }
+    private func reportRow(_ label: String, value: String) -> some View {
+        HStack {
+            Text(label).v32Text(.body).foregroundStyle(V32.textSecondary)
+            Spacer()
+            Text(value).v32Text(.headline).foregroundStyle(V32.textPrimary).monospacedDigit()
         }
+        .frame(minHeight: 48)
+    }
+
+    private var divider: some View {
+        Rectangle().fill(V32.divider).frame(height: 1).padding(.leading, 12)
     }
 
     private func share() {

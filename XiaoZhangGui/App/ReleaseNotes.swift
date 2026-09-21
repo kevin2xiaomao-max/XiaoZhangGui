@@ -12,11 +12,11 @@ struct ReleaseNotes: Equatable {
     let sections: [ReleaseNoteSection]
 
     static var marketingVersion: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "3.4.0"
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "3.5.0"
     }
 
     static var build: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "34"
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "35"
     }
 
     static var versionDisplay: String {
@@ -24,29 +24,32 @@ struct ReleaseNotes: Equatable {
     }
 
     static let current = ReleaseNotes(
-        headline: "V3.5 Liquid Glass Leap",
+        headline: "V3.5 全新升级",
         sections: [
-            ReleaseNoteSection(icon: "paintpalette", title: "V3.5 视觉升级", items: [
-                "全新主题化首页经营驾驶舱",
-                "Ocean Blue、Violet、Emerald、Warm Orange、Rose、Graphite 六套主题",
-                "经营快捷中心 Drawer，集中高频经营工具",
-                "Performance、Todo、Schedule、AI 与 Profile 视觉统一",
-                "深色模式、iPhone Air、动态字体与辅助功能体验优化",
-                "Widget 与 Live Activity 视觉层级升级"
+            ReleaseNoteSection(icon: "paintpalette", title: "全新设计", items: [
+                "全面升级界面设计，更简洁、更清晰",
+                "重做经营数据、日程、待办、客户需求和临期管理",
+                "优化深色模式与大字体显示"
             ]),
-            ReleaseNoteSection(icon: "sparkles", title: "小掌柜 AI", items: [
-                "AI 现在能查询天气和商品信息",
-                "能结合店铺真实数据分析今日经营与近 7 天趋势",
-                "经营建议只使用必要的本地汇总信息，保护店铺隐私",
-                "支持对待确认的金额、来源和时间继续修改",
-                "修复经营数据周/月/多月查询和部分自然语言误判",
-                "改进扫呗文件导入，并新增截图识别预览",
-                "默认使用真实数据，演示数据标识更清晰"
+            ReleaseNoteSection(icon: "square.and.pencil", title: "记录更顺手", items: [
+                "待办与备忘重新整理",
+                "优化备忘的文字、图片和语音浏览",
+                "快速记录流程更清楚，保存结果一目了然"
             ]),
-            ReleaseNoteSection(icon: "wand.and.sparkles", title: "体验升级", items: [
-                "AI 对话、操作反馈和动效全面优化",
-                "深色模式、动态字体与减少动态效果体验优化",
-                "多处稳定性与设备适配改进"
+            ReleaseNoteSection(icon: "sparkles", title: "AI 小掌柜升级", items: [
+                "优化 AI 对话与操作卡片",
+                "统一语音、快速记录与 AI 的状态反馈",
+                "保存前确认，成功与失败状态更加明确"
+            ]),
+            ReleaseNoteSection(icon: "chart.bar.xaxis", title: "经营体验升级", items: [
+                "优化营业额、交易记录和经营报告",
+                "客户配送与临期商品处理更加直观",
+                "优化扫呗导入、收款码、天气和日历"
+            ]),
+            ReleaseNoteSection(icon: "checkmark.seal", title: "细节优化", items: [
+                "优化操作反馈、动效和辅助功能",
+                "Widget 与实时活动视觉升级",
+                "修复多项稳定性和交互问题"
             ])
         ]
     )

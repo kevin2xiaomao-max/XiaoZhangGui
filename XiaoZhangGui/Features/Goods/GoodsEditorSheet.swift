@@ -74,7 +74,7 @@ struct GoodsEditorSheet: View {
     private var nameCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             V32SectionHeader("商品名称")
-            V32Card {
+            V32FieldGroup {
                 TextField("例如：农夫山泉 550ml", text: $name)
                     .v32Text(.body)
                     .foregroundStyle(V32.textPrimary)
@@ -99,7 +99,7 @@ struct GoodsEditorSheet: View {
     private var barcodeCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             V32SectionHeader("条码")
-            V32Card {
+            V32FieldGroup {
                 TextField("扫码或输入（可选）", text: $barcode)
                     .v32Text(.body)
                     .foregroundStyle(V32.textPrimary)
@@ -112,7 +112,7 @@ struct GoodsEditorSheet: View {
     private var stockCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             V32SectionHeader("库存")
-            V32Card {
+            V32FieldGroup {
                 HStack(spacing: 12) {
                     numberField("当前库存", text: $stockText)
                     Rectangle().fill(V32.divider).frame(width: 1, height: 36)
@@ -125,7 +125,7 @@ struct GoodsEditorSheet: View {
     private var priceCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             V32SectionHeader("价格")
-            V32Card {
+            V32FieldGroup {
                 HStack(spacing: 12) {
                     numberField("进货价", text: $purchaseText, decimal: true)
                     Rectangle().fill(V32.divider).frame(width: 1, height: 36)
@@ -138,7 +138,7 @@ struct GoodsEditorSheet: View {
     private var productionCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             V32SectionHeader("生产日期")
-            V32Card {
+            V32FieldGroup {
                 VStack(spacing: 12) {
                     toggleRow("设置生产日期", isOn: $hasProductionDate)
                     if hasProductionDate {
@@ -155,7 +155,7 @@ struct GoodsEditorSheet: View {
     private var shelfLifeCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             V32SectionHeader("保质期")
-            V32Card {
+            V32FieldGroup {
                 TextField("保质期天数，如 365（可选）", text: $shelfLifeText)
                     .v32Text(.body)
                     .foregroundStyle(V32.textPrimary)
@@ -168,7 +168,7 @@ struct GoodsEditorSheet: View {
     private var expiryCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             V32SectionHeader("到期日期")
-            V32Card {
+            V32FieldGroup {
                 VStack(spacing: 12) {
                     toggleRow("设置到期日期", isOn: $hasExpiryDate)
                     if hasExpiryDate {
@@ -185,7 +185,7 @@ struct GoodsEditorSheet: View {
     private var noteCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             V32SectionHeader("备注")
-            V32Card {
+            V32FieldGroup {
                 TextField("备注（可选）", text: $note, axis: .vertical)
                     .v32Text(.body)
                     .foregroundStyle(V32.textSecondary)
@@ -198,7 +198,7 @@ struct GoodsEditorSheet: View {
     private var imageCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             V32SectionHeader("商品图片")
-            V32Card { PhotoPickerField(imageData: imageData) { imageData = $0 } }
+            V32FieldGroup { PhotoPickerField(imageData: imageData) { imageData = $0 } }
         }
     }
 

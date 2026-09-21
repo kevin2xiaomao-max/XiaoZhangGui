@@ -160,7 +160,7 @@ final class VoiceViewModel {
             phase = .idle
             didSave = true
         } catch {
-            phase = .error("保存失败，请稍后再试")
+            phase = .error(QuickCaptureSemantic.failed)
         }
     }
 

@@ -241,7 +241,7 @@ struct VoiceView: View {
                             if vm.phase == .saving {
                                 ProgressView().tint(.white)
                             } else {
-                                Text("保存")
+                                Text("确认保存")
                                     .font(.body.weight(.semibold))
                             }
                         }
@@ -260,7 +260,7 @@ struct VoiceView: View {
                             if vm.phase == .saving {
                                 ProgressView().tint(.white)
                             } else {
-                                Text("保存")
+                                Text("确认保存")
                                     .font(.body.weight(.semibold))
                                     .foregroundStyle(.white)
                             }

@@ -70,7 +70,7 @@ struct ShortVoicePanel: View {
                 .lineLimit(3)
                 .padding(.horizontal, 8)
 
-            Text(phase == .finalizing ? "识别完成，正在整理…" : "停顿后会自动识别，也可手动停止")
+            Text(phase == .finalizing ? QuickCaptureSemantic.processing : "停顿后会自动识别，也可手动停止")
                 .v32Text(.caption)
                 .foregroundStyle(V32.textTertiary)
 
@@ -104,7 +104,7 @@ struct ShortVoicePanel: View {
     private func failureContent(_ message: String) -> some View {
         VStack(spacing: 14) {
             V32IconBubble(systemName: "exclamationmark.triangle.fill", tone: .amber, size: 56, icon: 24, circular: true)
-            Text(message)
+            Text("\(QuickCaptureSemantic.failed)：\(message)")
                 .v32Text(.subhead)
                 .foregroundStyle(V32.textSecondary)
                 .multilineTextAlignment(.center)
