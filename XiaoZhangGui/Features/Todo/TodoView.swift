@@ -2,7 +2,12 @@ import SwiftUI
 import SwiftData
 import PhotosUI
 
-// MARK: - 待办：负责 Todo 生命周期管理与清晰的 flat list 呈现
+// MARK: - 待办：V371 干净分组列表
+//
+// Section = GroupSurface + SectionHeader，行 = WorkRow（图标圆 = 优先级色，
+// 标题/副标题，trailing = 时间 badge + 完成开关）。
+// 过滤 / 优先级 / 完成 / 图片 / 提醒 / persistence 语义全部保持 V3.6 原样，
+// 只做 presentation 迁移。
 
 struct TodoView: View {
     @Environment(\.modelContext) private var context
@@ -15,6 +20,7 @@ struct TodoView: View {
     @State private var showNewRecord = false
     @State private var showNewMemo = false
     @State private var editingTodo: Todo?
+    @State private var editingMemo: Memo?
     @State private var togglingIDs: Set<PersistentIdentifier> = []
     /// 完成瞬间本地暂留的行：数据已写库，但视觉上留约 0.3s 做 fade/收缩后再移出（T21）
     @State private var finishingIDs: Set<PersistentIdentifier> = []
@@ -41,19 +47,19 @@ struct TodoView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: V371.Space.section) {
                 // 切换控件始终可见；「备忘」展示独立 Memo 内容。
                 // 只隐藏统计数字区域，不隐藏 tab 导航。
                 tabPicker
-                if tab != .records { statsCard }
+                if tab != .records { statsRow }
                 content
             }
-            .padding(.horizontal, V32Layout.pageMargin)
+            .padding(.horizontal, V371.Space.page)
             .padding(.top, 8)
         }
         .scrollIndicators(.hidden)
-        .v32PageBackground()
-        .v32PageBottomInset()
+        .v371Canvas()
+        .v371DockInset()
         .navigationTitle("待办")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -62,7 +68,12 @@ struct TodoView: View {
                     if tab == .records { showNewMemo = true } else { showNewEditor = true }
                 } label: {
                     Image(systemName: "plus")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(V371.Colors.blue)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
                 .accessibilityLabel(tab == .records ? "新增备忘" : "新增待办")
             }
         }
@@ -89,33 +100,6 @@ struct TodoView: View {
         } message: { Text(stateActionError ?? "待办状态未改变，请重试") }
     }
 
-    // MARK: 顶部
-
-    private var header: some View {
-        HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("待办")
-                    .v32Text(.pageTitle)
-                    .foregroundStyle(V32.textPrimary)
-                Text("一件件来，不慌")
-                    .v32Text(.subhead)
-                    .foregroundStyle(V32.textTertiary)
-            }
-            Spacer()
-            Button {
-                if tab == .records { showNewMemo = true } else { showNewEditor = true }
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: V32Layout.toolCircle, height: V32Layout.toolCircle)
-                    .background(Circle().fill(V32.hero))
-            }
-            .buttonStyle(V32PressButtonStyle())
-            .accessibilityLabel(tab == .records ? "新增备忘" : "新增待办")
-        }
-    }
-
     // MARK: 分段胶囊 + 统计
 
     /// P0-2：tab 导航独立于统计卡，任何 tab 下都可见
@@ -127,37 +111,51 @@ struct TodoView: View {
     }
 
     /// 统计数字区域（仅非「备忘」tab 显示）
-    private var statsCard: some View {
-        HStack(spacing: 8) {
-            statCell(value: todayCount, label: "待办", icon: "sun.max", tint: V32.brand)
-            statDivider
-            statCell(value: doneCount, label: "已完成", icon: "checkmark.circle", tint: V32.textSecondary)
-            statDivider
-            statCell(value: overdueCount, label: "逾期", icon: "exclamationmark.circle",
-                     tint: overdueCount > 0 ? V32.amber : V32.textTertiary)
+    private var statsRow: some View {
+        GroupSurface {
+            HStack(spacing: 0) {
+                statCell(value: todayCount, label: "待办", icon: "sun.max", tint: V371.Colors.blue)
+                statDivider
+                statCell(value: doneCount, label: "已完成", icon: "checkmark.circle", tint: V371.Colors.green)
+                statDivider
+                statCell(value: overdueCount, label: "逾期", icon: "exclamationmark.circle",
+                         tint: overdueCount > 0 ? V371.Colors.orange : V371.Colors.textTertiary)
+            }
+            .padding(.horizontal, V371.Space.rowPadding)
+            .padding(.vertical, 4)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("待办 \(todayCount)，已完成 \(doneCount)，逾期 \(overdueCount)")
     }
 
     private var statDivider: some View {
-        Rectangle().fill(V32.divider).frame(width: 1, height: 30)
+        Rectangle()
+            .fill(V371.Colors.divider)
+            .frame(width: 0.5)
+            .padding(.vertical, 14)
+            .accessibilityHidden(true)
     }
 
     private func statCell(value: Int, label: String, icon: String, tint: Color) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
             Image(systemName: icon)
-                .font(.system(size: 13, weight: .semibold))
-            VStack(alignment: .leading, spacing: 1) {
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: 32, height: 32)
+                .background(V371.Colors.tinted(tint), in: Circle())
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
                 Text("\(value)")
-                    .v32Text(.metricSmall)
-                    .foregroundStyle(V32.textPrimary)
+                    .font(V371.Type.rowTitle)
+                    .foregroundStyle(V371.Colors.textPrimary)
                     .monospacedDigit()
                 Text(label)
-                    .v32Text(.caption)
-                    .foregroundStyle(V32.textTertiary)
+                    .font(V371.Type.rowSubtitle)
+                    .foregroundStyle(V371.Colors.textTertiary)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .foregroundStyle(tint)
+        .padding(.vertical, 12)
     }
 
     // MARK: 内容
@@ -167,26 +165,20 @@ struct TodoView: View {
         if tab == .records {
             recordsContent
         } else if list.isEmpty {
-            V32Card {
-                V32EmptyState(
-                    systemName: "checkmark.circle",
+            GroupSurface {
+                EmptyState(
+                    icon: "checkmark.circle",
                     title: TodoFilter.emptyText(for: tab),
                     message: nil
                 )
-                .padding(.vertical, 8)
             }
         } else {
             ForEach(groups, id: \.label) { group in
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(group.label)
-                        .v32Text(.caption)
-                        .foregroundStyle(V32.textTertiary)
-                        .padding(.leading, 4)
-                    VStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 8) {
+                    SectionHeader(group.label)
+                    GroupSurface {
                         ForEach(Array(group.items.enumerated()), id: \.element.persistentModelID) { index, todo in
-                            if index > 0 {
-                                Rectangle().fill(V32.divider).frame(height: 1).padding(.leading, 48)
-                            }
+                            if index > 0 { V371Divider() }
                             TodoListRow(
                                 todo: todo,
                                 isOverdueTab: tab == .overdue,
@@ -202,12 +194,12 @@ struct TodoView: View {
         }
     }
 
+    /// 「备忘」tab：沿用 Memo 的既有卡片组件（非本分片范围，保持不动）
     private var recordsContent: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             if memos.isEmpty {
-                V32Card {
-                    V32EmptyState(systemName: "note.text", title: "暂无备忘", message: nil)
-                        .padding(.vertical, 8)
+                GroupSurface {
+                    EmptyState(icon: "note.text", title: "暂无备忘", message: nil)
                 }
             } else {
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
@@ -218,8 +210,6 @@ struct TodoView: View {
             }
         }
     }
-
-    @State private var editingMemo: Memo?
 
     private func deleteMemo(_ memo: Memo) {
         do { try MemoRepository(context: context).delete(memo); Haptic.warning() }
@@ -254,7 +244,7 @@ struct TodoView: View {
     }
 }
 
-// MARK: - 分段选择器（V32 胶囊）
+// MARK: - 分段选择器（V371 换肤：名称 / 初始化签名保持不变，供多处复用）
 
 struct V32SegmentedPicker: View {
     let tabs: [String]
@@ -271,27 +261,28 @@ struct V32SegmentedPicker: View {
                     Haptic.light()
                 } label: {
                     Text(tabs[index])
-                        .v32Text(.caption)
+                        .font(V371.Type.rowSubtitle)
                         .fontWeight(.semibold)
-                        .foregroundStyle(index == selectionIndex ? V32.textPrimary : V32.textTertiary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
+                        .foregroundStyle(index == selectionIndex ? V371.Colors.textPrimary : V371.Colors.textTertiary)
+                        .frame(maxWidth: .infinity, minHeight: 44)
                         .background(
-                            Capsule().fill(index == selectionIndex ? V32.card : Color.clear)
-                        )
-                        .overlay(
-                            Capsule().strokeBorder(index == selectionIndex ? V32.cardOutline : Color.clear, lineWidth: 1)
+                            Capsule().fill(index == selectionIndex ? V371.Colors.group : Color.clear)
                         )
                 }
-                .buttonStyle(V32PressButtonStyle())
+                .buttonStyle(.plain)
+                .accessibilityLabel(tabs[index])
+                .accessibilityAddTraits(index == selectionIndex ? .isSelected : [])
             }
         }
         .padding(4)
-        .background(Capsule().fill(V32.pageBGSecondary))
+        .background(Capsule().fill(V371.Colors.groupSecondary))
     }
 }
 
-// MARK: - 待办行
+// MARK: - 待办行（V371 WorkRow）
+//
+// 图标圆 = 优先级色（已完成 = 绿色对勾）；行点击 = 编辑；
+// trailing = 时间 badge + 完成开关 + 删除按钮（删除仍走确认框流程）。
 
 private struct TodoListRow: View {
     let todo: Todo
@@ -303,44 +294,66 @@ private struct TodoListRow: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        HStack(spacing: 12) {
-            V32Checkbox(checked: todo.isCompleted, action: onToggle)
-            Button(action: onEdit) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(DisplayText.visible(todo.title, fallback: "待办事项"))
-                        .v32Text(.title)
-                        .foregroundStyle(todo.isCompleted ? V32.textTertiary : V32.textPrimary)
-                        .strikethrough(todo.isCompleted, color: V32.textQuaternary)
-                        .lineLimit(2)
-                    Text(subtitle)
-                        .v32Text(.caption)
-                        .foregroundStyle(todo.priority >= TodoPriority.high.rawValue && !todo.isCompleted ? V32.amber : V32.textTertiary)
-                        .lineLimit(1)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
+        WorkRow(
+            icon: rowIcon,
+            iconColor: rowColor,
+            title: DisplayText.visible(todo.title, fallback: "待办事项"),
+            subtitle: subtitle,
+            action: onEdit
+        ) {
+            HStack(spacing: 2) {
+                StatusBadge(timeText, color: timeColor)
+                toggleButton
+                deleteButton
             }
-            .buttonStyle(V32PressButtonStyle())
-
-            Text(timeText)
-                .v32Text(.caption)
-                .foregroundStyle(isOverdueTab ? V32.amber : V32.textTertiary)
-                .lineLimit(1)
-            Button(action: onDelete) {
-                Image(systemName: "trash")
-                    .font(.system(size: 14, weight: .regular))
-                    .foregroundStyle(V32.textQuaternary)
-                    .frame(width: 30, height: 30)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(V32PressButtonStyle())
-            .accessibilityLabel("删除待办")
         }
-        .padding(.horizontal, 12)
-        .frame(minHeight: 56)
         .opacity(isFinishing ? 0 : 1)
         .scaleEffect(isFinishing && !reduceMotion ? 0.97 : 1)
         .transition(.opacity.combined(with: reduceMotion ? .identity : .scale(scale: 0.98)))
+    }
+
+    /// 完成态用绿色对勾图标圆（§2.1 彩色微状态：绿 = 成功/已完成）
+    private var rowIcon: String {
+        if todo.isCompleted { return "checkmark" }
+        switch todo.priorityLevel {
+        case .high: return "flag.fill"
+        case .medium: return "flag.fill"
+        case .low: return "flag"
+        }
+    }
+
+    private var rowColor: Color {
+        if todo.isCompleted { return V371.Colors.green }
+        switch todo.priorityLevel {
+        case .high: return V371.Colors.red
+        case .medium: return V371.Colors.orange
+        case .low: return V371.Colors.gray
+        }
+    }
+
+    private var toggleButton: some View {
+        Button(action: onToggle) {
+            Image(systemName: todo.isCompleted ? "checkmark.circle.fill" : "circle")
+                .font(.system(size: 22, weight: .medium))
+                .foregroundStyle(todo.isCompleted ? V371.Colors.green : V371.Colors.textTertiary)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(todo.isCompleted ? "标为未完成" : "标为已完成")
+    }
+
+    /// 删除走确认框流程（与 V3.6 一致）；44pt 命中区
+    private var deleteButton: some View {
+        Button(action: onDelete) {
+            Image(systemName: "trash")
+                .font(.system(size: 16, weight: .regular))
+                .foregroundStyle(V371.Colors.textTertiary)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("删除待办")
     }
 
     private var subtitle: String {
@@ -353,9 +366,14 @@ private struct TodoListRow: View {
         // P1-3：与 HomeInbox / ScheduleAgenda 同一规则，00:00 显示为全天
         DayTimeLabel.label(todo.dueDate, unscheduledText: "待安排")
     }
+
+    private var timeColor: Color {
+        if isOverdueTab { return V371.Colors.orange }
+        return V371.Colors.gray
+    }
 }
 
-// MARK: - 新增记录 Sheet（功能保留，T11 统一 V32 外观）
+// MARK: - 新增记录 Sheet（功能保留，V371 外观）
 
 private struct RecordEditorSheet: View {
     @Environment(\.modelContext) private var context
@@ -370,33 +388,38 @@ private struct RecordEditorSheet: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: V371.Space.section) {
                 header
-                VStack(alignment: .leading, spacing: 10) {
-                    V32SectionHeader("记录内容")
-                    V32Card {
+                VStack(alignment: .leading, spacing: 8) {
+                    SectionHeader("记录内容")
+                    GroupSurface {
                         TextField("记下这件事", text: $content, axis: .vertical)
-                            .v32Text(.body)
-                            .foregroundStyle(V32.textPrimary)
-                            .tint(V32.brand)
+                            .font(V371.Type.rowTitle)
+                            .foregroundStyle(V371.Colors.textPrimary)
+                            .tint(V371.Colors.blue)
                             .lineLimit(4...8)
+                            .padding(.horizontal, V371.Space.rowPadding)
+                            .padding(.vertical, 12)
                     }
                 }
-                VStack(alignment: .leading, spacing: 10) {
-                    V32SectionHeader("图片")
-                    V32Card { PhotoPickerField(imageData: imageData) { imageData = $0 } }
+                VStack(alignment: .leading, spacing: 8) {
+                    SectionHeader("图片")
+                    GroupSurface {
+                        PhotoPickerField(imageData: imageData) { imageData = $0 }
+                            .padding(.horizontal, V371.Space.rowPadding)
+                            .padding(.vertical, 12)
+                    }
                 }
-                V32PrimaryButton(title: "保存", systemName: "checkmark") { save() }
-                    .disabled(!canSave)
-                    .opacity(canSave ? 1 : 0.5)
+                saveButton
             }
-            .padding(.horizontal, V32Layout.pageMargin)
+            .padding(.horizontal, V371.Space.page)
             .padding(.top, 14)
-            .padding(.bottom, V32Layout.bottomPad)
+            .padding(.bottom, 24)
         }
         .scrollIndicators(.hidden)
-        .v32PageBackground()
-        .v32Sheet([.medium, .large])
+        .v371Canvas()
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
         .onChange(of: selectedItem) { _, item in
             Task { imageData = try? await item?.loadTransferable(type: Data.self) }
         }
@@ -404,14 +427,36 @@ private struct RecordEditorSheet: View {
 
     private var header: some View {
         ZStack {
-            Text("新增记录").v32Text(.headline).foregroundStyle(V32.textPrimary)
+            Text("新增记录")
+                .font(V371.Type.sectionTitle)
+                .foregroundStyle(V371.Colors.textPrimary)
             HStack {
                 Button("取消") { dismiss() }
-                    .v32Text(.body)
-                    .foregroundStyle(V32.textTertiary)
+                    .font(V371.Type.rowTitle)
+                    .foregroundStyle(V371.Colors.textSecondary)
                 Spacer()
             }
         }
+    }
+
+    private var saveButton: some View {
+        Button {
+            Haptic.light()
+            save()
+        } label: {
+            Text("保存")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity, minHeight: 50)
+                .background(
+                    canSave ? V371.Colors.blue : V371.Colors.gray.opacity(0.35),
+                    in: RoundedRectangle(cornerRadius: V371.Radius.control, style: .continuous)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!canSave)
+        .accessibilityLabel("保存")
     }
 
     private func save() {

@@ -1,9 +1,10 @@
 import SwiftUI
 
-// MARK: - 小掌柜动作确认卡（ActionCard）
+// MARK: - 小掌柜动作确认卡（ActionCard · V3.7.1 Presentation 重构）
 //
 // 所有 CREATE 必须经此卡用户确认；Foundation 阶段确认也只标记「已预览」，
-// 绝不真实写库（PreviewToolExecutor 写闸门）。UI 保持 Apple 原生、轻量。
+// 绝不真实写库（PreviewToolExecutor 写闸门）。确认流程、文案、状态机原样保留，
+// 只换 UI：GroupSurface + editorial rows，内容区 solid、不做 material。
 
 struct ActionCardView: View {
     let proposal: ActionProposal
@@ -12,10 +13,9 @@ struct ActionCardView: View {
     let onCancel: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
-        V32FieldGroup {
+        GroupSurface {
             VStack(alignment: .leading, spacing: 12) {
                 header
                 fields
@@ -27,6 +27,7 @@ struct ActionCardView: View {
                 }
                 actions
             }
+            .padding(V371.Space.rowPadding)
         }
         .transition(.opacity.combined(with: reduceMotion ? .identity : .move(edge: .bottom)))
         .animation(V32Motion.animation(V32Motion.resolve(.spring, reduceMotion: reduceMotion)),
@@ -38,16 +39,52 @@ struct ActionCardView: View {
 
     private var header: some View {
         HStack(spacing: 10) {
-            V32IconBubble(systemName: Self.icon(for: proposal.call.name), tone: .brand)
+            Image(systemName: Self.icon(for: proposal.call.name))
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(toneColor)
+                .frame(width: 36, height: 36)
+                .background(V371.Colors.tinted(toneColor), in: Circle())
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(Self.title(for: proposal.call.name))
-                    .v32Text(.headline)
-                    .foregroundStyle(V32.textPrimary)
+                    .font(.headline)
+                    .foregroundStyle(V371.Colors.textPrimary)
                 Text(statusCaption)
-                    .v32Text(.caption)
-                    .foregroundStyle(V32.textTertiary)
+                    .font(.caption)
+                    .foregroundStyle(V371.Colors.textTertiary)
             }
             Spacer(minLength: 0)
+            StatusBadge(statusBadgeText, color: statusBadgeColor)
+        }
+    }
+
+    private var toneColor: Color {
+        switch proposal.status {
+        case .failed: return V371.Colors.red
+        case .executed: return V371.Colors.green
+        case .duplicate, .cancelled: return V371.Colors.gray
+        default: return V371.Colors.blue
+        }
+    }
+
+    private var statusBadgeText: String {
+        switch proposal.status {
+        case .pending: return proposal.isPreviewOnly ? "预览" : "待你确认"
+        case .confirmed: return "正在保存…"
+        case .executed: return "已保存"
+        case .duplicate: return "已跳过"
+        case .failed: return "失败"
+        case .cancelled: return "已取消"
+        }
+    }
+
+    private var statusBadgeColor: Color {
+        switch proposal.status {
+        case .failed: return V371.Colors.red
+        case .executed: return V371.Colors.green
+        case .duplicate, .cancelled: return V371.Colors.gray
+        case .confirmed: return V371.Colors.orange
+        case .pending: return V371.Colors.blue
         }
     }
 
@@ -56,14 +93,14 @@ struct ActionCardView: View {
             ForEach(Array(proposal.call.arguments.fieldRows.enumerated()), id: \.offset) { _, row in
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                     Text(row.label)
-                        .v32Text(.subhead)
-                        .foregroundStyle(V32.textTertiary)
+                        .font(.subheadline)
+                        .foregroundStyle(V371.Colors.textTertiary)
                         .frame(minWidth: 56, alignment: .leading)
                         .fixedSize(horizontal: false, vertical: true)
                         .layoutPriority(1)
                     Text(row.value)
-                        .v32Text(.body)
-                        .foregroundStyle(V32.textPrimary)
+                        .font(.body)
+                        .foregroundStyle(V371.Colors.textPrimary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .layoutPriority(0)
                 }
@@ -77,10 +114,10 @@ struct ActionCardView: View {
             Image(systemName: "eye")
                 .font(.system(size: 12, weight: .semibold))
             Text("预览版：点击确认也不会真实保存，正式版才会写入")
-                .v32Text(.caption)
+                .font(.caption)
             Spacer(minLength: 0)
         }
-        .foregroundStyle(V32.amber)
+        .foregroundStyle(V371.Colors.orange)
         .padding(.vertical, 4)
     }
 
@@ -88,10 +125,10 @@ struct ActionCardView: View {
         HStack(spacing: 7) {
             Image(systemName: proposal.status == .failed ? "exclamationmark.triangle" : "checkmark.circle.fill")
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(proposal.status == .failed ? V32.danger : V32.brand)
+                .foregroundStyle(proposal.status == .failed ? V371.Colors.red : V371.Colors.green)
             Text(text)
-                .v32Text(.subhead)
-                .foregroundStyle(V32.textSecondary)
+                .font(.subheadline)
+                .foregroundStyle(V371.Colors.textSecondary)
             Spacer(minLength: 0)
         }
     }
@@ -99,21 +136,57 @@ struct ActionCardView: View {
     private var actions: some View {
         let resolved = (proposal.status != .pending && proposal.status != .failed) || proposal.previewAcknowledged
         return VStack(spacing: 9) {
-            V32PrimaryButton(title: confirmTitle, systemName: "checkmark") {
+            Button {
+                Haptic.light()
                 onConfirm()
+            } label: {
+                Label(confirmTitle, systemImage: "checkmark")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(resolved ? V371.Colors.gray.opacity(0.4) : V371.Colors.blue)
+                    )
             }
+            .buttonStyle(.plain)
             .disabled(resolved)
-            .opacity(resolved ? 0.55 : 1)
+            .opacity(resolved ? 0.75 : 1)
             .accessibilityIdentifier("ai.action-card.confirm")
 
             HStack(spacing: 10) {
-                V32SecondaryButton(title: "修改", systemName: "pencil") { onModify() }
-                    .disabled(resolved)
-                V32SecondaryButton(title: "不记录", systemName: "xmark") { onCancel() }
-                    .disabled(resolved)
+                Button {
+                    Haptic.light()
+                    onModify()
+                } label: {
+                    Label("修改", systemImage: "pencil")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(V371.Colors.blue)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(V371.Colors.tinted(V371.Colors.blue))
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(resolved)
+                Button {
+                    Haptic.light()
+                    onCancel()
+                } label: {
+                    Label("不记录", systemImage: "xmark")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(V371.Colors.textSecondary)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(V371.Colors.groupSecondary)
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(resolved)
             }
         }
-        .modifier(ActionControlSurface(reduceTransparency: reduceTransparency))
     }
 
     private var confirmTitle: String {
@@ -154,21 +227,6 @@ struct ActionCardView: View {
         case .createMemo: return "新建备忘"
         case .createDelivery: return "新建配送"
         case .searchRecords: return "查询经营记录"
-        }
-    }
-}
-
-private struct ActionControlSurface: ViewModifier {
-    let reduceTransparency: Bool
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if #available(iOS 26.0, *), !reduceTransparency {
-            content
-                .padding(8)
-                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        } else {
-            content
         }
     }
 }

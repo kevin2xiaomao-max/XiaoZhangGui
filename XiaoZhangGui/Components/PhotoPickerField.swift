@@ -16,14 +16,14 @@ struct PhotoPickerField: View {
                     .resizable()
                     .scaledToFill()
                     .frame(width: 64, height: 64)
-                    .clipShape(RoundedRectangle(cornerRadius: V32Radius.inset, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: V371.Radius.control, style: .continuous))
                     .overlay(alignment: .topTrailing) {
                         Button {
                             onChange(nil)
                         } label: {
                             Image(systemName: "xmark.circle.fill")
                                 .font(.system(size: 16))
-                                .foregroundColor(.white)
+                                .foregroundStyle(.white)
                                 .shadow(radius: 2)
                         }
                         .offset(x: 6, y: -6)
@@ -33,11 +33,11 @@ struct PhotoPickerField: View {
             PhotosPicker(selection: $pickerItem, matching: .images) {
                 Label(imageData == nil ? "添加图片" : "更换图片", systemImage: "photo.badge.plus")
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(V32.brand)
+                    .foregroundStyle(V371.Colors.blue)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
                     .background {
-                        Capsule(style: .continuous).fill(V32.brandSoft)
+                        Capsule(style: .continuous).fill(V371.Colors.tinted(V371.Colors.blue))
                     }
             }
             .onChange(of: pickerItem) { _, item in
@@ -73,6 +73,6 @@ struct ImageThumb: View {
             }
         }
         .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: V371.Radius.control, style: .continuous))
     }
 }

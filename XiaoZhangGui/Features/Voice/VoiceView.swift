@@ -1,12 +1,27 @@
 import SwiftUI
 import SwiftData
 
+// MARK: - 语音记账（V3.7.1 Presentation 重构 · §10.3）
+//
+// 流程完整保留：speech → parse → preview → confirm → save。
+// 去掉老旧「大圆麦克风占满页面」设计，改为：
+// clear header + waveform/listening state + transcript + parsed preview + confirm/save + cancel。
+// 所有业务调用（beginListening/stopListening/submitManualText/save/reset）原样走 VoiceViewModel。
+
 struct VoiceView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
 
     @State private var viewModel: VoiceViewModel?
     @State private var manualText = ""
+    @FocusState private var manualFocused: Bool
+
+    /// 允许外部注入已创建的 ViewModel（RootView 预创建）；nil 时按原逻辑在 onAppear 懒创建。
+    init(viewModel: VoiceViewModel? = nil) {
+        _viewModel = State(initialValue: viewModel)
+    }
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Group {
@@ -33,92 +48,205 @@ struct VoiceView: View {
 
     private func content(_ vm: VoiceViewModel) -> some View {
         VStack(spacing: 0) {
-            // 顶部：状态文字 + 关闭（一行，紧凑）
-            HStack {
-                stateTitle(vm)
-                Spacer()
-                Button {
-                    vm.reset()
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 28, height: 28)
-                        .background(.ultraThinMaterial, in: Circle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("关闭")
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 10)
+            header(vm)
 
-            // 聆听 / 转写区
             if vm.phase == .preview || vm.phase == .saving {
                 previewSection(vm)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 10)
-                    .padding(.bottom, 12)
             } else {
-                Group {
-                    if vm.phase == .textFallback {
-                        TextField("例如：明天下午三点联系饮料供应商", text: $manualText, axis: .vertical)
-                            .font(.body)
-                            .lineLimit(2...3)
-                            .multilineTextAlignment(.center)
-                            .onSubmit { submitManual(vm) }
-                            .padding(10)
-                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    } else if !vm.transcript.isEmpty {
-                        Text(vm.transcript)
-                            .font(.body)
-                            .foregroundStyle(.primary)
-                            .lineLimit(3)
-                            .multilineTextAlignment(.center)
-                            .padding(10)
-                            .frame(maxWidth: .infinity)
-                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    } else {
-                        CompactVoiceWaveform()
-                            .frame(height: 20)
-                            .frame(maxWidth: .infinity)
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-
-                Spacer(minLength: 0)
-
-                // 主语音按钮
-                centralButton(vm)
-                    .padding(.top, 4)
-
-                hintText(vm)
-                    .padding(.top, 4)
-                    .padding(.bottom, 10)
+                listeningSection(vm)
             }
         }
+        .v371Canvas()
     }
 
-    // MARK: - 子视图
+    // MARK: - Clear header
+
+    private func header(_ vm: VoiceViewModel) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("语音记账")
+                    .font(.headline)
+                    .foregroundStyle(V371.Colors.textPrimary)
+                stateTitle(vm)
+            }
+            Spacer(minLength: 8)
+            Button {
+                Haptic.light()
+                vm.reset()
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(V371.Colors.textSecondary)
+                    .frame(width: 44, height: 44)
+                    .background(Circle().fill(V371.Colors.groupSecondary))
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("关闭")
+        }
+        .padding(.horizontal, V371.Space.page)
+        .padding(.top, 10)
+        .padding(.bottom, 6)
+    }
 
     private func stateTitle(_ vm: VoiceViewModel) -> some View {
         let text: String
         let tint: Color
         if vm.didSave {
             text = "已记录"
-            tint = V32.brand
+            tint = V371.Colors.green
         } else if case .error = vm.phase {
             text = "出错了，点击重试"
-            tint = V32.danger
+            tint = V371.Colors.red
         } else {
             text = vm.phase.statusText
-            tint = Color.primary
+            tint = V371.Colors.textSecondary
         }
         return Text(text)
-            .font(.headline)
-            .multilineTextAlignment(.center)
+            .font(.subheadline)
             .foregroundStyle(tint)
+    }
+
+    // MARK: - Listening state：waveform + transcript + actions
+
+    private func listeningSection(_ vm: VoiceViewModel) -> some View {
+        VStack(spacing: 14) {
+            // waveform / listening state
+            Group {
+                if vm.phase == .textFallback {
+                    TextField("例如：明天下午三点联系饮料供应商", text: $manualText, axis: .vertical)
+                        .font(.body)
+                        .lineLimit(2...4)
+                        .focused($manualFocused)
+                        .onSubmit { submitManual(vm) }
+                        .toolbar {
+                            ToolbarItemGroup(placement: .keyboard) {
+                                Spacer()
+                                Button("完成") { manualFocused = false }
+                            }
+                        }
+                        .padding(V371.Space.rowPadding)
+                        .background(
+                            RoundedRectangle(cornerRadius: V371.Radius.control, style: .continuous)
+                                .fill(V371.Colors.group)
+                        )
+                } else {
+                    VStack(spacing: 10) {
+                        if vm.phase == .listening || vm.phase == .recognized || vm.phase == .parsing {
+                            CompactVoiceWaveform()
+                                .frame(height: 24)
+                                .frame(maxWidth: .infinity)
+                                .accessibilityHidden(true)
+                        }
+                        // transcript
+                        Text(vm.transcript.isEmpty ? transcriptPlaceholder(for: vm.phase) : vm.transcript)
+                            .font(.body)
+                            .foregroundStyle(vm.transcript.isEmpty ? V371.Colors.textTertiary : V371.Colors.textPrimary)
+                            .lineLimit(4)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .padding(V371.Space.rowPadding)
+                    .background(
+                        RoundedRectangle(cornerRadius: V371.Radius.control, style: .continuous)
+                            .fill(V371.Colors.group)
+                    )
+                }
+            }
+            .padding(.horizontal, V371.Space.page)
+
+            if case .error(let message) = vm.phase {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(V371.Colors.red)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, V371.Space.page)
+            }
+
+            Spacer(minLength: 0)
+
+            // actions：primary（开始/停止/重试/解析）+ cancel
+            VStack(spacing: 10) {
+                primaryActionButton(vm)
+                Button {
+                    Haptic.light()
+                    vm.reset()
+                    dismiss()
+                } label: {
+                    Text("取消")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(V371.Colors.textSecondary)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, V371.Space.page)
+            .padding(.bottom, 12)
+        }
+        .padding(.top, 6)
+    }
+
+    private func transcriptPlaceholder(for phase: VoicePhase) -> String {
+        switch phase {
+        case .listening: return QuickCaptureSemantic.listening
+        case .recognized, .parsing: return QuickCaptureSemantic.processing
+        case .textFallback: return ""
+        default: return "点击「开始说话」，例如：今天美团680"
+        }
+    }
+
+    private func primaryActionButton(_ vm: VoiceViewModel) -> some View {
+        let title: String
+        let icon: String
+        let tint: Color
+        let action: () -> Void
+        let enabled: Bool
+        switch vm.phase {
+        case .listening:
+            title = "停止识别"; icon = "stop.fill"; tint = V371.Colors.red
+            action = { vm.stopListening() }; enabled = true
+        case .idle, .error:
+            title = vm.phase == .idle ? "开始说话" : "重试"
+            icon = "mic.fill"; tint = V371.Colors.blue
+            action = { vm.reset(); vm.beginListening() }; enabled = true
+        case .textFallback:
+            title = "解析"; icon = "paperplane.fill"; tint = V371.Colors.blue
+            action = { submitManual(vm) }; enabled = true
+        case .recognized, .parsing:
+            title = QuickCaptureSemantic.processing; icon = "waveform"; tint = V371.Colors.blue
+            action = {}; enabled = false
+        case .preview, .saving:
+            title = ""; icon = ""; tint = V371.Colors.blue
+            action = {}; enabled = false
+        }
+        return Button {
+            Haptic.medium()
+            action()
+        } label: {
+            HStack(spacing: 8) {
+                if enabled || vm.phase == .recognized || vm.phase == .parsing {
+                    if vm.phase == .recognized || vm.phase == .parsing {
+                        ProgressView().tint(.white)
+                    } else {
+                        Image(systemName: icon)
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                }
+                Text(title)
+                    .font(.body.weight(.semibold))
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity, minHeight: 50)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(enabled ? tint : V371.Colors.gray.opacity(0.4))
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .accessibilityLabel(title)
     }
 
     private func submitManual(_ vm: VoiceViewModel) {
@@ -128,161 +256,95 @@ struct VoiceView: View {
         vm.submitManualText(text)
     }
 
-    private func centralButton(_ vm: VoiceViewModel) -> some View {
-        let press: () -> Void = {
-            switch vm.phase {
-            case .listening:
-                vm.stopListening()
-            case .idle, .error:
-                vm.reset()
-                vm.beginListening()
-            case .textFallback:
-                submitManual(vm)
-            default:
-                break
-            }
-        }
-        let tint = vm.phase == .listening ? V32.danger : V32.brand
-        let size = V21Layout.centralVoiceButton // 60pt
-
-        return Group {
-            if #available(iOS 26.0, *) {
-                Button(action: press) {
-                    Image(systemName: centralIcon(vm))
-                        .font(.system(size: V21Layout.voiceButtonIconSize, weight: .semibold))
-                        .frame(width: size, height: size)
-                }
-                .buttonStyle(.glassProminent)
-                .tint(tint)
-                .accessibilityLabel(vm.phase == .listening ? "停止" : "开始语音")
-            } else {
-                Button(action: press) {
-                    ZStack {
-                        Circle()
-                            .fill(.ultraThinMaterial)
-                            .frame(width: size + 12, height: size + 12)
-                        Circle()
-                            .fill(tint)
-                            .frame(width: size, height: size)
-                        Image(systemName: centralIcon(vm))
-                            .font(.system(size: V21Layout.voiceButtonIconSize, weight: .semibold))
-                            .foregroundStyle(.white)
-                    }
-                    .frame(width: size, height: size)
-                    .contentShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(vm.phase == .listening ? "停止" : "开始语音")
-            }
-        }
-    }
-
-    private func centralIcon(_ vm: VoiceViewModel) -> String {
-        switch vm.phase {
-        case .listening: return "stop.fill"
-        case .textFallback: return "paperplane.fill"
-        case .idle, .error: return "mic.fill"
-        default: return "mic.fill"
-        }
-    }
-
-    private func hintText(_ vm: VoiceViewModel) -> some View {
-        let text: String
-        switch vm.phase {
-        case .listening: text = "点击停止"
-        case .textFallback: text = "输入后回车解析"
-        case .preview, .saving, .parsing: text = ""
-        default: text = "点击重新说"
-        }
-        return Group {
-            if !text.isEmpty {
-                Text(text)
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-        }
-    }
+    // MARK: - Parsed preview + confirm/save + cancel
 
     private func previewSection(_ vm: VoiceViewModel) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            // 识别文字作为主要信息
-            Text(vm.transcript.isEmpty ? "（未识别到文字）" : vm.transcript)
-                .font(.body.weight(.medium))
-                .foregroundStyle(.primary)
-                .lineLimit(4)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(10)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                // 识别文字作为主要信息
+                Text(vm.transcript.isEmpty ? "（未识别到文字）" : vm.transcript)
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(V371.Colors.textPrimary)
+                    .lineLimit(4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(V371.Space.rowPadding)
+                    .background(
+                        RoundedRectangle(cornerRadius: V371.Radius.control, style: .continuous)
+                            .fill(V371.Colors.group)
+                    )
 
-            // 解析结果（紧凑字段展示）
-            if let draft = vm.draft {
-                parsedFields(draft)
-            }
-
-            // 类型选择（系统 segmented，紧凑）
-            Picker("类型", selection: Binding(
-                get: { vm.recordType },
-                set: { vm.recordType = $0; Haptic.light() }
-            )) {
-                ForEach(VoiceRecordType.allCases) { type in
-                    Text(type.rawValue).tag(type)
-                }
-            }
-            .pickerStyle(.segmented)
-
-            // 保存按钮
-            Group {
-                if #available(iOS 26.0, *) {
-                    Button {
-                        Haptic.medium()
-                        vm.save()
-                    } label: {
-                        Group {
-                            if vm.phase == .saving {
-                                ProgressView().tint(.white)
-                            } else {
-                                Text("确认保存")
-                                    .font(.body.weight(.semibold))
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 44)
+                // 解析结果（紧凑字段展示）
+                if let draft = vm.draft {
+                    SectionHeader("解析结果")
+                        .padding(.horizontal, 4)
+                    GroupSurface {
+                        parsedFields(draft)
+                            .padding(V371.Space.rowPadding)
                     }
-                    .buttonStyle(.glassProminent)
-                    .tint(V32.brand)
-                    .disabled(vm.phase == .saving)
-                } else {
-                    Button {
-                        Haptic.medium()
-                        vm.save()
-                    } label: {
-                        Group {
-                            if vm.phase == .saving {
-                                ProgressView().tint(.white)
-                            } else {
-                                Text("确认保存")
-                                    .font(.body.weight(.semibold))
-                                    .foregroundStyle(.white)
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 44)
-                        .background(V32.brand, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(vm.phase == .saving)
                 }
+
+                // 类型选择（系统 segmented，紧凑）
+                Picker("类型", selection: Binding(
+                    get: { vm.recordType },
+                    set: { vm.recordType = $0; Haptic.light() }
+                )) {
+                    ForEach(VoiceRecordType.allCases) { type in
+                        Text(type.rawValue).tag(type)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .padding(.top, 2)
+
+                // 确认保存
+                Button {
+                    Haptic.medium()
+                    vm.save()
+                } label: {
+                    Group {
+                        if vm.phase == .saving {
+                            ProgressView().tint(.white)
+                        } else {
+                            Text("确认保存")
+                                .font(.body.weight(.semibold))
+                        }
+                    }
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, minHeight: 50)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(V371.Colors.blue)
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(vm.phase == .saving)
+                .accessibilityLabel("确认保存")
+
+                // 取消
+                Button {
+                    Haptic.light()
+                    vm.reset()
+                } label: {
+                    Text("取消")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(V371.Colors.textSecondary)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("取消本次语音")
             }
+            .padding(.horizontal, V371.Space.page)
+            .padding(.top, 8)
+            .padding(.bottom, 12)
         }
     }
 
-    @ViewBuilder
     private func parsedFields(_ draft: VoiceDraft) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             switch draft.type {
             case .revenue, .expense:
                 if let amount = draft.amount {
-                    fieldRow(label: "金额", value: "¥\(Fmt.money(amount))", icon: "yensign.circle")
+                    fieldRow(label: "金额", value: Fmt.money(amount), icon: "yensign.circle")
                 }
             case .expiry:
                 fieldRow(label: "商品", value: draft.title, icon: "shippingbox")
@@ -309,29 +371,27 @@ struct VoiceView: View {
             }
         }
         .font(.subheadline)
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private func fieldRow(label: String, value: String, icon: String) -> some View {
         HStack(spacing: 8) {
             Image(systemName: icon)
                 .font(.caption)
-                .foregroundStyle(V32.brand)
+                .foregroundStyle(V371.Colors.blue)
                 .frame(width: 18)
+                .accessibilityHidden(true)
             Text(label)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(V371.Colors.textSecondary)
                 .frame(width: 36, alignment: .leading)
             Text(value)
-                .foregroundStyle(.primary)
+                .foregroundStyle(V371.Colors.textPrimary)
                 .lineLimit(1)
             Spacer(minLength: 0)
         }
     }
 }
 
-// MARK: - 紧凑波形（高度 20pt，轻量动态反馈）
+// MARK: - 紧凑波形（轻量动态反馈 · V371）
 
 struct CompactVoiceWaveform: View {
     @State private var phase = false
@@ -342,7 +402,7 @@ struct CompactVoiceWaveform: View {
             ForEach(0..<15, id: \.self) { index in
                 let height = computeHeight(index: index)
                 Capsule()
-                    .fill(V32.brand.opacity(0.7))
+                    .fill(V371.Colors.blue.opacity(0.7))
                     .frame(width: 2.5, height: height)
                     .animation(
                         reduceMotion ? nil : V32Motion.slow
@@ -359,38 +419,10 @@ struct CompactVoiceWaveform: View {
     @MainActor
     private func computeHeight(index: Int) -> CGFloat {
         let minH: CGFloat = 4
-        let maxH: CGFloat = 18
+        let maxH: CGFloat = 22
         let base = phase ? maxH : minH
         let centerDist = abs(index - 7)
         let factor: CGFloat = max(0.4, 1 - CGFloat(centerDist) * 0.08)
         return max(minH, base * factor)
-    }
-}
-
-// MARK: - 旧组件保留（向后兼容，如果没被引用会被编译器裁剪）
-
-@MainActor
-struct SpatialRipples: View {
-    @State private var animate = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        ZStack {
-            ForEach(0..<3, id: \.self) { index in
-                Circle()
-                    .strokeBorder(V32.brand.opacity(0.18), lineWidth: 1.5)
-                    .scaleEffect(animate ? 2.6 : 0.4)
-                    .opacity(animate ? 0 : 0.5)
-                    .animation(
-                        reduceMotion ? nil : .linear(duration: 4)
-                            .repeatForever(autoreverses: false)
-                            .delay(Double(index) * 1.3),
-                        value: animate
-                    )
-            }
-        }
-        .onAppear { animate = !reduceMotion }
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
     }
 }

@@ -12,6 +12,9 @@ import Observation
 // - 保存仍走各现有 Repository，不新增写入路径。
 // - 监听期间唯一麦克风视觉入口是监听状态卡（头部麦克风整体不渲染），
 //   停止 / 取消都在状态卡内；全程静态样式，无 repeatForever 脉冲动画。
+//
+// V3.7.1：仅 presentation 重构（NavigationStack + toolbar、SectionHeader、
+// GroupSurface + 行内 hairline、V371 按钮样式）。解析、语义、写入逻辑原样不动。
 
 /// 保存闸门：唯一条件是「trim 后非空」。类型识别结果不参与能否保存的判断。
 enum QuickRecordSavePolicy {
@@ -48,40 +51,42 @@ struct QuickRecordSheet: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                header
-                if voice.status != .idle {
-                    voiceCard
-                }
-                inputCard
-                if let draft = currentDraft {
-                    resultCard(draft)
-                }
-                if let savedMessage {
-                    HStack {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(V32.brand)
-                        Text(savedMessage).v32Text(.body).foregroundStyle(V32.textSecondary)
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: V371.Space.section) {
+                    SectionHeader("一句话") {
+                        // 监听期间头部麦克风按钮整体不渲染：唯一麦克风入口是监听状态卡。
+                        if !voice.isListening {
+                            micButton
+                        }
                     }
+                    inputGroup
+                    if voice.status != .idle {
+                        voiceCard
+                    }
+                    if let draft = currentDraft {
+                        SectionHeader("识别结果")
+                        resultGroup(draft)
+                    }
+                    statusViews
+                    saveButton
                 }
-                if let errorMessage {
-                    Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
-                        .v32Text(.caption)
-                        .foregroundStyle(V32.danger)
-                }
-                V32PrimaryButton(title: "确认保存", systemName: "checkmark.circle.fill") { commit() }
-                    .disabled(!canSave)
-                    .opacity(canSave ? 1 : 0.5)
-                    .accessibilityHint(canSave ? "" : "说一句话或输入内容后即可保存")
+                .padding(.horizontal, V371.Space.page)
+                .padding(.top, 12)
+                .padding(.bottom, 28)
             }
-            .padding(.horizontal, V32Layout.pageMargin)
-            .padding(.top, 14)
-            .padding(.bottom, V32Layout.bottomPad)
+            .scrollIndicators(.hidden)
+            .navigationTitle("快速记录")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                }
+            }
         }
-        .scrollIndicators(.hidden)
-        .v32PageBackground()
-        .v32Sheet([.medium, .large])
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .v371Canvas()
         .onAppear { autoStartListening() }
         .onDisappear { voice.cancel() }
         .onChange(of: text) { _, newValue in
@@ -97,38 +102,20 @@ struct QuickRecordSheet: View {
         }
     }
 
-    private var header: some View {
-        ZStack {
-            Text("快速记录").v32Text(.headline).foregroundStyle(V32.textPrimary)
-            HStack {
-                Button("取消") { dismiss() }
-                    .v32Text(.body)
-                    .foregroundStyle(V32.textTertiary)
-                Spacer()
-            }
-        }
-    }
-
-    private var inputCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .center) {
-                V32SectionHeader("一句话")
-                Spacer(minLength: 8)
-                // 监听期间头部麦克风按钮整体不渲染：全屏唯一麦克风入口是监听状态卡。
-                if !voice.isListening {
-                    micButton
-                }
-            }
-            V32FieldGroup {
+    private var inputGroup: some View {
+        GroupSurface {
+            VStack(alignment: .leading, spacing: 10) {
                 TextField("例如：今天美团680", text: $text, axis: .vertical)
-                    .v32Text(.body)
-                    .foregroundStyle(V32.textPrimary)
-                    .tint(V32.brand)
+                    .font(V371.Type.rowTitle)
+                    .foregroundStyle(V371.Colors.textPrimary)
+                    .tint(V371.Colors.blue)
                     .lineLimit(3...6)
+                    .frame(minHeight: 64, alignment: .top)
+                Text("本地规则识别，不经过 AI、不需要 API Key；识别不了的内容也会存为备忘。")
+                    .font(V371.Type.rowSubtitle)
+                    .foregroundStyle(V371.Colors.textTertiary)
             }
-            Text("本地规则识别，不经过 AI、不需要 API Key；识别不了的内容也会存为备忘。")
-                .v32Text(.caption)
-                .foregroundStyle(V32.textTertiary)
+            .padding(V371.Space.rowPadding)
         }
     }
 
@@ -151,37 +138,36 @@ struct QuickRecordSheet: View {
     private var micButton: some View {
         Button(action: startListening) {
             Image(systemName: "mic.fill")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(V32.brand)
-                .frame(width: 36, height: 36)
-                .background(
-                    Circle()
-                        .fill(V32.brandSoft)
-                )
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(V371.Colors.blue)
+                .frame(width: 44, height: 44)
+                .background(Circle().fill(V371.Colors.tinted(V371.Colors.blue)))
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("语音说一句")
     }
 
     private var voiceCard: some View {
-        V32FieldGroup {
+        GroupSurface {
             HStack(alignment: .center, spacing: 12) {
                 ZStack {
                     Circle()
-                        .fill(V32.brandSoft)
-                        .frame(width: 40, height: 40)
+                        .fill(V371.Colors.tinted(V371.Colors.blue))
+                        .frame(width: 44, height: 44)
                     Image(systemName: voice.isListening ? "mic.fill" : "exclamationmark.triangle.fill")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(voice.isListening ? V32.brand : V32.amber)
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(voice.isListening ? V371.Colors.blue : V371.Colors.orange)
                 }
+                .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(voiceStatusTitle)
-                        .v32Text(.subhead)
-                        .foregroundStyle(V32.textPrimary)
+                        .font(V371.Type.rowTitle)
+                        .foregroundStyle(V371.Colors.textPrimary)
                     if voice.isListening {
                         Text(voice.liveTranscript.isEmpty ? "停顿后会自动结束，也可停止或取消" : voice.liveTranscript)
-                            .v32Text(.caption)
-                            .foregroundStyle(V32.textSecondary)
+                            .font(V371.Type.rowSubtitle)
+                            .foregroundStyle(V371.Colors.textSecondary)
                             .lineLimit(2)
                     }
                 }
@@ -194,8 +180,8 @@ struct QuickRecordSheet: View {
                             Image(systemName: "stop.fill")
                                 .font(.system(size: 12, weight: .semibold))
                                 .foregroundStyle(.white)
-                                .frame(width: 32, height: 32)
-                                .background(Circle().fill(V32.brand))
+                                .frame(width: 44, height: 44)
+                                .background(Circle().fill(V371.Colors.blue))
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("停止语音")
@@ -204,15 +190,16 @@ struct QuickRecordSheet: View {
                         } label: {
                             Image(systemName: "xmark")
                                 .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(V32.textSecondary)
-                                .frame(width: 32, height: 32)
-                                .background(Circle().fill(V32.neutralSoft))
+                                .foregroundStyle(V371.Colors.textSecondary)
+                                .frame(width: 44, height: 44)
+                                .background(Circle().fill(V371.Colors.groupSecondary))
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("取消语音")
                     }
                 }
             }
+            .padding(V371.Space.rowPadding)
         }
     }
 
@@ -233,22 +220,19 @@ struct QuickRecordSheet: View {
 
     // MARK: 识别结果
 
-    private func resultCard(_ draft: QuickRecordDraft) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            V32SectionHeader("识别结果")
-            V32FieldGroup {
-                VStack(spacing: 0) {
-                    kindRow(draft)
-                    divider
-                    resultRow("内容", value: draft.note)
-                    if let amount = draft.amount {
-                        divider
-                        resultRow("金额", value: Fmt.money(amount))
-                    }
-                    if let date = draft.date {
-                        divider
-                        resultRow("时间", value: Fmt.dateTime(date))
-                    }
+    private func resultGroup(_ draft: QuickRecordDraft) -> some View {
+        GroupSurface {
+            VStack(spacing: 0) {
+                kindRow(draft)
+                V371Divider()
+                resultRow("内容", value: draft.note)
+                if let amount = draft.amount {
+                    V371Divider()
+                    resultRow("金额", value: Fmt.money(amount))
+                }
+                if let date = draft.date {
+                    V371Divider()
+                    resultRow("时间", value: Fmt.dateTime(date))
                 }
             }
         }
@@ -257,7 +241,9 @@ struct QuickRecordSheet: View {
     /// 类型行：自动识别为主，用户可随时手动改类型（次入口）
     private func kindRow(_ draft: QuickRecordDraft) -> some View {
         HStack(alignment: .firstTextBaseline) {
-            Text("类型").v32Text(.subhead).foregroundStyle(V32.textTertiary)
+            Text("类型")
+                .font(V371.Type.rowSubtitle)
+                .foregroundStyle(V371.Colors.textTertiary)
             Spacer(minLength: 12)
             Menu {
                 ForEach(QuickRecordKind.allCases, id: \.self) { kind in
@@ -274,30 +260,35 @@ struct QuickRecordSheet: View {
             } label: {
                 HStack(spacing: 4) {
                     Text(kindLabel(draft.kind))
-                        .v32Text(.body)
-                        .foregroundStyle(V32.textPrimary)
+                        .font(V371.Type.rowTitle)
+                        .foregroundStyle(V371.Colors.textPrimary)
                     Image(systemName: "arrow.up.arrow.down")
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(V32.textTertiary)
+                        .foregroundStyle(V371.Colors.textTertiary)
                 }
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
             }
             .accessibilityLabel("改类型，当前：\(kindLabel(draft.kind))")
         }
+        .padding(.horizontal, V371.Space.rowPadding)
         .padding(.vertical, 10)
     }
 
     private func resultRow(_ label: String, value: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(label).v32Text(.subhead).foregroundStyle(V32.textTertiary)
+            Text(label)
+                .font(V371.Type.rowSubtitle)
+                .foregroundStyle(V371.Colors.textTertiary)
             Spacer(minLength: 12)
-            Text(value).v32Text(.body).foregroundStyle(V32.textPrimary)
+            Text(value)
+                .font(V371.Type.rowTitle)
+                .foregroundStyle(V371.Colors.textPrimary)
                 .multilineTextAlignment(.trailing)
         }
+        .padding(.horizontal, V371.Space.rowPadding)
         .padding(.vertical, 10)
-    }
-
-    private var divider: some View {
-        Rectangle().fill(V32.divider).frame(height: 1)
+        .frame(minHeight: 48)
     }
 
     private func kindLabel(_ kind: QuickRecordKind) -> String {
@@ -308,6 +299,51 @@ struct QuickRecordSheet: View {
         case .expiry: return "临时商品"
         case .memo: return "备忘"
         }
+    }
+
+    // MARK: 状态与保存
+
+    @ViewBuilder
+    private var statusViews: some View {
+        if let savedMessage {
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(V371.Colors.green)
+                Text(savedMessage)
+                    .font(V371.Type.rowSubtitle)
+                    .foregroundStyle(V371.Colors.textSecondary)
+            }
+            .accessibilityElement(children: .combine)
+        }
+        if let errorMessage {
+            Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                .font(V371.Type.rowSubtitle)
+                .foregroundStyle(V371.Colors.red)
+        }
+    }
+
+    private var saveButton: some View {
+        Button {
+            commit()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                Text("确认保存")
+                    .font(.headline)
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity, minHeight: 52)
+            .background(
+                RoundedRectangle(cornerRadius: V371.Radius.control, style: .continuous)
+                    .fill(V371.Colors.blue)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!canSave)
+        .opacity(canSave ? 1 : 0.5)
+        .accessibilityHint(canSave ? "" : "说一句话或输入内容后即可保存")
     }
 
     private func commit() {

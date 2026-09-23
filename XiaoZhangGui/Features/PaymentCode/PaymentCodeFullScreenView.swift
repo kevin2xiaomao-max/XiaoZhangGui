@@ -94,17 +94,17 @@ struct PaymentCodeFullScreenView: View {
             if let code = currentCode {
                 VStack(spacing: 4) {
                     Text(code.name)
-                        .font(.system(size: 17, weight: .semibold))
+                        .font(V371.Type.sectionTitle)
                         .foregroundStyle(.white)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                     if codes.count > 1 {
                         Text("\(code.kind.displayName) · \(selection + 1)/\(codes.count)")
-                            .font(.system(size: 12, weight: .medium))
+                            .font(V371.Type.badge)
                             .foregroundStyle(.white.opacity(0.65))
                     } else {
                         Text(code.kind.displayName)
-                            .font(.system(size: 12, weight: .medium))
+                            .font(V371.Type.badge)
                             .foregroundStyle(.white.opacity(0.65))
                     }
                 }
@@ -125,13 +125,13 @@ struct PaymentCodeFullScreenView: View {
                     .padding(.horizontal, 28)
                     .padding(.vertical, 20)
                     .background(
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        RoundedRectangle(cornerRadius: V371.Radius.group, style: .continuous)
                             .fill(.white)
                     )
                     .padding(.horizontal, 20)
                     .accessibilityLabel("\(code.name)，双指可放大")
             } else {
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                RoundedRectangle(cornerRadius: V371.Radius.group, style: .continuous)
                     .fill(Color.white.opacity(0.08))
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, 20)

@@ -1,7 +1,8 @@
 import SwiftUI
 import SwiftData
 
-// MARK: - 记收入/记支出 编辑器（V32 sheet）
+// MARK: - 记收入/记支出 编辑器（原生 Form + Mode 三态）
+// 写入逻辑（Repository add/update）原样保留，只换原生 Form 与 toolbar 样式。
 
 struct MoneyEditorSheet: View {
     enum Mode {
@@ -50,118 +51,66 @@ struct MoneyEditorSheet: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                header
-                amountCard
-                detailCard
-                if kind == .income { incomeSourceCard }
-                if kind == .expense { categoryCard }
-                V32PrimaryButton(title: "保存", systemName: "checkmark") { save() }
-                    .disabled(amount == nil)
-                    .opacity(amount == nil ? 0.5 : 1)
-            }
-            .padding(.horizontal, V32Layout.pageMargin)
-            .padding(.top, 14)
-            .padding(.bottom, V32Layout.bottomPad)
-        }
-        .scrollIndicators(.hidden)
-        .v32PageBackground()
-        .v32Sheet([.medium, .large])
-        .onAppear(perform: loadEditing)
-        .alert("保存失败", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
-            Button("重试") { save() }
-            Button("取消", role: .cancel) { saveError = nil }
-        } message: { Text(saveError ?? "请稍后重试") }
-    }
+        NavigationStack {
+            Form {
+                Section(kind == .income ? "收入金额" : "支出金额") {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("¥")
+                            .font(.system(size: 22, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.secondary)
+                        TextField("0.00", text: $amountText)
+                            .font(.system(size: 34, weight: .bold, design: .rounded).monospacedDigit())
+                            .keyboardType(.decimalPad)
+                            .minimumScaleFactor(0.6)
+                            .accessibilityLabel(kind == .income ? "收入金额" : "支出金额")
+                    }
+                }
 
-    // MARK: 头部
-
-    private var header: some View {
-        ZStack {
-            Text(title)
-                .v32Text(.headline)
-                .foregroundStyle(V32.textPrimary)
-            HStack {
-                Button("取消") { dismiss() }
-                    .v32Text(.body)
-                    .foregroundStyle(V32.textTertiary)
-                Spacer()
-            }
-        }
-    }
-
-    // MARK: 金额
-
-    private var amountCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(kind == .income ? "收入金额" : "支出金额")
-                .v32Text(.caption)
-                .foregroundStyle(V32.textSecondary)
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("¥")
-                    .font(.system(size: 26, weight: .semibold, design: .rounded))
-                    .foregroundStyle(V32.textSecondary)
-                TextField("0.00", text: $amountText)
-                    .font(V32Font.heroMoney)
-                    .foregroundStyle(V32.textPrimary)
-                    .tint(V32.brand)
-                    .keyboardType(.decimalPad)
-                    .minimumScaleFactor(0.5)
-            }
-            Rectangle().fill(V32.brand.opacity(0.45)).frame(height: 2)
-        }
-        .padding(.top, 8)
-    }
-
-    // MARK: 明细
-
-    private var detailCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            V32SectionHeader("明细")
-            V32FieldGroup {
-                VStack(alignment: .leading, spacing: 12) {
-                    TextField(kind == .income ? "备注（选填）" : "备注（选填，如：进了两箱可乐）", text: $note)
-                        .v32Text(.body)
-                        .foregroundStyle(V32.textPrimary)
-                        .tint(V32.brand)
-                    Rectangle().fill(V32.divider).frame(height: 1)
+                Section("明细") {
+                    TextField(
+                        kind == .income ? "备注（选填）" : "备注（选填，如：进了两箱可乐）",
+                        text: $note,
+                        axis: .vertical
+                    )
                     DatePicker("日期", selection: $date, displayedComponents: .date)
-                        .v32Text(.title)
-                        .tint(V32.brand)
+                }
+
+                if kind == .expense {
+                    Section("分类") {
+                        Picker("分类", selection: $category) {
+                            ForEach(expenseCategories, id: \.self) { Text($0) }
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                }
+
+                if kind == .income {
+                    Section("收入来源") {
+                        Picker("收入来源", selection: $incomeSource) {
+                            ForEach(incomeSources) { Text($0.rawValue).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                    }
                 }
             }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("保存") { save() }
+                        .disabled(amount == nil)
+                }
+            }
+            .onAppear(perform: loadEditing)
+            .alert("保存失败", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
+                Button("重试") { save() }
+                Button("取消", role: .cancel) { saveError = nil }
+            } message: { Text(saveError ?? "请稍后重试") }
         }
-    }
-
-    // MARK: 分类
-
-    private var categoryCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            V32SectionHeader("分类")
-            V32SegmentedPicker(
-                tabs: expenseCategories,
-                selectionIndex: Binding(
-                    get: { expenseCategories.firstIndex(of: category) ?? expenseCategories.count - 1 },
-                    set: { category = expenseCategories[$0] }
-                )
-            )
-        }
-    }
-
-    // MARK: 收入来源（P0-3 美团支持）
-
-    private var incomeSourceCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            V32SectionHeader("收入来源")
-            V32SegmentedPicker(
-                tabs: incomeSources.map(\.rawValue),
-                selectionIndex: Binding(
-                    get: { incomeSources.firstIndex(of: incomeSource) ?? 0 },
-                    set: { incomeSource = incomeSources[$0] }
-                )
-            )
-        }
+        .v32Sheet([.medium, .large])
     }
 
     private func loadEditing() {
@@ -224,6 +173,4 @@ struct MoneyEditorSheet: View {
     }
 }
 
-extension Haptic {
-    static func error() { UINotificationFeedbackGenerator().notificationOccurred(.error) }
-}
+// Haptic 统一定义点见 XiaoZhangGui/DesignSystem/FloatingDock.swift（enum Haptic）。

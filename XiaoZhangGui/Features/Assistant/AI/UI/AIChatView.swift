@@ -2,10 +2,13 @@ import SwiftUI
 import PhotosUI
 import UniformTypeIdentifiers
 
-// MARK: - 小掌柜独立 AI 页（V3.3 第三个 Tab）
+// MARK: - 小掌柜独立 AI 页（V3.7.1 Presentation 重构）
 //
-// Foundation：全 Mock，可完成文字 Chat、短语音入口、四个 CREATE 的 ActionCard 预览；
-// 确认不写业务库。UI 全程沿用 V32 设计系统 / ThemeStore / 壁纸，不另造视觉体系。
+// 执行语义原样保留：只换 UI。Agent / Provider / Repository 全部在
+// AIConversationViewModel 与 Integration 层，本文件只做展示。
+//
+// V371 视觉：S0 conversation canvas、assistant/user 消息层级、
+// ActionCard 用 Grouped Surface、input bar 紧凑 keyboard-safe。
 
 struct AIChatView: View {
     /// 由 RootView 通过 xzg://ai?mode=voice 置位，触发短语音面板
@@ -32,27 +35,8 @@ struct AIChatView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(alignment: .leading, spacing: 12) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("说句话，帮你记账、派单、备忘")
-                                    .v32Text(.subhead)
-                                    .foregroundStyle(V32.textSecondary)
-                                V32StatusPill(
-                                    text: model.isRemoteConfigured ? "Key 已保存" : "未配置",
-                                    status: model.isRemoteConfigured ? .pending : .expiry)
-                                if DemoMode.shared.isEnabled {
-                                    Text("演示模式")
-                                        .v32Text(.caption)
-                                        .foregroundStyle(V32.amber)
-                                        .accessibilityLabel("当前使用演示数据")
-                                }
-                            }
+                            headerBlock
                             if model.messages.isEmpty {
-                                if DemoMode.shared.isEnabled {
-                                    Text("演示数据")
-                                        .v32Text(.caption)
-                                        .foregroundStyle(V32.amber)
-                                        .accessibilityLabel("当前使用演示数据")
-                                }
                                 emptyState
                             } else {
                                 ForEach(model.messages) { message in
@@ -65,9 +49,9 @@ struct AIChatView: View {
                                 Color.clear.frame(height: 8).id("bottom-anchor")
                             }
                         }
-                        .padding(.horizontal, V32Layout.pageMargin)
+                        .padding(.horizontal, V371.Space.page)
                         .padding(.top, 8)
-                        .padding(.bottom, V32Layout.pageBottomBreathing)
+                        .padding(.bottom, 12)
                     }
                     .scrollIndicators(.hidden)
                     .scrollDismissesKeyboard(.interactively)
@@ -78,7 +62,7 @@ struct AIChatView: View {
                     .onAppear { scrollToBottom(proxy) }
                 }
             }
-            .v32PageBackground()
+            .v371Canvas()
             .safeAreaInset(edge: .bottom) {
                 ChatInputBar(
                     text: $model.input,
@@ -168,39 +152,49 @@ struct AIChatView: View {
         }
     }
 
+    // MARK: 头部说明
+
+    private var headerBlock: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("说句话，帮你记账、派单、备忘")
+                .font(.subheadline)
+                .foregroundStyle(V371.Colors.textSecondary)
+            HStack(spacing: 8) {
+                StatusBadge(
+                    model.isRemoteConfigured ? "Key 已保存" : "未配置",
+                    color: model.isRemoteConfigured ? V371.Colors.green : V371.Colors.gray
+                )
+                if DemoMode.shared.isEnabled {
+                    StatusBadge("演示模式", color: V371.Colors.orange)
+                }
+            }
+        }
+    }
+
     // MARK: 空态 + 范例
 
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: 14) {
-            V32EmptyState(
-                systemName: "sparkles",
+            EmptyState(
+                icon: "sparkles",
                 title: "我是小掌柜",
                 message: "说句话或点个例子，我先整理成确认卡，你确认后才记录。"
             )
-            V32FieldGroup {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("试试这样说")
-                        .v32Text(.section)
-                        .foregroundStyle(V32.textPrimary)
-                    ForEach(examples, id: \.self) { example in
-                        Button {
+            GroupSurface {
+                VStack(alignment: .leading, spacing: 0) {
+                    SectionHeader("试试这样说")
+                        .padding(.horizontal, V371.Space.rowPadding)
+                        .padding(.top, V371.Space.rowPadding)
+                        .padding(.bottom, 4)
+                    ForEach(Array(examples.enumerated()), id: \.offset) { index, example in
+                        if index > 0 { V371Divider() }
+                        WorkRow(icon: "text.bubble", title: example) {
                             model.send(example)
-                        } label: {
-                            HStack {
-                                Image(systemName: "text.bubble")
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundStyle(ThemeStore.shared.accentPalette.aiAccent)
-                                Text(example)
-                                    .v32Text(.body)
-                                    .foregroundStyle(V32.textPrimary)
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundStyle(V32.textTertiary)
-                            }
+                        } trailing: {
+                            V371Chevron()
                         }
-                        .buttonStyle(V32PressButtonStyle())
                     }
+                    Color.clear.frame(height: 6)
                 }
             }
         }
@@ -233,37 +227,39 @@ struct AIChatView: View {
     private func bubble(_ message: AIMessage) -> some View {
         if message.role == .user {
             Text(message.content)
-                .v32Text(.body)
+                .font(.body)
                 .foregroundStyle(.white)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
                 .background(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(V32.brand)
+                    RoundedRectangle(cornerRadius: V371.Radius.tile, style: .continuous)
+                        .fill(V371.Colors.blue)
                 )
                 .frame(maxWidth: 300, alignment: .trailing)
         } else {
             VStack(alignment: .leading, spacing: 6) {
-                assistantMarkdown(message.content, color: message.isError ? V32.danger : V32.textPrimary)
+                assistantMarkdown(message.content, color: message.isError ? V371.Colors.red : V371.Colors.textPrimary)
                 if message.isError {
                     Button {
+                        Haptic.light()
                         model.retryLastFailed()
                     } label: {
                         Label("重试", systemImage: "arrow.clockwise")
-                            .v32Text(.caption)
-                            .foregroundStyle(ThemeStore.shared.accentPalette.aiAccent)
+                            .font(.caption)
+                            .foregroundStyle(V371.Colors.blue)
                     }
-                    .buttonStyle(V32PressButtonStyle())
+                    .buttonStyle(.plain)
+                    .frame(minHeight: 44)
                 }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(message.isError ? V32.dangerSoft : V32.card)
+                RoundedRectangle(cornerRadius: V371.Radius.tile, style: .continuous)
+                    .fill(V371.Colors.group)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .strokeBorder(V32.cardOutline, lineWidth: 1)
+                        RoundedRectangle(cornerRadius: V371.Radius.tile, style: .continuous)
+                            .strokeBorder(V371.Colors.divider, lineWidth: 1)
                     )
             )
             .frame(maxWidth: 320, alignment: .leading)
@@ -275,12 +271,12 @@ struct AIChatView: View {
     private func assistantMarkdown(_ content: String, color: Color) -> some View {
         if let markdown = try? AttributedString(markdown: content) {
             Text(markdown)
-                .v32Text(.body)
+                .font(.body)
                 .foregroundStyle(color)
                 .frame(maxWidth: .infinity, alignment: .leading)
         } else {
             Text(content)
-                .v32Text(.body)
+                .font(.body)
                 .foregroundStyle(color)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }

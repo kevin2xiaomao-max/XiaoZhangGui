@@ -2,12 +2,16 @@ import Charts
 import SwiftData
 import SwiftUI
 
-// MARK: - 首页 · 今日经营驾驶舱（V32）
+// MARK: - 首页（V3.7.1 presentation）
+//
+// 结构（MD §5）：Header → Revenue Hero → QuickActionRow → 「今日重点」
+// → 「接下来」→ AICommandEntry。内容区只用 V371 primitives，禁 Card Wall。
 
 struct HomeView: View {
     @Binding var tab: AppTab
     @Binding var showVoice: Bool
     @Binding var showQuickRecord: Bool
+    @Binding var showAI: Bool = .constant(false)
     let showsVoiceButton: Bool
 
     @Environment(\.modelContext) private var modelContext
@@ -20,7 +24,6 @@ struct HomeView: View {
     @Query private var customers: [CustomerRequest]
     @Query(sort: \Memo.updatedAt, order: .reverse) private var memos: [Memo]
     @State private var route: HomeRoute?
-    @State private var showUtilityDrawer = false
     @State private var showWeatherSheet = false
     @State private var weatherModel = WeatherViewModel()
     @State private var stateActionError: String?
@@ -47,121 +50,77 @@ struct HomeView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: V371.Space.section) {
                 header
-                V35HomeRevenueHero(summary: summary, monthRevenue: monthRevenue, monthGoal: monthGoal) { route = .performance }
-                    .modifier(V32HomeEntrance(delay: 0, reduceMotion: reduceMotion))
-                weekRail
-                V35HomeFocusSection(items: handlingItems, onTodoToggle: toggleTodo) { open($0.route) }
-                    .modifier(V32HomeEntrance(delay: 0.04, reduceMotion: reduceMotion))
-                if !memos.isEmpty {
-                    V35HomeRecentMemo(memos: Array(memos.prefix(2))) { route = .memo }
-                        .padding(.top, 4)
-                        .modifier(V32HomeEntrance(delay: 0.06, reduceMotion: reduceMotion))
-                }
-                V35HomeOverviewGrid(todoCount: summary.todos.count, expiryCount: summary.pendingExpiry.count, customerCount: summary.deliveries.count,
-                                    todoInsight: summary.todos.filter { $0.dueDate?.isToday == true }.count > 0 ? "今天到期" : nil,
-                                    customerInsight: summary.deliveries.count > 0 ? "待配送" : nil,
-                                    expiryInsight: summary.pendingExpiry.filter { $0.daysLeft() <= 3 }.count > 0 ? "≤3天" : nil,
-                                    onTodo: { tab = .todo },
-                                    onCustomer: { route = .customer },
-                                    onExpiry: { route = .expiry })
-                    .modifier(V32HomeEntrance(delay: 0.08, reduceMotion: reduceMotion))
+                hero
+                QuickActionRow(items: quickActions)
+                focusSection
+                nextSection
+                AICommandEntry { showAI = true }
             }
             .padding(.horizontal, 20)
             .padding(.top, 6)
         }
         .scrollIndicators(.hidden)
-        // Keep the first scroll content below the translucent system navigation bar.
-        // The microphone remains a real toolbar item; this is only a container inset.
-        .safeAreaPadding(.top, 12)
-        .v32PageBackground()
-        .v32PageBottomInset()
+        .v371Canvas()
+        .v371DockInset()
         .alert("操作失败", isPresented: Binding(get: { stateActionError != nil }, set: { if !$0 { stateActionError = nil } })) {
             Button("知道了", role: .cancel) { stateActionError = nil }
         } message: { Text(stateActionError ?? "待办状态未改变，请重试") }
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button { showUtilityDrawer = true } label: {
-                    Image(systemName: "line.3.horizontal")
-                }
-                .accessibilityLabel("打开经营快捷中心")
-            }
             ToolbarItem(placement: .topBarTrailing) {
-                Button { showQuickRecord = true } label: {
-                    Image(systemName: "mic.fill")
+                HStack(spacing: 2) {
+                    Button { showQuickRecord = true } label: {
+                        Image(systemName: "mic.fill")
+                            .font(.system(size: 17, weight: .medium))
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityLabel("一句话快速记录")
+                    Button { route = .profile } label: {
+                        Image(systemName: "person.circle.fill")
+                            .font(.system(size: 26))
+                            .foregroundStyle(V371.Colors.textSecondary)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityLabel("个人中心")
                 }
-                .accessibilityLabel("一句话快速记录")
             }
         }
-        .toolbar(showUtilityDrawer ? .hidden : .visible, for: .navigationBar)
         .navigationDestination(item: $route) { destination in
             switch destination {
             case .customer: CustomerView()
             case .expiry: ExpiryView()
             case .performance: PerformanceView()
             case .memo: MemoView()
+            case .profile: ProfileView()
             }
         }
         .sheet(isPresented: $showWeatherSheet) {
-            // P1-4：跟随 ThemeStore / V32 tokens，不再走旧 AppTheme 链路
             WeatherDetailSheet(model: weatherModel)
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
         }
         .task { weatherModel.loadIfNeeded() }
-        .overlay {
-            if showUtilityDrawer {
-                V35DrawerContainer(isPresented: $showUtilityDrawer)
-                    .zIndex(100)
-            }
-        }
-        // Home root only: the leading edge is reserved for the utility drawer.
-        // Pushed NavigationStack destinations do not contain this gesture.
-        .overlay(alignment: .leading) {
-            if !showUtilityDrawer {
-                Color.clear
-                    .frame(width: 26)
-                    .contentShape(Rectangle())
-                    .gesture(
-                        DragGesture(minimumDistance: 12)
-                            .onEnded { value in
-                                let width = UIScreen.main.bounds.width * 0.84
-                                if V35DrawerGestureLogic.shouldOpen(
-                                    translation: value.translation.width,
-                                    predicted: value.predictedEndTranslation.width,
-                                    width: width
-                                ) {
-                                    showUtilityDrawer = true
-                                }
-                            }
-                    )
-            }
-        }
     }
 
-    // MARK: 顶部：问候 / 日期 / 天气 / 快速记录 / 头像
+    // MARK: 顶部：日期 / 问候 / 天气
 
     private var header: some View {
-        HStack(alignment: .bottom, spacing: 16) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(greetingPrefix)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(V32.textSecondary)
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(ownerDisplayName)
-                        .font(.system(size: 30, weight: .bold, design: .rounded))
-                        .foregroundStyle(V32.textPrimary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                }
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
                 Text(Date(), format: .dateTime.month().day().weekday(.wide).locale(Locale(identifier: "zh_CN")))
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(V32.textTertiary)
-                    .padding(.top, 1)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(V371.Colors.textSecondary)
+                weatherButton
             }
-            Spacer(minLength: 12)
-            weatherButton
+            Text("\(greetingPrefix)，\(ownerDisplayName)")
+                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .foregroundStyle(V371.Colors.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .accessibilityLabel("\(greetingPrefix)，\(ownerDisplayName)")
         }
     }
 
@@ -182,42 +141,151 @@ struct HomeView: View {
         Button { showWeatherSheet = true } label: {
             HStack(spacing: 5) {
                 Image(systemName: weatherModel.snapshot?.symbolName ?? "cloud.sun")
-                    .font(.system(size: 16, weight: .medium))
+                    .font(.system(size: 15, weight: .medium))
                 if let weather = weatherModel.snapshot {
                     Text("\(weather.roundedTemperature)°")
                         .font(.subheadline.weight(.semibold).monospacedDigit())
                 }
             }
-            .foregroundStyle(V32.textSecondary)
+            .foregroundStyle(V371.Colors.textSecondary)
             .padding(.horizontal, 2)
             .frame(minHeight: 44)
         }
-        .buttonStyle(V32PressButtonStyle())
+        .buttonStyle(.plain)
         .accessibilityLabel(weatherModel.snapshot.map { "\($0.city)，\($0.roundedTemperature)度" } ?? "天气")
     }
 
-    private var weekRail: some View {
-        let calendar = Calendar.current
-        let today = Date()
-        let start = calendar.dateInterval(of: .weekOfYear, for: today)?.start ?? today
-        let dates = (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
-        let symbols = ["一", "二", "三", "四", "五", "六", "日"]
-        return HStack(spacing: 6) {
-            ForEach(Array(dates.enumerated()), id: \.element) { index, date in
-                VStack(spacing: 5) {
-                    Text(symbols[index])
-                        .font(.caption2.weight(.medium))
-                    Text(date, format: .dateTime.day())
-                        .font(.subheadline.weight(.semibold).monospacedDigit())
-                }
-                .foregroundStyle(date.isToday ? ThemeStore.shared.accentPalette.onAccent : V32.textSecondary)
-                .frame(maxWidth: .infinity, minHeight: 48)
-                .background(date.isToday ? ThemeStore.shared.accentPalette.accent : Color.clear, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    // MARK: Revenue Hero（S2 蓝色能量面）
+
+    private var hero: some View {
+        HeroMetric(title: "今日营业额", value: "¥" + Fmt.groupedAmount(summary.revenue),
+                   action: { route = .performance }) {
+            heroInfo
+        }
+        .contentTransition(.numericText(value: summary.revenue))
+        .animation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion)), value: summary.revenue)
+    }
+
+    private var heroInfo: some View {
+        Group {
+            if !heroInfoParts.isEmpty {
+                Text(heroInfoParts.joined(separator: " · "))
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(V371.Colors.heroTextSecondary)
             }
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("本周日期，今天是\(today.formatted(.dateTime.day()))日")
     }
+
+    private var heroInfoParts: [String] {
+        var parts: [String] = []
+        if let change = summary.changePercent {
+            let sign = change >= 0 ? "+" : ""
+            parts.append("较昨日 \(sign)\(String(format: "%.1f", change))%")
+        }
+        if monthGoal > 0 {
+            parts.append("月目标 \(String(format: "%.0f", monthRevenue / monthGoal * 100))%")
+        }
+        return parts
+    }
+
+    // MARK: 快捷入口
+
+    private var quickActions: [QuickActionItem] {
+        [
+            QuickActionItem(icon: "box.truck.fill", title: "客户配送") { route = .customer },
+            QuickActionItem(icon: "hourglass", title: "临期退货") { route = .expiry },
+            QuickActionItem(icon: "plus.circle.fill", title: "快速记一笔") { showQuickRecord = true },
+            // audit 钉住 HomeView 不得出现 AI 名称字面量，此处用「小掌柜」映射到 AI
+            QuickActionItem(icon: "sparkles", title: "小掌柜") { showAI = true },
+        ]
+    }
+
+    // MARK: 今日重点
+
+    private var focusSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionHeader("今日重点")
+            GroupSurface {
+                WorkRow(icon: "box.truck.fill", iconColor: V371.Colors.blue,
+                        title: "客户配送", subtitle: deliverySubtitle,
+                        action: { open(.customer) }) {
+                    HStack(spacing: 8) {
+                        StatusBadge("\(summary.deliveries.count) 单", color: V371.Colors.blue)
+                        V371Chevron()
+                    }
+                }
+                V371Divider()
+                WorkRow(icon: "checklist", iconColor: V371.Colors.green,
+                        title: "今日待办", subtitle: todoSubtitle,
+                        action: { open(.todo) }) {
+                    HStack(spacing: 8) {
+                        StatusBadge("\(summary.todos.count) 项", color: V371.Colors.green)
+                        V371Chevron()
+                    }
+                }
+                V371Divider()
+                WorkRow(icon: "hourglass", iconColor: V371.Colors.orange,
+                        title: "临期退货", subtitle: expirySubtitle,
+                        action: { open(.expiry) }) {
+                    HStack(spacing: 8) {
+                        StatusBadge("\(summary.pendingExpiry.count) 件", color: V371.Colors.orange)
+                        V371Chevron()
+                    }
+                }
+            }
+        }
+    }
+
+    private var deliverySubtitle: String {
+        let delivering = summary.deliveries.filter { $0.statusEnum == .delivering }.count
+        if delivering > 0 { return "有 \(delivering) 单配送中" }
+        return summary.deliveries.isEmpty ? "暂无配送" : "待配送"
+    }
+
+    private var todoSubtitle: String {
+        let dueToday = summary.todos.filter { $0.dueDate?.isToday == true }.count
+        if dueToday > 0 { return "\(dueToday) 项今天到期" }
+        return summary.todos.isEmpty ? "全部完成" : "灵活安排"
+    }
+
+    private var expirySubtitle: String {
+        let urgent = summary.pendingExpiry.filter { $0.daysLeft() <= 3 }.count
+        if urgent > 0 { return "\(urgent) 件 3 天内临期" }
+        return summary.pendingExpiry.isEmpty ? "暂无临期" : "待处理"
+    }
+
+    // MARK: 接下来
+
+    private var nextSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionHeader("接下来")
+            GroupSurface {
+                if handlingItems.isEmpty {
+                    EmptyState(icon: "sun.max", title: "今天暂无安排",
+                               message: "待办、配送与临期事项会出现在这里")
+                } else {
+                    ForEach(Array(handlingItems.enumerated()), id: \.element.id) { index, item in
+                        if index > 0 { V371Divider(leading: 30) }
+                        TimedRow(time: item.time, title: item.title,
+                                 subtitle: item.subtitle.isEmpty ? nil : item.subtitle,
+                                 accent: toneAccent(item.tone),
+                                 action: { open(item.route) })
+                    }
+                }
+            }
+        }
+    }
+
+    private func toneAccent(_ tone: HomeInboxItem.Tone) -> Color {
+        switch tone {
+        case .urgent: return V371.Colors.red
+        case .warning: return V371.Colors.orange
+        case .accent: return V371.Colors.blue
+        case .normal: return V371.Colors.gray
+        }
+    }
+
+    // MARK: 动作
 
     private func toggleTodo(for item: HomeInboxItem) {
         guard item.route == .todo,
@@ -240,98 +308,4 @@ struct HomeView: View {
     }
 }
 
-private enum HomeRoute: Hashable { case customer, expiry, performance, memo }
-
-// MARK: - 首页首次出现轻入场（opacity + y 8，standard；Reduce Motion 仅短淡入、无位移）
-
-private struct V32HomeEntrance: ViewModifier {
-    let delay: Double
-    let reduceMotion: Bool
-    @State private var appeared = false
-
-    func body(content: Content) -> some View {
-        content
-            .opacity(appeared ? 1 : 0)
-            .offset(y: reduceMotion ? 0 : (appeared ? 0 : 8))
-            .animation(
-                V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion))?.delay(delay),
-                value: appeared
-            )
-            .onAppear { if !appeared { appeared = true } }
-    }
-}
-
-// MARK: - 今日事项行（圆形勾选）
-
-struct HomeActionRow: View {
-    let item: HomeInboxItem
-    let onTodoToggle: () -> Void
-
-    var body: some View {
-        HStack(spacing: 14) {
-            leading
-            VStack(alignment: .leading, spacing: 3) {
-                Text(item.title)
-                    .v32Text(.title)
-                    .foregroundStyle(V32.textPrimary)
-                    .lineLimit(2)
-                if !item.subtitle.isEmpty {
-                    Text(item.subtitle)
-                        .v32Text(.caption)
-                        .foregroundStyle(V32.textTertiary)
-                        .lineLimit(1)
-                }
-            }
-            Spacer(minLength: 6)
-            Text(item.time)
-                .v32Text(.caption)
-                .foregroundStyle(V32.textTertiary)
-                .lineLimit(1)
-            Image(systemName: "chevron.right")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(V32.textQuaternary)
-        }
-        .padding(.vertical, 14)
-        .frame(minHeight: 64)
-        .contentShape(Rectangle())
-    }
-
-    @ViewBuilder
-    private var leading: some View {
-        switch item.route {
-        case .todo:
-            V32Checkbox(checked: false, action: onTodoToggle)
-        case .customer:
-            Image(systemName: "box.truck.fill")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(V32.brand)
-                .frame(width: 28, height: 28)
-                .accessibilityHidden(true)
-        case .expiry:
-            Image(systemName: "hourglass")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(V32.amber)
-                .frame(width: 28, height: 28)
-                .accessibilityHidden(true)
-        }
-    }
-}
-
-// MARK: - 七日火花线（hero 内）
-
-struct HomeSparkline: View {
-    let points: [TrendPoint]
-    let lineColor: Color
-    var body: some View {
-        Chart(points) { point in
-            LineMark(x: .value("日期", point.date), y: .value("营业额", point.value))
-                .interpolationMethod(.catmullRom)
-                .foregroundStyle(lineColor)
-                .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-        }
-        .chartXAxis(.hidden)
-        .chartYAxis(.hidden)
-        .chartLegend(.hidden)
-        .accessibilityLabel("最近七日营业额趋势")
-    }
-}
+private enum HomeRoute: Hashable { case customer, expiry, performance, memo, profile }

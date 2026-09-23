@@ -5,8 +5,9 @@ import PhotosUI
 // MARK: - V3.3 Lite · 收款码列表页（我的 → 工具 → 收款码）
 //
 // - 收款码图片只保存在本机 Application Support/PaymentCodes/，不上传、不联网、不进 AI
-// - 视觉全部沿用 V32 Design System（V32Card / V32PageHeader / V32EmptyState / 主题/壁纸）
+// - V371：GroupSurface 分组列表 + hairline；空态用 EmptyState primitive
 // - 支持：新增（微信 / 支付宝 / 自定义）、重命名、替换图片、删除、全屏左右滑动
+// - 业务逻辑（Store / 图片存取 / 删除确认）原样保留
 
 @MainActor
 struct PaymentCodeView: View {
@@ -36,28 +37,31 @@ struct PaymentCodeView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: V371.Space.section) {
                 if store.codes.isEmpty {
                     emptyState
                 } else {
-                    ForEach(store.codes) { code in
-                        PaymentCodeRow(
-                            code: code,
-                            thumbnail: store.image(for: code),
-                            onOpen: { openFullScreen(code) },
-                            onEdit: { editorTarget = .edit(code) },
-                            onDelete: { pendingDelete = code }
-                        )
+                    GroupSurface {
+                        ForEach(Array(store.codes.enumerated()), id: \.element.id) { index, code in
+                            if index > 0 { V371Divider(leading: 0) }
+                            PaymentCodeRow(
+                                code: code,
+                                thumbnail: store.image(for: code),
+                                onOpen: { openFullScreen(code) },
+                                onEdit: { editorTarget = .edit(code) },
+                                onDelete: { pendingDelete = code }
+                            )
+                        }
                     }
                     privacyFootnote
                 }
             }
-            .padding(.horizontal, V32Layout.pageMargin)
+            .padding(.horizontal, V371.Space.page)
             .padding(.top, 8)
+            .padding(.bottom, 12)
         }
         .scrollIndicators(.hidden)
-        .v32PageBackground()
-        .v32PageBottomInset()
+        .v371Canvas()
         .navigationTitle("收款码")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -101,25 +105,25 @@ struct PaymentCodeView: View {
     }
 
     private var emptyState: some View {
-        V32FieldGroup {
-            VStack(spacing: 16) {
-                V32EmptyState(systemName: "qrcode",
-                              title: "还没有收款码",
-                              message: "添加微信 / 支付宝收款码或自定义二维码，收款时一键全屏展示")
-                V32PrimaryButton(title: "添加收款码", systemName: "plus") {
-                    editorTarget = .add
-                }
+        VStack(spacing: V371.Space.section) {
+            GroupSurface {
+                EmptyState(
+                    icon: "qrcode",
+                    title: "还没有收款码",
+                    message: "添加微信 / 支付宝收款码或自定义二维码，收款时一键全屏展示",
+                    buttonTitle: "添加收款码",
+                    buttonAction: { editorTarget = .add }
+                )
                 .padding(.horizontal, 8)
-                privacyFootnote
             }
-            .padding(.vertical, 8)
+            privacyFootnote
         }
     }
 
     private var privacyFootnote: some View {
         Label("图片仅保存在本设备，不会上传服务器或发送给任何服务", systemImage: "lock.shield")
-            .v32Text(.caption)
-            .foregroundStyle(V32.textTertiary)
+            .font(V371.Type.rowSubtitle)
+            .foregroundStyle(V371.Colors.textTertiary)
             .padding(.horizontal, 4)
             .padding(.top, 2)
     }
@@ -131,7 +135,7 @@ struct PaymentCodeView: View {
     }
 }
 
-// MARK: - 列表行
+// MARK: - 列表行（缩略图 + 名称/类型 + 全屏入口 + 更多菜单）
 
 @MainActor
 private struct PaymentCodeRow: View {
@@ -142,52 +146,55 @@ private struct PaymentCodeRow: View {
     let onDelete: () -> Void
 
     var body: some View {
-        V32FieldGroup {
-            HStack(spacing: 12) {
-                Button(action: onOpen) {
-                    HStack(spacing: 12) {
-                        thumb
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(code.name)
-                                .v32Text(.headline)
-                                .foregroundStyle(V32.textPrimary)
-                                .lineLimit(1)
-                            Text(code.kind.displayName)
-                                .v32Text(.caption)
-                                .foregroundStyle(V32.textTertiary)
-                                .lineLimit(1)
-                        }
-                        Spacer(minLength: 8)
-                        Image(systemName: "arrow.up.left.and.down.right.magnifyingglass")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(V32.textQuaternary)
+        HStack(spacing: 12) {
+            Button(action: onOpen) {
+                HStack(spacing: 12) {
+                    thumb
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(code.name)
+                            .font(V371.Type.rowTitle)
+                            .foregroundStyle(V371.Colors.textPrimary)
+                            .lineLimit(1)
+                        Text(code.kind.displayName)
+                            .font(V371.Type.rowSubtitle)
+                            .foregroundStyle(V371.Colors.textTertiary)
+                            .lineLimit(1)
                     }
-                    .contentShape(Rectangle())
+                    Spacer(minLength: 8)
+                    Image(systemName: "arrow.up.left.and.down.right.magnifyingglass")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(V371.Colors.textTertiary)
+                        .accessibilityHidden(true)
                 }
-                .buttonStyle(.plain)
-
-                Menu {
-                    Button {
-                        Haptic.light()
-                        onEdit()
-                    } label: {
-                        Label("重命名 / 替换图片", systemImage: "pencil")
-                    }
-                    Button(role: .destructive) {
-                        onDelete()
-                    } label: {
-                        Label("删除", systemImage: "trash")
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .font(.system(size: 20))
-                        .foregroundStyle(V32.textQuaternary)
-                        .frame(width: 32, height: 32)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("全屏展示\(code.name)")
+
+            Menu {
+                Button {
+                    Haptic.light()
+                    onEdit()
+                } label: {
+                    Label("重命名 / 替换图片", systemImage: "pencil")
+                }
+                Button(role: .destructive) {
+                    onDelete()
+                } label: {
+                    Label("删除", systemImage: "trash")
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.system(size: 20))
+                    .foregroundStyle(V371.Colors.textTertiary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(code.name)更多操作")
         }
+        .padding(.horizontal, V371.Space.rowPadding)
+        .padding(.vertical, 12)
     }
 
     private var thumb: some View {
@@ -198,23 +205,24 @@ private struct PaymentCodeRow: View {
                     .scaledToFill()
             } else {
                 ZStack {
-                    V32.pageBGSecondary
+                    V371.Colors.groupSecondary
                     Image(systemName: code.kind.iconName)
                         .font(.system(size: 18))
-                        .foregroundStyle(V32.textQuaternary)
+                        .foregroundStyle(V371.Colors.textTertiary)
                 }
             }
         }
         .frame(width: 52, height: 52)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: V371.Radius.control, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(V32.cardOutline, lineWidth: 1)
+            RoundedRectangle(cornerRadius: V371.Radius.control, style: .continuous)
+                .strokeBorder(V371.Colors.divider, lineWidth: 1)
         )
+        .accessibilityHidden(true)
     }
 }
 
-// MARK: - 新增 / 编辑 Sheet
+// MARK: - 新增 / 编辑 Sheet（V371：原生 NavigationStack + Form + toolbar；逻辑原样）
 
 @MainActor
 private struct PaymentCodeEditorSheet: View {
@@ -249,44 +257,65 @@ private struct PaymentCodeEditorSheet: View {
     }
 
     var body: some View {
-        PaymentCodeSheetChrome(navigationTitle, detents: [.large], doneTitle: "关闭", onDone: { dismiss() }) {
-            previewCard
-            if editingCode == nil {
-                kindPicker
-            }
-            nameField
-            PhotosPicker(selection: $pickerItem, matching: .images) {
-                HStack(spacing: 10) {
-                    V32IconBubble(systemName: "photo.on.rectangle", tone: .brand, size: 30, icon: 14)
-                    Text(editingCode == nil ? "从相册选择收款码图片" : "替换收款码图片（从相册选择）")
-                        .v32Text(.title)
-                        .foregroundStyle(V32.textPrimary)
-                        .lineLimit(1)
-                    Spacer(minLength: 8)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(V32.textQuaternary)
+        NavigationStack {
+            Form {
+                Section {
+                    previewContent
                 }
-                .frame(minHeight: 44)
-                .contentShape(Rectangle())
+                if editingCode == nil {
+                    Section("类型") {
+                        kindTiles
+                    }
+                }
+                Section("名称") {
+                    HStack(spacing: 10) {
+                        TextField("收款码名称（如：店铺微信）", text: $name)
+                            .tint(V371.Colors.blue)
+                        if !name.isEmpty {
+                            Button { name = "" } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 15))
+                                    .foregroundStyle(V371.Colors.textTertiary)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("清空名称")
+                        }
+                    }
+                }
+                Section {
+                    PhotosPicker(selection: $pickerItem, matching: .images) {
+                        Label(
+                            editingCode == nil ? "从相册选择收款码图片" : "替换收款码图片",
+                            systemImage: "photo.on.rectangle"
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(processing)
+                } footer: {
+                    Text("仅在本机展示你自己保存的收款码图片，不识别、不解析二维码内容。")
+                }
+                if let errorMessage {
+                    Section {
+                        Text(errorMessage)
+                            .foregroundStyle(V371.Colors.red)
+                    }
+                }
             }
-            .buttonStyle(.plain)
-            .disabled(processing)
-
-            if let errorMessage {
-                Text(errorMessage)
-                    .v32Text(.caption)
-                    .foregroundStyle(V32.danger)
+            .tint(V371.Colors.blue)
+            .navigationTitle(navigationTitle)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("关闭") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("保存") { save() }
+                        .disabled(!canSave)
+                }
             }
-
-            V32PrimaryButton(title: "保存", systemName: "checkmark") { save() }
-                .disabled(!canSave)
-
-            Text("仅在本机展示你自己保存的收款码图片，不识别、不解析二维码内容。")
-                .v32Text(.caption)
-                .foregroundStyle(V32.textTertiary)
-                .padding(.horizontal, 4)
         }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
         .onAppear(perform: setup)
         .onChange(of: pickerItem) { _, item in
             Task { await handlePickedItem(item) }
@@ -299,98 +328,69 @@ private struct PaymentCodeEditorSheet: View {
         return pickedImageData != nil
     }
 
-    private var previewCard: some View {
-        V32Card {
-            ZStack {
-                if let previewImage {
-                    Image(uiImage: previewImage)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(height: 180)
-                        .clipped()
-                } else if let existing = existingThumbnail {
-                    Image(uiImage: existing)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(height: 180)
-                        .clipped()
-                } else {
-                    VStack(spacing: 8) {
-                        Image(systemName: "qrcode")
-                            .font(.system(size: 36))
-                            .foregroundStyle(V32.textQuaternary)
-                        Text("未选择图片")
-                            .v32Text(.subhead)
-                            .foregroundStyle(V32.textTertiary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 180)
+    private var previewContent: some View {
+        ZStack {
+            if let previewImage {
+                Image(uiImage: previewImage)
+                    .resizable()
+                    .scaledToFill()
+            } else if let existing = existingThumbnail {
+                Image(uiImage: existing)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                VStack(spacing: 8) {
+                    Image(systemName: "qrcode")
+                        .font(.system(size: 36))
+                        .foregroundStyle(V371.Colors.textTertiary)
+                        .accessibilityHidden(true)
+                    Text("未选择图片")
+                        .font(V371.Type.rowSubtitle)
+                        .foregroundStyle(V371.Colors.textTertiary)
                 }
+                .frame(maxWidth: .infinity)
             }
         }
+        .frame(maxWidth: .infinity)
+        .frame(height: 180)
+        .clipShape(RoundedRectangle(cornerRadius: V371.Radius.control, style: .continuous))
+        .accessibilityLabel("收款码图片预览")
     }
 
-    private var kindPicker: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("类型")
-                .v32Text(.section)
-                .foregroundStyle(V32.textPrimary)
-            HStack(spacing: 8) {
-                ForEach(PaymentCodeKind.allCases) { kind in
-                    let selected = selectedKind == kind
-                    Button {
-                        Haptic.light()
-                        selectedKind = kind
-                        if name.isEmpty { name = kind.displayName }
-                    } label: {
-                        VStack(spacing: 6) {
-                            Image(systemName: kind.iconName)
-                                .font(.system(size: 18, weight: .semibold))
-                            Text(kind.displayName)
-                                .v32Text(.pill)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.7)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .foregroundStyle(selected ? V32.brand : V32.textSecondary)
-                        .background(
-                            RoundedRectangle(cornerRadius: V32Radius.card, style: .continuous)
-                                .fill(selected ? V32.brandSoft : V32.card)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: V32Radius.card, style: .continuous)
-                                .strokeBorder(selected ? V32.brand.opacity(0.5) : V32.cardOutline,
-                                              lineWidth: 1)
-                        )
+    private var kindTiles: some View {
+        HStack(spacing: 8) {
+            ForEach(PaymentCodeKind.allCases) { kind in
+                let selected = selectedKind == kind
+                Button {
+                    Haptic.light()
+                    selectedKind = kind
+                    if name.isEmpty { name = kind.displayName }
+                } label: {
+                    VStack(spacing: 6) {
+                        Image(systemName: kind.iconName)
+                            .font(.system(size: 18, weight: .semibold))
+                        Text(kind.displayName)
+                            .font(V371.Type.badge)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                     }
-                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .padding(.vertical, 12)
+                    .foregroundStyle(selected ? V371.Colors.blue : V371.Colors.textSecondary)
+                    .background(
+                        RoundedRectangle(cornerRadius: V371.Radius.tile, style: .continuous)
+                            .fill(selected ? V371.Colors.tinted(V371.Colors.blue) : V371.Colors.groupSecondary)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: V371.Radius.tile, style: .continuous)
+                            .strokeBorder(selected ? V371.Colors.blue.opacity(0.5) : V371.Colors.divider,
+                                          lineWidth: 1)
+                    )
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel(kind.displayName)
             }
-        }
-    }
-
-    private var nameField: some View {
-        V32Card(padding: 0) {
-            HStack(spacing: 10) {
-                Image(systemName: "pencil.line")
-                    .font(.system(size: 15))
-                    .foregroundStyle(V32.textTertiary)
-                TextField("收款码名称（如：店铺微信）", text: $name)
-                    .v32Text(.body)
-                    .foregroundStyle(V32.textPrimary)
-                    .tint(V32.brand)
-                if !name.isEmpty {
-                    Button { name = "" } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 15))
-                            .foregroundStyle(V32.textQuaternary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 14)
-            .frame(minHeight: 48)
         }
     }
 
@@ -452,55 +452,5 @@ private struct PaymentCodeEditorSheet: View {
         } catch {
             errorMessage = "保存失败，请重试"
         }
-    }
-}
-
-// MARK: - 收款码 Sheet 容器（对齐 V32SheetChrome 视觉；不改动 Profile 私有组件）
-
-@MainActor
-private struct PaymentCodeSheetChrome<Content: View>: View {
-    let title: String
-    var detents: Set<PresentationDetent> = [.medium]
-    var doneTitle: String = "完成"
-    let onDone: (() -> Void)?
-    @ViewBuilder var content: Content
-
-    init(_ title: String,
-         detents: Set<PresentationDetent> = [.medium],
-         doneTitle: String = "完成",
-         onDone: (() -> Void)? = nil,
-         @ViewBuilder content: () -> Content) {
-        self.title = title
-        self.detents = detents
-        self.doneTitle = doneTitle
-        self.onDone = onDone
-        self.content = content()
-    }
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                ZStack {
-                    Text(title)
-                        .v32Text(.headline)
-                        .foregroundStyle(V32.textPrimary)
-                    HStack {
-                        Spacer()
-                        if let onDone {
-                            Button(doneTitle, action: onDone)
-                                .v32Text(.body)
-                                .foregroundStyle(V32.brand)
-                        }
-                    }
-                }
-                content
-            }
-            .padding(.horizontal, V32Layout.pageMargin)
-            .padding(.top, 14)
-            .padding(.bottom, V32Layout.bottomPad)
-        }
-        .scrollIndicators(.hidden)
-        .v32PageBackground()
-        .v32Sheet(detents)
     }
 }

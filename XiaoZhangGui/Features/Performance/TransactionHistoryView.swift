@@ -43,17 +43,30 @@ private struct TransactionHistoryRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: record.kind == .income ? "arrow.down.left" : "arrow.up.right")
-                .foregroundStyle(record.kind == .income ? V32.brand : V32.danger)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(record.kind == .income ? V371.Colors.blue : V371.Colors.red)
+                .frame(width: 36, height: 36)
+                .background(
+                    V371.Colors.tinted(record.kind == .income ? V371.Colors.blue : V371.Colors.red),
+                    in: Circle()
+                )
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
-                Text(record.title).v32Text(.body).foregroundStyle(V32.textPrimary)
+                Text(record.title)
+                    .font(V371.Type.rowTitle)
+                    .foregroundStyle(V371.Colors.textPrimary)
                 Text("\(record.date, format: .dateTime.year().month().day().hour().minute()) · \(record.source)")
-                    .v32Text(.caption).foregroundStyle(V32.textTertiary)
+                    .font(V371.Type.rowSubtitle)
+                    .foregroundStyle(V371.Colors.textTertiary)
             }
             Spacer(minLength: 8)
             Text((record.kind == .income ? "+" : "-") + Fmt.money(record.amount))
-                .v32Text(.body).foregroundStyle(record.kind == .income ? V32.brand : V32.danger)
+                .font(V371.Type.rowTitle)
+                .foregroundStyle(record.kind == .income ? V371.Colors.blue : V371.Colors.red)
                 .monospacedDigit()
         }
+        .padding(.vertical, 4)
+        .frame(minHeight: 60)
         .accessibilityElement(children: .combine)
     }
 }

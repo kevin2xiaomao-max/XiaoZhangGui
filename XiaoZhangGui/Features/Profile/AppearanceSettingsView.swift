@@ -1,5 +1,7 @@
 import SwiftUI
 
+// MARK: - 外观设置（V3.7.1：行样式 V371 化；主题切换逻辑原样）
+
 @MainActor
 struct AppearanceSettingsView: View {
     @Environment(ThemeStore.self) private var themeStore
@@ -8,26 +10,30 @@ struct AppearanceSettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                sectionTitle("显示模式")
-                displayMode
-                sectionTitle("选择主题")
-                themeGrid
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: V371.Space.section) {
+                    SectionHeader("显示模式")
+                    displayMode
+                    SectionHeader("选择主题")
+                    themeGrid
+                }
+                .padding(.horizontal, V371.Space.page)
+                .padding(.top, 12)
+                .padding(.bottom, 28)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 14)
-            .padding(.bottom, 30)
+            .scrollIndicators(.hidden)
+            .navigationTitle("外观")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") { dismiss() }
+                }
+            }
         }
-        .scrollIndicators(.hidden)
-        .v32PageBackground()
-        .navigationTitle("外观")
-        .navigationBarTitleDisplayMode(.large)
-        .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("完成") { dismiss() } } }
-    }
-
-    private func sectionTitle(_ title: String) -> some View {
-        Text(title).font(.title3.weight(.bold)).foregroundStyle(V32.textPrimary)
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+        .v371Canvas()
     }
 
     private var displayMode: some View {
@@ -39,7 +45,8 @@ struct AppearanceSettingsView: View {
     }
 
     private func modeButton(_ title: String, icon: String, key: String) -> some View {
-        Button {
+        let selected = settings.themeMode == key
+        return Button {
             settings.themeMode = key
             Haptic.light()
         } label: {
@@ -47,12 +54,22 @@ struct AppearanceSettingsView: View {
                 Image(systemName: icon).font(.headline)
                 Text(title).font(.caption.weight(.medium)).lineLimit(1)
             }
-            .foregroundStyle(settings.themeMode == key ? V32.brand : V32.textSecondary)
+            .foregroundStyle(selected ? V371.Colors.blue : V371.Colors.textSecondary)
             .frame(maxWidth: .infinity, minHeight: 68)
-            .background(settings.themeMode == key ? V32.brandSoft : V32.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(settings.themeMode == key ? V32.brand.opacity(0.4) : V32.cardOutline, lineWidth: 1))
+            .background(
+                RoundedRectangle(cornerRadius: V371.Radius.control, style: .continuous)
+                    .fill(selected ? V371.Colors.tinted(V371.Colors.blue) : V371.Colors.group)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: V371.Radius.control, style: .continuous)
+                    .strokeBorder(selected ? V371.Colors.blue.opacity(0.45) : V371.Colors.divider,
+                                  lineWidth: selected ? 1.5 : 1)
+            )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private var themeGrid: some View {
@@ -93,7 +110,11 @@ private struct ThemePreviewCard: View {
                 }
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(LinearGradient(colors: [Color(accent.heroStart), Color(accent.heroEnd)], startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .background(
+                    LinearGradient(colors: [Color(accent.heroStart), Color(accent.heroEnd)],
+                                   startPoint: .topLeading, endPoint: .bottomTrailing),
+                    in: RoundedRectangle(cornerRadius: V371.Radius.control, style: .continuous)
+                )
 
                 HStack(spacing: 6) {
                     Circle().fill(Color(accent.accent)).frame(width: 7, height: 7)
@@ -101,11 +122,18 @@ private struct ThemePreviewCard: View {
                     Spacer()
                 }
                 .padding(9)
-                .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .background(V371.Colors.groupSecondary,
+                            in: RoundedRectangle(cornerRadius: V371.Radius.control, style: .continuous))
             }
             .padding(12)
-            .background(Color(uiColor: .systemBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(isSelected ? Color(accent.accent) : V32.cardOutline, lineWidth: isSelected ? 2 : 1))
+            .background(V371.Colors.group,
+                        in: RoundedRectangle(cornerRadius: V371.Radius.group, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: V371.Radius.group, style: .continuous)
+                    .strokeBorder(isSelected ? Color(accent.accent) : V371.Colors.divider,
+                                  lineWidth: isSelected ? 2 : 1)
+            )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("主题 \(theme.displayName)\(isSelected ? "，当前选中" : "")")

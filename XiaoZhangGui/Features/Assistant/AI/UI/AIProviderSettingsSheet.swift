@@ -1,12 +1,15 @@
 import SwiftUI
 
-// MARK: - V3.3 AI REAL · AI Provider 设置页
+// MARK: - V3.3 AI REAL · AI Provider 设置页（V3.7.1 Presentation 重构）
 //
+// 行为原样保留（只换 UI）：
 // - 所有编辑先写入内存 AISettingsDraft：保存才 commit（trim 后落盘），取消整体丢弃；
 // - DeepSeek 主 Provider 模型只能通过 Picker 选择（Flash / V4 Pro），不接受手填模型 ID；
 // - 「测试连接」对真实端点发一次最小请求，只有真实成功才显示绿色「连接成功」；
 // - API Key 只写 Keychain，输入框不回显已存 Key；
 // - 自定义 OpenAI-Compatible Provider 放在「高级 / 自定义 Provider」，不混入 DeepSeek 默认流程。
+//
+// V371：GroupSurface 分组 + SectionHeader + StatusBadge，S0 canvas 底。
 
 struct AIProviderSettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
@@ -25,10 +28,10 @@ struct AIProviderSettingsSheet: View {
                     advancedCard
                     privacyNote
                 }
-                .padding(.horizontal, V32Layout.pageMargin)
+                .padding(.horizontal, V371.Space.page)
                 .padding(.vertical, 12)
             }
-            .background(V32.pageBG.ignoresSafeArea())
+            .v371Canvas()
             .navigationTitle("小掌柜 AI 设置")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -49,14 +52,12 @@ struct AIProviderSettingsSheet: View {
     // MARK: 联网搜索
 
     private var searchCard: some View {
-        V32FieldGroup {
+        GroupSurface {
             VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text("搜索 Provider").v32Text(.section).foregroundStyle(V32.textPrimary)
-                    Spacer()
+                SectionHeader("搜索 Provider") {
                     Text(searchConfigurationStatus)
-                        .v32Text(.caption)
-                        .foregroundStyle(searchConfigurationStatus == "已配置" ? V32.brand : V32.textTertiary)
+                        .font(.caption)
+                        .foregroundStyle(searchConfigurationStatus == "已配置" ? V371.Colors.blue : V371.Colors.textTertiary)
                 }
                 Picker("搜索 Provider", selection: $draft.searchProviderSelection) {
                     ForEach(SearchProviderSelection.allCases, id: \.self) { provider in
@@ -66,13 +67,13 @@ struct AIProviderSettingsSheet: View {
                 .pickerStyle(.menu)
 
                 Text("搜索只读，不会写入经营数据。每个 Provider 独立配置，Key 仅存本机 Keychain。")
-                    .v32Text(.caption)
-                    .foregroundStyle(V32.textSecondary)
+                    .font(.caption)
+                    .foregroundStyle(V371.Colors.textSecondary)
 
                 if draft.searchProviderSelection == .automaticFreeFirst {
                     Text("自动模式只会调用你明确标记为“允许免费优先自动使用”的已配置 Provider；没有可用项时直接停止，不会偷偷产生付费调用。")
-                        .v32Text(.caption)
-                        .foregroundStyle(V32.textSecondary)
+                        .font(.caption)
+                        .foregroundStyle(V371.Colors.textSecondary)
                 }
 
                 if draft.searchProviderSelection == .tavily ||
@@ -87,16 +88,17 @@ struct AIProviderSettingsSheet: View {
                     customSearchConfiguration
                 }
             }
+            .padding(V371.Space.rowPadding)
         }
     }
 
     private var searchDivider: some View {
-        Divider().overlay(V32.divider)
+        Divider().overlay(V371.Colors.divider)
     }
 
     private var tavilySearchConfiguration: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Tavily adapter").v32Text(.subhead).foregroundStyle(V32.textPrimary)
+            Text("Tavily adapter").font(.subheadline).foregroundStyle(V371.Colors.textPrimary)
             label("Base URL")
             TextField("https://api.tavily.com/search", text: $draft.tavilySearchBaseURL)
                 .textFieldStyle(.roundedBorder)
@@ -120,16 +122,16 @@ struct AIProviderSettingsSheet: View {
                 stagedKey: $draft.stagedTavilySearchKey
             )
             Toggle("允许免费优先自动使用", isOn: $draft.tavilySearchFreeFirstEnabled)
-                .v32Text(.caption)
+                .font(.caption)
         }
     }
 
     private var customSearchConfiguration: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("自定义 JSON Search adapter").v32Text(.subhead).foregroundStyle(V32.textPrimary)
+            Text("自定义 JSON Search adapter").font(.subheadline).foregroundStyle(V371.Colors.textPrimary)
             Text("适用于百炼、国内 Search API、自建 Proxy 等适配层。请求为 query，响应统一为 answer 与 title/content/sourceURL。")
-                .v32Text(.caption)
-                .foregroundStyle(V32.textSecondary)
+                .font(.caption)
+                .foregroundStyle(V371.Colors.textSecondary)
             label("Base URL")
             TextField("https://search.example.com/v1/query", text: $draft.customSearchBaseURL)
                 .textFieldStyle(.roundedBorder)
@@ -153,7 +155,7 @@ struct AIProviderSettingsSheet: View {
                 stagedKey: $draft.stagedCustomSearchKey
             )
             Toggle("允许免费优先自动使用", isOn: $draft.customSearchFreeFirstEnabled)
-                .v32Text(.caption)
+                .font(.caption)
         }
     }
 
@@ -169,7 +171,7 @@ struct AIProviderSettingsSheet: View {
                 if clearRequested.wrappedValue { stagedKey.wrappedValue = "" }
             } label: {
                 Text(clearRequested.wrappedValue ? "保留已保存的 Key" : "清除已保存的 Key")
-                    .v32Text(.caption)
+                    .font(.caption)
             }
             .buttonStyle(.plain)
         }
@@ -217,9 +219,9 @@ struct AIProviderSettingsSheet: View {
     // MARK: 档位
 
     private var tierCard: some View {
-        V32FieldGroup {
+        GroupSurface {
             VStack(alignment: .leading, spacing: 10) {
-                Text("模型策略").v32Text(.section).foregroundStyle(V32.textPrimary)
+                SectionHeader("模型策略")
                 Picker("模型策略", selection: $draft.tier) {
                     Text("免费优先").tag(ModelTier.freeFirst)
                     Text("自动").tag(ModelTier.auto)
@@ -227,21 +229,20 @@ struct AIProviderSettingsSheet: View {
                 }
                 .pickerStyle(.segmented)
                 Text("本地能听懂的记账 / 查询不消耗 Token；只有本地没把握时才联网。")
-                    .v32Text(.caption)
-                    .foregroundStyle(V32.textSecondary)
+                    .font(.caption)
+                    .foregroundStyle(V371.Colors.textSecondary)
             }
+            .padding(V371.Space.rowPadding)
         }
     }
 
     // MARK: 主 Provider（DeepSeek）
 
     private var primaryCard: some View {
-        V32FieldGroup {
+        GroupSurface {
             VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Text("DeepSeek").v32Text(.section).foregroundStyle(V32.textPrimary)
-                    Spacer()
-                    V32StatusPill(text: tester.status.text, status: connectionPillStatus)
+                SectionHeader("DeepSeek") {
+                    StatusBadge(tester.status.text, color: connectionBadgeColor)
                 }
                 label("服务地址（默认 DeepSeek 官方，一般无需修改）")
                 TextField(AISettings.Defaults.primaryBaseURL, text: $draft.primaryBaseURL)
@@ -258,12 +259,12 @@ struct AIProviderSettingsSheet: View {
                 } label: {
                     HStack {
                         Text(draft.primaryModel.displayName)
-                            .v32Text(.body)
-                            .foregroundStyle(V32.textPrimary)
+                            .font(.body)
+                            .foregroundStyle(V371.Colors.textPrimary)
                         Spacer()
                         Image(systemName: "chevron.up.chevron.down")
                             .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(V32.textTertiary)
+                            .foregroundStyle(V371.Colors.textTertiary)
                     }
                 }
                 .pickerStyle(.menu)
@@ -285,7 +286,7 @@ struct AIProviderSettingsSheet: View {
                         tester.synchronize(hasEffectiveKey: !effectivePrimaryKey.isEmpty)
                     } label: {
                         Text(draft.clearPrimaryKeyRequested ? "保留已保存的 Key" : "清除已保存的 Key")
-                            .v32Text(.caption)
+                            .font(.caption)
                     }
                     .buttonStyle(.plain)
                 }
@@ -299,7 +300,7 @@ struct AIProviderSettingsSheet: View {
                         } else {
                             Image(systemName: "antenna.radiowaves.left.and.right")
                         }
-                        Text("测试连接").v32Text(.subhead)
+                        Text("测试连接").font(.subheadline)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
@@ -309,20 +310,21 @@ struct AIProviderSettingsSheet: View {
                 .accessibilityHint("真实调用 DeepSeek 验证 Key、模型与服务地址")
 
                 Text("只有测试通过显示「连接成功」后，才代表 API 可以正常使用。")
-                    .v32Text(.caption)
-                    .foregroundStyle(V32.textTertiary)
+                    .font(.caption)
+                    .foregroundStyle(V371.Colors.textTertiary)
             }
+            .padding(V371.Space.rowPadding)
         }
     }
 
     // MARK: 高级 / 自定义 Provider（备用 fallback）
 
     private var advancedCard: some View {
-        V32FieldGroup {
+        GroupSurface {
             VStack(alignment: .leading, spacing: 10) {
-                Text("高级 / 自定义 Provider（可选）").v32Text(.section).foregroundStyle(V32.textPrimary)
+                SectionHeader("高级 / 自定义 Provider（可选）")
                 Text("任意 OpenAI 兼容端点；主 Provider 网络失败 / 超时 / 限流时自动切换一次，三项都填才启用。")
-                    .v32Text(.caption).foregroundStyle(V32.textSecondary)
+                    .font(.caption).foregroundStyle(V371.Colors.textSecondary)
                 label("服务地址")
                 TextField("https://api.example.com/v1", text: $draft.fallbackBaseURL)
                     .textFieldStyle(.roundedBorder)
@@ -342,11 +344,12 @@ struct AIProviderSettingsSheet: View {
                         if draft.clearFallbackKeyRequested { draft.stagedFallbackKey = "" }
                     } label: {
                         Text(draft.clearFallbackKeyRequested ? "保留已保存的备用 Key" : "清除备用 Key")
-                            .v32Text(.caption)
+                            .font(.caption)
                     }
                     .buttonStyle(.plain)
                 }
             }
+            .padding(V371.Space.rowPadding)
         }
     }
 
@@ -355,16 +358,16 @@ struct AIProviderSettingsSheet: View {
             Label("Key 只存在本机 Keychain，不会进入聊天记录、日志或备份。", systemImage: "lock.shield")
             Label("普通聊天与记账默认不上传经营数据；查询结果在本机汇总。", systemImage: "hand.raised")
         }
-        .v32Text(.caption)
-        .foregroundStyle(V32.textSecondary)
+        .font(.caption)
+        .foregroundStyle(V371.Colors.textSecondary)
         .padding(.horizontal, 4)
     }
 
     @ViewBuilder
     private func label(_ text: String) -> some View {
         Text(text)
-            .v32Text(.caption)
-            .foregroundStyle(V32.textSecondary)
+            .font(.caption)
+            .foregroundStyle(V371.Colors.textSecondary)
     }
 
     // MARK: 连接状态 / 测试
@@ -374,12 +377,12 @@ struct AIProviderSettingsSheet: View {
         return false
     }
 
-    private var connectionPillStatus: V32Status {
+    /// 只有真实测试成功才允许绿色：测试中 / 未验证是中性灰，失败 / 未配置是琥珀。
+    private var connectionBadgeColor: Color {
         switch tester.status {
-        case .success: return .delivering
-        // 只有真实测试成功才允许绿色：测试中 / 未验证都是中性灰，失败是琥珀
-        case .testing, .unverified: return .pending
-        case .notConfigured, .failure: return .expiry
+        case .success: return V371.Colors.green
+        case .testing, .unverified: return V371.Colors.gray
+        case .notConfigured, .failure: return V371.Colors.orange
         }
     }
 

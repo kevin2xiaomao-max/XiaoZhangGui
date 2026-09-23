@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - 临期商品新增/编辑 Sheet（V32）
+// MARK: - 临期商品新增/编辑 Sheet（V371：原生 Form + 统一 toolbar）
 
 struct ExpiryEditorSheet: View {
     @Environment(\.modelContext) private var context
@@ -29,124 +29,63 @@ struct ExpiryEditorSheet: View {
     private static let remindOptions = [3, 7, 15]
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                header
-                nameCard
-                quantityCard
-                expiryCard
-                remindCard
-                noteCard
-                imageCard
-                V32PrimaryButton(title: "保存", systemName: "checkmark") { save() }
-                    .disabled(!canSave)
-                    .opacity(canSave ? 1 : 0.5)
+        NavigationStack {
+            Form {
+                Section("商品名称") {
+                    TextField("例如：牛奶 250ml", text: $name)
+                }
+                Section("数量") {
+                    Stepper(value: Binding(
+                        get: { max(quantity, 1) },
+                        set: { quantityText = String($0) }
+                    ), in: 1...9999) {
+                        TextField("1", text: $quantityText)
+                            .keyboardType(.numberPad)
+                    }
+                }
+                Section("到期日期") {
+                    DatePicker(
+                        "到期",
+                        selection: $expiryDate,
+                        in: Date()...,
+                        displayedComponents: .date
+                    )
+                    .datePickerStyle(.graphical)
+                }
+                Section("提前提醒") {
+                    Picker("提前提醒", selection: $remindDays) {
+                        ForEach(Self.remindOptions, id: \.self) { days in
+                            Text("\(days) 天").tag(days)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                Section("备注") {
+                    TextField("供应商、批次等", text: $note)
+                }
+                Section("图片") {
+                    PhotoPickerField(imageData: imageData) { imageData = $0 }
+                }
             }
-            .padding(.horizontal, V32Layout.pageMargin)
-            .padding(.top, 14)
-            .padding(.bottom, V32Layout.bottomPad)
+            .tint(V371.Colors.blue)
+            .navigationTitle(item == nil ? "新增临期商品" : "编辑临期商品")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("保存") { save() }
+                        .disabled(!canSave)
+                }
+            }
+            .alert("保存失败", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
+                Button("重试") { save() }
+                Button("取消", role: .cancel) { saveError = nil }
+            } message: { Text(saveError ?? "请稍后重试") }
         }
-        .scrollIndicators(.hidden)
-        .v32PageBackground()
         .v32Sheet([.large])
         .onAppear(perform: initializeIfNeeded)
-        .alert("保存失败", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
-            Button("重试") { save() }
-            Button("取消", role: .cancel) { saveError = nil }
-        } message: { Text(saveError ?? "请稍后重试") }
-    }
-
-    private var header: some View {
-        ZStack {
-            Text(item == nil ? "新增临期商品" : "编辑临期商品")
-                .v32Text(.headline)
-                .foregroundStyle(V32.textPrimary)
-            HStack {
-                Button("取消") { dismiss() }
-                    .v32Text(.body)
-                    .foregroundStyle(V32.textTertiary)
-                Spacer()
-            }
-        }
-    }
-
-    private var nameCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            V32SectionHeader("商品名称")
-            V32FieldGroup {
-                TextField("例如：牛奶 250ml", text: $name)
-                    .v32Text(.body)
-                    .foregroundStyle(V32.textPrimary)
-                    .tint(V32.brand)
-            }
-        }
-    }
-
-    private var quantityCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            V32SectionHeader("数量")
-            V32FieldGroup {
-                Stepper(value: Binding(
-                    get: { max(quantity, 1) },
-                    set: { quantityText = String($0) }
-                ), in: 1...9999) {
-                    TextField("1", text: $quantityText)
-                        .v32Text(.headline)
-                        .foregroundStyle(V32.textPrimary)
-                        .tint(V32.brand)
-                        .keyboardType(.numberPad)
-                }
-                .tint(V32.brand)
-            }
-        }
-    }
-
-    private var expiryCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            V32SectionHeader("到期日期")
-            V32FieldGroup {
-                DatePicker(
-                    "到期",
-                    selection: $expiryDate,
-                    in: Date()...,
-                    displayedComponents: .date
-                )
-                .datePickerStyle(.graphical)
-                .tint(V32.brand)
-            }
-        }
-    }
-
-    private var remindCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            V32SectionHeader("提前提醒")
-            V32SegmentedPicker(
-                tabs: Self.remindOptions.map { "\($0) 天" },
-                selectionIndex: Binding(
-                    get: { Self.remindOptions.firstIndex(of: remindDays) ?? 1 },
-                    set: { remindDays = Self.remindOptions[$0] }
-                )
-            )
-        }
-    }
-
-    private var noteCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            V32SectionHeader("备注")
-            V32FieldGroup {
-                TextField("供应商、批次等", text: $note)
-                    .v32Text(.body)
-                    .foregroundStyle(V32.textSecondary)
-                    .tint(V32.brand)
-            }
-        }
-    }
-
-    private var imageCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            V32SectionHeader("图片")
-            V32FieldGroup { PhotoPickerField(imageData: imageData) { imageData = $0 } }
-        }
     }
 
     private func initializeIfNeeded() {

@@ -1,6 +1,9 @@
 import SwiftUI
 
-// MARK: - 小掌柜输入栏（文字 + 麦克风 + 发送）
+// MARK: - 小掌柜输入栏（文字 + 麦克风 + 发送 · V3.7.1）
+//
+// §10.2：input bar 紧凑、keyboard-safe。S3 overlay 样式（§3.2 允许 AI command
+// 用 material）；Reduce Transparency 下退化为 solid group 面。
 
 struct ChatInputBar: View {
     @Binding var text: String
@@ -16,15 +19,16 @@ struct ChatInputBar: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
-        HStack(spacing: 9) {
+        HStack(spacing: 8) {
             Menu {
                 Button(action: onPhoto) { Label("选择图片", systemImage: "photo") }
                 Button(action: onFile) { Label("选择文件", systemImage: "doc") }
             } label: {
                 Image(systemName: "plus")
                     .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(ThemeStore.shared.accentPalette.aiAccent)
-                    .frame(width: 34, height: 34)
+                    .foregroundStyle(V371.Colors.blue)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Circle())
             }
             .accessibilityLabel("添加图片或文件")
             .disabled(isProcessing)
@@ -32,26 +36,26 @@ struct ChatInputBar: View {
             Button(action: onVoice) {
                 Image(systemName: "mic.fill")
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(voiceAvailable ? ThemeStore.shared.accentPalette.aiAccent : V32.textTertiary)
-                    .frame(width: 38, height: 38)
-                    .background(Circle().fill(V32.brandSoft))
+                    .foregroundStyle(voiceAvailable ? V371.Colors.blue : V371.Colors.textTertiary)
+                    .frame(width: 44, height: 44)
+                    .background(Circle().fill(V371.Colors.tinted(V371.Colors.blue)))
             }
-            .buttonStyle(V32PressButtonStyle())
+            .buttonStyle(.plain)
             .disabled(!voiceAvailable)
             .accessibilityLabel("语音输入")
 
             TextField("问小掌柜…（如：今天美团680）", text: $text, axis: .vertical)
                 .focused($focused)
                 .lineLimit(1...4)
-                .v32Text(.body)
+                .font(.body)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
                 .background(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .fill(V32.card)
+                    RoundedRectangle(cornerRadius: V371.Radius.tile, style: .continuous)
+                        .fill(V371.Colors.group)
                         .overlay(
-                            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                .strokeBorder(focused ? ThemeStore.shared.accentPalette.aiAccent.opacity(0.5) : V32.cardOutline, lineWidth: 1)
+                            RoundedRectangle(cornerRadius: V371.Radius.tile, style: .continuous)
+                                .strokeBorder(focused ? V371.Colors.blue.opacity(0.5) : V371.Colors.divider, lineWidth: 1)
                         )
                 )
                 .onSubmit(sendAndDismiss)
@@ -68,20 +72,35 @@ struct ChatInputBar: View {
                 Image(systemName: "arrow.up")
                     .font(.system(size: 16, weight: .heavy))
                     .foregroundStyle(.white)
-                    .frame(width: 38, height: 38)
+                    .frame(width: 44, height: 44)
                     .background(
-                        Circle().fill(canSend ? ThemeStore.shared.accentPalette.aiAccent : V32.textTertiary.opacity(0.35))
+                        Circle().fill(canSend ? V371.Colors.blue : V371.Colors.gray.opacity(0.35))
                     )
             }
-            .buttonStyle(V32PressButtonStyle())
+            .buttonStyle(.plain)
             .disabled(!canSend)
             .accessibilityLabel("发送")
             .accessibilityIdentifier("ai.send")
         }
-        .padding(.horizontal, V32Layout.pageMargin)
+        .padding(.horizontal, V371.Space.page)
         .padding(.top, 8)
-        .padding(.bottom, 6)
-        .modifier(ComposerControlSurface(reduceTransparency: reduceTransparency))
+        .padding(.bottom, 8)
+        .background(composerBackground)
+    }
+
+    /// S3 overlay：允许 material；Reduce Transparency 下用 solid group。
+    private var composerBackground: some View {
+        Group {
+            if reduceTransparency {
+                RoundedRectangle(cornerRadius: V371.Radius.group, style: .continuous)
+                    .fill(V371.Colors.group)
+            } else {
+                RoundedRectangle(cornerRadius: V371.Radius.group, style: .continuous)
+                    .fill(.ultraThinMaterial)
+            }
+        }
+        .shadow(color: V371.Shadow.floating.color, radius: V371.Shadow.floating.radius,
+                y: V371.Shadow.floating.y)
     }
 
     private var canSend: Bool {
@@ -89,20 +108,8 @@ struct ChatInputBar: View {
     }
 
     private func sendAndDismiss() {
+        Haptic.light()
         onSend()
         focused = false
-    }
-}
-
-private struct ComposerControlSurface: ViewModifier {
-    let reduceTransparency: Bool
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if #available(iOS 26.0, *), !reduceTransparency {
-            content.glassEffect(.regular, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        } else {
-            content.background(reduceTransparency ? AnyShapeStyle(V32.card) : AnyShapeStyle(.ultraThinMaterial))
-        }
     }
 }

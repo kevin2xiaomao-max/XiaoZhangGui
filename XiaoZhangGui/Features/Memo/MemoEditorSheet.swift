@@ -1,6 +1,9 @@
 import SwiftUI
 
-// MARK: - 备忘新增/编辑 Sheet（V32；标题 ≤100 / 内容 ≤2000 / 图片）
+// MARK: - 备忘新增/编辑 Sheet（V371：原生 Form）
+//
+// 业务语义保持 V3.6 原样：标题/内容其一非空可保存、100/2000 字截断、图片、
+// try/catch 保存 + 失败可见可重试。只做 presentation 迁移。
 
 struct MemoEditorSheet: View {
     @Environment(\.modelContext) private var context
@@ -21,74 +24,41 @@ struct MemoEditorSheet: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                header
-                titleCard
-                contentCard
-                imageCard
-                V32PrimaryButton(title: "保存", systemName: "checkmark") { save() }
-                    .disabled(!canSave)
-                    .opacity(canSave ? 1 : 0.5)
+        NavigationStack {
+            Form {
+                Section("标题") {
+                    TextField("记录标题", text: $title)
+                }
+                Section("内容") {
+                    TextField("记点什么…", text: $content, axis: .vertical)
+                        .lineLimit(4...8)
+                }
+                Section("图片") {
+                    PhotoPickerField(imageData: imageData) { imageData = $0 }
+                }
             }
-            .padding(.horizontal, V32Layout.pageMargin)
-            .padding(.top, 14)
-            .padding(.bottom, V32Layout.bottomPad)
+            .scrollContentBackground(.hidden)
+            .background(V371.Colors.canvas)
+            .tint(V371.Colors.blue)
+            .navigationTitle(memo == nil ? "新增记录" : "编辑记录")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("保存") { save() }
+                        .disabled(!canSave)
+                }
+            }
         }
-        .scrollIndicators(.hidden)
-        .v32PageBackground()
-        .v32Sheet([.medium, .large])
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
         .onAppear(perform: initializeIfNeeded)
         .alert("保存失败", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
             Button("重试") { save() }
             Button("取消", role: .cancel) { saveError = nil }
         } message: { Text(saveError ?? "请稍后重试") }
-    }
-
-    private var header: some View {
-        ZStack {
-            Text(memo == nil ? "新增记录" : "编辑记录")
-                .v32Text(.headline)
-                .foregroundStyle(V32.textPrimary)
-            HStack {
-                Button("取消") { dismiss() }
-                    .v32Text(.body)
-                    .foregroundStyle(V32.textTertiary)
-                Spacer()
-            }
-        }
-    }
-
-    private var titleCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            V32SectionHeader("标题")
-            V32FieldGroup {
-                TextField("记录标题", text: $title)
-                    .v32Text(.headline)
-                    .foregroundStyle(V32.textPrimary)
-                    .tint(V32.brand)
-            }
-        }
-    }
-
-    private var contentCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            V32SectionHeader("内容")
-            V32FieldGroup {
-                TextField("记点什么…", text: $content, axis: .vertical)
-                    .v32Text(.body)
-                    .foregroundStyle(V32.textSecondary)
-                    .tint(V32.brand)
-                    .lineLimit(4...8)
-            }
-        }
-    }
-
-    private var imageCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            V32SectionHeader("图片")
-            V32FieldGroup { PhotoPickerField(imageData: imageData) { imageData = $0 } }
-        }
     }
 
     private func initializeIfNeeded() {

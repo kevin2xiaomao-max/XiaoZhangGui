@@ -1,8 +1,13 @@
 import SwiftUI
 import SwiftData
 
+// MARK: - 经营 · 业绩（V371 presentation）
+// 业务语义（PerformanceModel / Repository / 删除确认流程）原样保留，只换 presentation。
+
 struct PerformanceView: View {
     @Environment(\.modelContext) private var context
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(AppSettings.self) private var settings
     @Query private var performances: [Performance]
     @Query private var expenses: [Expense]
     @State private var showImport = false
@@ -30,6 +35,12 @@ struct PerformanceView: View {
         return performances.filter { $0.date >= start && $0.date <= Date().endOfDay }.reduce(0) { $0 + $1.amount }
     }
 
+    private var monthGoal: Double { settings.monthGoal }
+
+    private var goalProgress: Double {
+        monthGoal > 0 ? min(max(monthRevenue / monthGoal, 0), 1) : 0
+    }
+
     private var changePercent: Double? {
         guard yesterdayRevenue > 0 else { return nil }
         return (todayRevenue - yesterdayRevenue) / yesterdayRevenue * 100
@@ -46,30 +57,33 @@ struct PerformanceView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 30) {
-                performanceHero
-                secondaryMetrics
+            VStack(alignment: .leading, spacing: V371.Space.section) {
+                HeroMetric(title: "本月营业额", value: Fmt.money(monthRevenue)) {
+                    heroInfo
+                }
+                .accessibilityLabel(heroAccessibilityLabel)
+                goalSection
                 sourcesSection
                 recordsSection
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 16)
+            .padding(.horizontal, V371.Space.page)
+            .padding(.top, V371.Space.page)
         }
         .scrollIndicators(.hidden)
-        .v32PageBackground()
-        .v32PageBottomInset()
+        .v371Canvas()
+        .v371DockInset()
         .navigationTitle("经营数据")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .navigationBarTrailing) {
                 Menu {
                     Button("记收入") { newRecordKind = .income }
                     Button("记支出") { newRecordKind = .expense }
                     Button("扫呗导入", systemImage: "square.and.arrow.down") { showImport = true }
                 } label: {
-                    Image(systemName: "plus")
+                    Label("记一笔", systemImage: "plus")
                 }
-                .accessibilityLabel("经营数据操作")
+                .accessibilityLabel("记一笔")
             }
         }
         .sheet(isPresented: $showImport) { SaobeiImportSheet() }
@@ -91,50 +105,38 @@ struct PerformanceView: View {
         } message: { Text(deleteError ?? "请稍后重试") }
     }
 
-    // MARK: Hero
+    // MARK: Hero info（目标 / 对比）
 
-    private var performanceHero: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("本月营业额")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(V32.textOnHeroSecondary)
-                Spacer()
-                Text("经营数据")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(V32.textOnHeroSecondary)
+    private var heroInfo: some View {
+        HStack(alignment: .bottom, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("今日")
+                    .font(V371.Type.rowSubtitle)
+                    .foregroundStyle(V371.Colors.heroTextSecondary)
+                Text(Fmt.money(todayRevenue))
+                    .font(.system(size: 20, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(V371.Colors.heroText)
             }
-            Text(Fmt.money(monthRevenue))
-                .font(.system(size: 46, weight: .bold, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(V32.textOnHero)
-                .lineLimit(1)
-                .minimumScaleFactor(0.55)
-            HStack(alignment: .bottom, spacing: 16) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("今日")
-                        .font(.caption)
-                        .foregroundStyle(V32.textOnHeroSecondary)
-                    Text(Fmt.money(todayRevenue))
-                        .font(.subheadline.weight(.semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(V32.textOnHero)
-                }
-                changeBadge
-                Spacer(minLength: 8)
-                if !trend.isEmpty {
-                    TrendChart(points: trend, height: 52, onHero: true)
-                        .frame(width: 120)
-                }
+            changeBadge
+            Spacer(minLength: 8)
+            if !trend.isEmpty {
+                // 趋势只保留细线（TrendChart 无大面积填充）
+                TrendChart(points: trend, height: 44, onHero: true)
+                    .frame(width: 110)
             }
         }
-        .padding(.horizontal, 22)
-        .padding(.vertical, 24)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            LinearGradient(colors: [ThemeStore.shared.accentPalette.heroStart, ThemeStore.shared.accentPalette.heroEnd], startPoint: .topLeading, endPoint: .bottomTrailing),
-            in: RoundedRectangle(cornerRadius: 24, style: .continuous)
-        )
+    }
+
+    private var heroAccessibilityLabel: String {
+        var parts = [
+            "本月营业额 \(Fmt.money(monthRevenue))",
+            "今日 \(Fmt.money(todayRevenue))"
+        ]
+        if let change = changePercent {
+            let direction = change >= 0 ? "上涨" : "下降"
+            parts.append("较昨日\(direction) \(String(format: "%.1f", abs(change)))%")
+        }
+        return parts.joined(separator: "，")
     }
 
     @ViewBuilder
@@ -144,52 +146,71 @@ struct PerformanceView: View {
                 Image(systemName: change >= 0 ? "arrow.up.right" : "arrow.down.right")
                     .font(.system(size: 10, weight: .bold))
                 Text("\(String(format: "%.1f", abs(change)))% 较昨日")
-                    .v32Text(.pill)
+                    .font(V371.Type.badge)
             }
-            .foregroundStyle(change >= 0 ? V32.brandOnHero : V32.amberOnHero)
+            .foregroundStyle(.white)
             .padding(.horizontal, 9)
             .padding(.vertical, 5)
-            .background(
-                Capsule().fill((change >= 0 ? V32.brandOnHero : V32.amberOnHero).opacity(0.16))
-            )
+            .background(Capsule().fill(.white.opacity(0.18)))
         } else {
             Text("暂无昨日对比")
-                .v32Text(.pill)
-                .foregroundStyle(V32.textOnHeroSecondary)
+                .font(V371.Type.badge)
+                .foregroundStyle(V371.Colors.heroTextSecondary)
         }
     }
 
-    // MARK: 指标
+    // MARK: 月目标
 
-    private var secondaryMetrics: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("关键指标")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(V32.textTertiary)
-            HStack(spacing: 0) {
-                metric("昨日", Fmt.money(yesterdayRevenue))
-                metricDivider
-                metric("本年", Fmt.money(yearRevenue))
+    private var goalSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader("月目标")
+            GroupSurface {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(Fmt.money(monthRevenue))
+                            .font(V371.Type.rowTitle)
+                            .foregroundStyle(V371.Colors.textPrimary)
+                            .monospacedDigit()
+                        Text("/ 目标 \(Fmt.money(monthGoal))")
+                            .font(V371.Type.rowSubtitle)
+                            .foregroundStyle(V371.Colors.textTertiary)
+                        Spacer(minLength: 8)
+                        Text("\(Int((goalProgress * 100).rounded()))%")
+                            .font(V371.Type.badge)
+                            .foregroundStyle(V371.Colors.blue)
+                            .monospacedDigit()
+                    }
+                    GeometryReader { proxy in
+                        Capsule()
+                            .fill(V371.Colors.groupSecondary)
+                            .overlay(alignment: .leading) {
+                                Capsule()
+                                    .fill(V371.Colors.blue)
+                                    .frame(width: proxy.size.width * goalProgress)
+                            }
+                    }
+                    .frame(height: 6)
+                    .animation(V32Motion.progressWidth(reduceMotion: reduceMotion), value: goalProgress)
+                    .accessibilityElement()
+                    .accessibilityLabel("月目标完成 \(Int((goalProgress * 100).rounded()))%")
+                    V371Divider(leading: 0)
+                    HStack {
+                        Text("本年累计")
+                            .font(V371.Type.rowSubtitle)
+                            .foregroundStyle(V371.Colors.textTertiary)
+                        Spacer(minLength: 8)
+                        Text(Fmt.money(yearRevenue))
+                            .font(V371.Type.rowTitle)
+                            .foregroundStyle(V371.Colors.textPrimary)
+                            .monospacedDigit()
+                    }
+                }
+                .padding(V371.Space.rowPadding)
             }
-            .padding(.vertical, 12)
-            .overlay(alignment: .top) { Divider() }
-            .overlay(alignment: .bottom) { Divider() }
         }
     }
 
-    private func metric(_ label: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(label).font(.caption).foregroundStyle(V32.textTertiary)
-            Text(value).font(.subheadline.weight(.semibold)).monospacedDigit().foregroundStyle(V32.textSecondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var metricDivider: some View {
-        Rectangle().fill(V32.divider).frame(width: 1, height: 36)
-    }
-
-    // MARK: 来源拆分（P0-3 美团）
+    // MARK: 收入来源
 
     private var sourcesSection: some View {
         let summaries = IncomeSourceSummary.compute(
@@ -197,78 +218,101 @@ struct PerformanceView: View {
             range: (Date().startOfMonth, Date().endOfDay)
         )
         let active = summaries.filter { $0.amount > 0 }
-        return VStack(alignment: .leading, spacing: 10) {
-            Text("收入来源")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(V32.textTertiary)
-            VStack(spacing: 0) {
+        return VStack(alignment: .leading, spacing: 8) {
+            SectionHeader("收入来源")
+            GroupSurface {
+                if active.isEmpty {
+                    Text("本月暂无收入")
+                        .font(V371.Type.rowSubtitle)
+                        .foregroundStyle(V371.Colors.textTertiary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(V371.Space.rowPadding)
+                } else {
                     ForEach(Array(active.enumerated()), id: \.element.id) { index, item in
-                        if index > 0 {
-                            Divider().padding(.leading, 12)
-                        }
-                        HStack(alignment: .firstTextBaseline) {
-                            Text(item.source.rawValue)
-                                .font(.body.weight(.medium))
-                                .foregroundStyle(V32.textPrimary)
-                            Spacer(minLength: 12)
+                        if index > 0 { V371Divider() }
+                        let ratioText = "占 \(String(format: "%.0f%%", item.ratio * 100))"
+                        WorkRow(
+                            icon: sourceIcon(item.source),
+                            iconColor: sourceColor(item.source),
+                            title: item.source.rawValue,
+                            subtitle: ratioText
+                        ) {
                             Text(Fmt.money(item.amount))
-                                .font(.subheadline.weight(.semibold).monospacedDigit())
-                                .foregroundStyle(ThemeStore.shared.accentPalette.chartAccent)
-                            Text("\(String(format: "%.0f%%", item.ratio * 100))")
-                                .font(.caption.monospacedDigit())
-                                .foregroundStyle(V32.textTertiary)
+                                .font(V371.Type.rowTitle)
+                                .foregroundStyle(V371.Colors.textPrimary)
+                                .monospacedDigit()
+                                .lineLimit(1)
                         }
-                        .padding(.vertical, 13)
+                        .accessibilityLabel("\(item.source.rawValue)，\(Fmt.money(item.amount))，\(ratioText)")
                     }
-                    if active.isEmpty {
-                        Text("本月暂无收入")
-                            .font(.subheadline)
-                            .foregroundStyle(V32.textTertiary)
-                            .padding(.vertical, 12)
-                    }
+                }
             }
-            .overlay(alignment: .top) { Divider() }
-            .overlay(alignment: .bottom) { Divider() }
         }
     }
 
-    // MARK: 最近交易
+    private func sourceIcon(_ source: IncomeSource) -> String {
+        switch source {
+        case .store: return "storefront"
+        case .meituan: return "bag"
+        case .other: return "ellipsis.circle"
+        }
+    }
+
+    private func sourceColor(_ source: IncomeSource) -> Color {
+        switch source {
+        case .store: return V371.Colors.blue
+        case .meituan: return V371.Colors.orange
+        case .other: return V371.Colors.gray
+        }
+    }
+
+    // MARK: 近期记录
 
     private var recordsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("交易流水")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(V32.textTertiary)
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader("近期记录")
             if records.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    Label("暂无交易记录", systemImage: "tray")
-                        .foregroundStyle(V32.textTertiary)
-                    V32PrimaryButton(title: "记一笔", systemName: "plus") { newRecordKind = .income }
-                }
-                .padding(.vertical, 12)
-            } else {
-                    VStack(spacing: 0) {
-                        ForEach(Array(records.prefix(12).enumerated()), id: \.element.id) { index, record in
-                            if index > 0 { Divider().padding(.leading, 48) }
-                            PerformanceRecordRow(
-                                record: record,
-                                onEdit: {
-                                    if let value = record.performance { editingPerformance = value }
-                                    if let value = record.expense { editingExpense = value }
-                                },
-                                onDelete: { deletingRecord = record }
-                            )
-                        }
+                GroupSurface {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Label("暂无交易记录", systemImage: "tray")
+                            .font(V371.Type.rowSubtitle)
+                            .foregroundStyle(V371.Colors.textTertiary)
+                        V32PrimaryButton(title: "记一笔", systemName: "plus") { newRecordKind = .income }
                     }
-                NavigationLink {
-                    TransactionHistoryView()
-                } label: {
-                    Label("查看全部", systemImage: "list.bullet")
-                        .v32Text(.subhead)
-                        .foregroundStyle(V32.brand)
-                        .frame(maxWidth: .infinity)
+                    .padding(V371.Space.rowPadding)
                 }
-                .padding(.top, 10)
+            } else {
+                GroupSurface {
+                    ForEach(Array(records.prefix(12).enumerated()), id: \.element.id) { index, record in
+                        if index > 0 { V371Divider() }
+                        PerformanceRecordRow(
+                            record: record,
+                            onEdit: {
+                                if let value = record.performance { editingPerformance = value }
+                                if let value = record.expense { editingExpense = value }
+                            },
+                            onDelete: { deletingRecord = record }
+                        )
+                    }
+                    V371Divider(leading: 0)
+                    NavigationLink {
+                        TransactionHistoryView()
+                    } label: {
+                        HStack {
+                            Text("查看全部")
+                                .font(V371.Type.rowTitle)
+                                .foregroundStyle(V371.Colors.blue)
+                            Spacer(minLength: 8)
+                            V371Chevron()
+                        }
+                        .padding(.horizontal, V371.Space.rowPadding)
+                        .padding(.vertical, 12)
+                        .frame(minHeight: 52)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("查看全部交易")
+                }
             }
         }
     }
@@ -287,16 +331,21 @@ private struct PerformanceRecordRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            V32IconBubble(systemName: iconName, tone: bubbleTone, size: 34, icon: 14)
+            Image(systemName: iconName)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(iconColor)
+                .frame(width: 36, height: 36)
+                .background(V371.Colors.tinted(iconColor), in: Circle())
+                .accessibilityHidden(true)
             Button(action: onEdit) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(DisplayText.visible(record.title, fallback: record.kind == .income ? "营业额" : "支出"))
-                        .v32Text(.title)
-                        .foregroundStyle(V32.textPrimary)
+                        .font(V371.Type.rowTitle)
+                        .foregroundStyle(V371.Colors.textPrimary)
                         .lineLimit(1)
                     Text(subtitle)
-                        .v32Text(.caption)
-                        .foregroundStyle(V32.textTertiary)
+                        .font(V371.Type.rowSubtitle)
+                        .foregroundStyle(V371.Colors.textTertiary)
                         .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -305,21 +354,23 @@ private struct PerformanceRecordRow: View {
             .buttonStyle(.plain)
 
             Text(record.kind == .income ? "+\(Fmt.money(record.amount))" : "-\(Fmt.money(record.amount))")
-                .v32Text(.title)
-                .foregroundStyle(record.kind == .income ? V32.brand : V32.danger)
+                .font(V371.Type.rowTitle)
+                .foregroundStyle(record.kind == .income ? V371.Colors.blue : V371.Colors.red)
+                .monospacedDigit()
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             Button(action: onDelete) {
                 Image(systemName: "trash")
                     .font(.system(size: 14))
-                    .foregroundStyle(V32.textQuaternary)
-                    .frame(width: 30, height: 30)
+                    .foregroundStyle(V371.Colors.textTertiary)
+                    .frame(width: 32, height: 44)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("删除记录")
         }
-        .padding(.vertical, 14)
+        .padding(.horizontal, V371.Space.rowPadding)
+        .padding(.vertical, 10)
         .frame(minHeight: 64)
     }
 
@@ -334,9 +385,9 @@ private struct PerformanceRecordRow: View {
         record.source == "扫呗" ? "qrcode" : (record.kind == .income ? "arrow.down.left" : "arrow.up.right")
     }
 
-    private var bubbleTone: V32BubbleTone {
-        if record.source == "扫呗" { return .neutral }
-        return record.kind == .income ? .brand : .danger
+    private var iconColor: Color {
+        if record.source == "扫呗" { return V371.Colors.gray }
+        return record.kind == .income ? V371.Colors.blue : V371.Colors.red
     }
 }
 

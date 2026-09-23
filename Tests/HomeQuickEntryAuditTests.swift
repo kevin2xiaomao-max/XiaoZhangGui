@@ -1,7 +1,8 @@
 import XCTest
 
-/// V3.3 真机 hotfix 首页 / AI 页结构审计：
-/// - 首页中部重复的「问小掌柜…」AI 大卡必须移除（底部 Dock 已有永久「小掌柜」入口）；
+/// V3.7.1（2026-09-23 重写，原 V3.3 hotfix 审计已按 MD STEP 7 标记过时）：
+/// - V3.7.1 冻结 IA：AI 不再是底部 Tab，首页保留**唯一紧凑入口**
+///   （AICommandEntry，「✦ 问小掌柜…」），不得内嵌完整 AI 对话 UI；
 /// - 右上角必须保留麦克风「一句话快速记录」入口并继续弹出 QuickRecord；
 /// - 小掌柜短语音面板展示时必须隐藏底部 Tab 栏（Dock）。
 ///
@@ -23,15 +24,20 @@ final class HomeQuickEntryAuditTests: XCTestCase {
         )
     }
 
-    func testHomeHasNoDuplicateAssistantCard() throws {
+    /// V3.7.1：AI 不再是 Tab，首页必须且只能有一个紧凑 AI 入口。
+    func testHomeHasExactlyOneCompactAssistantEntry() throws {
         let home = try source("XiaoZhangGui/Features/Home/HomeView.swift")
-        XCTAssertFalse(
-            home.contains("问小掌柜"),
-            "首页中部重复的「问小掌柜…」AI 卡必须移除"
+        XCTAssertTrue(
+            home.contains("AICommandEntry"),
+            "V3.7.1 首页必须保留唯一的紧凑 AI 入口（AICommandEntry）"
         )
         XCTAssertFalse(
-            home.contains("assistantEntry"),
-            "重复 AI 卡的视图实现必须一并删除"
+            home.contains("AIChatView"),
+            "首页不得内嵌完整 AI 对话视图"
+        )
+        XCTAssertEqual(
+            home.components(separatedBy: "AICommandEntry").count - 1, 1,
+            "紧凑 AI 入口在首页只能出现一次"
         )
     }
 

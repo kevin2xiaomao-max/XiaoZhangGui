@@ -1,6 +1,8 @@
 import SwiftUI
 import SwiftData
 
+// MARK: - 客户配送（V371：GroupSurface 按状态分组 + WorkRow）
+
 struct CustomerView: View {
     @Environment(\.modelContext) private var context
     @Query private var requests: [CustomerRequest]
@@ -18,9 +20,18 @@ struct CustomerView: View {
         return list.sorted { $0.createdAt > $1.createdAt }
     }
 
+    /// §9 grouped-list language：按状态分组（待处理 → 配送中 → 已完成）。
+    private var groupedSections: [(status: CustomerStatus, items: [CustomerRequest])] {
+        let order: [CustomerStatus] = [.pending, .delivering, .done]
+        return order.compactMap { status in
+            let items = shown.filter { $0.statusEnum == status }
+            return items.isEmpty ? nil : (status, items)
+        }
+    }
+
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: V371.Space.section) {
                 V32SegmentedPicker(
                     tabs: CustomerFilter.allCases.map(\.rawValue),
                     selectionIndex: Binding(
@@ -46,35 +57,40 @@ struct CustomerView: View {
                         .padding(.vertical, 8)
                     }
                 } else {
-                    // P0-2：每个 Row 用 V32SwipeRow 包装，
-                    // 让 pending → 右滑露出「开始配送」、delivering → 右滑露出「✓ 完成」。
-                    // done 状态 actions 为空，不允许 swipe。
-                    VStack(spacing: 0) {
-                        ForEach(Array(shown.enumerated()), id: \.element.persistentModelID) { index, request in
-                            if index > 0 {
-                                Rectangle().fill(V32.divider).frame(height: 1).padding(.leading, 48)
+                    ForEach(groupedSections, id: \.status) { section in
+                        VStack(alignment: .leading, spacing: 10) {
+                            SectionHeader(section.status.rawValue) {
+                                Text("\(section.items.count)")
+                                    .font(V371.Type.badge)
+                                    .foregroundStyle(V371.Colors.textTertiary)
                             }
-                            V32SwipeRow(actions: swipeActions(for: request)) {
-                                CustomerRow(
-                                    request: request,
-                                    onEdit: { editingRequest = request },
-                                    onCopyAddress: copyAddress,
-                                    onAdvance: { advance(request) },
-                                    onDelete: { deletingRequest = request }
-                                )
+                            GroupSurface {
+                                ForEach(Array(section.items.enumerated()), id: \.element.persistentModelID) { index, request in
+                                    if index > 0 { V371Divider(leading: 62) }
+                                    // 状态推进动作保留原行为：
+                                    // swipe（pending/delivering 露出推进按钮）+ 行内推进按钮 → advance(request)。
+                                    V32SwipeRow(actions: swipeActions(for: request)) {
+                                        CustomerWorkRow(
+                                            request: request,
+                                            onEdit: { editingRequest = request },
+                                            onCopyAddress: copyAddress,
+                                            onAdvance: { advance(request) },
+                                            onDelete: { deletingRequest = request }
+                                        )
+                                    }
+                                    .transition(.opacity.combined(with: reduceMotion ? .identity : .scale(scale: 0.98)))
+                                }
                             }
-                            .transition(.opacity.combined(with: reduceMotion ? .identity : .scale(scale: 0.98)))
                         }
                     }
-                    .padding(.vertical, 2)
                 }
             }
-            .padding(.horizontal, V32Layout.pageMargin)
+            .padding(.horizontal, V371.Space.page)
             .padding(.top, 8)
         }
         .scrollIndicators(.hidden)
-        .v32PageBackground()
-        .v32PageBottomInset()
+        .v371Canvas()
+        .v371DockInset()
         .navigationTitle("客户配送")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -158,76 +174,77 @@ struct CustomerView: View {
     }
 }
 
-// MARK: - 配送行
+// MARK: - 配送行（V371 WorkRow：StatusBadge + 房号/客户 + 配送内容 + 时间 + 推进动作）
 
-private struct CustomerRow: View {
+private struct CustomerWorkRow: View {
     let request: CustomerRequest
     let onEdit: () -> Void
     let onCopyAddress: (CustomerRequest) -> Void
     let onAdvance: () -> Void
     let onDelete: () -> Void
 
+    private var status: CustomerStatus { request.statusEnum }
+
     private var icon: String {
-        switch request.statusEnum {
+        switch status {
         case .pending: return "clock"
         case .delivering: return "bicycle"
         case .done: return "checkmark"
         }
     }
 
-    private var tone: V32BubbleTone {
-        switch request.statusEnum {
-        case .pending: return .amber
-        case .delivering: return .brand
-        case .done: return .neutral
+    /// 彩色微状态只用于 icon / badge（§2-D）。
+    private var statusColor: Color {
+        switch status {
+        case .pending: return V371.Colors.orange
+        case .delivering: return V371.Colors.blue
+        case .done: return V371.Colors.gray
         }
     }
 
-    private var status: V32Status {
-        switch request.statusEnum {
-        case .pending: return .pending
-        case .delivering: return .delivering
-        case .done: return .done
+    /// 行内时间（§9）：优先展示设置的送达时间，否则展示创建时间。
+    private var timeText: String {
+        if let deliveryTime = CustomerDeliveryStorage.decode(request.customer).deliveryTime {
+            return Fmt.monthDayTime(deliveryTime)
         }
+        return Fmt.monthDayTime(request.createdAt)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 12) {
-                V32IconBubble(systemName: icon, tone: tone, size: 34, icon: 15)
-                Button(action: onEdit) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(request.displayTitle)
-                            .v32Text(.title)
-                            .foregroundStyle(V32.textPrimary)
-                            .lineLimit(2)
-                        Text(request.displaySubtitle)
-                            .v32Text(.caption)
-                            .foregroundStyle(V32.textTertiary)
-                            .lineLimit(1)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
+        WorkRow(
+            icon: icon,
+            iconColor: statusColor,
+            title: request.displayTitle,
+            subtitle: request.displaySubtitle,
+            action: onEdit
+        ) {
+            HStack(spacing: 8) {
+                VStack(alignment: .trailing, spacing: 4) {
+                    StatusBadge(status.rawValue, color: statusColor)
+                    Text(timeText)
+                        .font(V371.Type.time)
+                        .foregroundStyle(V371.Colors.textTertiary)
+                        .lineLimit(1)
                 }
-                .buttonStyle(.plain)
                 // P0-4：配送带图时在行内直接显示缩略图（round-trip：列表可见）
                 if request.imageData != nil {
                     ImageThumb(imageData: request.imageData, size: 44)
                 }
-                V32StatusPill(text: request.statusEnum.rawValue, status: status)
-            }
-            // 行内只保留主状态操作；复制/删除等次级动作进 contextMenu（T19）
-            if request.statusEnum != .done {
-                HStack(spacing: 6) {
-                    Spacer().frame(width: 46)
-                    Spacer()
-                    rowActionButton(request.statusEnum == .pending ? "bicycle" : "checkmark",
-                                    tint: V32.brand, action: onAdvance)
+                // 行内只保留主状态操作；复制/删除等次级动作进 contextMenu
+                if status != .done {
+                    Button(action: onAdvance) {
+                        Image(systemName: status == .pending ? "bicycle" : "checkmark")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(V371.Colors.blue)
+                            .frame(width: 44, height: 44)
+                            .background(V371.Colors.tinted(V371.Colors.blue), in: Circle())
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(status == .pending ? "开始配送" : "完成配送")
                 }
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
         .contextMenu {
             Button("编辑") { onEdit() }
             if request.roomOrAddress.nonEmpty != nil {
@@ -235,18 +252,6 @@ private struct CustomerRow: View {
             }
             Button("删除", role: .destructive) { onDelete() }
         }
-    }
-
-    private func rowActionButton(_ systemName: String, tint: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(tint)
-                .frame(width: 30, height: 30)
-                .background(Circle().fill(V32.pageBGSecondary))
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
     }
 }
 
@@ -293,6 +298,7 @@ extension String {
 // MARK: - V32 Swipe Action（自绘 swipe，不退回裸 List 系统样式）
 // P0-2：CustomerView 配送 Row 专用。pending/delivering 右滑露出操作按钮，
 // done 不允许 swipe。Swipe 动画统一引用 V32Motion（不夸张）。
+// V371：前景行背景透明，坐在 GroupSurface 上（不做嵌套卡片）。
 
 private struct V32SwipeAction: Identifiable {
     let id = UUID()
@@ -350,10 +356,10 @@ private struct V32SwipeRow<Content: View>: View {
     @ViewBuilder
     private var foreground: some View {
         if actions.isEmpty {
-            content.background(V32.card)
+            content.background(Color.clear)
         } else {
             content
-                .background(V32.card)
+                .background(Color.clear)
                 .offset(x: offsetX)
                 .highPriorityGesture(
                     DragGesture(minimumDistance: 14)
@@ -369,7 +375,7 @@ private struct V32SwipeRow<Content: View>: View {
                                 offsetX = snapped
                             }
                         }
-        )
+                )
         }
     }
 

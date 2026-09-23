@@ -3,16 +3,21 @@ import SwiftData
 import PhotosUI
 import UniformTypeIdentifiers
 
-// MARK: - 我的：个人身份与分组设置
+// MARK: - 我的：个人身份与分组设置（V3.7.1 分组设置页）
+//
+// 视觉：SectionHeader + GroupSurface + WorkRow + 行内 hairline（V371Divider）。
+// 全部正式设置逐项保留：个人资料（店铺信息）、显示模式、外观（主题色）、
+// 背景风格、壁纸、语音输入、月营业目标、提醒设置、Demo Mode、数据备份、
+// 数据恢复、清理缓存、关于、隐私说明。
+// 壁纸 / 主题色 / 背景风格确认是正式产品功能（ThemeStore 全局生效、
+// 首页 Hero 与侧边栏均消费 palette，壁纸落盘持久化），非旧 demo，入口全部保留。
 
 struct ProfileView: View {
-    @Binding var tab: AppTab
-    @Binding var showVoice: Bool
-    let showsVoiceButton: Bool
+    // V3.7.1：tab 绑定已删除（全仓确认无使用）；从首页右上角进入，无参构造。
+    @Binding var showVoice: Bool = .constant(false)
+    let showsVoiceButton: Bool = false
 
     @Environment(\.modelContext) private var context
-    // P0-1：备份/恢复改由 BackupService 直接从 context 全量读写，不再依赖页面 @Query
-    @Query private var performances: [Performance]
 
     @Bindable private var settings = AppSettings.shared
     @Bindable private var demo = DemoMode.shared
@@ -34,7 +39,6 @@ struct ProfileView: View {
     @State private var showImporter = false
     @State private var shareURL: URL?
     @State private var toast: String?
-    @State private var toolRoute: String?
 
     private var monthlyGoal: Double {
         demo.isEnabled ? DemoCatalog.monthlyGoal : settings.monthGoal
@@ -42,45 +46,39 @@ struct ProfileView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: V371.Space.section) {
                 profileHero
-                personalSection
-                businessSection
+                settingsSection("个性化") { personalRows }
+                settingsSection("经营") { businessRows }
                 demoSection
-                dataSection
+                settingsSection("数据与应用") { dataRows }
                 Text("v\(appVersion)")
-                    .v32Text(.caption)
-                    .foregroundStyle(V32.textQuaternary)
-                    .frame(maxWidth: .infinity)
+                    .font(V371.Type.rowSubtitle)
+                    .foregroundStyle(V371.Colors.textTertiary)
+                    .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.top, 4)
             }
-            .padding(.horizontal, V32Layout.pageMargin)
+            .padding(.horizontal, V371.Space.page)
             .padding(.top, 8)
+            .padding(.bottom, 28)
         }
         .scrollIndicators(.hidden)
-        .v32PageBackground()
-        .v32PageBottomInset()
+        .v371Canvas()
+        .v371DockInset()
         .navigationTitle("我的")
         .navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(item: $toolRoute) { route in
-            switch route {
-            case "calendar": CalendarView()
-            case "performance": PerformanceView()
-            case "customer": CustomerView()
-            case "expiry": ExpiryView()
-            case "goods": GoodsView()
-            case "paymentCode": PaymentCodeView()
-            default: EmptyView()
-            }
-        }
         .overlay(alignment: .bottom) {
             if let toast {
                 Text(toast)
-                    .v32Text(.subhead)
-                    .foregroundStyle(V32.textPrimary)
+                    .font(V371.Type.rowTitle)
+                    .foregroundStyle(V371.Colors.textPrimary)
                     .padding(.horizontal, 18)
                     .padding(.vertical, 11)
-                    .background(Capsule().fill(V32.card).shadow(color: V32.cardOutline, radius: 10, y: 4))
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(V371.Colors.group)
+                            .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
+                    )
                     .padding(.bottom, 12)
                     .transition(.opacity.combined(with: reduceMotion ? .identity : .move(edge: .bottom)))
             }
@@ -124,126 +122,161 @@ struct ProfileView: View {
         }
     }
 
-    // MARK: 店铺信息 Row（P1-1：普通主题卡片，不再使用大面积绿色 Hero）
+    // MARK: 店铺信息（个人资料入口）
 
     private var profileHero: some View {
-        Button { shopDialog = true } label: {
-            HStack(spacing: 12) {
+        GroupSurface {
+            Button {
+                shopDialog = true
+            } label: {
+                HStack(spacing: 12) {
                     Image(systemName: "storefront.fill")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(V32.brand)
-                        .frame(width: 28)
-                    VStack(alignment: .leading, spacing: 4) {
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(V371.Colors.blue)
+                        .frame(width: 44, height: 44)
+                        .background(V371.Colors.tinted(V371.Colors.blue), in: Circle())
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 3) {
                         Text(DisplayText.visible(settings.shopName, fallback: "我的小店"))
-                            .v32Text(.section)
-                            .foregroundStyle(V32.textPrimary)
+                            .font(V371.Type.rowTitle)
+                            .foregroundStyle(V371.Colors.textPrimary)
                             .lineLimit(1)
                         Text("\(DisplayText.visible(settings.ownerName, fallback: "老板")) · 你的小掌柜")
-                            .v32Text(.subhead)
-                            .foregroundStyle(V32.textTertiary)
+                            .font(V371.Type.rowSubtitle)
+                            .foregroundStyle(V371.Colors.textTertiary)
                             .lineLimit(1)
                     }
                     Spacer(minLength: 8)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(V32.textQuaternary)
+                    V371Chevron()
                 }
-                .padding(.vertical, 10)
+                .padding(.horizontal, V371.Space.rowPadding)
+                .padding(.vertical, 12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("个人资料")
+            .accessibilityHint("编辑店铺名称与店主称呼")
         }
-        .buttonStyle(.plain)
     }
 
     // MARK: 分组
 
-    private var personalSection: some View {
-        settingsGroup("个性化") {
-            ProfileRow(icon: "circle.lefthalf.filled", tone: .info,
-                       title: "显示模式", value: settings.themeModeLabel) {
-                themeDialog = true
-            }
-            divider
-            ProfileRow(icon: "paintpalette", tone: .brand,
-                       title: "外观", value: themeStore.accentTheme.displayName) {
-                appearanceSheet = true
-            }
-            divider
-            ProfileRow(icon: "square.on.square", tone: .neutral,
-                       title: "背景风格", value: themeStore.backgroundTheme.displayName) {
-                backgroundSheet = true
-            }
-            divider
-            ProfileRow(icon: "photo", tone: .amber,
-                       title: "壁纸",
-                       value: themeStore.wallpaper.isEnabled ? "已设置" : "未设置") {
-                wallpaperSheet = true
+    private func settingsSection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader(title)
+            GroupSurface {
+                content()
             }
         }
     }
 
-    private var businessSection: some View {
-        settingsGroup("经营") {
-            ProfileRow(icon: "scope", tone: .brand,
-                       title: "月营业目标", value: Fmt.groupedInt(monthlyGoal)) {
-                goalDialog = true
-            }
-            divider
-            ProfileRow(icon: "bell", tone: .amber,
-                       title: "提醒设置",
-                       value: (settings.todoReminderEnabled || settings.expiryReminderEnabled) ? "已开启" : "已关闭") {
-                reminderDialog = true
-            }
+    private func valueTrailing(_ value: String) -> some View {
+        HStack(spacing: 4) {
+            Text(value)
+                .font(V371.Type.rowSubtitle)
+                .foregroundStyle(V371.Colors.textTertiary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            V371Chevron()
+        }
+    }
+
+    @ViewBuilder
+    private var personalRows: some View {
+        WorkRow(icon: "circle.lefthalf.filled", iconColor: V371.Colors.blue,
+                title: "显示模式", action: { themeDialog = true }) {
+            valueTrailing(settings.themeModeLabel)
+        }
+        V371Divider()
+        WorkRow(icon: "paintpalette", iconColor: V371.Colors.blue,
+                title: "外观", action: { appearanceSheet = true }) {
+            valueTrailing(themeStore.accentTheme.displayName)
+        }
+        V371Divider()
+        WorkRow(icon: "square.on.square", iconColor: V371.Colors.gray,
+                title: "背景风格", action: { backgroundSheet = true }) {
+            valueTrailing(themeStore.backgroundTheme.displayName)
+        }
+        V371Divider()
+        WorkRow(icon: "photo", iconColor: V371.Colors.orange,
+                title: "壁纸", action: { wallpaperSheet = true }) {
+            valueTrailing(themeStore.wallpaper.isEnabled ? "已设置" : "未设置")
+        }
+        V371Divider()
+        WorkRow(icon: "mic.fill", iconColor: V371.Colors.green,
+                title: "语音输入", action: { voiceDialog = true }) {
+            valueTrailing(settings.voiceLanguage)
+        }
+    }
+
+    @ViewBuilder
+    private var businessRows: some View {
+        WorkRow(icon: "scope", iconColor: V371.Colors.blue,
+                title: "月营业目标", action: { goalDialog = true }) {
+            valueTrailing(Fmt.groupedInt(monthlyGoal))
+        }
+        V371Divider()
+        WorkRow(icon: "bell", iconColor: V371.Colors.orange,
+                title: "提醒设置", action: { reminderDialog = true }) {
+            valueTrailing((settings.todoReminderEnabled || settings.expiryReminderEnabled) ? "已开启" : "已关闭")
         }
     }
 
     @ViewBuilder
     private var demoSection: some View {
-        settingsGroup("演示") {
-            ProfileToggleRow(icon: "wand.and.stars", tone: .info, title: "Demo Mode", isOn: $demo.isEnabled)
-            if demo.isEnabled {
-                Text("当前页面和 AI 使用演示数据，导入不会写入真实数据。")
-                    .v32Text(.caption)
-                    .foregroundStyle(V32.amber)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                divider
-                ProfileRow(icon: "arrow.clockwise", tone: .neutral, title: "重置演示数据", value: "独立内存", chevron: false) {
-                    demo.resetDemoData()
-                    showToast("演示数据已重置")
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader("演示")
+            GroupSurface {
+                SettingsToggleRow(icon: "wand.and.stars", iconColor: V371.Colors.blue,
+                                  title: "Demo Mode", isOn: $demo.isEnabled)
+                if demo.isEnabled {
+                    Text("当前页面和 AI 使用演示数据，导入不会写入真实数据。")
+                        .font(V371.Type.rowSubtitle)
+                        .foregroundStyle(V371.Colors.orange)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, V371.Space.rowPadding)
+                        .padding(.vertical, 8)
+                    V371Divider()
+                    WorkRow(icon: "arrow.clockwise", iconColor: V371.Colors.gray,
+                            title: "重置演示数据",
+                            subtitle: "独立内存",
+                            action: {
+                                demo.resetDemoData()
+                                showToast("演示数据已重置")
+                            }) {
+                        EmptyView()
+                    }
                 }
             }
         }
     }
 
-    private var dataSection: some View {
-        settingsGroup("数据与应用") {
-            // P0-1：备份生成真正的 .json 文件（含状态/时间/图片 base64），经系统面板分享
-            ProfileRow(icon: "square.and.arrow.down", tone: .neutral,
-                       title: "数据备份", value: "JSON 文件", chevron: false) {
-                exportBackupFile()
-            }
-            divider
-            ProfileRow(icon: "arrow.clockwise", tone: .neutral, title: "数据恢复", value: "JSON", chevron: false) {
-                showImporter = true
-            }
-            divider
-            ProfileRow(icon: "paintbrush", tone: .neutral, title: "清理缓存") { clearDialog = true }
-            divider
-            ProfileRow(icon: "info.circle", tone: .info, title: "关于你的小掌柜") { aboutDialog = true }
-            divider
-            ProfileRow(icon: "lock.shield", tone: .neutral, title: "隐私说明") { privacyDialog = true }
+    @ViewBuilder
+    private var dataRows: some View {
+        // P0-1：备份生成真正的 .json 文件（含状态/时间/图片 base64），经系统面板分享
+        WorkRow(icon: "square.and.arrow.down", iconColor: V371.Colors.gray,
+                title: "数据备份", action: { exportBackupFile() }) {
+            valueTrailing("JSON 文件")
         }
-    }
-
-    private var divider: some View {
-        Rectangle().fill(V32.divider).frame(height: 1).padding(.leading, 48)
-    }
-
-    private func settingsGroup<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .v32Text(.caption)
-                .foregroundStyle(V32.textTertiary)
-                .padding(.leading, 4)
-            VStack(spacing: 0) { content() }
+        V371Divider()
+        WorkRow(icon: "arrow.clockwise", iconColor: V371.Colors.gray,
+                title: "数据恢复", action: { showImporter = true }) {
+            valueTrailing("JSON")
+        }
+        V371Divider()
+        WorkRow(icon: "paintbrush", iconColor: V371.Colors.gray,
+                title: "清理缓存", action: { clearDialog = true }) {
+            V371Chevron()
+        }
+        V371Divider()
+        WorkRow(icon: "info.circle", iconColor: V371.Colors.blue,
+                title: "关于你的小掌柜", action: { aboutDialog = true }) {
+            V371Chevron()
+        }
+        V371Divider()
+        WorkRow(icon: "lock.shield", iconColor: V371.Colors.gray,
+                title: "隐私说明", action: { privacyDialog = true }) {
+            V371Chevron()
         }
     }
 
@@ -252,9 +285,9 @@ struct ProfileView: View {
     }
 
     private func showToast(_ text: String) {
-        withAnimation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion))) { toast = text }
+        withAnimation(reduceMotion ? nil : V32Motion.quick) { toast = text }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-            withAnimation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion))) { toast = nil }
+            withAnimation(reduceMotion ? nil : V32Motion.quick) { toast = nil }
         }
     }
 
@@ -299,138 +332,37 @@ struct ShareSheet: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
-// MARK: - 设置行
+// MARK: - 设置开关行（V371 行样式）
 
-@MainActor
-private struct ProfileRow: View {
+private struct SettingsToggleRow: View {
     let icon: String
-    var tone: V32BubbleTone = .neutral
-    let title: String
-    var value: String = ""
-    var chevron: Bool = true
-    let action: () -> Void
-
-    var body: some View {
-        Button {
-            Haptic.light()
-            action()
-        } label: {
-            ProfileRowLabel(icon: icon, tone: tone, title: title, value: value, chevron: chevron)
-        }
-        .buttonStyle(V32PressButtonStyle())
-    }
-}
-
-@MainActor
-struct ProfileRowLabel: View {
-    let icon: String
-    var tone: V32BubbleTone = .neutral
-    let title: String
-    var value: String = ""
-    var chevron: Bool = true
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(tone.tint)
-                .frame(width: 24)
-            Text(title)
-                .v32Text(.title)
-                .foregroundStyle(V32.textPrimary)
-                .lineLimit(1)
-            Spacer(minLength: 8)
-            if !value.isEmpty {
-                Text(value)
-                    .v32Text(.caption)
-                    .foregroundStyle(V32.textTertiary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-            if chevron {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(V32.textQuaternary)
-            }
-        }
-        .padding(.horizontal, 12)
-        .frame(minHeight: 54)
-        .contentShape(Rectangle())
-    }
-}
-
-@MainActor
-private struct ProfileToggleRow: View {
-    let icon: String
-    var tone: V32BubbleTone = .neutral
+    let iconColor: Color
     let title: String
     @Binding var isOn: Bool
 
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(tone.tint)
-                .frame(width: 24)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(iconColor)
+                .frame(width: 36, height: 36)
+                .background(V371.Colors.tinted(iconColor), in: Circle())
+                .accessibilityHidden(true)
             Text(title)
-                .v32Text(.title)
-                .foregroundStyle(V32.textPrimary)
-            Spacer()
+                .font(V371.Type.rowTitle)
+                .foregroundStyle(V371.Colors.textPrimary)
+                .lineLimit(1)
+            Spacer(minLength: 8)
             Toggle("", isOn: $isOn)
                 .labelsHidden()
-                .tint(V32.brand)
+                .tint(V371.Colors.blue)
+                .frame(minHeight: 44)
         }
-        .padding(.horizontal, 12)
-        .frame(minHeight: 54)
-    }
-}
-
-// MARK: - V32 Sheet 容器
-
-private struct V32SheetChrome<Content: View>: View {
-    let title: String
-    var detents: Set<PresentationDetent> = [.medium]
-    var doneTitle: String = "完成"
-    let onDone: (() -> Void)?
-    @ViewBuilder var content: Content
-
-    init(_ title: String,
-         detents: Set<PresentationDetent> = [.medium],
-         doneTitle: String = "完成",
-         onDone: (() -> Void)? = nil,
-         @ViewBuilder content: () -> Content) {
-        self.title = title
-        self.detents = detents
-        self.doneTitle = doneTitle
-        self.onDone = onDone
-        self.content = content()
-    }
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                ZStack {
-                    Text(title)
-                        .v32Text(.headline)
-                        .foregroundStyle(V32.textPrimary)
-                    HStack {
-                        Spacer()
-                        if let onDone {
-                            Button(doneTitle, action: onDone)
-                                .v32Text(.body)
-                                .foregroundStyle(V32.brand)
-                        }
-                    }
-                }
-                content
-            }
-            .padding(.horizontal, V32Layout.pageMargin)
-            .padding(.top, 14)
-            .padding(.bottom, V32Layout.bottomPad)
-        }
-        .scrollIndicators(.hidden)
-        .v32PageBackground()
-        .v32Sheet(detents)
+        .padding(.horizontal, V371.Space.rowPadding)
+        .padding(.vertical, 12)
+        .frame(minHeight: 60)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(title)
     }
 }
 
@@ -448,28 +380,32 @@ private struct ShopEditSheet: View {
     }
 
     var body: some View {
-        V32SheetChrome("个人资料") {
-            V32Card {
-                VStack(alignment: .leading, spacing: 12) {
+        NavigationStack {
+            Form {
+                Section {
                     TextField("店铺名称", text: $shopName)
-                        .v32Text(.headline)
-                        .foregroundStyle(V32.textPrimary)
-                        .tint(V32.brand)
-                    Rectangle().fill(V32.divider).frame(height: 1)
+                        .tint(V371.Colors.blue)
                     TextField("店主称呼", text: $ownerName)
-                        .v32Text(.body)
-                        .foregroundStyle(V32.textSecondary)
-                        .tint(V32.brand)
+                        .tint(V371.Colors.blue)
                 }
             }
-            V32PrimaryButton(title: "保存", systemName: "checkmark") { save() }
-                .disabled(!canSave)
-                .opacity(canSave ? 1 : 0.5)
-            Button("取消") { dismiss() }
-                .v32Text(.body)
-                .foregroundStyle(V32.textTertiary)
-                .frame(maxWidth: .infinity)
+            .scrollContentBackground(.hidden)
+            .background(V371.Colors.canvas)
+            .tint(V371.Colors.blue)
+            .navigationTitle("个人资料")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("保存") { save() }
+                        .disabled(!canSave)
+                }
+            }
         }
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
         .onAppear { shopName = settings.shopName; ownerName = settings.ownerName }
     }
 
@@ -494,31 +430,44 @@ private struct GoalEditSheet: View {
     private var canSave: Bool { (Double(text) ?? 0) > 0 }
 
     var body: some View {
-        V32SheetChrome("月营业目标") {
-            V32Card {
-                HStack(spacing: 8) {
-                    Text("¥").v32Text(.headline).foregroundStyle(V32.textSecondary)
-                    TextField("目标金额", text: $text)
-                        .v32Text(.headline)
-                        .foregroundStyle(V32.textPrimary)
-                        .tint(V32.brand)
-                        .keyboardType(.decimalPad)
+        NavigationStack {
+            Form {
+                Section {
+                    HStack(spacing: 8) {
+                        Text("¥")
+                            .font(V371.Type.rowTitle)
+                            .foregroundStyle(V371.Colors.textSecondary)
+                        TextField("目标金额", text: $text)
+                            .font(V371.Type.rowTitle)
+                            .foregroundStyle(V371.Colors.textPrimary)
+                            .tint(V371.Colors.blue)
+                            .keyboardType(.decimalPad)
+                    }
                 }
             }
-            V32PrimaryButton(title: "保存", systemName: "checkmark") {
-                if let value = Double(text), value > 0 {
-                    settings.monthGoal = value
-                    Haptic.success()
-                    dismiss()
+            .scrollContentBackground(.hidden)
+            .background(V371.Colors.canvas)
+            .tint(V371.Colors.blue)
+            .navigationTitle("月营业目标")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("保存") {
+                        if let value = Double(text), value > 0 {
+                            settings.monthGoal = value
+                            Haptic.success()
+                            dismiss()
+                        }
+                    }
+                    .disabled(!canSave)
                 }
             }
-            .disabled(!canSave)
-            .opacity(canSave ? 1 : 0.5)
-            Button("取消") { dismiss() }
-                .v32Text(.body)
-                .foregroundStyle(V32.textTertiary)
-                .frame(maxWidth: .infinity)
         }
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
         .onAppear { text = String(Int(settings.monthGoal)) }
     }
 }
@@ -528,16 +477,35 @@ private struct GoalEditSheet: View {
 private struct ReminderSettingsSheet: View {
     @Bindable var settings: AppSettings
     @Environment(\.dismiss) private var dismiss
+
     var body: some View {
-        V32SheetChrome("提醒设置", onDone: { dismiss() }) {
-            V32Card(padding: 4) {
-                VStack(spacing: 0) {
-                    ProfileToggleRow(icon: "bell", tone: .brand, title: "待办提醒", isOn: $settings.todoReminderEnabled)
-                    Rectangle().fill(V32.divider).frame(height: 1).padding(.leading, 48)
-                    ProfileToggleRow(icon: "clock.badge.exclamationmark", tone: .amber, title: "临期退货提醒", isOn: $settings.expiryReminderEnabled)
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    GroupSurface {
+                        SettingsToggleRow(icon: "bell", iconColor: V371.Colors.blue,
+                                          title: "待办提醒", isOn: $settings.todoReminderEnabled)
+                        V371Divider()
+                        SettingsToggleRow(icon: "clock.badge.exclamationmark", iconColor: V371.Colors.orange,
+                                          title: "临期退货提醒", isOn: $settings.expiryReminderEnabled)
+                    }
+                }
+                .padding(.horizontal, V371.Space.page)
+                .padding(.top, 12)
+                .padding(.bottom, 28)
+            }
+            .scrollIndicators(.hidden)
+            .navigationTitle("提醒设置")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") { dismiss() }
                 }
             }
         }
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+        .v371Canvas()
     }
 }
 
@@ -553,37 +521,45 @@ private struct ThemeChoiceSheet: View {
     ]
 
     var body: some View {
-        V32SheetChrome("显示模式", doneTitle: "关闭", onDone: { dismiss() }) {
-            V32Card(padding: 4) {
-                VStack(spacing: 0) {
-                    ForEach(Array(options.enumerated()), id: \.element.key) { index, option in
-                        if index > 0 { Rectangle().fill(V32.divider).frame(height: 1).padding(.leading, 48) }
-                        Button {
-                            settings.themeMode = option.key
-                            Haptic.light()
-                            dismiss()
-                        } label: {
-                            HStack(spacing: 12) {
-                                V32IconBubble(systemName: option.icon, tone: .info, size: 34, icon: 15)
-                                Text(option.label)
-                                    .v32Text(.title)
-                                    .foregroundStyle(V32.textPrimary)
-                                Spacer()
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    GroupSurface {
+                        ForEach(Array(options.enumerated()), id: \.element.key) { index, option in
+                            if index > 0 { V371Divider() }
+                            WorkRow(icon: option.icon, iconColor: V371.Colors.blue,
+                                    title: option.label,
+                                    action: {
+                                        settings.themeMode = option.key
+                                        Haptic.light()
+                                        dismiss()
+                                    }) {
                                 if settings.themeMode == option.key {
                                     Image(systemName: "checkmark")
                                         .font(.system(size: 14, weight: .bold))
-                                        .foregroundStyle(V32.brand)
+                                        .foregroundStyle(V371.Colors.blue)
+                                        .accessibilityHidden(true)
                                 }
                             }
-                            .padding(.horizontal, 12)
-                            .frame(minHeight: 54)
-                            .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
                     }
+                }
+                .padding(.horizontal, V371.Space.page)
+                .padding(.top, 12)
+                .padding(.bottom, 28)
+            }
+            .scrollIndicators(.hidden)
+            .navigationTitle("显示模式")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("关闭") { dismiss() }
                 }
             }
         }
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+        .v371Canvas()
     }
 }
 
@@ -595,46 +571,66 @@ private struct AccentThemeSheet: View {
     @Environment(ThemeStore.self) private var themeStore
 
     var body: some View {
-        V32SheetChrome("主题色", doneTitle: "关闭", onDone: { dismiss() }) {
-            V32Card(padding: 4) {
-                VStack(spacing: 0) {
-                    ForEach(Array(AccentTheme.allCases.enumerated()), id: \.element.rawValue) { index, theme in
-                        if index > 0 {
-                            Rectangle().fill(V32.divider).frame(height: 1).padding(.leading, 52)
-                        }
-                        Button {
-                            themeStore.setAccent(theme)
-                            Haptic.light()
-                            dismiss()
-                        } label: {
-                            HStack(spacing: 12) {
-                                Circle()
-                                    .fill(theme.palette.accent)
-                                    .frame(width: 28, height: 28)
-                                    .overlay(Circle().strokeBorder(V32.cardOutline, lineWidth: 1))
-                                Text(theme.displayName)
-                                    .v32Text(.title)
-                                    .foregroundStyle(V32.textPrimary)
-                                Spacer()
-                                if themeStore.accentTheme == theme {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 14, weight: .bold))
-                                        .foregroundStyle(V32.brand)
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: V371.Space.section) {
+                    GroupSurface {
+                        ForEach(Array(AccentTheme.allCases.enumerated()), id: \.element.rawValue) { index, theme in
+                            if index > 0 { V371Divider() }
+                            Button {
+                                themeStore.setAccent(theme)
+                                Haptic.light()
+                                dismiss()
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Circle()
+                                        .fill(theme.palette.accent)
+                                        .frame(width: 32, height: 32)
+                                        .overlay(Circle().strokeBorder(V371.Colors.divider, lineWidth: 1))
+                                        .accessibilityHidden(true)
+                                    Text(theme.displayName)
+                                        .font(V371.Type.rowTitle)
+                                        .foregroundStyle(V371.Colors.textPrimary)
+                                        .lineLimit(1)
+                                    Spacer(minLength: 8)
+                                    if themeStore.accentTheme == theme {
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 14, weight: .bold))
+                                            .foregroundStyle(V371.Colors.blue)
+                                            .accessibilityHidden(true)
+                                    }
                                 }
+                                .padding(.horizontal, V371.Space.rowPadding)
+                                .padding(.vertical, 12)
+                                .frame(minHeight: 60)
+                                .contentShape(Rectangle())
                             }
-                            .padding(.horizontal, 12)
-                            .frame(minHeight: 54)
-                            .contentShape(Rectangle())
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(theme.displayName)
+                            .accessibilityAddTraits(themeStore.accentTheme == theme ? .isSelected : [])
                         }
-                        .buttonStyle(.plain)
                     }
+                    Text("主题色影响点缀色（按钮、图标、选中态）与 Hero 渐变。")
+                        .font(V371.Type.rowSubtitle)
+                        .foregroundStyle(V371.Colors.textTertiary)
+                        .padding(.horizontal, 4)
+                }
+                .padding(.horizontal, V371.Space.page)
+                .padding(.top, 12)
+                .padding(.bottom, 28)
+            }
+            .scrollIndicators(.hidden)
+            .navigationTitle("主题色")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("关闭") { dismiss() }
                 }
             }
-            Text("主题色仅影响点缀色（按钮、图标、选中态）。Hero 深墨绿与临期 / 危险色固定不变。")
-                .v32Text(.caption)
-                .foregroundStyle(V32.textTertiary)
-                .padding(.horizontal, 4)
         }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+        .v371Canvas()
     }
 }
 
@@ -646,51 +642,71 @@ private struct BackgroundThemeSheet: View {
     @Environment(ThemeStore.self) private var themeStore
 
     var body: some View {
-        V32SheetChrome("背景风格", doneTitle: "关闭", onDone: { dismiss() }) {
-            V32Card(padding: 4) {
-                VStack(spacing: 0) {
-                    ForEach(Array(BackgroundTheme.allCases.enumerated()), id: \.element.rawValue) { index, theme in
-                        if index > 0 {
-                            Rectangle().fill(V32.divider).frame(height: 1).padding(.leading, 52)
-                        }
-                        Button {
-                            themeStore.setBackground(theme)
-                            Haptic.light()
-                            dismiss()
-                        } label: {
-                            HStack(spacing: 12) {
-                                ZStack {
-                                    Circle().fill(theme.palette.pageBG)
-                                    Circle().fill(theme.palette.card)
-                                        .frame(width: 18, height: 18)
-                                    Circle().fill(theme.palette.pageBGSecondary)
-                                        .frame(width: 8, height: 8)
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: V371.Space.section) {
+                    GroupSurface {
+                        ForEach(Array(BackgroundTheme.allCases.enumerated()), id: \.element.rawValue) { index, theme in
+                            if index > 0 { V371Divider() }
+                            Button {
+                                themeStore.setBackground(theme)
+                                Haptic.light()
+                                dismiss()
+                            } label: {
+                                HStack(spacing: 12) {
+                                    ZStack {
+                                        Circle().fill(theme.palette.pageBG)
+                                        Circle().fill(theme.palette.card)
+                                            .frame(width: 20, height: 20)
+                                        Circle().fill(theme.palette.pageBGSecondary)
+                                            .frame(width: 9, height: 9)
+                                    }
+                                    .frame(width: 32, height: 32)
+                                    .overlay(Circle().strokeBorder(V371.Colors.divider, lineWidth: 1))
+                                    .accessibilityHidden(true)
+                                    Text(theme.displayName)
+                                        .font(V371.Type.rowTitle)
+                                        .foregroundStyle(V371.Colors.textPrimary)
+                                        .lineLimit(1)
+                                    Spacer(minLength: 8)
+                                    if themeStore.backgroundTheme == theme {
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 14, weight: .bold))
+                                            .foregroundStyle(V371.Colors.blue)
+                                            .accessibilityHidden(true)
+                                    }
                                 }
-                                .frame(width: 28, height: 28)
-                                .overlay(Circle().strokeBorder(V32.cardOutline, lineWidth: 1))
-                                Text(theme.displayName)
-                                    .v32Text(.title)
-                                    .foregroundStyle(V32.textPrimary)
-                                Spacer()
-                                if themeStore.backgroundTheme == theme {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 14, weight: .bold))
-                                        .foregroundStyle(V32.brand)
-                                }
+                                .padding(.horizontal, V371.Space.rowPadding)
+                                .padding(.vertical, 12)
+                                .frame(minHeight: 60)
+                                .contentShape(Rectangle())
                             }
-                            .padding(.horizontal, 12)
-                            .frame(minHeight: 54)
-                            .contentShape(Rectangle())
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(theme.displayName)
+                            .accessibilityAddTraits(themeStore.backgroundTheme == theme ? .isSelected : [])
                         }
-                        .buttonStyle(.plain)
                     }
+                    Text("背景风格影响页面底色、卡片、分割线与中性文本。主题切换即时全局生效。")
+                        .font(V371.Type.rowSubtitle)
+                        .foregroundStyle(V371.Colors.textTertiary)
+                        .padding(.horizontal, 4)
+                }
+                .padding(.horizontal, V371.Space.page)
+                .padding(.top, 12)
+                .padding(.bottom, 28)
+            }
+            .scrollIndicators(.hidden)
+            .navigationTitle("背景风格")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("关闭") { dismiss() }
                 }
             }
-            Text("背景风格影响页面底色、卡片、分割线与中性文本。主题切换即时全局生效。")
-                .v32Text(.caption)
-                .foregroundStyle(V32.textTertiary)
-                .padding(.horizontal, 4)
         }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+        .v371Canvas()
     }
 }
 
@@ -706,71 +722,57 @@ private struct WallpaperSheet: View {
     @State private var error: String?
 
     var body: some View {
-        V32SheetChrome("壁纸", doneTitle: "关闭", onDone: { dismiss() }) {
-            // 预览
-            previewCard
-
-            // 选择来源
-            V32Card {
-                VStack(spacing: 10) {
-                    PhotosPicker(selection: $selectedItem, matching: .images) {
-                        HStack(spacing: 10) {
-                            V32IconBubble(systemName: "photo.on.rectangle", tone: .brand, size: 30, icon: 14)
-                            Text("从相册选择")
-                                .v32Text(.title)
-                                .foregroundStyle(V32.textPrimary)
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(V32.textQuaternary)
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: V371.Space.section) {
+                    previewCard
+                    GroupSurface {
+                        PhotosPicker(selection: $selectedItem, matching: .images) {
+                            sourceRow(icon: "photo.on.rectangle", iconColor: V371.Colors.blue, title: "从相册选择")
                         }
-                        .frame(minHeight: 44)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(processing)
-
-                    Rectangle().fill(V32.divider).frame(height: 1).padding(.leading, 48)
-                    Button {
-                        showFileImporter = true
-                    } label: {
-                        HStack(spacing: 10) {
-                            V32IconBubble(systemName: "folder", tone: .info, size: 30, icon: 14)
-                            Text("从文件选择")
-                                .v32Text(.title)
-                                .foregroundStyle(V32.textPrimary)
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(V32.textQuaternary)
+                        .buttonStyle(.plain)
+                        .disabled(processing)
+                        V371Divider()
+                        Button {
+                            showFileImporter = true
+                        } label: {
+                            sourceRow(icon: "folder", iconColor: V371.Colors.blue, title: "从文件选择")
                         }
-                        .frame(minHeight: 44)
-                        .contentShape(Rectangle())
+                        .buttonStyle(.plain)
+                        .disabled(processing)
                     }
-                    .buttonStyle(.plain)
-                    .disabled(processing)
+                    if themeStore.wallpaper.isEnabled {
+                        effectSection
+                        maskSection
+                        deleteButton
+                    }
+                    if let error {
+                        Text(error)
+                            .font(V371.Type.rowSubtitle)
+                            .foregroundStyle(V371.Colors.red)
+                            .padding(.horizontal, 4)
+                    }
+                    Text("壁纸降采样后落盘到 Application Support，原图不会保留。深色模式自动增强遮罩。")
+                        .font(V371.Type.rowSubtitle)
+                        .foregroundStyle(V371.Colors.textTertiary)
+                        .padding(.horizontal, 4)
+                }
+                .padding(.horizontal, V371.Space.page)
+                .padding(.top, 12)
+                .padding(.bottom, 28)
+            }
+            .scrollIndicators(.hidden)
+            .navigationTitle("壁纸")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("关闭") { dismiss() }
                 }
             }
-
-            // 效果档
-            if themeStore.wallpaper.isEnabled {
-                effectSection
-                maskSection
-                deleteButton
-            }
-
-            if let error {
-                Text(error)
-                    .v32Text(.caption)
-                    .foregroundStyle(V32.danger)
-                    .padding(.horizontal, 4)
-            }
-
-            Text("壁纸降采样后落盘到 Application Support，原图不会保留。深色模式自动增强遮罩。")
-                .v32Text(.caption)
-                .foregroundStyle(V32.textTertiary)
-                .padding(.horizontal, 4)
         }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+        .v371Canvas()
         .onChange(of: selectedItem) { _, item in
             handlePhotosItem(item)
         }
@@ -779,8 +781,29 @@ private struct WallpaperSheet: View {
         }
     }
 
+    private func sourceRow(icon: String, iconColor: Color, title: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(iconColor)
+                .frame(width: 36, height: 36)
+                .background(V371.Colors.tinted(iconColor), in: Circle())
+                .accessibilityHidden(true)
+            Text(title)
+                .font(V371.Type.rowTitle)
+                .foregroundStyle(V371.Colors.textPrimary)
+                .lineLimit(1)
+            Spacer(minLength: 8)
+            V371Chevron()
+        }
+        .padding(.horizontal, V371.Space.rowPadding)
+        .padding(.vertical, 12)
+        .frame(minHeight: 60)
+        .contentShape(Rectangle())
+    }
+
     private var previewCard: some View {
-        V32Card {
+        GroupSurface {
             Group {
                 if themeStore.wallpaper.isEnabled,
                    let fileName = themeStore.wallpaper.imageFileName,
@@ -790,24 +813,28 @@ private struct WallpaperSheet: View {
                         Image(uiImage: uiImage)
                             .resizable()
                             .aspectRatio(contentMode: .fill)
-                            .frame(height: 140)
+                            .frame(height: 150)
                             .clipped()
                         Color.black.opacity(themeStore.wallpaper.maskStrength == .strong ? 0.6 : 0.35)
                         Text("当前壁纸 · \(effectLabel) · \(maskLabel)")
-                            .v32Text(.caption)
+                            .font(V371.Type.rowSubtitle)
                             .foregroundStyle(.white)
                     }
+                    .clipShape(RoundedRectangle(cornerRadius: V371.Radius.group, style: .continuous))
+                    .padding(8)
                 } else {
                     VStack(spacing: 8) {
                         Image(systemName: "photo")
                             .font(.system(size: 36))
-                            .foregroundStyle(V32.textQuaternary)
+                            .foregroundStyle(V371.Colors.textTertiary)
+                            .accessibilityHidden(true)
                         Text("未设置壁纸")
-                            .v32Text(.subhead)
-                            .foregroundStyle(V32.textTertiary)
+                            .font(V371.Type.rowTitle)
+                            .foregroundStyle(V371.Colors.textTertiary)
                     }
                     .frame(maxWidth: .infinity)
-                    .frame(height: 140)
+                    .frame(height: 150)
+                    .padding(8)
                 }
             }
         }
@@ -815,40 +842,22 @@ private struct WallpaperSheet: View {
 
     private var effectSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("效果")
-                .v32Text(.caption)
-                .foregroundStyle(V32.textTertiary)
-                .padding(.leading, 4)
-            V32Card(padding: 4) {
-                VStack(spacing: 0) {
-                    ForEach(Array(WallpaperEffect.allCases.enumerated()), id: \.element.rawValue) { index, effect in
-                        if index > 0 {
-                            Rectangle().fill(V32.divider).frame(height: 1).padding(.leading, 48)
+            SectionHeader("效果")
+            GroupSurface {
+                ForEach(Array(WallpaperEffect.allCases.enumerated()), id: \.element.rawValue) { index, effect in
+                    if index > 0 { V371Divider() }
+                    WorkRow(icon: effectIcon(effect), iconColor: V371.Colors.blue,
+                            title: effectLabel(effect),
+                            action: {
+                                themeStore.updateWallpaperOptions(effect: effect, maskStrength: themeStore.wallpaper.maskStrength)
+                                Haptic.light()
+                            }) {
+                        if themeStore.wallpaper.effect == effect {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(V371.Colors.blue)
+                                .accessibilityHidden(true)
                         }
-                        Button {
-                            themeStore.updateWallpaperOptions(effect: effect, maskStrength: themeStore.wallpaper.maskStrength)
-                            Haptic.light()
-                        } label: {
-                            HStack(spacing: 12) {
-                                Image(systemName: effectIcon(effect))
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundStyle(V32.textSecondary)
-                                    .frame(width: 24)
-                                Text(effectLabel(effect))
-                                    .v32Text(.body)
-                                    .foregroundStyle(V32.textPrimary)
-                                Spacer()
-                                if themeStore.wallpaper.effect == effect {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 14, weight: .bold))
-                                        .foregroundStyle(V32.brand)
-                                }
-                            }
-                            .padding(.horizontal, 12)
-                            .frame(minHeight: 44)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -857,40 +866,22 @@ private struct WallpaperSheet: View {
 
     private var maskSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("遮罩强度")
-                .v32Text(.caption)
-                .foregroundStyle(V32.textTertiary)
-                .padding(.leading, 4)
-            V32Card(padding: 4) {
-                VStack(spacing: 0) {
-                    ForEach(Array(WallpaperMaskStrength.allCases.enumerated()), id: \.element.rawValue) { index, mask in
-                        if index > 0 {
-                            Rectangle().fill(V32.divider).frame(height: 1).padding(.leading, 48)
+            SectionHeader("遮罩强度")
+            GroupSurface {
+                ForEach(Array(WallpaperMaskStrength.allCases.enumerated()), id: \.element.rawValue) { index, mask in
+                    if index > 0 { V371Divider() }
+                    WorkRow(icon: maskIcon(mask), iconColor: V371.Colors.blue,
+                            title: maskLabel(mask),
+                            action: {
+                                themeStore.updateWallpaperOptions(effect: themeStore.wallpaper.effect, maskStrength: mask)
+                                Haptic.light()
+                            }) {
+                        if themeStore.wallpaper.maskStrength == mask {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(V371.Colors.blue)
+                                .accessibilityHidden(true)
                         }
-                        Button {
-                            themeStore.updateWallpaperOptions(effect: themeStore.wallpaper.effect, maskStrength: mask)
-                            Haptic.light()
-                        } label: {
-                            HStack(spacing: 12) {
-                                Image(systemName: maskIcon(mask))
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundStyle(V32.textSecondary)
-                                    .frame(width: 24)
-                                Text(maskLabel(mask))
-                                    .v32Text(.body)
-                                    .foregroundStyle(V32.textPrimary)
-                                Spacer()
-                                if themeStore.wallpaper.maskStrength == mask {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 14, weight: .bold))
-                                        .foregroundStyle(V32.brand)
-                                }
-                            }
-                            .padding(.horizontal, 12)
-                            .frame(minHeight: 44)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -898,9 +889,27 @@ private struct WallpaperSheet: View {
     }
 
     private var deleteButton: some View {
-        V32SecondaryButton(title: "删除壁纸", systemName: "trash") {
-            themeStore.clearWallpaper()
-            Haptic.light()
+        GroupSurface {
+            Button(role: .destructive) {
+                themeStore.clearWallpaper()
+                Haptic.light()
+            } label: {
+                HStack(spacing: 8) {
+                    Spacer(minLength: 0)
+                    Image(systemName: "trash")
+                        .font(.system(size: 15, weight: .semibold))
+                    Text("删除壁纸")
+                        .font(V371.Type.rowTitle)
+                    Spacer(minLength: 0)
+                }
+                .foregroundStyle(V371.Colors.red)
+                .padding(.horizontal, V371.Space.rowPadding)
+                .padding(.vertical, 14)
+                .frame(minHeight: 56)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("删除壁纸")
         }
     }
 
@@ -1005,32 +1014,48 @@ private struct VoiceSettingsSheet: View {
     @Bindable private var settings = AppSettings.shared
 
     var body: some View {
-        V32SheetChrome("语音输入设置", onDone: { dismiss() }) {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("识别语言")
-                    .v32Text(.caption)
-                    .foregroundStyle(V32.textTertiary)
-                    .padding(.leading, 4)
-                V32SegmentedPicker(
-                    tabs: ["普通话", "粤语"],
-                    selectionIndex: Binding(
+        NavigationStack {
+            Form {
+                Section("识别语言") {
+                    Picker("识别语言", selection: Binding(
                         get: { settings.voiceLanguage == "粤语" ? 1 : 0 },
                         set: { settings.voiceLanguage = $0 == 1 ? "粤语" : "普通话" }
-                    )
-                )
+                    )) {
+                        Text("普通话").tag(0)
+                        Text("粤语").tag(1)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                }
+                Section {
+                    Text("语音识别由系统提供，录音仅用于实时识别，不会保存音频。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                if showsVoiceButton {
+                    Section {
+                        Button {
+                            dismiss()
+                            showVoice = true
+                        } label: {
+                            Label("测试语音", systemImage: "mic.fill")
+                        }
+                    }
+                }
             }
-            V32Card {
-                Text("语音识别由系统提供，录音仅用于实时识别，不会保存音频。")
-                    .v32Text(.caption)
-                    .foregroundStyle(V32.textTertiary)
-            }
-            if showsVoiceButton {
-                V32PrimaryButton(title: "测试语音", systemName: "mic.fill") {
-                    dismiss()
-                    showVoice = true
+            .scrollContentBackground(.hidden)
+            .background(V371.Colors.canvas)
+            .tint(V371.Colors.blue)
+            .navigationTitle("语音输入设置")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") { dismiss() }
                 }
             }
         }
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
     }
 }
 
@@ -1041,58 +1066,73 @@ private struct AboutSheet: View {
     @State private var notesPresented = false
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 14) {
-                Spacer(minLength: 24)
-                V32IconBubble(systemName: "storefront", tone: .brand, size: 64, icon: 28)
-                Text("你的小掌柜")
-                    .v32Text(.section)
-                    .foregroundStyle(V32.textPrimary)
-                Text(ReleaseNotes.versionDisplay)
-                    .v32Text(.caption)
-                    .foregroundStyle(V32.textTertiary)
-                V32Card {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("本次更新：\(ReleaseNotes.current.headline)")
-                            .v32Text(.subhead)
-                            .foregroundStyle(V32.textSecondary)
-                            .multilineTextAlignment(.leading)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        Button {
-                            notesPresented = true
-                        } label: {
-                            HStack(spacing: 8) {
-                                Image(systemName: "sparkles")
-                                    .font(.system(size: 14, weight: .semibold))
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 14) {
+                    Spacer(minLength: 24)
+                    Image(systemName: "storefront")
+                        .font(.system(size: 30, weight: .semibold))
+                        .foregroundStyle(V371.Colors.blue)
+                        .frame(width: 72, height: 72)
+                        .background(V371.Colors.tinted(V371.Colors.blue), in: Circle())
+                        .accessibilityHidden(true)
+                    Text("你的小掌柜")
+                        .font(V371.Type.sectionTitle)
+                        .foregroundStyle(V371.Colors.textPrimary)
+                    Text(ReleaseNotes.versionDisplay)
+                        .font(V371.Type.rowSubtitle)
+                        .foregroundStyle(V371.Colors.textTertiary)
+                    GroupSurface {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("本次更新：\(ReleaseNotes.current.headline)")
+                                .font(V371.Type.rowSubtitle)
+                                .foregroundStyle(V371.Colors.textSecondary)
+                                .multilineTextAlignment(.leading)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            Button {
+                                notesPresented = true
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "sparkles")
+                                        .font(.system(size: 14, weight: .semibold))
                                     Text("V3.5 新变化")
-                                    .v32Text(.title)
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(V32.textTertiary)
+                                        .font(V371.Type.rowTitle)
+                                    Spacer()
+                                    V371Chevron()
+                                }
+                                .foregroundStyle(V371.Colors.blue)
+                                .contentShape(Rectangle())
                             }
-                            .foregroundStyle(V32.brand)
-                            .contentShape(Rectangle())
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("查看 \(ReleaseNotes.versionDisplay) 完整更新说明")
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("查看 \(ReleaseNotes.versionDisplay) 完整更新说明")
+                        .padding(V371.Space.rowPadding)
                     }
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 30))
+                            .foregroundStyle(V371.Colors.textTertiary)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("关闭")
                 }
-                Spacer(minLength: 8)
-                Button { dismiss() } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 30))
-                        .foregroundStyle(V32.textQuaternary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("关闭")
+                .padding(.horizontal, V371.Space.page)
+                .padding(.bottom, 28)
             }
-            .padding(.horizontal, V32Layout.pageMargin)
-            .padding(.bottom, V32Layout.bottomPad)
+            .scrollIndicators(.hidden)
+            .navigationTitle("关于")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("关闭") { dismiss() }
+                }
+            }
         }
-        .scrollIndicators(.hidden)
-        .v32PageBackground()
-        .v32Sheet([.height(360)])
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .v371Canvas()
         .sheet(isPresented: $notesPresented) {
             ReleaseNotesSheet()
         }
@@ -1108,51 +1148,70 @@ private struct ReleaseNotesSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        V32SheetChrome("更新说明", detents: [.large], doneTitle: "关闭", onDone: { dismiss() }) {
-            V32Card {
-                VStack(alignment: .leading, spacing: 14) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("你的小掌柜 \(ReleaseNotes.versionDisplay)")
-                            .v32Text(.headline)
-                            .foregroundStyle(V32.textPrimary)
-                        Text(ReleaseNotes.current.headline)
-                            .v32Text(.caption)
-                            .foregroundStyle(V32.textTertiary)
-                    }
-                    ForEach(Array(ReleaseNotes.current.sections.enumerated()), id: \.element.id) { index, section in
-                        if index > 0 {
-                            Rectangle()
-                                .fill(V32.divider)
-                                .frame(height: 1)
-                        }
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack(spacing: 7) {
-                                Image(systemName: section.icon)
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundStyle(V32.brand)
-                                Text(section.title)
-                                    .v32Text(.title)
-                                    .foregroundStyle(V32.textPrimary)
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: V371.Space.section) {
+                    GroupSurface {
+                        VStack(alignment: .leading, spacing: 14) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("你的小掌柜 \(ReleaseNotes.versionDisplay)")
+                                    .font(V371.Type.rowTitle)
+                                    .foregroundStyle(V371.Colors.textPrimary)
+                                Text(ReleaseNotes.current.headline)
+                                    .font(V371.Type.rowSubtitle)
+                                    .foregroundStyle(V371.Colors.textTertiary)
                             }
-                            VStack(alignment: .leading, spacing: 6) {
-                                ForEach(section.items, id: \.self) { item in
-                                    HStack(alignment: .top, spacing: 8) {
-                                        Image(systemName: "circle.fill")
-                                            .font(.system(size: 4))
-                                            .foregroundStyle(V32.textTertiary)
-                                            .padding(.top, 7)
-                                        Text(item)
-                                            .v32Text(.subhead)
-                                            .foregroundStyle(V32.textSecondary)
-                                            .fixedSize(horizontal: false, vertical: true)
+                            ForEach(Array(ReleaseNotes.current.sections.enumerated()), id: \.element.id) { index, section in
+                                if index > 0 {
+                                    V371Divider(leading: 0)
+                                }
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack(spacing: 7) {
+                                        Image(systemName: section.icon)
+                                            .font(.system(size: 13, weight: .semibold))
+                                            .foregroundStyle(V371.Colors.blue)
+                                            .accessibilityHidden(true)
+                                        Text(section.title)
+                                            .font(V371.Type.rowTitle)
+                                            .foregroundStyle(V371.Colors.textPrimary)
+                                    }
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        ForEach(section.items, id: \.self) { item in
+                                            HStack(alignment: .top, spacing: 8) {
+                                                Image(systemName: "circle.fill")
+                                                    .font(.system(size: 4))
+                                                    .foregroundStyle(V371.Colors.textTertiary)
+                                                    .padding(.top, 7)
+                                                    .accessibilityHidden(true)
+                                                Text(item)
+                                                    .font(V371.Type.rowSubtitle)
+                                                    .foregroundStyle(V371.Colors.textSecondary)
+                                                    .fixedSize(horizontal: false, vertical: true)
+                                            }
+                                        }
                                     }
                                 }
                             }
                         }
+                        .padding(V371.Space.rowPadding)
                     }
+                }
+                .padding(.horizontal, V371.Space.page)
+                .padding(.top, 12)
+                .padding(.bottom, 28)
+            }
+            .scrollIndicators(.hidden)
+            .navigationTitle("更新说明")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("关闭") { dismiss() }
                 }
             }
         }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+        .v371Canvas()
     }
 }
 
@@ -1164,12 +1223,31 @@ private struct InfoSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        V32SheetChrome(title, doneTitle: "关闭", onDone: { dismiss() }) {
-            V32Card {
-                Text(text)
-                    .v32Text(.subhead)
-                    .foregroundStyle(V32.textSecondary)
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    GroupSurface {
+                        Text(text)
+                            .font(V371.Type.rowSubtitle)
+                            .foregroundStyle(V371.Colors.textSecondary)
+                            .padding(V371.Space.rowPadding)
+                    }
+                }
+                .padding(.horizontal, V371.Space.page)
+                .padding(.top, 12)
+                .padding(.bottom, 28)
+            }
+            .scrollIndicators(.hidden)
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("关闭") { dismiss() }
+                }
             }
         }
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+        .v371Canvas()
     }
 }
