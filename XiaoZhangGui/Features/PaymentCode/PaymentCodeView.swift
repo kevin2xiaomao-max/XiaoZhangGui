@@ -122,7 +122,7 @@ struct PaymentCodeView: View {
 
     private var privacyFootnote: some View {
         Label("图片仅保存在本设备，不会上传服务器或发送给任何服务", systemImage: "lock.shield")
-            .font(V371.Type.rowSubtitle)
+            .font(V371.Typography.rowSubtitle)
             .foregroundStyle(V371.Colors.textTertiary)
             .padding(.horizontal, 4)
             .padding(.top, 2)
@@ -152,11 +152,11 @@ private struct PaymentCodeRow: View {
                     thumb
                     VStack(alignment: .leading, spacing: 4) {
                         Text(code.name)
-                            .font(V371.Type.rowTitle)
+                            .font(V371.Typography.rowTitle)
                             .foregroundStyle(V371.Colors.textPrimary)
                             .lineLimit(1)
                         Text(code.kind.displayName)
-                            .font(V371.Type.rowSubtitle)
+                            .font(V371.Typography.rowSubtitle)
                             .foregroundStyle(V371.Colors.textTertiary)
                             .lineLimit(1)
                     }
@@ -345,7 +345,7 @@ private struct PaymentCodeEditorSheet: View {
                         .foregroundStyle(V371.Colors.textTertiary)
                         .accessibilityHidden(true)
                     Text("未选择图片")
-                        .font(V371.Type.rowSubtitle)
+                        .font(V371.Typography.rowSubtitle)
                         .foregroundStyle(V371.Colors.textTertiary)
                 }
                 .frame(maxWidth: .infinity)
@@ -370,7 +370,7 @@ private struct PaymentCodeEditorSheet: View {
                         Image(systemName: kind.iconName)
                             .font(.system(size: 18, weight: .semibold))
                         Text(kind.displayName)
-                            .font(V371.Type.badge)
+                            .font(V371.Typography.badge)
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)
                     }

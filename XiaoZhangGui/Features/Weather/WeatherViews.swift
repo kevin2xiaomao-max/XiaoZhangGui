@@ -67,7 +67,7 @@ struct WeatherDetailSheet: View {
                     .font(.system(size: 20, weight: .medium))
                     .accessibilityHidden(true)
                 Text(weather.condition)
-                    .font(V371.Type.heroTitle)
+                    .font(V371.Typography.heroTitle)
             }
             .foregroundStyle(V371.Colors.heroText)
         }
@@ -105,11 +105,11 @@ struct WeatherDetailSheet: View {
     private func detailRow(_ label: String, value: String) -> some View {
         HStack {
             Text(label)
-                .font(V371.Type.rowSubtitle)
+                .font(V371.Typography.rowSubtitle)
                 .foregroundStyle(V371.Colors.textTertiary)
             Spacer()
             Text(value)
-                .font(V371.Type.rowTitle)
+                .font(V371.Typography.rowTitle)
                 .foregroundStyle(V371.Colors.textPrimary)
         }
         .padding(.horizontal, V371.Space.rowPadding)

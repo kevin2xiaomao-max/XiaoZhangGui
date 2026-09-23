@@ -67,7 +67,7 @@ struct GoodsView: View {
                 .foregroundStyle(V371.Colors.textTertiary)
                 .accessibilityHidden(true)
             TextField("搜索商品 / 条码", text: $query)
-                .font(V371.Type.rowTitle)
+                .font(V371.Typography.rowTitle)
                 .foregroundStyle(V371.Colors.textPrimary)
                 .tint(V371.Colors.blue)
                 .submitLabel(.search)
@@ -146,7 +146,7 @@ struct GoodsView: View {
                 .monospacedDigit()
                 .foregroundStyle(color)
             Text(label)
-                .font(V371.Type.rowSubtitle)
+                .font(V371.Typography.rowSubtitle)
                 .foregroundStyle(V371.Colors.textTertiary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
@@ -162,7 +162,7 @@ struct GoodsView: View {
         VStack(alignment: .leading, spacing: 10) {
             SectionHeader("商品") {
                 Text("\(filtered.count)")
-                    .font(V371.Type.badge)
+                    .font(V371.Typography.badge)
                     .foregroundStyle(V371.Colors.textTertiary)
             }
             GroupSurface {
@@ -188,7 +188,7 @@ struct GoodsView: View {
                 VStack(alignment: .trailing, spacing: 5) {
                     StatusBadge(state.label, color: tone)
                     Text(Fmt.money(goods.salePrice))
-                        .font(V371.Type.time)
+                        .font(V371.Typography.time)
                         .foregroundStyle(V371.Colors.textSecondary)
                         .lineLimit(1)
                 }

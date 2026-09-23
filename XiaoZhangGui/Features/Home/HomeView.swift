@@ -1,4 +1,3 @@
-import Charts
 import SwiftData
 import SwiftUI
 
@@ -11,7 +10,7 @@ struct HomeView: View {
     @Binding var tab: AppTab
     @Binding var showVoice: Bool
     @Binding var showQuickRecord: Bool
-    @Binding var showAI: Bool = .constant(false)
+    @Binding var showAI: Bool
     let showsVoiceButton: Bool
 
     @Environment(\.modelContext) private var modelContext

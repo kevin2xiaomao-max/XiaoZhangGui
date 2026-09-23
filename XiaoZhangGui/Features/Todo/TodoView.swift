@@ -146,11 +146,11 @@ struct TodoView: View {
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(value)")
-                    .font(V371.Type.rowTitle)
+                    .font(V371.Typography.rowTitle)
                     .foregroundStyle(V371.Colors.textPrimary)
                     .monospacedDigit()
                 Text(label)
-                    .font(V371.Type.rowSubtitle)
+                    .font(V371.Typography.rowSubtitle)
                     .foregroundStyle(V371.Colors.textTertiary)
             }
         }
@@ -261,7 +261,7 @@ struct V32SegmentedPicker: View {
                     Haptic.light()
                 } label: {
                     Text(tabs[index])
-                        .font(V371.Type.rowSubtitle)
+                        .font(V371.Typography.rowSubtitle)
                         .fontWeight(.semibold)
                         .foregroundStyle(index == selectionIndex ? V371.Colors.textPrimary : V371.Colors.textTertiary)
                         .frame(maxWidth: .infinity, minHeight: 44)
@@ -394,7 +394,7 @@ private struct RecordEditorSheet: View {
                     SectionHeader("记录内容")
                     GroupSurface {
                         TextField("记下这件事", text: $content, axis: .vertical)
-                            .font(V371.Type.rowTitle)
+                            .font(V371.Typography.rowTitle)
                             .foregroundStyle(V371.Colors.textPrimary)
                             .tint(V371.Colors.blue)
                             .lineLimit(4...8)
@@ -428,11 +428,11 @@ private struct RecordEditorSheet: View {
     private var header: some View {
         ZStack {
             Text("新增记录")
-                .font(V371.Type.sectionTitle)
+                .font(V371.Typography.sectionTitle)
                 .foregroundStyle(V371.Colors.textPrimary)
             HStack {
                 Button("取消") { dismiss() }
-                    .font(V371.Type.rowTitle)
+                    .font(V371.Typography.rowTitle)
                     .foregroundStyle(V371.Colors.textSecondary)
                 Spacer()
             }

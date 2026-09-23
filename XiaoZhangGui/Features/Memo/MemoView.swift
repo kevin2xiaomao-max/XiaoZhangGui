@@ -81,7 +81,7 @@ struct MemoView: View {
                 .foregroundStyle(V371.Colors.textTertiary)
                 .accessibilityHidden(true)
             TextField("搜索记录…", text: $searchQuery)
-                .font(V371.Type.rowTitle)
+                .font(V371.Typography.rowTitle)
                 .foregroundStyle(V371.Colors.textPrimary)
                 .tint(V371.Colors.blue)
                 .submitLabel(.search)
@@ -136,7 +136,7 @@ struct MemoView: View {
         VStack(alignment: .leading, spacing: 10) {
             SectionHeader("记录") {
                 Text("\(filtered.count)")
-                    .font(V371.Type.badge)
+                    .font(V371.Typography.badge)
                     .foregroundStyle(V371.Colors.textTertiary)
             }
             GroupSurface {
@@ -158,7 +158,7 @@ struct MemoView: View {
         ) {
             HStack(spacing: 2) {
                 Text(Fmt.memoTime(memo.updatedAt))
-                    .font(V371.Type.time)
+                    .font(V371.Typography.time)
                     .foregroundStyle(V371.Colors.textTertiary)
                 Button { delete(memo) } label: {
                     Image(systemName: "trash")
@@ -204,7 +204,7 @@ struct MemoView: View {
                         subtitle: item.1
                     ) {
                         Text(item.2)
-                            .font(V371.Type.time)
+                            .font(V371.Typography.time)
                             .foregroundStyle(V371.Colors.textTertiary)
                     }
                 }
@@ -249,19 +249,19 @@ struct MemoCard: View {
                         .padding(.top, 2)
                         .accessibilityHidden(true)
                     Text(memo.title.isEmpty ? "无标题" : memo.title)
-                        .font(V371.Type.rowTitle)
+                        .font(V371.Typography.rowTitle)
                         .foregroundStyle(V371.Colors.textPrimary)
                         .lineLimit(2)
                 }
                 if !memo.content.isEmpty {
                     Text(memo.content)
-                        .font(V371.Type.rowSubtitle)
+                        .font(V371.Typography.rowSubtitle)
                         .foregroundStyle(V371.Colors.textSecondary)
                         .lineLimit(3)
                 }
                 HStack {
                     Text(Fmt.memoTime(memo.updatedAt))
-                        .font(V371.Type.time)
+                        .font(V371.Typography.time)
                         .foregroundStyle(V371.Colors.textTertiary)
                     Spacer(minLength: 8)
                     Button { onDelete() } label: {

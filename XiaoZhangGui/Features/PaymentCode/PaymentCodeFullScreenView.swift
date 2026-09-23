@@ -94,17 +94,17 @@ struct PaymentCodeFullScreenView: View {
             if let code = currentCode {
                 VStack(spacing: 4) {
                     Text(code.name)
-                        .font(V371.Type.sectionTitle)
+                        .font(V371.Typography.sectionTitle)
                         .foregroundStyle(.white)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                     if codes.count > 1 {
                         Text("\(code.kind.displayName) · \(selection + 1)/\(codes.count)")
-                            .font(V371.Type.badge)
+                            .font(V371.Typography.badge)
                             .foregroundStyle(.white.opacity(0.65))
                     } else {
                         Text(code.kind.displayName)
-                            .font(V371.Type.badge)
+                            .font(V371.Typography.badge)
                             .foregroundStyle(.white.opacity(0.65))
                     }
                 }

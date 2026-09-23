@@ -106,13 +106,13 @@ struct QuickRecordSheet: View {
         GroupSurface {
             VStack(alignment: .leading, spacing: 10) {
                 TextField("例如：今天美团680", text: $text, axis: .vertical)
-                    .font(V371.Type.rowTitle)
+                    .font(V371.Typography.rowTitle)
                     .foregroundStyle(V371.Colors.textPrimary)
                     .tint(V371.Colors.blue)
                     .lineLimit(3...6)
                     .frame(minHeight: 64, alignment: .top)
                 Text("本地规则识别，不经过 AI、不需要 API Key；识别不了的内容也会存为备忘。")
-                    .font(V371.Type.rowSubtitle)
+                    .font(V371.Typography.rowSubtitle)
                     .foregroundStyle(V371.Colors.textTertiary)
             }
             .padding(V371.Space.rowPadding)
@@ -162,11 +162,11 @@ struct QuickRecordSheet: View {
                 .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(voiceStatusTitle)
-                        .font(V371.Type.rowTitle)
+                        .font(V371.Typography.rowTitle)
                         .foregroundStyle(V371.Colors.textPrimary)
                     if voice.isListening {
                         Text(voice.liveTranscript.isEmpty ? "停顿后会自动结束，也可停止或取消" : voice.liveTranscript)
-                            .font(V371.Type.rowSubtitle)
+                            .font(V371.Typography.rowSubtitle)
                             .foregroundStyle(V371.Colors.textSecondary)
                             .lineLimit(2)
                     }
@@ -242,7 +242,7 @@ struct QuickRecordSheet: View {
     private func kindRow(_ draft: QuickRecordDraft) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text("类型")
-                .font(V371.Type.rowSubtitle)
+                .font(V371.Typography.rowSubtitle)
                 .foregroundStyle(V371.Colors.textTertiary)
             Spacer(minLength: 12)
             Menu {
@@ -260,7 +260,7 @@ struct QuickRecordSheet: View {
             } label: {
                 HStack(spacing: 4) {
                     Text(kindLabel(draft.kind))
-                        .font(V371.Type.rowTitle)
+                        .font(V371.Typography.rowTitle)
                         .foregroundStyle(V371.Colors.textPrimary)
                     Image(systemName: "arrow.up.arrow.down")
                         .font(.system(size: 10, weight: .semibold))
@@ -278,11 +278,11 @@ struct QuickRecordSheet: View {
     private func resultRow(_ label: String, value: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text(label)
-                .font(V371.Type.rowSubtitle)
+                .font(V371.Typography.rowSubtitle)
                 .foregroundStyle(V371.Colors.textTertiary)
             Spacer(minLength: 12)
             Text(value)
-                .font(V371.Type.rowTitle)
+                .font(V371.Typography.rowTitle)
                 .foregroundStyle(V371.Colors.textPrimary)
                 .multilineTextAlignment(.trailing)
         }
@@ -310,14 +310,14 @@ struct QuickRecordSheet: View {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(V371.Colors.green)
                 Text(savedMessage)
-                    .font(V371.Type.rowSubtitle)
+                    .font(V371.Typography.rowSubtitle)
                     .foregroundStyle(V371.Colors.textSecondary)
             }
             .accessibilityElement(children: .combine)
         }
         if let errorMessage {
             Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
-                .font(V371.Type.rowSubtitle)
+                .font(V371.Typography.rowSubtitle)
                 .foregroundStyle(V371.Colors.red)
         }
     }

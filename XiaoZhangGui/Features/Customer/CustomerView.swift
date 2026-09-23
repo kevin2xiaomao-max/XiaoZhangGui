@@ -61,7 +61,7 @@ struct CustomerView: View {
                         VStack(alignment: .leading, spacing: 10) {
                             SectionHeader(section.status.rawValue) {
                                 Text("\(section.items.count)")
-                                    .font(V371.Type.badge)
+                                    .font(V371.Typography.badge)
                                     .foregroundStyle(V371.Colors.textTertiary)
                             }
                             GroupSurface {
@@ -222,7 +222,7 @@ private struct CustomerWorkRow: View {
                 VStack(alignment: .trailing, spacing: 4) {
                     StatusBadge(status.rawValue, color: statusColor)
                     Text(timeText)
-                        .font(V371.Type.time)
+                        .font(V371.Typography.time)
                         .foregroundStyle(V371.Colors.textTertiary)
                         .lineLimit(1)
                 }

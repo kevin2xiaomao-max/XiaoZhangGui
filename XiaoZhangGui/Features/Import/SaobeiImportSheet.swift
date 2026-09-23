@@ -121,7 +121,7 @@ struct SaobeiImportSheet: View {
                             .background(V371.Colors.tinted(V371.Colors.blue), in: Circle())
                             .accessibilityHidden(true)
                         Text("从扫呗截图识别预览")
-                            .font(V371.Type.rowTitle)
+                            .font(V371.Typography.rowTitle)
                             .foregroundStyle(V371.Colors.textPrimary)
                             .lineLimit(1)
                         Spacer(minLength: 8)
@@ -144,7 +144,7 @@ struct SaobeiImportSheet: View {
                         ProgressView()
                             .tint(V371.Colors.blue)
                         Text("正在本地识别截图…")
-                            .font(V371.Type.rowTitle)
+                            .font(V371.Typography.rowTitle)
                             .foregroundStyle(V371.Colors.textSecondary)
                     }
                     .padding(.horizontal, V371.Space.rowPadding)
@@ -153,7 +153,7 @@ struct SaobeiImportSheet: View {
                 }
             }
             Text("支持 CSV / XLSX。旧版 XLS 请另存为 XLSX 或 CSV。")
-                .font(V371.Type.rowSubtitle)
+                .font(V371.Typography.rowSubtitle)
                 .foregroundStyle(V371.Colors.textTertiary)
                 .padding(.horizontal, 4)
             if demo.isEnabled {
@@ -169,7 +169,7 @@ struct SaobeiImportSheet: View {
                 }
                 .buttonStyle(.plain)
                 Text("当前为演示模式，导入不会写入真实数据。")
-                    .font(V371.Type.rowSubtitle)
+                    .font(V371.Typography.rowSubtitle)
                     .foregroundStyle(V371.Colors.textTertiary)
                     .padding(.horizontal, 4)
             }
@@ -182,7 +182,7 @@ struct SaobeiImportSheet: View {
                 ProgressView()
                     .tint(V371.Colors.blue)
                 Text("正在解析…")
-                    .font(V371.Type.rowTitle)
+                    .font(V371.Typography.rowTitle)
                     .foregroundStyle(V371.Colors.textSecondary)
             }
             .padding(.horizontal, V371.Space.rowPadding)
@@ -202,10 +202,10 @@ struct SaobeiImportSheet: View {
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("无法导入")
-                        .font(V371.Type.rowTitle)
+                        .font(V371.Typography.rowTitle)
                         .foregroundStyle(V371.Colors.textPrimary)
                     Text(text)
-                        .font(V371.Type.rowSubtitle)
+                        .font(V371.Typography.rowSubtitle)
                         .foregroundStyle(V371.Colors.textSecondary)
                 }
                 Spacer()
@@ -235,7 +235,7 @@ struct SaobeiImportSheet: View {
                 if !result.errors.isEmpty {
                     V371Divider(leading: 0)
                     Text("\(result.errors.count) 行无法解析")
-                        .font(V371.Type.rowSubtitle)
+                        .font(V371.Typography.rowSubtitle)
                         .foregroundStyle(V371.Colors.orange)
                         .padding(.horizontal, V371.Space.rowPadding)
                         .padding(.vertical, 12)
@@ -248,11 +248,11 @@ struct SaobeiImportSheet: View {
     private func overviewRow(_ label: String, value: String, highlight: Bool = false) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text(label)
-                .font(V371.Type.rowSubtitle)
+                .font(V371.Typography.rowSubtitle)
                 .foregroundStyle(V371.Colors.textTertiary)
             Spacer(minLength: 12)
             Text(value)
-                .font(V371.Type.rowTitle)
+                .font(V371.Typography.rowTitle)
                 .foregroundStyle(highlight ? V371.Colors.blue : V371.Colors.textPrimary)
                 .multilineTextAlignment(.trailing)
         }
@@ -267,7 +267,7 @@ struct SaobeiImportSheet: View {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(Array(errors.prefix(20).enumerated()), id: \.offset) { _, line in
                         Text(line)
-                            .font(V371.Type.rowSubtitle)
+                            .font(V371.Typography.rowSubtitle)
                             .foregroundStyle(V371.Colors.textSecondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -284,7 +284,7 @@ struct SaobeiImportSheet: View {
             GroupSurface {
                 if displayNewCount == 0 {
                     Text("没有新的成功交易。重复导入不会让营业额翻倍。")
-                        .font(V371.Type.rowSubtitle)
+                        .font(V371.Typography.rowSubtitle)
                         .foregroundStyle(V371.Colors.textTertiary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, V371.Space.rowPadding)
@@ -294,12 +294,12 @@ struct SaobeiImportSheet: View {
                         if index > 0 { V371Divider(leading: 0) }
                         VStack(alignment: .leading, spacing: 3) {
                             Text(Fmt.money(row.amount))
-                                .font(V371.Type.rowTitle)
+                                .font(V371.Typography.rowTitle)
                                 .foregroundStyle(V371.Colors.textPrimary)
                             Text([Fmt.dateTime(row.date), row.paymentMethod, row.orderNo]
                                 .filter { !$0.isEmpty }
                                 .joined(separator: " · "))
-                                .font(V371.Type.rowSubtitle)
+                                .font(V371.Typography.rowSubtitle)
                                 .foregroundStyle(V371.Colors.textTertiary)
                                 .lineLimit(1)
                         }
@@ -324,7 +324,7 @@ struct SaobeiImportSheet: View {
                 if demo.isEnabled {
                     V371Divider(leading: 0)
                     Label("Demo 导入完成，真实数据未发生变化", systemImage: "checkmark.shield")
-                        .font(V371.Type.rowSubtitle)
+                        .font(V371.Typography.rowSubtitle)
                         .foregroundStyle(V371.Colors.blue)
                         .padding(.horizontal, V371.Space.rowPadding)
                         .padding(.vertical, 12)

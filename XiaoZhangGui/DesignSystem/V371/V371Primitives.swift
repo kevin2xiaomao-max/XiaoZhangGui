@@ -41,10 +41,10 @@ struct HeroMetric<Info: View>: View {
         } label: {
             VStack(alignment: .leading, spacing: 8) {
                 Text(title)
-                    .font(V371.Type.heroTitle)
+                    .font(V371.Typography.heroTitle)
                     .foregroundStyle(V371.Colors.heroTextSecondary)
                 Text(value)
-                    .font(V371.Type.heroNumber)
+                    .font(V371.Typography.heroNumber)
                     .foregroundStyle(V371.Colors.heroText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
@@ -115,7 +115,7 @@ struct SectionHeader<Trailing: View>: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
             Text(title)
-                .font(V371.Type.sectionTitle)
+                .font(V371.Typography.sectionTitle)
                 .foregroundStyle(V371.Colors.textPrimary)
             Spacer(minLength: 8)
             trailing
@@ -163,12 +163,12 @@ struct WorkRow<Trailing: View>: View {
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(V371.Type.rowTitle)
+                        .font(V371.Typography.rowTitle)
                         .foregroundStyle(V371.Colors.textPrimary)
                         .lineLimit(2)
                     if let subtitle, !subtitle.isEmpty {
                         Text(subtitle)
-                            .font(V371.Type.rowSubtitle)
+                            .font(V371.Typography.rowSubtitle)
                             .foregroundStyle(V371.Colors.textTertiary)
                             .lineLimit(1)
                     }
@@ -235,15 +235,15 @@ struct TimedRow<Trailing: View>: View {
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(time)
-                        .font(V371.Type.time)
+                        .font(V371.Typography.time)
                         .foregroundStyle(V371.Colors.textSecondary)
                     Text(title)
-                        .font(V371.Type.rowTitle)
+                        .font(V371.Typography.rowTitle)
                         .foregroundStyle(V371.Colors.textPrimary)
                         .lineLimit(2)
                     if let subtitle, !subtitle.isEmpty {
                         Text(subtitle)
-                            .font(V371.Type.rowSubtitle)
+                            .font(V371.Typography.rowSubtitle)
                             .foregroundStyle(V371.Colors.textTertiary)
                             .lineLimit(1)
                     }
@@ -275,7 +275,7 @@ struct StatusBadge: View {
 
     var body: some View {
         Text(text)
-            .font(V371.Type.badge)
+            .font(V371.Typography.badge)
             .foregroundStyle(color)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
@@ -312,7 +312,7 @@ struct QuickAction: View {
                             .fill(V371.Colors.group)
                     )
                 Text(item.title)
-                    .font(V371.Type.quickAction)
+                    .font(V371.Typography.quickAction)
                     .foregroundStyle(V371.Colors.textPrimary)
                     .lineLimit(1)
             }

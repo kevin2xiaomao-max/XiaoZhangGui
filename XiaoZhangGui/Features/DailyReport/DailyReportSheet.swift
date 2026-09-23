@@ -37,15 +37,15 @@ struct DailyReportSheet: View {
     private var summary: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("今日营业额")
-                .font(V371.Type.rowSubtitle)
+                .font(V371.Typography.rowSubtitle)
                 .foregroundStyle(V371.Colors.textSecondary)
             Text(Fmt.money(report.todayRevenue))
-                .font(V371.Type.heroNumber)
+                .font(V371.Typography.heroNumber)
                 .foregroundStyle(V371.Colors.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
             Text(report.changeText)
-                .font(V371.Type.rowSubtitle)
+                .font(V371.Typography.rowSubtitle)
                 .foregroundStyle(V371.Colors.textSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -68,11 +68,11 @@ struct DailyReportSheet: View {
     private func reportRow(_ label: String, value: String) -> some View {
         HStack {
             Text(label)
-                .font(V371.Type.rowTitle)
+                .font(V371.Typography.rowTitle)
                 .foregroundStyle(V371.Colors.textSecondary)
             Spacer()
             Text(value)
-                .font(V371.Type.rowTitle)
+                .font(V371.Typography.rowTitle)
                 .foregroundStyle(V371.Colors.textPrimary)
                 .monospacedDigit()
         }

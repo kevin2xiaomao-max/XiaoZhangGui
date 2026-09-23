@@ -14,8 +14,13 @@ import UniformTypeIdentifiers
 
 struct ProfileView: View {
     // V3.7.1：tab 绑定已删除（全仓确认无使用）；从首页右上角进入，无参构造。
-    @Binding var showVoice: Bool = .constant(false)
+    @Binding var showVoice: Bool
     let showsVoiceButton: Bool = false
+
+    /// 无参构造保留（首页右上角进入）；需要外部控制时可注入 binding。
+    init(showVoice: Binding<Bool> = .constant(false)) {
+        _showVoice = showVoice
+    }
 
     @Environment(\.modelContext) private var context
 
@@ -53,7 +58,7 @@ struct ProfileView: View {
                 demoSection
                 settingsSection("数据与应用") { dataRows }
                 Text("v\(appVersion)")
-                    .font(V371.Type.rowSubtitle)
+                    .font(V371.Typography.rowSubtitle)
                     .foregroundStyle(V371.Colors.textTertiary)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.top, 4)
@@ -70,7 +75,7 @@ struct ProfileView: View {
         .overlay(alignment: .bottom) {
             if let toast {
                 Text(toast)
-                    .font(V371.Type.rowTitle)
+                    .font(V371.Typography.rowTitle)
                     .foregroundStyle(V371.Colors.textPrimary)
                     .padding(.horizontal, 18)
                     .padding(.vertical, 11)
@@ -138,11 +143,11 @@ struct ProfileView: View {
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 3) {
                         Text(DisplayText.visible(settings.shopName, fallback: "我的小店"))
-                            .font(V371.Type.rowTitle)
+                            .font(V371.Typography.rowTitle)
                             .foregroundStyle(V371.Colors.textPrimary)
                             .lineLimit(1)
                         Text("\(DisplayText.visible(settings.ownerName, fallback: "老板")) · 你的小掌柜")
-                            .font(V371.Type.rowSubtitle)
+                            .font(V371.Typography.rowSubtitle)
                             .foregroundStyle(V371.Colors.textTertiary)
                             .lineLimit(1)
                     }
@@ -173,7 +178,7 @@ struct ProfileView: View {
     private func valueTrailing(_ value: String) -> some View {
         HStack(spacing: 4) {
             Text(value)
-                .font(V371.Type.rowSubtitle)
+                .font(V371.Typography.rowSubtitle)
                 .foregroundStyle(V371.Colors.textTertiary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
@@ -231,7 +236,7 @@ struct ProfileView: View {
                                   title: "Demo Mode", isOn: $demo.isEnabled)
                 if demo.isEnabled {
                     Text("当前页面和 AI 使用演示数据，导入不会写入真实数据。")
-                        .font(V371.Type.rowSubtitle)
+                        .font(V371.Typography.rowSubtitle)
                         .foregroundStyle(V371.Colors.orange)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, V371.Space.rowPadding)
@@ -349,7 +354,7 @@ private struct SettingsToggleRow: View {
                 .background(V371.Colors.tinted(iconColor), in: Circle())
                 .accessibilityHidden(true)
             Text(title)
-                .font(V371.Type.rowTitle)
+                .font(V371.Typography.rowTitle)
                 .foregroundStyle(V371.Colors.textPrimary)
                 .lineLimit(1)
             Spacer(minLength: 8)
@@ -435,10 +440,10 @@ private struct GoalEditSheet: View {
                 Section {
                     HStack(spacing: 8) {
                         Text("¥")
-                            .font(V371.Type.rowTitle)
+                            .font(V371.Typography.rowTitle)
                             .foregroundStyle(V371.Colors.textSecondary)
                         TextField("目标金额", text: $text)
-                            .font(V371.Type.rowTitle)
+                            .font(V371.Typography.rowTitle)
                             .foregroundStyle(V371.Colors.textPrimary)
                             .tint(V371.Colors.blue)
                             .keyboardType(.decimalPad)
@@ -589,7 +594,7 @@ private struct AccentThemeSheet: View {
                                         .overlay(Circle().strokeBorder(V371.Colors.divider, lineWidth: 1))
                                         .accessibilityHidden(true)
                                     Text(theme.displayName)
-                                        .font(V371.Type.rowTitle)
+                                        .font(V371.Typography.rowTitle)
                                         .foregroundStyle(V371.Colors.textPrimary)
                                         .lineLimit(1)
                                     Spacer(minLength: 8)
@@ -611,7 +616,7 @@ private struct AccentThemeSheet: View {
                         }
                     }
                     Text("主题色影响点缀色（按钮、图标、选中态）与 Hero 渐变。")
-                        .font(V371.Type.rowSubtitle)
+                        .font(V371.Typography.rowSubtitle)
                         .foregroundStyle(V371.Colors.textTertiary)
                         .padding(.horizontal, 4)
                 }
@@ -665,7 +670,7 @@ private struct BackgroundThemeSheet: View {
                                     .overlay(Circle().strokeBorder(V371.Colors.divider, lineWidth: 1))
                                     .accessibilityHidden(true)
                                     Text(theme.displayName)
-                                        .font(V371.Type.rowTitle)
+                                        .font(V371.Typography.rowTitle)
                                         .foregroundStyle(V371.Colors.textPrimary)
                                         .lineLimit(1)
                                     Spacer(minLength: 8)
@@ -687,7 +692,7 @@ private struct BackgroundThemeSheet: View {
                         }
                     }
                     Text("背景风格影响页面底色、卡片、分割线与中性文本。主题切换即时全局生效。")
-                        .font(V371.Type.rowSubtitle)
+                        .font(V371.Typography.rowSubtitle)
                         .foregroundStyle(V371.Colors.textTertiary)
                         .padding(.horizontal, 4)
                 }
@@ -748,12 +753,12 @@ private struct WallpaperSheet: View {
                     }
                     if let error {
                         Text(error)
-                            .font(V371.Type.rowSubtitle)
+                            .font(V371.Typography.rowSubtitle)
                             .foregroundStyle(V371.Colors.red)
                             .padding(.horizontal, 4)
                     }
                     Text("壁纸降采样后落盘到 Application Support，原图不会保留。深色模式自动增强遮罩。")
-                        .font(V371.Type.rowSubtitle)
+                        .font(V371.Typography.rowSubtitle)
                         .foregroundStyle(V371.Colors.textTertiary)
                         .padding(.horizontal, 4)
                 }
@@ -790,7 +795,7 @@ private struct WallpaperSheet: View {
                 .background(V371.Colors.tinted(iconColor), in: Circle())
                 .accessibilityHidden(true)
             Text(title)
-                .font(V371.Type.rowTitle)
+                .font(V371.Typography.rowTitle)
                 .foregroundStyle(V371.Colors.textPrimary)
                 .lineLimit(1)
             Spacer(minLength: 8)
@@ -817,7 +822,7 @@ private struct WallpaperSheet: View {
                             .clipped()
                         Color.black.opacity(themeStore.wallpaper.maskStrength == .strong ? 0.6 : 0.35)
                         Text("当前壁纸 · \(effectLabel) · \(maskLabel)")
-                            .font(V371.Type.rowSubtitle)
+                            .font(V371.Typography.rowSubtitle)
                             .foregroundStyle(.white)
                     }
                     .clipShape(RoundedRectangle(cornerRadius: V371.Radius.group, style: .continuous))
@@ -829,7 +834,7 @@ private struct WallpaperSheet: View {
                             .foregroundStyle(V371.Colors.textTertiary)
                             .accessibilityHidden(true)
                         Text("未设置壁纸")
-                            .font(V371.Type.rowTitle)
+                            .font(V371.Typography.rowTitle)
                             .foregroundStyle(V371.Colors.textTertiary)
                     }
                     .frame(maxWidth: .infinity)
@@ -899,7 +904,7 @@ private struct WallpaperSheet: View {
                     Image(systemName: "trash")
                         .font(.system(size: 15, weight: .semibold))
                     Text("删除壁纸")
-                        .font(V371.Type.rowTitle)
+                        .font(V371.Typography.rowTitle)
                     Spacer(minLength: 0)
                 }
                 .foregroundStyle(V371.Colors.red)
@@ -1077,15 +1082,15 @@ private struct AboutSheet: View {
                         .background(V371.Colors.tinted(V371.Colors.blue), in: Circle())
                         .accessibilityHidden(true)
                     Text("你的小掌柜")
-                        .font(V371.Type.sectionTitle)
+                        .font(V371.Typography.sectionTitle)
                         .foregroundStyle(V371.Colors.textPrimary)
                     Text(ReleaseNotes.versionDisplay)
-                        .font(V371.Type.rowSubtitle)
+                        .font(V371.Typography.rowSubtitle)
                         .foregroundStyle(V371.Colors.textTertiary)
                     GroupSurface {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("本次更新：\(ReleaseNotes.current.headline)")
-                                .font(V371.Type.rowSubtitle)
+                                .font(V371.Typography.rowSubtitle)
                                 .foregroundStyle(V371.Colors.textSecondary)
                                 .multilineTextAlignment(.leading)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -1096,7 +1101,7 @@ private struct AboutSheet: View {
                                     Image(systemName: "sparkles")
                                         .font(.system(size: 14, weight: .semibold))
                                     Text("V3.5 新变化")
-                                        .font(V371.Type.rowTitle)
+                                        .font(V371.Typography.rowTitle)
                                     Spacer()
                                     V371Chevron()
                                 }
@@ -1155,10 +1160,10 @@ private struct ReleaseNotesSheet: View {
                         VStack(alignment: .leading, spacing: 14) {
                             VStack(alignment: .leading, spacing: 3) {
                                 Text("你的小掌柜 \(ReleaseNotes.versionDisplay)")
-                                    .font(V371.Type.rowTitle)
+                                    .font(V371.Typography.rowTitle)
                                     .foregroundStyle(V371.Colors.textPrimary)
                                 Text(ReleaseNotes.current.headline)
-                                    .font(V371.Type.rowSubtitle)
+                                    .font(V371.Typography.rowSubtitle)
                                     .foregroundStyle(V371.Colors.textTertiary)
                             }
                             ForEach(Array(ReleaseNotes.current.sections.enumerated()), id: \.element.id) { index, section in
@@ -1172,7 +1177,7 @@ private struct ReleaseNotesSheet: View {
                                             .foregroundStyle(V371.Colors.blue)
                                             .accessibilityHidden(true)
                                         Text(section.title)
-                                            .font(V371.Type.rowTitle)
+                                            .font(V371.Typography.rowTitle)
                                             .foregroundStyle(V371.Colors.textPrimary)
                                     }
                                     VStack(alignment: .leading, spacing: 6) {
@@ -1184,7 +1189,7 @@ private struct ReleaseNotesSheet: View {
                                                     .padding(.top, 7)
                                                     .accessibilityHidden(true)
                                                 Text(item)
-                                                    .font(V371.Type.rowSubtitle)
+                                                    .font(V371.Typography.rowSubtitle)
                                                     .foregroundStyle(V371.Colors.textSecondary)
                                                     .fixedSize(horizontal: false, vertical: true)
                                             }
@@ -1228,7 +1233,7 @@ private struct InfoSheet: View {
                 VStack(alignment: .leading, spacing: 8) {
                     GroupSurface {
                         Text(text)
-                            .font(V371.Type.rowSubtitle)
+                            .font(V371.Typography.rowSubtitle)
                             .foregroundStyle(V371.Colors.textSecondary)
                             .padding(V371.Space.rowPadding)
                     }

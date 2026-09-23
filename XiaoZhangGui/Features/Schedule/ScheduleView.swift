@@ -125,10 +125,10 @@ struct ScheduleView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .center) {
                 Text("日历")
-                    .font(V371.Type.heroTitle)
+                    .font(V371.Typography.heroTitle)
                     .foregroundStyle(V371.Colors.heroText)
                 Text(monthTitle)
-                    .font(V371.Type.badge)
+                    .font(V371.Typography.badge)
                     .foregroundStyle(V371.Colors.heroText)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
@@ -138,7 +138,7 @@ struct ScheduleView: View {
                     Haptic.selection()
                     selectedDate = Date()
                 }
-                .font(V371.Type.badge)
+                .font(V371.Typography.badge)
                 .foregroundStyle(V371.Colors.heroText)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
@@ -184,10 +184,10 @@ struct ScheduleView: View {
         } label: {
             VStack(spacing: 6) {
                 Text(symbols[weekday - 1])
-                    .font(V371.Type.badge)
+                    .font(V371.Typography.badge)
                     .foregroundStyle(V371.Colors.heroText)
                 Text("\(day)")
-                    .font(V371.Type.sectionTitle)
+                    .font(V371.Typography.sectionTitle)
                     .fontWeight(date.isToday ? .bold : .medium)
                     .foregroundStyle(isSelected ? V371.Colors.blue : V371.Colors.heroText)
                     .frame(width: 40, height: 40)
@@ -267,7 +267,7 @@ struct ScheduleView: View {
             SectionHeader("全天事项") {
                 if !scheduleDay.allDay.isEmpty {
                     Text(allDayCount)
-                        .font(V371.Type.rowSubtitle)
+                        .font(V371.Typography.rowSubtitle)
                         .foregroundStyle(V371.Colors.textTertiary)
                 }
             }
@@ -384,7 +384,7 @@ struct ScheduleView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     if !item.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         Text(DisplayText.visible(item.note, fallback: "退货备注"))
-                            .font(V371.Type.rowSubtitle)
+                            .font(V371.Typography.rowSubtitle)
                             .foregroundStyle(V371.Colors.textSecondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(12)
@@ -459,7 +459,7 @@ struct ScheduleView: View {
             }
             Spacer()
             Text(currentMonth, format: .dateTime.year().month(.wide).locale(Locale(identifier: "zh_CN")))
-                .font(V371.Type.sectionTitle)
+                .font(V371.Typography.sectionTitle)
                 .foregroundStyle(V371.Colors.textPrimary)
             Spacer()
             monthButton("chevron.right", label: "下个月") {
@@ -489,7 +489,7 @@ struct ScheduleView: View {
         HStack(spacing: 2) {
             ForEach(["日", "一", "二", "三", "四", "五", "六"], id: \.self) { day in
                 Text(day)
-                    .font(V371.Type.rowSubtitle)
+                    .font(V371.Typography.rowSubtitle)
                     .foregroundStyle(V371.Colors.textTertiary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 6)
@@ -589,14 +589,14 @@ struct ScheduleView: View {
     private var dayDetail: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("\(calendar.component(.month, from: selectedDate))月\(calendar.component(.day, from: selectedDate))日 · \(scheduleWeekdayText(selectedDate))")
-                .font(V371.Type.rowTitle)
+                .font(V371.Typography.rowTitle)
                 .foregroundStyle(V371.Colors.textPrimary)
                 .padding(.horizontal, V371.Space.rowPadding)
                 .padding(.vertical, 12)
 
             if detailItems.isEmpty {
                 Text("当天暂无经营记录")
-                    .font(V371.Type.rowSubtitle)
+                    .font(V371.Typography.rowSubtitle)
                     .foregroundStyle(V371.Colors.textTertiary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, V371.Space.rowPadding)
@@ -611,17 +611,17 @@ struct ScheduleView: View {
                             .accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(item.label)
-                                .font(V371.Type.rowTitle)
+                                .font(V371.Typography.rowTitle)
                                 .foregroundStyle(V371.Colors.textPrimary)
                             Text(item.sublabel)
-                                .font(V371.Type.rowSubtitle)
+                                .font(V371.Typography.rowSubtitle)
                                 .foregroundStyle(V371.Colors.textTertiary)
                                 .lineLimit(1)
                         }
                         Spacer(minLength: 8)
                         if !item.rightText.isEmpty {
                             Text(item.rightText)
-                                .font(V371.Type.rowTitle)
+                                .font(V371.Typography.rowTitle)
                                 .foregroundStyle(item.rightColor)
                         }
                     }
@@ -659,10 +659,10 @@ struct ScheduleView: View {
                 ) {
                     VStack(alignment: .trailing, spacing: 2) {
                         Text("¥" + Fmt.groupedAmount(summaryData.net))
-                            .font(V371.Type.rowTitle)
+                            .font(V371.Typography.rowTitle)
                             .foregroundStyle(V371.Colors.textPrimary)
                         Text("净额")
-                            .font(V371.Type.rowSubtitle)
+                            .font(V371.Typography.rowSubtitle)
                             .foregroundStyle(V371.Colors.textTertiary)
                     }
                 }
@@ -712,7 +712,7 @@ private struct ScheduleCalendarDayCell: View {
         Button(action: onTap) {
             VStack(spacing: 2) {
                 Text("\(dayNumber)")
-                    .font(V371.Type.rowSubtitle)
+                    .font(V371.Typography.rowSubtitle)
                     .fontWeight(isToday ? .bold : .medium)
                     .foregroundStyle(
                         isToday ? Color.white :

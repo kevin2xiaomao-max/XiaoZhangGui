@@ -31,7 +31,7 @@ struct ExpiryView: View {
                         VStack(alignment: .leading, spacing: 10) {
                             SectionHeader(bucket.group.label) {
                                 Text("\(bucket.items.count)")
-                                    .font(V371.Type.badge)
+                                    .font(V371.Typography.badge)
                                     .foregroundStyle(V371.Colors.textTertiary)
                             }
                             GroupSurface {

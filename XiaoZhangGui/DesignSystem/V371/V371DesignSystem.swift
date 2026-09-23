@@ -71,7 +71,7 @@ enum V371 {
 
     // MARK: - Typography（系统字体，层级靠 size/weight/spacing）
 
-    enum Type {
+    enum Typography {
         /// Hero 大数字
         static let heroNumber: Font = .system(size: 44, weight: .bold, design: .rounded).monospacedDigit()
         /// Hero 标题

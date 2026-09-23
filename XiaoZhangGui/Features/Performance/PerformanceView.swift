@@ -111,7 +111,7 @@ struct PerformanceView: View {
         HStack(alignment: .bottom, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("今日")
-                    .font(V371.Type.rowSubtitle)
+                    .font(V371.Typography.rowSubtitle)
                     .foregroundStyle(V371.Colors.heroTextSecondary)
                 Text(Fmt.money(todayRevenue))
                     .font(.system(size: 20, weight: .semibold).monospacedDigit())
@@ -146,7 +146,7 @@ struct PerformanceView: View {
                 Image(systemName: change >= 0 ? "arrow.up.right" : "arrow.down.right")
                     .font(.system(size: 10, weight: .bold))
                 Text("\(String(format: "%.1f", abs(change)))% 较昨日")
-                    .font(V371.Type.badge)
+                    .font(V371.Typography.badge)
             }
             .foregroundStyle(.white)
             .padding(.horizontal, 9)
@@ -154,7 +154,7 @@ struct PerformanceView: View {
             .background(Capsule().fill(.white.opacity(0.18)))
         } else {
             Text("暂无昨日对比")
-                .font(V371.Type.badge)
+                .font(V371.Typography.badge)
                 .foregroundStyle(V371.Colors.heroTextSecondary)
         }
     }
@@ -168,15 +168,15 @@ struct PerformanceView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(alignment: .firstTextBaseline) {
                         Text(Fmt.money(monthRevenue))
-                            .font(V371.Type.rowTitle)
+                            .font(V371.Typography.rowTitle)
                             .foregroundStyle(V371.Colors.textPrimary)
                             .monospacedDigit()
                         Text("/ 目标 \(Fmt.money(monthGoal))")
-                            .font(V371.Type.rowSubtitle)
+                            .font(V371.Typography.rowSubtitle)
                             .foregroundStyle(V371.Colors.textTertiary)
                         Spacer(minLength: 8)
                         Text("\(Int((goalProgress * 100).rounded()))%")
-                            .font(V371.Type.badge)
+                            .font(V371.Typography.badge)
                             .foregroundStyle(V371.Colors.blue)
                             .monospacedDigit()
                     }
@@ -196,11 +196,11 @@ struct PerformanceView: View {
                     V371Divider(leading: 0)
                     HStack {
                         Text("本年累计")
-                            .font(V371.Type.rowSubtitle)
+                            .font(V371.Typography.rowSubtitle)
                             .foregroundStyle(V371.Colors.textTertiary)
                         Spacer(minLength: 8)
                         Text(Fmt.money(yearRevenue))
-                            .font(V371.Type.rowTitle)
+                            .font(V371.Typography.rowTitle)
                             .foregroundStyle(V371.Colors.textPrimary)
                             .monospacedDigit()
                     }
@@ -223,7 +223,7 @@ struct PerformanceView: View {
             GroupSurface {
                 if active.isEmpty {
                     Text("本月暂无收入")
-                        .font(V371.Type.rowSubtitle)
+                        .font(V371.Typography.rowSubtitle)
                         .foregroundStyle(V371.Colors.textTertiary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(V371.Space.rowPadding)
@@ -238,7 +238,7 @@ struct PerformanceView: View {
                             subtitle: ratioText
                         ) {
                             Text(Fmt.money(item.amount))
-                                .font(V371.Type.rowTitle)
+                                .font(V371.Typography.rowTitle)
                                 .foregroundStyle(V371.Colors.textPrimary)
                                 .monospacedDigit()
                                 .lineLimit(1)
@@ -275,7 +275,7 @@ struct PerformanceView: View {
                 GroupSurface {
                     VStack(alignment: .leading, spacing: 12) {
                         Label("暂无交易记录", systemImage: "tray")
-                            .font(V371.Type.rowSubtitle)
+                            .font(V371.Typography.rowSubtitle)
                             .foregroundStyle(V371.Colors.textTertiary)
                         V32PrimaryButton(title: "记一笔", systemName: "plus") { newRecordKind = .income }
                     }
@@ -300,7 +300,7 @@ struct PerformanceView: View {
                     } label: {
                         HStack {
                             Text("查看全部")
-                                .font(V371.Type.rowTitle)
+                                .font(V371.Typography.rowTitle)
                                 .foregroundStyle(V371.Colors.blue)
                             Spacer(minLength: 8)
                             V371Chevron()
@@ -340,11 +340,11 @@ private struct PerformanceRecordRow: View {
             Button(action: onEdit) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(DisplayText.visible(record.title, fallback: record.kind == .income ? "营业额" : "支出"))
-                        .font(V371.Type.rowTitle)
+                        .font(V371.Typography.rowTitle)
                         .foregroundStyle(V371.Colors.textPrimary)
                         .lineLimit(1)
                     Text(subtitle)
-                        .font(V371.Type.rowSubtitle)
+                        .font(V371.Typography.rowSubtitle)
                         .foregroundStyle(V371.Colors.textTertiary)
                         .lineLimit(1)
                 }
@@ -354,7 +354,7 @@ private struct PerformanceRecordRow: View {
             .buttonStyle(.plain)
 
             Text(record.kind == .income ? "+\(Fmt.money(record.amount))" : "-\(Fmt.money(record.amount))")
-                .font(V371.Type.rowTitle)
+                .font(V371.Typography.rowTitle)
                 .foregroundStyle(record.kind == .income ? V371.Colors.blue : V371.Colors.red)
                 .monospacedDigit()
                 .lineLimit(1)

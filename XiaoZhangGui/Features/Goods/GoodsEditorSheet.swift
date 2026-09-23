@@ -111,7 +111,7 @@ struct GoodsEditorSheet: View {
     private func numberField(_ label: String, text: Binding<String>, decimal: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label)
-                .font(V371.Type.rowSubtitle)
+                .font(V371.Typography.rowSubtitle)
                 .foregroundStyle(V371.Colors.textTertiary)
             TextField(decimal ? "0.00" : "0", text: text)
                 .keyboardType(decimal ? .decimalPad : .numberPad)

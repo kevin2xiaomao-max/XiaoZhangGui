@@ -53,15 +53,15 @@ private struct TransactionHistoryRow: View {
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
                 Text(record.title)
-                    .font(V371.Type.rowTitle)
+                    .font(V371.Typography.rowTitle)
                     .foregroundStyle(V371.Colors.textPrimary)
                 Text("\(record.date, format: .dateTime.year().month().day().hour().minute()) · \(record.source)")
-                    .font(V371.Type.rowSubtitle)
+                    .font(V371.Typography.rowSubtitle)
                     .foregroundStyle(V371.Colors.textTertiary)
             }
             Spacer(minLength: 8)
             Text((record.kind == .income ? "+" : "-") + Fmt.money(record.amount))
-                .font(V371.Type.rowTitle)
+                .font(V371.Typography.rowTitle)
                 .foregroundStyle(record.kind == .income ? V371.Colors.blue : V371.Colors.red)
                 .monospacedDigit()
         }
