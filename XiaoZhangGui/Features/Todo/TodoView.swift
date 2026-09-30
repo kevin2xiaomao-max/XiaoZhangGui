@@ -42,8 +42,6 @@ struct TodoView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                // 切换控件始终可见；「备忘」展示独立 Memo 内容。
-                // 只隐藏统计数字区域，不隐藏 tab 导航。
                 tabPicker
                 if tab != .records { statsCard }
                 content
@@ -89,8 +87,6 @@ struct TodoView: View {
         } message: { Text(stateActionError ?? "待办状态未改变，请重试") }
     }
 
-    // MARK: 顶部
-
     private var header: some View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 4) {
@@ -116,9 +112,6 @@ struct TodoView: View {
         }
     }
 
-    // MARK: 分段胶囊 + 统计
-
-    /// P0-2：tab 导航独立于统计卡，任何 tab 下都可见
     private var tabPicker: some View {
         V32SegmentedPicker(tabs: TodoTab.allCases.map(\.rawValue), selectionIndex: Binding(
             get: { TodoTab.allCases.firstIndex(of: tab) ?? 0 },
@@ -126,7 +119,6 @@ struct TodoView: View {
         ))
     }
 
-    /// 统计数字区域（仅非「备忘」tab 显示）
     private var statsCard: some View {
         HStack(spacing: 8) {
             statCell(value: todayCount, label: "待办", icon: "sun.max", tint: V32.brand)
@@ -160,8 +152,6 @@ struct TodoView: View {
         .foregroundStyle(tint)
     }
 
-    // MARK: 内容
-
     @ViewBuilder
     private var content: some View {
         if tab == .records {
@@ -182,11 +172,8 @@ struct TodoView: View {
                         .v32Text(.caption)
                         .foregroundStyle(V32.textTertiary)
                         .padding(.leading, 4)
-                    VStack(spacing: 0) {
-                        ForEach(Array(group.items.enumerated()), id: \.element.persistentModelID) { index, todo in
-                            if index > 0 {
-                                Rectangle().fill(V32.divider).frame(height: 1).padding(.leading, 48)
-                            }
+                    VStack(spacing: 8) {
+                        ForEach(Array(group.items.enumerated()), id: \.element.persistentModelID) { _, todo in
                             TodoListRow(
                                 todo: todo,
                                 isOverdueTab: tab == .overdue,
@@ -226,7 +213,6 @@ struct TodoView: View {
         catch { stateActionError = "备忘未删除，请重试。" }
     }
 
-    /// 立即写库；动画只做视觉，不延迟业务保存。防重复点击：动画窗口内忽略同一项。
     private func toggle(_ todo: Todo) {
         let pid = todo.persistentModelID
         guard !togglingIDs.contains(pid) else { return }
@@ -241,7 +227,6 @@ struct TodoView: View {
                 stateActionError = "待办状态未改变，请重试。"
             }
         }
-        // 数据已立即写库；仅视觉层暂留行 ~0.3s 后让其淡出移出
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 300_000_000)
             finishingIDs.remove(pid)
@@ -253,8 +238,6 @@ struct TodoView: View {
         deletingTodo = todo
     }
 }
-
-// MARK: - 分段选择器（V32 胶囊）
 
 struct V32SegmentedPicker: View {
     let tabs: [String]
@@ -291,8 +274,6 @@ struct V32SegmentedPicker: View {
     }
 }
 
-// MARK: - 待办行
-
 private struct TodoListRow: View {
     let todo: Todo
     let isOverdueTab: Bool
@@ -303,41 +284,41 @@ private struct TodoListRow: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        HStack(spacing: 12) {
-            V32Checkbox(checked: todo.isCompleted, action: onToggle)
-            Button(action: onEdit) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(DisplayText.visible(todo.title, fallback: "待办事项"))
-                        .v32Text(.title)
-                        .foregroundStyle(todo.isCompleted ? V32.textTertiary : V32.textPrimary)
-                        .strikethrough(todo.isCompleted, color: V32.textQuaternary)
-                        .lineLimit(2)
-                    Text(subtitle)
-                        .v32Text(.caption)
-                        .foregroundStyle(todo.priority >= TodoPriority.high.rawValue && !todo.isCompleted ? V32.amber : V32.textTertiary)
-                        .lineLimit(1)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(V32PressButtonStyle())
-
-            Text(timeText)
-                .v32Text(.caption)
-                .foregroundStyle(isOverdueTab ? V32.amber : V32.textTertiary)
-                .lineLimit(1)
-            Button(action: onDelete) {
-                Image(systemName: "trash")
-                    .font(.system(size: 14, weight: .regular))
-                    .foregroundStyle(V32.textQuaternary)
-                    .frame(width: 30, height: 30)
+        V36AccentRow(accent: todo.isCompleted ? V32.neutral : (todo.priority >= TodoPriority.high.rawValue ? V32.amber : V32.brand)) {
+            HStack(spacing: 12) {
+                V32Checkbox(checked: todo.isCompleted, action: onToggle)
+                Button(action: onEdit) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(DisplayText.visible(todo.title, fallback: "待办事项"))
+                            .v32Text(.title)
+                            .foregroundStyle(todo.isCompleted ? V32.textTertiary : V32.textPrimary)
+                            .strikethrough(todo.isCompleted, color: V32.textQuaternary)
+                            .lineLimit(2)
+                        Text(subtitle)
+                            .v32Text(.caption)
+                            .foregroundStyle(todo.priority >= TodoPriority.high.rawValue && !todo.isCompleted ? V32.amber : V32.textTertiary)
+                            .lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
+                }
+                .buttonStyle(V32PressButtonStyle())
+
+                Text(timeText)
+                    .v32Text(.caption)
+                    .foregroundStyle(isOverdueTab ? V32.amber : V32.textTertiary)
+                    .lineLimit(1)
+                Button(action: onDelete) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundStyle(V32.textQuaternary)
+                        .frame(width: 30, height: 30)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(V32PressButtonStyle())
+                .accessibilityLabel("删除待办")
             }
-            .buttonStyle(V32PressButtonStyle())
-            .accessibilityLabel("删除待办")
         }
-        .padding(.horizontal, 12)
-        .frame(minHeight: 56)
         .opacity(isFinishing ? 0 : 1)
         .scaleEffect(isFinishing && !reduceMotion ? 0.97 : 1)
         .transition(.opacity.combined(with: reduceMotion ? .identity : .scale(scale: 0.98)))
@@ -350,12 +331,9 @@ private struct TodoListRow: View {
     }
 
     private var timeText: String {
-        // P1-3：与 HomeInbox / ScheduleAgenda 同一规则，00:00 显示为全天
         DayTimeLabel.label(todo.dueDate, unscheduledText: "待安排")
     }
 }
-
-// MARK: - 新增记录 Sheet（功能保留，T11 统一 V32 外观）
 
 private struct RecordEditorSheet: View {
     @Environment(\.modelContext) private var context
