@@ -2,7 +2,7 @@ import Charts
 import SwiftData
 import SwiftUI
 
-// MARK: - 首页 · 今日经营驾驶舱（V32）
+// MARK: - 首页 · 今日经营驾驶舱（V32 / V36 reference）
 
 struct HomeView: View {
     @Binding var tab: AppTab
@@ -47,33 +47,39 @@ struct HomeView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 22) {
                 header
                 V35HomeRevenueHero(summary: summary, monthRevenue: monthRevenue, monthGoal: monthGoal) { route = .performance }
                     .modifier(V32HomeEntrance(delay: 0, reduceMotion: reduceMotion))
+                V36QuickActions(
+                    onRecord: { showQuickRecord = true },
+                    onStock: { route = .goods },
+                    onMore: { showUtilityDrawer = true }
+                )
+                .modifier(V32HomeEntrance(delay: 0.02, reduceMotion: reduceMotion))
+                V36RecentContactsRail(
+                    contacts: summary.deliveries.prefix(6).map {
+                        V36RecentContact(id: String(describing: $0.persistentModelID), title: $0.displayTitle)
+                    },
+                    onAdd: { route = .customer },
+                    onOpen: { route = .customer }
+                )
+                .modifier(V32HomeEntrance(delay: 0.03, reduceMotion: reduceMotion))
+                V36IncomeOutcomePair(income: monthRevenue, goal: monthGoal) { route = .performance }
+                    .modifier(V32HomeEntrance(delay: 0.04, reduceMotion: reduceMotion))
                 weekRail
                 V35HomeFocusSection(items: handlingItems, onTodoToggle: toggleTodo) { open($0.route) }
-                    .modifier(V32HomeEntrance(delay: 0.04, reduceMotion: reduceMotion))
+                    .modifier(V32HomeEntrance(delay: 0.05, reduceMotion: reduceMotion))
                 if !memos.isEmpty {
                     V35HomeRecentMemo(memos: Array(memos.prefix(2))) { route = .memo }
                         .padding(.top, 4)
                         .modifier(V32HomeEntrance(delay: 0.06, reduceMotion: reduceMotion))
                 }
-                V35HomeOverviewGrid(todoCount: summary.todos.count, expiryCount: summary.pendingExpiry.count, customerCount: summary.deliveries.count,
-                                    todoInsight: summary.todos.filter { $0.dueDate?.isToday == true }.count > 0 ? "今天到期" : nil,
-                                    customerInsight: summary.deliveries.count > 0 ? "待配送" : nil,
-                                    expiryInsight: summary.pendingExpiry.filter { $0.daysLeft() <= 3 }.count > 0 ? "≤3天" : nil,
-                                    onTodo: { tab = .todo },
-                                    onCustomer: { route = .customer },
-                                    onExpiry: { route = .expiry })
-                    .modifier(V32HomeEntrance(delay: 0.08, reduceMotion: reduceMotion))
             }
             .padding(.horizontal, 20)
             .padding(.top, 6)
         }
         .scrollIndicators(.hidden)
-        // Keep the first scroll content below the translucent system navigation bar.
-        // The microphone remains a real toolbar item; this is only a container inset.
         .safeAreaPadding(.top, 12)
         .v32PageBackground()
         .v32PageBottomInset()
@@ -101,10 +107,10 @@ struct HomeView: View {
             case .expiry: ExpiryView()
             case .performance: PerformanceView()
             case .memo: MemoView()
+            case .goods: GoodsView()
             }
         }
         .sheet(isPresented: $showWeatherSheet) {
-            // P1-4：跟随 ThemeStore / V32 tokens，不再走旧 AppTheme 链路
             WeatherDetailSheet(model: weatherModel)
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
@@ -116,8 +122,6 @@ struct HomeView: View {
                     .zIndex(100)
             }
         }
-        // Home root only: the leading edge is reserved for the utility drawer.
-        // Pushed NavigationStack destinations do not contain this gesture.
         .overlay(alignment: .leading) {
             if !showUtilityDrawer {
                 Color.clear
@@ -140,28 +144,45 @@ struct HomeView: View {
         }
     }
 
-    // MARK: 顶部：问候 / 日期 / 天气 / 快速记录 / 头像
-
     private var header: some View {
         HStack(alignment: .bottom, spacing: 16) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(greetingPrefix)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(V32.textSecondary)
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(ownerDisplayName)
-                        .font(.system(size: 30, weight: .bold, design: .rounded))
-                        .foregroundStyle(V32.textPrimary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                }
+                Text(ownerDisplayName)
+                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .foregroundStyle(V32.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
                 Text(Date(), format: .dateTime.month().day().weekday(.wide).locale(Locale(identifier: "zh_CN")))
                     .font(.footnote.weight(.medium))
                     .foregroundStyle(V32.textTertiary)
                     .padding(.top, 1)
             }
             Spacer(minLength: 12)
-            weatherButton
+            HStack(spacing: 10) {
+                weatherButton
+                Button { tab = .todo } label: {
+                    ZStack(alignment: .topTrailing) {
+                        Image(systemName: "bell")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(V32.textPrimary)
+                            .frame(width: 36, height: 36)
+                            .background(Circle().strokeBorder(V32.cardOutline, lineWidth: 1))
+                        if !handlingItems.isEmpty {
+                            Text("\(min(handlingItems.count, 9))")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(3)
+                                .background(Circle().fill(V32.brand))
+                                .offset(x: 4, y: -4)
+                        }
+                    }
+                }
+                .buttonStyle(V32PressButtonStyle())
+                .accessibilityLabel("待办提醒")
+            }
         }
     }
 
@@ -189,8 +210,8 @@ struct HomeView: View {
                 }
             }
             .foregroundStyle(V32.textSecondary)
-            .padding(.horizontal, 2)
-            .frame(minHeight: 44)
+            .frame(width: 36, height: 36)
+            .background(Circle().strokeBorder(V32.cardOutline, lineWidth: 1))
         }
         .buttonStyle(V32PressButtonStyle())
         .accessibilityLabel(weatherModel.snapshot.map { "\($0.city)，\($0.roundedTemperature)度" } ?? "天气")
@@ -240,9 +261,7 @@ struct HomeView: View {
     }
 }
 
-private enum HomeRoute: Hashable { case customer, expiry, performance, memo }
-
-// MARK: - 首页首次出现轻入场（opacity + y 8，standard；Reduce Motion 仅短淡入、无位移）
+private enum HomeRoute: Hashable { case customer, expiry, performance, memo, goods }
 
 private struct V32HomeEntrance: ViewModifier {
     let delay: Double
@@ -260,8 +279,6 @@ private struct V32HomeEntrance: ViewModifier {
             .onAppear { if !appeared { appeared = true } }
     }
 }
-
-// MARK: - 今日事项行（圆形勾选）
 
 struct HomeActionRow: View {
     let item: HomeInboxItem
@@ -316,8 +333,6 @@ struct HomeActionRow: View {
         }
     }
 }
-
-// MARK: - 七日火花线（hero 内）
 
 struct HomeSparkline: View {
     let points: [TrendPoint]
