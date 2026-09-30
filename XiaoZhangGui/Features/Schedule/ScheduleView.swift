@@ -68,14 +68,14 @@ struct ScheduleView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: V32Layout.sectionGap) {
+            VStack(alignment: .leading, spacing: 20) {
                 weekStrip
                 timelineSection
                 allDaySection
                 summarySection
             }
             .padding(.horizontal, V32Layout.pageMargin)
-            .padding(.top, 8)
+            .padding(.top, 4)
             .animation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion)), value: selectedDate)
         }
         .scrollIndicators(.hidden)
@@ -146,7 +146,7 @@ struct ScheduleView: View {
     }
 
     private var weekStrip: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
                 monthLabel
                 Spacer()
@@ -154,7 +154,7 @@ struct ScheduleView: View {
                 monthArrow("chevron.right") { shiftMonth(1) }
             }
 
-            HStack(spacing: 6) {
+            HStack(spacing: 4) {
                 ForEach(weekDays, id: \.self) { date in
                     weekDayCell(date)
                 }
@@ -167,7 +167,7 @@ struct ScheduleView: View {
             Image(systemName: icon)
                 .font(.system(size: 12, weight: .bold))
                 .foregroundStyle(V32.textSecondary)
-                .frame(width: 30, height: 30)
+                .frame(width: 28, height: 28)
                 .background(
                     Circle()
                         .fill(V32.card)
@@ -188,20 +188,20 @@ struct ScheduleView: View {
             selectedDate = date
             Haptic.light()
         } label: {
-            VStack(spacing: 6) {
+            VStack(spacing: 4) {
                 Text(symbols[weekday - 1])
                     .v32Text(.caption)
                     .foregroundStyle(isSelected || isToday ? V32.brand : V32.textTertiary)
                 Text("\(day)")
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
                     .foregroundStyle(isSelected ? Color.white : V32.textPrimary)
-                    .frame(width: 32, height: 32)
+                    .frame(width: 28, height: 28)
                     .background(
                         Circle().fill(isSelected ? V32.brand : Color.clear)
                     )
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 4)
+            .padding(.vertical, 3)
         }
         .buttonStyle(V32PressButtonStyle())
     }
@@ -217,9 +217,9 @@ struct ScheduleView: View {
     @ViewBuilder
     private var timelineSection: some View {
         if !scheduleDay.timedEvents.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
                 V32SectionHeader("时间")
-                VStack(spacing: V32Layout.listRowGap) {
+                VStack(spacing: 8) {
                     ForEach(scheduleDay.timedEvents) { event in
                         timelineRow(event)
                     }
@@ -229,9 +229,9 @@ struct ScheduleView: View {
     }
 
     private func timelineRow(_ event: ScheduleEvent) -> some View {
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .center, spacing: 10) {
             Text(Fmt.time(event.date))
-                .v32Text(.subhead)
+                .v32Text(.caption)
                 .foregroundStyle(V32.textTertiary)
                 .fixedSize(horizontal: true, vertical: false)
                 .layoutPriority(1)
@@ -260,10 +260,10 @@ struct ScheduleView: View {
 
     private func timelineCard(_ event: ScheduleEvent, chevron: Bool) -> some View {
         let done = isCompletedTodo(event) || isCompletedDelivery(event)
-        return V36AccentRow(accent: done ? V32.neutral : V32.brand) {
-            HStack(spacing: 12) {
+        return V36AccentRow(accent: done ? V32.neutral : V32.brand, compact: true) {
+            HStack(spacing: 10) {
                 eventIcon(event)
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(eventTitle(event))
                         .v32Text(.title)
                         .foregroundStyle(done ? V32.textTertiary : V32.textPrimary)
@@ -288,7 +288,7 @@ struct ScheduleView: View {
 
     @ViewBuilder
     private var allDaySection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             V32SectionHeader("全天事项") {
                 if !scheduleDay.allDay.isEmpty {
                     Text(allDayCount)
@@ -344,7 +344,7 @@ struct ScheduleView: View {
     }
 
     private func allDayTodoRow(_ todo: Todo) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             V32Checkbox(checked: todo.isCompleted) {
                 let wasCompleted = todo.isCompleted
                 do {
@@ -369,12 +369,12 @@ struct ScheduleView: View {
             Spacer()
         }
         .padding(.horizontal, 12)
-        .frame(minHeight: 54)
+        .frame(minHeight: 48)
     }
 
     private func iconRow(icon: String, tone: V32BubbleTone, title: String, subtitle: String, done: Bool = false) -> some View {
-        HStack(spacing: 12) {
-            V32IconBubble(systemName: icon, tone: tone, size: 34, icon: 15)
+        HStack(spacing: 10) {
+            V32IconBubble(systemName: icon, tone: tone, size: 30, icon: 13)
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .v32Text(.title)
@@ -394,7 +394,7 @@ struct ScheduleView: View {
                 .foregroundStyle(V32.textQuaternary)
         }
         .padding(.horizontal, 12)
-        .frame(minHeight: 54)
+        .frame(minHeight: 48)
         .contentShape(Rectangle())
     }
 
@@ -409,8 +409,8 @@ struct ScheduleView: View {
                     if isExpanded { expandedExpiry.remove(item.notificationID) } else { expandedExpiry.insert(item.notificationID) }
                 }
             } label: {
-                HStack(spacing: 12) {
-                    V32IconBubble(systemName: "hourglass", tone: .amber, size: 34, icon: 15)
+                HStack(spacing: 10) {
+                    V32IconBubble(systemName: "hourglass", tone: .amber, size: 30, icon: 13)
                     VStack(alignment: .leading, spacing: 3) {
                         Text("\(DisplayText.visible(item.name, fallback: "临期商品")) × \(item.quantity)")
                             .v32Text(.title)
@@ -427,7 +427,7 @@ struct ScheduleView: View {
                         .rotationEffect(.degrees(isExpanded ? 90 : 0))
                 }
                 .padding(.horizontal, 12)
-                .frame(minHeight: 54)
+                .frame(minHeight: 48)
                 .contentShape(Rectangle())
             }
             .buttonStyle(V32PressButtonStyle())
@@ -472,7 +472,7 @@ struct ScheduleView: View {
     @ViewBuilder
     private var summarySection: some View {
         let s = scheduleDay.summary
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             V32SectionHeader("当日经营")
             NavigationLink { PerformanceView() } label: {
                 V32FieldGroup {
@@ -501,9 +501,9 @@ struct ScheduleView: View {
     private func eventIcon(_ event: ScheduleEvent) -> some View {
         switch event {
         case .todo:
-            V32IconBubble(systemName: "checkmark.circle.fill", tone: .brand, size: 38, icon: 17)
+            V32IconBubble(systemName: "checkmark.circle.fill", tone: .brand, size: 32, icon: 14)
         case .delivery:
-            V32IconBubble(systemName: "box.truck.fill", tone: .brand, size: 38, icon: 17)
+            V32IconBubble(systemName: "box.truck.fill", tone: .brand, size: 32, icon: 14)
         }
     }
 

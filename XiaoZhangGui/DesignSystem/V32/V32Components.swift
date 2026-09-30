@@ -149,6 +149,8 @@ struct V32PillBar: View {
 struct V32Card<Content: View>: View {
     var padding: CGFloat = V32Layout.cardPad
     var fill: Color = V32.card
+    /// V3.6.1 新增：允许调用方收紧圆角，默认保持 V32Radius.card，其他页面渲染不变。
+    var radius: CGFloat = V32Radius.card
     @ViewBuilder var content: Content
 
     var body: some View {
@@ -156,11 +158,11 @@ struct V32Card<Content: View>: View {
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: V32Radius.card, style: .continuous)
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
                     .fill(fill)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: V32Radius.card, style: .continuous)
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
                     .strokeBorder(V32.cardOutline, lineWidth: 1)
             )
     }

@@ -47,7 +47,7 @@ struct HomeView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
+            VStack(alignment: .leading, spacing: 18) {
                 header
                 V35HomeRevenueHero(summary: summary, monthRevenue: monthRevenue, monthGoal: monthGoal) { route = .performance }
                     .modifier(V32HomeEntrance(delay: 0, reduceMotion: reduceMotion))
@@ -72,15 +72,15 @@ struct HomeView: View {
                     .modifier(V32HomeEntrance(delay: 0.05, reduceMotion: reduceMotion))
                 if !memos.isEmpty {
                     V35HomeRecentMemo(memos: Array(memos.prefix(2))) { route = .memo }
-                        .padding(.top, 4)
+                        .padding(.top, 2)
                         .modifier(V32HomeEntrance(delay: 0.06, reduceMotion: reduceMotion))
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.top, 6)
+            .padding(.top, 4)
         }
         .scrollIndicators(.hidden)
-        .safeAreaPadding(.top, 12)
+        .safeAreaPadding(.top, 8)
         .v32PageBackground()
         .v32PageBottomInset()
         .alert("操作失败", isPresented: Binding(get: { stateActionError != nil }, set: { if !$0 { stateActionError = nil } })) {
@@ -145,13 +145,13 @@ struct HomeView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .bottom, spacing: 16) {
-            VStack(alignment: .leading, spacing: 3) {
+        HStack(alignment: .bottom, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(greetingPrefix)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(V32.textSecondary)
                 Text(ownerDisplayName)
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
                     .foregroundStyle(V32.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
@@ -161,14 +161,14 @@ struct HomeView: View {
                     .padding(.top, 1)
             }
             Spacer(minLength: 12)
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 weatherButton
                 Button { tab = .todo } label: {
                     ZStack(alignment: .topTrailing) {
                         Image(systemName: "bell")
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(V32.textPrimary)
-                            .frame(width: 36, height: 36)
+                            .frame(width: 32, height: 32)
                             .background(Circle().strokeBorder(V32.cardOutline, lineWidth: 1))
                         if !handlingItems.isEmpty {
                             Text("\(min(handlingItems.count, 9))")
@@ -201,16 +201,16 @@ struct HomeView: View {
 
     private var weatherButton: some View {
         Button { showWeatherSheet = true } label: {
-            HStack(spacing: 5) {
+            HStack(spacing: 4) {
                 Image(systemName: weatherModel.snapshot?.symbolName ?? "cloud.sun")
-                    .font(.system(size: 16, weight: .medium))
+                    .font(.system(size: 15, weight: .medium))
                 if let weather = weatherModel.snapshot {
                     Text("\(weather.roundedTemperature)°")
                         .font(.subheadline.weight(.semibold).monospacedDigit())
                 }
             }
             .foregroundStyle(V32.textSecondary)
-            .frame(width: 36, height: 36)
+            .frame(width: 32, height: 32)
             .background(Circle().strokeBorder(V32.cardOutline, lineWidth: 1))
         }
         .buttonStyle(V32PressButtonStyle())
@@ -285,9 +285,9 @@ struct HomeActionRow: View {
     let onTodoToggle: () -> Void
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 12) {
             leading
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
                     .v32Text(.title)
                     .foregroundStyle(V32.textPrimary)
@@ -308,8 +308,8 @@ struct HomeActionRow: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(V32.textQuaternary)
         }
-        .padding(.vertical, 14)
-        .frame(minHeight: 64)
+        .padding(.vertical, 11)
+        .frame(minHeight: 56)
         .contentShape(Rectangle())
     }
 

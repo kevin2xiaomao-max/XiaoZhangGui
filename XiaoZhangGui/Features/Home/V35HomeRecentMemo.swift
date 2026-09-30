@@ -6,7 +6,7 @@ struct V35HomeRecentMemo: View {
     let onTap: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             V32SectionHeader("最近备忘")
 
             Button(action: onTap) {
@@ -34,9 +34,9 @@ struct V35HomeRecentMemo: View {
                 .frame(width: 18)
                 .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(memo.title.isEmpty ? (memo.content.isEmpty ? "无标题" : memo.content) : memo.title)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.subheadline.weight(.medium))
                     .foregroundStyle(V32.textPrimary)
                     .lineLimit(1)
                 if !memo.content.isEmpty && !memo.title.isEmpty {
@@ -53,7 +53,7 @@ struct V35HomeRecentMemo: View {
                 .foregroundStyle(V32.textQuaternary)
                 .lineLimit(1)
         }
-        .padding(.vertical, 11)
-        .frame(minHeight: 44)
+        .padding(.vertical, 8)
+        .frame(minHeight: 40)
     }
 }

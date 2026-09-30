@@ -33,24 +33,26 @@ struct V36CircleIconButton: View {
 
 struct V36AccentRow<Content: View>: View {
     var accent: Color = V32.brand
+    /// V3.6.1 紧凑变体：仅日程时间轴使用，Todo 等其他调用方保持原尺寸。
+    var compact: Bool = false
     @ViewBuilder var content: Content
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: compact ? 10 : 12) {
             Capsule()
                 .fill(accent)
-                .frame(width: 3, height: 28)
+                .frame(width: compact ? 2.5 : 3, height: compact ? 24 : 28)
             content
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
+        .padding(.horizontal, compact ? 12 : 14)
+        .padding(.vertical, compact ? 9 : 12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: compact ? 13 : 16, style: .continuous)
                 .fill(V32.card)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: compact ? 13 : 16, style: .continuous)
                 .strokeBorder(V32.cardOutline, lineWidth: 1)
         )
     }
@@ -68,18 +70,18 @@ struct V36FloatingTabBar: View {
                     selection = item
                     Haptic.light()
                 } label: {
-                    HStack(spacing: 6) {
+                    HStack(spacing: 5) {
                         Image(systemName: item.icon)
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(.system(size: 14, weight: .semibold))
                         if selection == item {
                             Text(item.title)
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(.system(size: 12, weight: .semibold))
                                 .lineLimit(1)
                         }
                     }
                     .foregroundStyle(selection == item ? Color.white : V32.textTertiary)
-                    .padding(.horizontal, selection == item ? 14 : 10)
-                    .padding(.vertical, 10)
+                    .padding(.horizontal, selection == item ? 11 : 8)
+                    .padding(.vertical, 8)
                     .background(
                         Capsule().fill(selection == item ? V32.brand : Color.clear)
                     )
@@ -89,10 +91,10 @@ struct V36FloatingTabBar: View {
                 .accessibilityAddTraits(selection == item ? .isSelected : [])
             }
         }
-        .padding(6)
+        .padding(5)
         .background(.ultraThinMaterial, in: Capsule())
         .overlay(Capsule().strokeBorder(V32.cardOutline.opacity(0.8), lineWidth: 1))
-        .shadow(color: .black.opacity(0.08), radius: 16, y: 6)
+        .shadow(color: .black.opacity(0.06), radius: 12, y: 4)
         .padding(.horizontal, 18)
         .padding(.bottom, 8)
     }

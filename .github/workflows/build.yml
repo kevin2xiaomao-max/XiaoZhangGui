@@ -3,8 +3,9 @@ name: 小掌柜 3.5 构建
 on:
   push:
     # main / ios-dev 触发保持不变；V3.5 分支也自动运行完整 CI。
+    # V3.6.1 reference-home 分支：视觉收紧 + 双底栏修复轮次需要同样的构建/测试/IPA 验证。
     # Release 步骤仍另有分支条件，不会因此在其它分支发版。
-    branches: [ios-dev, main, redesign/v3.2.0, feature/v3.5-liquid-glass-leap, feature/v3.4-intelligence-experience, fix/v3.4-build34-real-data-repair]
+    branches: [ios-dev, main, redesign/v3.2.0, feature/v3.5-liquid-glass-leap, feature/v3.4-intelligence-experience, fix/v3.4-build34-real-data-repair, feature/v3.6.1-reference-home]
   workflow_dispatch:
 
 permissions:

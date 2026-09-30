@@ -9,12 +9,12 @@ struct V35HomeRevenueHero: View {
 
     var body: some View {
         Button(action: onTap) {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text("今日营业额")
                     .v32Text(.caption)
                     .foregroundStyle(V32.textTertiary)
                 Text("¥" + Fmt.groupedAmount(summary.revenue))
-                    .font(.system(size: 40, weight: .bold, design: .rounded))
+                    .font(.system(size: 34, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(V32.textPrimary)
                     .contentTransition(.numericText(value: summary.revenue))
@@ -24,15 +24,15 @@ struct V35HomeRevenueHero: View {
                     Text(String(format: "较昨日 %+.1f%%", change))
                         .v32Text(.pill)
                         .foregroundStyle(V32.brand)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
                         .background(Capsule().fill(V32.brandSoft))
                 } else if summary.yesterdayRevenue > 0 {
                     Text("昨天 ¥" + Fmt.groupedAmount(summary.yesterdayRevenue))
                         .v32Text(.pill)
                         .foregroundStyle(V32.brand)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
                         .background(Capsule().fill(V32.brandSoft))
                 }
             }

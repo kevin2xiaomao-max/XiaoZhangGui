@@ -97,9 +97,10 @@ struct AIChatView: View {
                 voiceOverlay
             }
         }
-        // V3.3 真机 hotfix：短语音面板展示 / 聆听期间隐藏底部 Tab 栏（Dock），
-        // 让面板完整使用底部安全区；取消 / 完成 / 失败关闭后自动恢复。
-        .toolbar(model.showVoicePanel ? .hidden : .visible, for: .tabBar)
+        // V3.6.1 P0 修复：系统 TabBar 必须彻底隐藏（RootView 已用 V36FloatingTabBar 接管）。
+        // 之前 showVoicePanel == false 时会把系统 TabBar 重新设为 visible，导致双底栏。
+        // 语音面板期间浮动 Bar 保持可见，由 voiceOverlay 全屏 dim 覆盖，不影响面板使用底部安全区。
+        .toolbar(.hidden, for: .tabBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
