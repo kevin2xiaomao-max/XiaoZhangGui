@@ -1,9 +1,6 @@
 import SwiftData
 import SwiftUI
 
-// MARK: - 日程（V32）：周条 + 当日时间轴 + 全天事项 + 经营摘要
-// 数据复用 CalendarAgenda + ScheduleAgenda；完整月历为二级入口（CalendarView）。
-
 struct ScheduleView: View {
     @Query private var todos: [Todo]
     @Query private var performances: [Performance]
@@ -20,7 +17,7 @@ struct ScheduleView: View {
 
     private var calendar: Calendar {
         var c = Calendar.current
-        c.firstWeekday = 2 // 周一起始
+        c.firstWeekday = 2
         return c
     }
 
@@ -39,16 +36,10 @@ struct ScheduleView: View {
     private var scheduleDay: ScheduleDay {
         let undated = todos.filter { !$0.isCompleted && $0.dueDate == nil }
         var day = ScheduleAgenda.make(from: dayData, undatedTodos: undated)
-        // P1-1：已完成项按 completedAt 归属当天（与首页「今日已完成」同一事实源），
-        // 分类逻辑在 ScheduleAgenda 纯函数内（可单测）；
-        // 不改 CalendarAgenda.dayData / eventFlags 口径。
         let done = ScheduleAgenda.completedTodosForDay(
             todos.filter(\.isCompleted), date: selectedDate, calendar: calendar
         )
         day.timedEvents += done.timed
-
-        // P1-1：补齐「当天完成、但配送时间不在今天」的 done 配送（去重 dayData 已收录项），
-        // 保证首页今日完成计数点进来后每一项都能在当天日程追踪到。
         let existingDeliveryIDs = Set(
             day.timedEvents.map(\.id)
             + day.allDay.deliveries.map { "delivery-\($0.notificationID)" }
@@ -89,9 +80,7 @@ struct ScheduleView: View {
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button("今天") { selectedDate = Date() }
-                NavigationLink {
-                    CalendarView()
-                } label: {
+                NavigationLink { CalendarView() } label: {
                     Image(systemName: "calendar")
                 }
                 .accessibilityLabel("完整月历")
@@ -99,46 +88,11 @@ struct ScheduleView: View {
         }
     }
 
-    // MARK: 顶部
-
-    private var header: some View {
-        HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("日程")
-                    .v32Text(.pageTitle)
-                    .foregroundStyle(V32.textPrimary)
-                Text("今日事，今日毕")
-                    .v32Text(.subhead)
-                    .foregroundStyle(V32.textTertiary)
-            }
-            Spacer()
-            NavigationLink {
-                CalendarView()
-            } label: {
-                Image(systemName: "calendar")
-                    .font(.system(size: V32Layout.toolIcon, weight: .semibold))
-                    .foregroundStyle(V32.textSecondary)
-                    .frame(width: V32Layout.toolCircle, height: V32Layout.toolCircle)
-                    .background(
-                        Circle()
-                            .fill(V32.card)
-                            .overlay(Circle().strokeBorder(V32.cardOutline, lineWidth: 1))
-                    )
-            }
-            .buttonStyle(V32PressButtonStyle())
-            .accessibilityLabel("完整月历")
-        }
-    }
-
     private var monthLabel: some View {
-        HStack(spacing: 6) {
-            Text(selectedDate, format: .dateTime.year().month(.wide).locale(Locale(identifier: "zh_CN")))
-                .v32Text(.headline)
-                .foregroundStyle(V32.textPrimary)
-        }
+        Text(selectedDate, format: .dateTime.year().month(.wide).locale(Locale(identifier: "zh_CN")))
+            .v32Text(.headline)
+            .foregroundStyle(V32.textPrimary)
     }
-
-    // MARK: 周条（周一~周日，选中为深墨绿圆角块）
 
     private var weekDays: [Date] {
         guard let weekStart = calendar.dateInterval(of: .weekOfYear, for: selectedDate)?.start else { return [] }
@@ -153,7 +107,6 @@ struct ScheduleView: View {
                 monthArrow("chevron.left") { shiftMonth(-1) }
                 monthArrow("chevron.right") { shiftMonth(1) }
             }
-
             HStack(spacing: 6) {
                 ForEach(weekDays, id: \.self) { date in
                     weekDayCell(date)
@@ -183,7 +136,6 @@ struct ScheduleView: View {
         let weekday = calendar.component(.weekday, from: date)
         let symbols = ["日", "一", "二", "三", "四", "五", "六"]
         let day = calendar.component(.day, from: date)
-
         return Button {
             selectedDate = date
             Haptic.light()
@@ -191,24 +143,15 @@ struct ScheduleView: View {
             VStack(spacing: 6) {
                 Text(symbols[weekday - 1])
                     .v32Text(.caption)
+                    .foregroundStyle(isSelected || isToday ? V32.brand : V32.textTertiary)
                 Text("\(day)")
-                    .v32Text(.headline)
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(isSelected ? Color.white : V32.textPrimary)
+                    .frame(width: 32, height: 32)
+                    .background(Circle().fill(isSelected ? V32.brand : Color.clear))
             }
-            .foregroundStyle(isSelected ? V32.textPrimary : (isToday ? V32.brand : V32.textSecondary))
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 9)
-            .background(
-                RoundedRectangle(cornerRadius: 13, style: .continuous)
-                    .fill(isSelected ? ThemeStore.shared.accentPalette.selectedTint : Color.clear)
-            )
-            .overlay(alignment: .bottom) {
-                if isToday && !isSelected {
-                    Circle()
-                        .fill(V32.brand)
-                        .frame(width: 4, height: 4)
-                        .padding(.bottom, 3)
-                }
-            }
+            .padding(.vertical, 4)
         }
         .buttonStyle(V32PressButtonStyle())
     }
@@ -218,8 +161,6 @@ struct ScheduleView: View {
             selectedDate = date
         }
     }
-
-    // MARK: 时间轴
 
     @ViewBuilder
     private var timelineSection: some View {
@@ -259,7 +200,6 @@ struct ScheduleView: View {
         return false
     }
 
-    /// P1-4：已完成配送在日程时间线同样弱化
     private func isCompletedDelivery(_ event: ScheduleEvent) -> Bool {
         if case .delivery(let request, _) = event { return request.statusEnum == .done }
         return false
@@ -267,7 +207,8 @@ struct ScheduleView: View {
 
     private func timelineCard(_ event: ScheduleEvent, chevron: Bool) -> some View {
         let done = isCompletedTodo(event) || isCompletedDelivery(event)
-        return HStack(spacing: 12) {
+        return V36AccentRow(accent: done ? V32.neutral : V32.brand) {
+            HStack(spacing: 12) {
                 eventIcon(event)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(eventTitle(event))
@@ -287,11 +228,8 @@ struct ScheduleView: View {
                         .foregroundStyle(V32.textQuaternary)
                 }
             }
-            .padding(.vertical, 10)
-            .contentShape(Rectangle())
+        }
     }
-
-    // MARK: 全天事项
 
     @ViewBuilder
     private var allDaySection: some View {
@@ -303,7 +241,6 @@ struct ScheduleView: View {
                         .foregroundStyle(V32.textTertiary)
                 }
             }
-
             if scheduleDay.allDay.isEmpty && scheduleDay.timedEvents.isEmpty {
                 V32FieldGroup {
                     V32EmptyState(systemName: "sun.max", title: "该日期暂无事项", message: "这一天还没有安排")
@@ -405,11 +342,9 @@ struct ScheduleView: View {
         .contentShape(Rectangle())
     }
 
-    /// 临期卡默认折叠，点击展开备注/照片
     private func expiryRow(_ item: ExpiryItem) -> some View {
         let isExpanded = expandedExpiry.contains(item.notificationID)
         let days = item.daysLeft(from: selectedDate)
-
         return VStack(spacing: 0) {
             Button {
                 withAnimation(V32Motion.animation(V32Motion.resolve(.spring, reduceMotion: reduceMotion))) {
@@ -438,7 +373,6 @@ struct ScheduleView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(V32PressButtonStyle())
-
             if isExpanded {
                 VStack(alignment: .leading, spacing: 10) {
                     if !item.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -474,8 +408,6 @@ struct ScheduleView: View {
         return "\(days) 天后到期"
     }
 
-    // MARK: 当日经营摘要（不逐笔列流水）
-
     @ViewBuilder
     private var summarySection: some View {
         let s = scheduleDay.summary
@@ -497,12 +429,8 @@ struct ScheduleView: View {
     }
 
     private var divider: some View {
-        Rectangle()
-            .fill(V32.divider)
-            .frame(width: 1, height: 34)
+        Rectangle().fill(V32.divider).frame(width: 1, height: 34)
     }
-
-    // MARK: 事件展示辅助
 
     @ViewBuilder
     private func eventIcon(_ event: ScheduleEvent) -> some View {
