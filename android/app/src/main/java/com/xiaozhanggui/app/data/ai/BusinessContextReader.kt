@@ -11,7 +11,6 @@ import com.xiaozhanggui.app.domain.ai.BusinessRecordKind
 import com.xiaozhanggui.app.domain.ai.SearchRecordsArguments
 import kotlinx.coroutines.flow.first
 import java.time.Instant
-import java.time.LocalDate
 import java.time.ZoneId
 
 /**
@@ -119,7 +118,7 @@ class BusinessContextReader(
             .sortedBy { it.expiryDate }
         if (items.isEmpty()) return "7 天内没有临期或过期商品。"
         val lines = items.take(8).map { item ->
-            val day = LocalDate.ofInstant(Instant.ofEpochMilli(item.expiryDate), zone)
+            val day = Instant.ofEpochMilli(item.expiryDate).atZone(zone).toLocalDate()
             "- ${item.name}：到期 $day"
         }
         return "7 天内临期 / 已过期共 ${items.size} 件：\n" + lines.joinToString("\n")
