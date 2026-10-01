@@ -175,7 +175,6 @@ fun CalendarContent(
         }
     }
 }
-}
 
 /** 月份导航：chevron.left /「2026年10月」/ chevron.right。对应 iOS monthNavigator。 */
 @Composable
