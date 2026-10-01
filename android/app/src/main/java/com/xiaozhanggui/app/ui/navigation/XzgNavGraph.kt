@@ -25,8 +25,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.xiaozhanggui.app.ui.screens.AssistantPhase4Stub
-import com.xiaozhanggui.app.ui.screens.SchedulePlaceholderScreen
+import com.xiaozhanggui.app.ui.screens.ai.AIChatScreen
 import com.xiaozhanggui.app.ui.screens.customer.CustomerScreen
 import com.xiaozhanggui.app.ui.screens.expiry.ExpiryScreen
 import com.xiaozhanggui.app.ui.screens.goods.GoodsScreen
@@ -38,8 +37,12 @@ import com.xiaozhanggui.app.ui.screens.paymentcode.PaymentCodeScreen
 import com.xiaozhanggui.app.ui.screens.performance.PerformanceScreen
 import com.xiaozhanggui.app.ui.screens.performance.TransactionHistoryScreen
 import com.xiaozhanggui.app.ui.screens.profile.ProfileScreen
+import com.xiaozhanggui.app.ui.screens.quickrecord.QuickRecordSheetContent
+import com.xiaozhanggui.app.ui.screens.schedule.CalendarScreen
+import com.xiaozhanggui.app.ui.screens.schedule.ScheduleScreen
 import com.xiaozhanggui.app.ui.screens.todo.MemoScreen
 import com.xiaozhanggui.app.ui.screens.todo.TodoScreen
+import com.xiaozhanggui.app.ui.screens.voice.VoiceSheetContent
 import com.xiaozhanggui.app.ui.theme.LocalXzgPalettes
 import com.xiaozhanggui.app.ui.theme.XzgType
 import kotlinx.coroutines.launch
@@ -54,8 +57,7 @@ import kotlinx.coroutines.launch
  *   （home Tab 由 HomeDrawer 包裹，抽屉的 onNavigate(route)/onOpenSheet(name)
  *   回到此处处理）；另有 performance（经营数据页，由首页营业额 Hero 进入）。
  * - 「工具」路由：paymentcode（由 ProfileScreen 的「收款码」行触发）。
- * - Root 级 Sheet：report（今日经营报告）/ quickrecord / voice / saobei（扫呗导入）；
- *   quickrecord/voice 当前为桩 Sheet，Phase 4 实现真正的打开逻辑。
+ * - Root 级 Sheet：report（今日经营报告）/ quickrecord / voice / saobei（扫呗导入）。
  * - 深链接：MainActivity 把解析出的 [DeepLinkAction] 经 [deepLinkAction] 传入，
  *   此处 remember 暂存为 pending，经 LaunchedEffect 处理后通过 [onDeepLink]
  *   回调通知 MainActivity 已消费。
@@ -89,8 +91,9 @@ fun XzgNavGraph(
             DeepLinkAction.OpenAssistantTab ->
                 navController.navigateToTab(XzgTab.ASSISTANT)
             DeepLinkAction.OpenAssistantVoice -> {
-                // 切换到小掌柜 Tab；语音打开逻辑 Phase 4 实现
+                // 切换到小掌柜 Tab 并打开语音 Sheet（AI 语音面板）
                 navController.navigateToTab(XzgTab.ASSISTANT)
+                activeSheet = RootSheet.VOICE
             }
             null, DeepLinkAction.Ignore -> {}
         }
@@ -174,10 +177,15 @@ fun XzgNavGraph(
                 }
             }
             composable(XzgTab.SCHEDULE.route) {
-                SchedulePlaceholderScreen("日程 Phase 3b")
+                ScheduleScreen(
+                    onOpenCalendar = { navController.navigate("calendar") },
+                    onTodoClick = { navController.navigate(XzgTab.TODO.route) { launchSingleTop = true } },
+                    onExpiryClick = { navController.navigate("expiry") { launchSingleTop = true } },
+                    onCustomerClick = { navController.navigate("customer") { launchSingleTop = true } },
+                )
             }
             composable(XzgTab.ASSISTANT.route) {
-                AssistantPhase4Stub()
+                AIChatScreen(onVoice = { activeSheet = RootSheet.VOICE })
             }
             composable(XzgTab.TODO.route) {
                 TodoScreen()
@@ -205,6 +213,7 @@ fun XzgNavGraph(
             composable("expiry") { ExpiryScreen() }
             composable("goods") { GoodsScreen() }
             composable("memo") { MemoScreen() }
+            composable("calendar") { CalendarScreen() }
             // ---- 工具页 ----
             composable("paymentcode") {
                 PaymentCodeScreen(onBack = { navController.popBackStack() })
@@ -219,9 +228,9 @@ fun XzgNavGraph(
                 RootSheet.REPORT ->
                     DailyReportSheet(onDismiss = { activeSheet = null })
                 RootSheet.QUICK_RECORD ->
-                    QuickRecordStubSheet(onDismiss = { activeSheet = null })
+                    QuickRecordSheetContent(onDismiss = { activeSheet = null })
                 RootSheet.VOICE ->
-                    VoiceStubSheet(onDismiss = { activeSheet = null })
+                    VoiceSheetContent(onDismiss = { activeSheet = null })
                 RootSheet.SAOBEI ->
                     SaobeiImportSheet(onDismiss = { activeSheet = null })
             }

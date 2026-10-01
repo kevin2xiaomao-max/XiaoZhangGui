@@ -72,6 +72,8 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.core)
+    implementation(libs.okhttp.okhttp3)
+    implementation(libs.androidx.security.crypto)
 
     testImplementation(libs.junit.junit)
     testImplementation(libs.kotlinx.coroutines.test)
