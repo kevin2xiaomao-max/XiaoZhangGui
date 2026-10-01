@@ -133,12 +133,12 @@ jobs:
           avd-cache: true
           disable-animations: true
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
-          # 只跑 e2e 包（package 过滤），不重复跑 Worker A 的 UI 测试；
+          # 跑全部 connectedAndroidTest（Worker A 的 Compose UI 测试 + e2e 包旅程），两类互不重复；
           # 失败时先抓 logcat 再退出，保证 artifact 里有现场日志
           script: |
             cd android
             set +e
-            ./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=com.xiaozhanggui.app.e2e --stacktrace
+            ./gradlew connectedDebugAndroidTest --stacktrace
             STATUS=$?
             adb logcat -d > "$GITHUB_WORKSPACE/e2e-logcat.txt" || true
             exit $STATUS
