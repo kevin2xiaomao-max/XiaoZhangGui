@@ -29,6 +29,7 @@ import com.xiaozhanggui.app.domain.ai.ProposalStatus
 import com.xiaozhanggui.app.domain.ai.ToolCall
 import com.xiaozhanggui.app.domain.ai.ToolCatalog
 import com.xiaozhanggui.app.domain.ai.ToolName
+import com.xiaozhanggui.app.domain.ai.fieldRows
 import com.xiaozhanggui.app.ui.components.BubbleTone
 import com.xiaozhanggui.app.ui.components.V32Card
 import com.xiaozhanggui.app.ui.components.V32IconBubble
@@ -92,13 +93,13 @@ fun ActionCardView(
                     rows.forEach { row ->
                         Row(modifier = Modifier.fillMaxWidth()) {
                             Text(
-                                text = row.label,
+                                text = row.first,
                                 style = XzgType.caption,
                                 color = palettes.background.textTertiary,
                                 modifier = Modifier.width(64.dp)
                             )
                             Text(
-                                text = row.value,
+                                text = row.second,
                                 style = XzgType.body,
                                 color = palettes.background.textPrimary,
                                 modifier = Modifier.weight(1f)

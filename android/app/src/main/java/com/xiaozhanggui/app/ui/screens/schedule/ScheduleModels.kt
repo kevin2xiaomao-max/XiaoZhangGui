@@ -24,14 +24,13 @@ import com.xiaozhanggui.app.domain.Format
 
 /** 定时事件。对应 iOS ScheduleEvent。 */
 sealed interface ScheduleEvent {
-    data class Todo(val todo: TodoEntity) : ScheduleEvent
-    data class Delivery(val request: CustomerRequestEntity, val date: Long) : ScheduleEvent
-
     val date: Long
-        get() = when (this) {
-            is Todo -> todo.dueDate ?: 0L
-            is Delivery -> date
-        }
+
+    data class Todo(val todo: TodoEntity) : ScheduleEvent {
+        override val date: Long get() = todo.dueDate ?: 0L
+    }
+
+    data class Delivery(val request: CustomerRequestEntity, override val date: Long) : ScheduleEvent
 }
 
 /** 全天事项分组。对应 iOS ScheduleAllDay。 */

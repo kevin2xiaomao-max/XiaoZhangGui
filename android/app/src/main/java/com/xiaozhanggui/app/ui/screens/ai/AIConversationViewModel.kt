@@ -7,6 +7,7 @@ import com.xiaozhanggui.app.data.ai.AiAssembly
 import com.xiaozhanggui.app.data.ai.AiDependencies
 import com.xiaozhanggui.app.data.di.XzgGraph
 import com.xiaozhanggui.app.domain.ai.ActionProposal
+import com.xiaozhanggui.app.domain.ai.AiRole
 import com.xiaozhanggui.app.domain.ai.AiUiMessage
 import com.xiaozhanggui.app.domain.ai.ProposalStatus
 import kotlinx.coroutines.flow.MutableStateFlow

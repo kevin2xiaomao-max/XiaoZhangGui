@@ -389,7 +389,7 @@ object DatePhraseParser {
         val token: String,
         val hour: Int,
         val minute: Int,
-        val ambiguous: Bool,
+        val ambiguous: Boolean,
     )
 
     private fun clockMatch(text: String): Clock? {

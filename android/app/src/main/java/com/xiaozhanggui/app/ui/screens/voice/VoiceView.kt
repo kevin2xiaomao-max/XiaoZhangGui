@@ -62,8 +62,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.semantics.invisibleToUser
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -363,7 +361,7 @@ private fun VoicePreviewSection(
             options = types.map { it.title },
             selectedIndex = types.indexOf(draft.type).coerceAtLeast(0),
             onSelect = { index ->
-                haptic.performHapticFeedback(HapticFeedbackType.TextHandle)
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 vm.setRecordType(types[index])
             },
         )
@@ -477,7 +475,7 @@ private fun CompactVoiceWaveform(modifier: Modifier = Modifier) {
     val palettes = LocalXzgPalettes.current
     val transition = rememberInfiniteTransition(label = "voiceWave")
     Row(
-        modifier = modifier.semantics { invisibleToUser() },
+        modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

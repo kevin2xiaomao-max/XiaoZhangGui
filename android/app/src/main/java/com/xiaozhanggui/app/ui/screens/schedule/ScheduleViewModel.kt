@@ -80,8 +80,16 @@ class ScheduleViewModel(
 
     private val tables: StateFlow<ScheduleTables> = combine(
         todos, performances, expenses, expiryItems, customers, memos
-    ) { ts, ps, es, xs, cs, ms ->
-        ScheduleTables(ts, ps, es, xs, cs, ms)
+    ) { args ->
+        @Suppress("UNCHECKED_CAST")
+        ScheduleTables(
+            args[0] as List<TodoEntity>,
+            args[1] as List<PerformanceEntity>,
+            args[2] as List<ExpenseEntity>,
+            args[3] as List<ExpiryItemEntity>,
+            args[4] as List<CustomerRequestEntity>,
+            args[5] as List<MemoEntity>,
+        )
     }.stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5000),
         ScheduleTables(emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList())

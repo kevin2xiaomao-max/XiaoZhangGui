@@ -22,7 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Sparkles
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -66,14 +66,15 @@ import com.xiaozhanggui.app.ui.theme.XzgType
 fun AIChatScreen(
     onVoice: () -> Unit = {},
     modifier: Modifier = Modifier,
-    viewModel: AIConversationViewModel = viewModel(
+) {
+    val context = LocalContext.current
+    val viewModel: AIConversationViewModel = viewModel(
         factory = XzgGraph.vmFactory {
             AIConversationViewModel(
-                (LocalContext.current.applicationContext as XzgApplication)
+                context.applicationContext as XzgApplication
             )
         }
     )
-) {
     val palettes = LocalXzgPalettes.current
     val ready by viewModel.ready.collectAsState()
     val messages by viewModel.messages.collectAsState()
@@ -218,7 +219,7 @@ private fun EmptyState(onExample: (String) -> Unit) {
     val palettes = LocalXzgPalettes.current
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         V32EmptyState(
-            icon = Icons.Filled.Sparkles,
+            icon = Icons.Filled.AutoAwesome,
             title = "我是小掌柜",
             message = "说句话或点个例子，我先整理成确认卡，你确认后才记录。"
         )

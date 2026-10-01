@@ -128,7 +128,7 @@ fun AIProviderSettingsSheet(
             ) {
                 TextButton(onClick = onDismiss) { Text("取消") }
                 Spacer(modifier = Modifier.weight(1f))
-                Text(text = "AI 设置", style = XzgType.title3, color = palettes.background.textPrimary)
+                Text(text = "AI 设置", style = XzgType.headline, color = palettes.background.textPrimary)
                 Spacer(modifier = Modifier.weight(1f))
                 TextButton(onClick = {
                     val d = draft ?: return@TextButton
