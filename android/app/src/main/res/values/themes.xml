@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Compose 接管全部 UI；Activity 主题仅作启动底色，实际配色由 XzgTheme 提供 -->
+    <style name="Theme.XiaoZhangGui" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/xzg_window_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>

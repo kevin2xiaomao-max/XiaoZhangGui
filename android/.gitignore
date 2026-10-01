@@ -1,0 +1,8 @@
+# Gradle / Android build outputs — never commit
+local.properties
+build/
+.gradle/
+*.iml
+.idea/
+# OS
+.DS_Store

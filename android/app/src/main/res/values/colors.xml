@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 启动窗口底色 = V32 warmCream light pageBG -->
+    <color name="xzg_window_background">#F4F1E8</color>
+    <color name="ic_launcher_background">#2F6B4F</color>
+</resources>

@@ -1,0 +1,77 @@
+name: 小掌柜 Android V3.6 构建
+
+on:
+  push:
+    branches: [android/v3.6]
+    paths:
+      - 'android/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: xzg-android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Android assembleDebug / test / lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - name: 检出源码
+        uses: actions/checkout@v4
+
+      - name: 安装 JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle 缓存
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/gradle/libs.versions.toml', 'android/settings.gradle.kts') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: 校验 wrapper
+        run: |
+          set -euo pipefail
+          test -x gradlew
+          test -f gradle/wrapper/gradle-wrapper.jar
+          test -f gradle/wrapper/gradle-wrapper.properties
+          ./gradlew --version
+
+      - name: assembleDebug
+        run: ./gradlew clean assembleDebug --stacktrace
+
+      - name: 单元测试
+        run: ./gradlew test --stacktrace
+
+      - name: Lint
+        run: ./gradlew lint --stacktrace
+
+      - name: 上传 Debug APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xiaozhanggui-android-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: warn
+
+      - name: 上传测试报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xiaozhanggui-android-test-reports
+          path: android/app/build/reports/tests/
+          if-no-files-found: warn

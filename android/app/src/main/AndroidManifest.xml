@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- 语音记一笔：麦克风 + 语音识别（对应 iOS NSMicrophoneUsageDescription / NSSpeechRecognitionUsageDescription） -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- 天气定位：仅粗略定位，对应 iOS kCLLocationAccuracyKilometer -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- 本地通知（Android 13+ 运行时权限） -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 精确闹钟：待办/临期提醒（Android 12+ 特殊权限，可被用户撤销，需降级处理） -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- 重启后恢复通知调度 -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- 前台服务：持续性通知（Live Activity 等价） -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
+    <application
+        android:name=".XzgApplication"
+        android:label="你的小掌柜"
+        android:icon="@mipmap/ic_launcher"
+        android:theme="@style/Theme.XiaoZhangGui"
+        android:allowBackup="true"
+        android:supportsRtl="true"
+        tools:targetApi="35">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- 深链接 xzg://（对应 iOS AppDeepLink）：ai / voice / quickrecord / quick -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="xzg" android:host="ai" />
+                <data android:scheme="xzg" android:host="voice" />
+                <data android:scheme="xzg" android:host="quickrecord" />
+                <data android:scheme="xzg" android:host="quick" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
