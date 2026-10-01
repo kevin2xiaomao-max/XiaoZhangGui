@@ -23,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.xiaozhanggui.app.domain.ai.ActionProposal
 import com.xiaozhanggui.app.domain.ai.ProposalStatus
@@ -66,7 +67,7 @@ fun ActionCardView(
         if (arguments != null) arguments.fieldRows() else emptyList()
     }
 
-    V32Card(modifier = modifier) {
+    V32Card(modifier = modifier.testTag("ai.actionCard")) {
         Column(modifier = Modifier.padding(4.dp)) {
             // 标题行
             Row(verticalAlignment = Alignment.CenterVertically) {
