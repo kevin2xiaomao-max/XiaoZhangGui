@@ -39,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.xiaozhanggui.app.data.db.TodoEntity
 import com.xiaozhanggui.app.domain.DateExt
@@ -282,7 +283,8 @@ internal fun TodoEditorContent(
                         value = title,
                         onValueChange = { title = it },
                         placeholder = "要做什么？",
-                        singleLine = true
+                        singleLine = true,
+                        modifier = Modifier.testTag("todo.titleInput")
                     )
                     HorizontalDivider(color = palettes.background.divider)
                     XzgSheetTextField(
@@ -290,7 +292,8 @@ internal fun TodoEditorContent(
                         onValueChange = { detail = it },
                         placeholder = "补充说明（可选）",
                         minLines = 3,
-                        maxLines = 6
+                        maxLines = 6,
+                        modifier = Modifier.testTag("todo.detailInput")
                     )
                 }
             }
@@ -321,6 +324,7 @@ internal fun TodoEditorContent(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .testTag("todo.dateRow")
                                 .clickable(onClick = { pickDateTime() })
                                 .padding(vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -375,7 +379,9 @@ internal fun TodoEditorContent(
             V32PrimaryButton(
                 text = "保存",
                 onClick = { doSave() },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("todo.saveButton"),
                 enabled = canSave
             )
     }

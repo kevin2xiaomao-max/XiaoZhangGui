@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -387,6 +388,7 @@ fun TodoContent(
     val overdueCount = remember(todos) { filterTodos(todos, TodoTab.OVERDUE).size }
 
     Scaffold(
+        modifier = Modifier.testTag("todo.screen"),
         containerColor = palettes.background.pageBG,
         topBar = {
             TopAppBar(
@@ -426,6 +428,7 @@ fun TodoContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = XzgDimens.pageMargin)
+                    .testTag("todo.tabPicker")
             )
             Spacer(Modifier.height(12.dp))
 
@@ -625,7 +628,8 @@ private fun TodoListRow(
         V32Checkbox(
             checked = todo.isCompleted,
             // V32Checkbox 无 enabled 参数：300ms 防抖窗口内的点击在回调里直接忽略
-            onCheckedChange = { if (toggleEnabled) onToggle() }
+            onCheckedChange = { if (toggleEnabled) onToggle() },
+            modifier = Modifier.testTag("todo.toggle")
         )
         Column(
             modifier = Modifier

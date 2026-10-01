@@ -60,6 +60,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -639,6 +640,7 @@ private fun RevenueHero(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
+            .testTag("home.heroRevenue")
             .background(
                 Brush.linearGradient(
                     colors = listOf(accent.heroStart, accent.heroEnd),
@@ -800,7 +802,7 @@ private fun FocusSection(
 ) {
     val bg = LocalXzgPalettes.current.background
     Column(
-        modifier = modifier,
+        modifier = modifier.testTag("home.todaySection"),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         V32SectionHeader("今日事项")
@@ -902,7 +904,9 @@ private fun RecentMemo(
     val palettes = LocalXzgPalettes.current
     val bg = palettes.background
     Column(
-        modifier = modifier.padding(top = 4.dp),
+        modifier = modifier
+            .padding(top = 4.dp)
+            .testTag("home.memoSection"),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         V32SectionHeader("最近备忘")

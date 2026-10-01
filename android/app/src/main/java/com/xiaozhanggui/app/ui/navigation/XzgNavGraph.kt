@@ -95,6 +95,8 @@ fun XzgNavGraph(
                 navController.navigateToTab(XzgTab.ASSISTANT)
                 activeSheet = RootSheet.VOICE
             }
+            DeepLinkAction.OpenTodoTab ->
+                navController.navigateToTab(XzgTab.TODO)
             null, DeepLinkAction.Ignore -> {}
         }
         val consumed = pendingDeepLink

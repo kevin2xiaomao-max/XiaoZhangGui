@@ -36,6 +36,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -287,7 +288,9 @@ internal fun MoneyEditorContent(
                     ),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("money.amountInput"),
                     decorationBox = { innerTextField ->
                         Box {
                             if (amountText.isEmpty()) {
@@ -320,7 +323,9 @@ internal fun MoneyEditorContent(
                 onValueChange = { note = it },
                 textStyle = XzgType.body.copy(color = palettes.background.textPrimary),
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("money.noteInput"),
                 decorationBox = { innerTextField ->
                     Box {
                         if (note.isEmpty()) {
@@ -388,6 +393,7 @@ internal fun MoneyEditorContent(
         V32PrimaryButton(
             text = "保存",
             onClick = ::save,
+            modifier = Modifier.testTag("money.saveButton"),
             enabled = amount != null
         )
     }
