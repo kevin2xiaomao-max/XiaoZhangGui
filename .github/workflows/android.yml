@@ -54,14 +54,18 @@ jobs:
       - name: assembleDebug
         run: ./gradlew clean assembleDebug --stacktrace
 
+      # 先录制 Paparazzi 黄金图，再跑单元测试：
+      # Paparazzi 1.x 在 verify 模式下遇到缺失的黄金图会直接失败，
+      # 若 test 先跑，record 步骤永远到不了，截图 artifact 也产不出。
+      # record 之后 test 内的 Paparazzi 用例会对刚录制的图做 verify。
+      - name: Paparazzi 截图（Visual Gate）
+        run: ./gradlew recordPaparazziDebug --stacktrace
+
       - name: 单元测试
         run: ./gradlew test --stacktrace
 
       - name: Lint
         run: ./gradlew lint --stacktrace
-
-      - name: Paparazzi 截图（Visual Gate）
-        run: ./gradlew recordPaparazziDebug --stacktrace
 
       - name: 上传 Paparazzi 截图
         if: always()
