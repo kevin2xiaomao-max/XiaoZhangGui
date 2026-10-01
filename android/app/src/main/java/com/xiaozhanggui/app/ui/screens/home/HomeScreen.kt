@@ -10,11 +10,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -170,8 +172,18 @@ class HomeViewModel(
         settings.ownerName,
         settings.monthGoal,
         _actionError
-    ) { todos, performances, expiryItems, customers, memos, ownerName, monthGoal, actionError ->
-        buildState(todos, performances, expiryItems, customers, memos, ownerName, monthGoal, actionError)
+    ) { args: Array<Any?> ->
+        @Suppress("UNCHECKED_CAST")
+        buildState(
+            args[0] as List<TodoEntity>,
+            args[1] as List<PerformanceEntity>,
+            args[2] as List<ExpiryItemEntity>,
+            args[3] as List<CustomerRequestEntity>,
+            args[4] as List<MemoEntity>,
+            args[5] as String,
+            args[6] as Double,
+            args[7] as String?
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HomeUiState())
 
     /** 今日事项行勾选待办（对应 iOS toggleTodo，走 TodoRepository.toggleComplete） */
@@ -326,7 +338,7 @@ class HomeViewModel(
                     title = "${DisplayLogic.visible(item.name, "临期商品")} × ${item.quantity}",
                     subtitle = when {
                         days < 0 -> "已临期"
-                        days == 0 -> "今天临期"
+                        days == 0L -> "今天临期"
                         else -> "即将临期"
                     },
                     time = if (days <= 0) "今天" else "${days}天",

@@ -43,7 +43,7 @@ import com.xiaozhanggui.app.ui.components.V32SearchField
 import com.xiaozhanggui.app.ui.theme.LocalXzgPalettes
 import com.xiaozhanggui.app.ui.theme.XzgDimens
 import com.xiaozhanggui.app.ui.theme.XzgType
-import kotlinx.coroutines.SharingStarted
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow

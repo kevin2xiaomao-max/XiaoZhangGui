@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -68,7 +69,7 @@ import com.xiaozhanggui.app.ui.components.V32SegmentedPicker
 import com.xiaozhanggui.app.ui.theme.LocalXzgPalettes
 import com.xiaozhanggui.app.ui.theme.XzgDimens
 import com.xiaozhanggui.app.ui.theme.XzgType
-import kotlinx.coroutines.SharingStarted
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -79,7 +80,7 @@ import kotlinx.coroutines.launch
 /**
  * 通用错误弹窗数据（标题 + 消息），待办/备忘两屏共用。
  */
-internal data class ScreenError(val title: String, val message: String)
+data class ScreenError(val title: String, val message: String)
 
 /** 待办 5 个 tab，对应 iOS TodoModel.TodoFilter。emptyText 逐字对应 iOS TodoFilter.emptyText。 */
 enum class TodoTab(val label: String, val emptyText: String) {

@@ -330,7 +330,11 @@ object SaobeiXLSXParser {
         val sheetTargets = parseWorkbook(workbookData, relsData)
         var sheetData: ByteArray? = null
         for (target in sheetTargets) {
-            findFile(files, target)?.let { sheetData = it; break }
+            val data = findFile(files, target)
+            if (data != null) {
+                sheetData = data
+                break
+            }
         }
         if (sheetData == null) {
             sheetData = files.entries

@@ -18,6 +18,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Inbox
@@ -130,7 +132,7 @@ data class PerformanceRowItem(
     val expense: ExpenseEntity?
 )
 
-private fun toRowItem(p: PerformanceEntity): PerformanceRowItem = PerformanceRowItem(
+internal fun toRowItem(p: PerformanceEntity): PerformanceRowItem = PerformanceRowItem(
     id = "p-${p.id}",
     title = DisplayLogic.performanceTitle(p),
     amount = p.amount,
