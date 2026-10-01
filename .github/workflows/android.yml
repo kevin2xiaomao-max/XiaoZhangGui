@@ -95,8 +95,11 @@ jobs:
     name: E2E 模拟器测试（connectedDebugAndroidTest）
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    # 与 build job 并行：模拟器 E2E 只跑 com.xiaozhanggui.app.e2e 包，
-    # 与 Worker A 的本地 UI 测试（test/ + Paparazzi）互不重叠。
+    defaults:
+      run:
+        working-directory: android
+    # 与 build job 并行：模拟器 E2E 跑全部 connectedAndroidTest
+    #（Worker A 的 Compose UI 测试 + e2e 包旅程），与 test/ 单元测试互不重叠。
     steps:
       - name: 检出源码
         uses: actions/checkout@v4
@@ -133,15 +136,9 @@ jobs:
           avd-cache: true
           disable-animations: true
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
-          # 跑全部 connectedAndroidTest（Worker A 的 Compose UI 测试 + e2e 包旅程），两类互不重复；
-          # 失败时先抓 logcat 再退出，保证 artifact 里有现场日志
-          script: |
-            cd android
-            set +e
-            ./gradlew connectedDebugAndroidTest --stacktrace
-            STATUS=$?
-            adb logcat -d > "$GITHUB_WORKSPACE/e2e-logcat.txt" || true
-            exit $STATUS
+          # 注意：emulator-runner 按行拆 shell 执行，cd/set 变量不保持；
+          # 因此整个逻辑写成单行：跑测试→抓 logcat→按测试结果退出。
+          script: ./android/gradlew -p android connectedDebugAndroidTest --stacktrace; STATUS=$?; adb logcat -d > "$GITHUB_WORKSPACE/e2e-logcat.txt" || true; exit $STATUS
 
       - name: 上传 E2E 测试报告
         if: always()
