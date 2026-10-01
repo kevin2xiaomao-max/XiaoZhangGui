@@ -122,6 +122,7 @@ fun CustomerEditorSheet(
  * （写入经 [onSave] 回调交由外层执行）。
  */
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 internal fun CustomerEditorContent(
     request: CustomerRequestEntity?,
     onDismiss: () -> Unit,

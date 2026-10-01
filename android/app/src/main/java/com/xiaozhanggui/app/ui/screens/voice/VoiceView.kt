@@ -175,7 +175,7 @@ fun VoiceSheetContent(onDismiss: () -> Unit) {
     VoiceSheetVisual(
         phase = phaseState,
         transcript = transcriptState,
-        draft = draftValue,
+        draft = draftState,
         didSave = didSave,
         speechAvailable = speech.isAvailable,
         speechUnavailableHint = vm.speechUnavailableHint,

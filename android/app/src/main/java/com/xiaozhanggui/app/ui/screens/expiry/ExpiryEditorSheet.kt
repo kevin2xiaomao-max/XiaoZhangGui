@@ -118,6 +118,7 @@ fun ExpiryEditorSheet(
  * （写入经 [onSave] 回调交由外层执行；名称 ≤100、备注 ≤200 的静默截断保留在内容侧）。
  */
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 internal fun ExpiryEditorContent(
     item: ExpiryItemEntity?,
     onDismiss: () -> Unit,

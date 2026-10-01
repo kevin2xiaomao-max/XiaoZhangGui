@@ -101,6 +101,7 @@ fun GoodsEditorSheet(
  * （写入经 [onSave] 回调交由外层执行；保存失败静默行为不变）。
  */
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 internal fun GoodsEditorContent(
     mode: GoodsEditorMode,
     goods: GoodsEntity? = null,

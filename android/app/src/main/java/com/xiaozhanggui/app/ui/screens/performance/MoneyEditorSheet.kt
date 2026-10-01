@@ -143,6 +143,7 @@ fun MoneyEditorSheet(
  * （写入经 [onSave] 回调交由外层执行；编辑模式实体缺失时不保存、不关闭，与原逻辑一致）。
  */
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 internal fun MoneyEditorContent(
     mode: MoneyEditorMode,
     performance: PerformanceEntity? = null,
