@@ -46,5 +46,14 @@
                 <data android:scheme="xzg" android:host="quick" />
             </intent-filter>
         </activity>
+
+        <!-- 通知闹钟接收器（GATE B：纯 AlarmManager，不依赖 GMS） -->
+        <receiver
+            android:name=".data.notification.XzgAlarmReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.xiaozhanggui.app.ALARM" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>
