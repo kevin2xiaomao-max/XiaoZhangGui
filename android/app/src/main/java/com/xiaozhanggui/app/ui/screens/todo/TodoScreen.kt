@@ -505,21 +505,24 @@ private fun TodoStatsCard(todayCount: Int, doneCount: Int, overdueCount: Int) {
                 iconTint = palettes.accent.accent,
                 count = todayCount,
                 countColor = null,
-                label = "待办"
+                label = "待办",
+                modifier = Modifier.weight(1f)
             )
             TodoStatCell(
                 icon = Icons.Filled.CheckCircle,
                 iconTint = palettes.background.neutral,
                 count = doneCount,
                 countColor = null,
-                label = "已完成"
+                label = "已完成",
+                modifier = Modifier.weight(1f)
             )
             TodoStatCell(
                 icon = Icons.Filled.Error,
                 iconTint = if (overdueCount > 0) palettes.fixed.amber else palettes.background.neutral,
                 count = overdueCount,
                 countColor = if (overdueCount > 0) palettes.fixed.amber else null,
-                label = "逾期"
+                label = "逾期",
+                modifier = Modifier.weight(1f)
             )
         }
     }
@@ -531,11 +534,12 @@ private fun TodoStatCell(
     iconTint: Color,
     count: Int,
     countColor: Color?,
-    label: String
+    label: String,
+    modifier: Modifier = Modifier
 ) {
     val palettes = LocalXzgPalettes.current
     Column(
-        modifier = Modifier.weight(1f),
+        modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Icon(
