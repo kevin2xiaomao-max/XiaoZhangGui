@@ -82,11 +82,21 @@
 
 ## 4. 小掌柜 AI
 
+（审计来源：docs/audit/C_ai_voice.md 全 10 节，593 行）
+
 | 项 | iOS Source | Android Target | 数据模型 | Repository/业务逻辑 | UI 状态 | Interaction | Android 实现 | Test |
 |---|---|---|---|---|---|---|---|---|
-| AI 聊天页 | Features/Assistant/AIChatView（待 C2 补充行号） | AssistantScreen | ConversationStore | BusinessAssistantEngine 意图→ToolCall→Repository 真实写入；AI 层禁直接碰 DB | 对话流/输入框/语音面板/建议 chips | 发送/语音/确认动作 | ⬜ | ⬜ |
-| 业务动作 | BusinessAssistantEngine + AI/Tools/（待 C2 清单） | 同上 | 各 Repository | action 名/参数/确认机制/幂等（待 C2） | pendingAction 确认 | 确认/取消 | ⬜ | ⬜ |
-| Provider 配置 | AI/Providers/（待 C2） | — | DataStore（Key 加密存储） | OpenAI 兼容/baseURL/模型选择（待 C2） | 设置页 | 配置 | ⬜ | ⬜ |
+| AI 聊天页 | AI/UI/AIChatView.swift（314 行） | AssistantScreen | ConversationStore（单会话；json 落盘） | AgentCore 对话编排；**无 SSE 流式**（单次 complete；UI 仅 isProcessing+processingLabel 二元态） | 头部说明+Key 状态 pill；emptyState 4 范例句；消息气泡（用户右/助手左+Markdown）；ActionCard；TypingIndicator；语音遮罩面板 | 发送/语音/图片/文件/+菜单/右上 Menu（新对话/清空/AI 设置） | ⬜ | ⬜ |
+| 业务动作 5 工具 | AI/Tools/ToolCatalog.swift（liteTools 固定顺序） | 同上 | — | searchRecords（只读，read 权限→自动执行不确认）；recordRevenue/createTodo/createMemo/createDelivery（create 权限→**必须 ActionCard 确认**）；addExpiry/update/delete **不注册** | ActionCard 五态：pending/confirmed/executed/duplicate/failed/cancelled；预览模式琥珀横幅"不会真实保存" | 确认记录/修改（回填原文）/不记录；失败可重试 | ⬜ | ⬜ |
+| 执行器与幂等 | Integration/RepositoryToolExecutor.swift（唯一写库执行器） | data/ai/ToolExecutor | ExecutionJournal（json 落盘，损坏隔离重命名） | 双键幂等：toolCallID（call_<UUID>）+ 业务指纹（rev/todo/memo/del/search 规则）；校验顺序：注册→参数→幂等→Repository 写入→journal markExecuted | — | — | ⬜ | ⬜ |
+| 确认流程 | AI/Core/AgentCore.swift:508-623 | 同上 | PendingActionStore（pending-actions.json，原子写入） | handleToolCall→pending.upsert→ActionCard；confirm→preview 门只置 acknowledged / live 门真实执行；cancel→cancelled；modify→取消旧卡回填原文 | — | — | ⬜ | ⬜ |
+| 意图路由 | AI/Core/IntentRouter.swift（7 case，9 步顺序） | domain/ai/IntentRouter | — | 天气优先→经营分析→商品查询→经营读问答优先（问句绝不落 CREATE）→记账→配送→备忘先于待办→待办→兜底 worldChat；纯规则 0 Token | — | — | ⬜ | ⬜ |
+| 本地解析 | AI/Providers/LocalBusinessParser.swift（Free First 0-Token） | 同上 | — | **无 Key 时本地 CREATE 照常工作**；8 示例规则（金额/房号/人名/商品/歧义时钟追问绝不静默回落） | clarify 追问 | — | ⬜ | ⬜ |
+| Provider 配置 | AI/Core/AISettings.swift | DataStore + EncryptedSharedPreferences | — | 默认 DeepSeek（https://api.deepseek.com，deepseek-flash/deepseek-v4-pro）；temperature 0.2 硬编码；**无流式/SSE**；ProviderChain 只跳 1 次（401/403 不换链）；Key 只进 Keychain→Android Keystore | 设置页 tier 三档/主备 baseURL+模型+Key/搜索 provider 四档；连接测试状态胶囊（仅真实成功才绿） | 配置/测试连接 | ⬜ | ⬜ |
+| 旧引擎 | Features/Assistant/BusinessAssistantEngine.swift | 首页摘要本地计算 | BusinessAssistantInput（6 模型快照） | 本地纯规则只读；退化为首页每日摘要/洞察计算；聊天页真正引擎是 AgentCore | — | — | ⬜ | ⬜ |
+| 短语音 | AI/Voice/ShortVoiceSession.swift + ShortVoicePanel | AssistantScreen 内语音面板 | — | 复用 SpeechService；3 秒静音收尾；final 为空→failed；转写后走相同 send 流程；失败保留转写填回输入框 | idle/listening/finalizing/failed；三种取消（按钮/遮罩/失败关闭） | 语音输入 | ⬜ | ⬜ |
+| 能力 | AI/Capabilities/（Vision/Document/URLReading/WebSearch） | — | — | 均为只读不产生 ActionCard；Vision/Document 经 OpenAI 兼容 chat/completions；WebSearch 三档（Tavily/JSON 代理/免费优先，默认 disabled）；**上云 context 恒空**（经营数据不随云端 CREATE 外发） | — | — | ⬜ | ⬜ |
+| 技能 | AI/Skills/（GoodsLookup/MetaReply/Weather） | domain/ai/ | — | 商品本地查询/元问题固定回复/本地天气回答（降雨≥60% 追加配送提示） | — | — | ⬜ | ⬜ |
 
 ---
 
@@ -221,4 +231,5 @@
 
 ## 修订记录
 
-- 2026-10-02：Phase 0 初版（基于 A/B/C/D/E 审计报告；AI 引擎细节待 C2 补充后更新 §4）。
+- 2026-10-02：Phase 0 初版（基于 A/B/C/D/E 审计报告）。
+- 2026-10-02：§4 AI 引擎细节补齐（C 报告终版 593 行：5 工具/ActionCard/幂等/IntentRouter/LocalBusinessParser/Provider 配置/短语音/能力/技能）。
