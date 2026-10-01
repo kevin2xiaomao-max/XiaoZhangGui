@@ -19,12 +19,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalActivityResultRegistryOwner
+import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityOptionsCompat
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.LifecycleRegistry
 import com.xiaozhanggui.app.data.db.CustomerRequestEntity
 import com.xiaozhanggui.app.data.db.ExpiryItemEntity
 import com.xiaozhanggui.app.data.db.GoodsCategory
@@ -509,8 +506,6 @@ private fun SheetFrame(content: @Composable () -> Unit) {
 
 /** Paparazzi 单测用的 no-op ActivityResultRegistryOwner（截图不触发真实选择）。 */
 private object FakeRegistryOwner : ActivityResultRegistryOwner {
-    private val owner = FakeLifecycleOwner()
-    override val lifecycle: Lifecycle get() = owner.lifecycle
     override val activityResultRegistry: ActivityResultRegistry =
         object : ActivityResultRegistry() {
             override fun <I, O> onLaunch(
@@ -520,14 +515,4 @@ private object FakeRegistryOwner : ActivityResultRegistryOwner {
                 options: ActivityOptionsCompat?
             ) = Unit
         }
-}
-
-private class FakeLifecycleOwner : LifecycleOwner {
-    private val registry = LifecycleRegistry(this)
-
-    init {
-        registry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
-    }
-
-    override val lifecycle: Lifecycle get() = registry
 }
