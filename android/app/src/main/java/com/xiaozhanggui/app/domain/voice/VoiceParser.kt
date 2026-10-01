@@ -286,10 +286,14 @@ object VoiceParser {
 
     /** 客户名：常见称呼（X姐/X哥/X老板/X总/…）或 XX店/XX别墅/XX房。返回整段匹配。 */
     fun parseCustomerName(text: String): String? {
-        Regex("""[\u4e00-\u9fa5]{1,4}(姐|哥|老板|总|姨|叔|婶|女士|先生)""").find(text)?.let {
+        // 先去句首介词（给/帮/替/为）：否则 `[\u4e00-\u9fa5]{1,4}` 会吞掉介词，
+        // "给王老板送水" 将误匹配为"给王老板"。iOS 同款正则有此 quirk（客户名将存成
+        // "给王老板"），Android 侧有意修正，避免脏客户名。
+        val value = text.replaceFirst(Regex("^(给|帮|替|为)+"), "")
+        Regex("""[\u4e00-\u9fa5]{1,4}(姐|哥|老板|总|姨|叔|婶|女士|先生)""").find(value)?.let {
             return it.value
         }
-        Regex("""[\u4e00-\u9fa5A-Za-z0-9]{1,8}(店|别墅|房)""").find(text)?.let {
+        Regex("""[\u4e00-\u9fa5A-Za-z0-9]{1,8}(店|别墅|房)""").find(value)?.let {
             return it.value
         }
         return null
