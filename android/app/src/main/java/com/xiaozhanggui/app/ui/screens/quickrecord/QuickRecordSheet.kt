@@ -83,7 +83,6 @@ import kotlinx.coroutines.launch
 fun QuickRecordSheetContent(onDismiss: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val palettes = LocalXzgPalettes.current
 
     var text by remember { mutableStateOf("") }
     var draft by remember { mutableStateOf<QuickRecordDraft?>(null) }
@@ -124,11 +123,6 @@ fun QuickRecordSheetContent(onDismiss: () -> Unit) {
 
     // iOS `onAppear autoStartListening`：弹出即听（识别器可用时）。
     LaunchedEffect(Unit) { ensureListening() }
-
-    val effectiveDraft = draft?.let { d ->
-        overriddenKind?.let { d.copy(kind = it) } ?: d
-    }
-    val canSave = canSaveQuickRecord(text) && !saving
 
     fun commit() {
         val trimmed = text.trim()
@@ -185,6 +179,88 @@ fun QuickRecordSheetContent(onDismiss: () -> Unit) {
         }
     }
 
+    val voiceCard: QuickRecordVoiceCardState? =
+        if (voice.status != QuickRecordVoiceRecorder.Status.IDLE) {
+            QuickRecordVoiceCardState(
+                title = voice.statusTitle(),
+                subtitle = when {
+                    voice.isListening && voice.liveTranscript.isNotEmpty() -> voice.liveTranscript
+                    voice.isListening -> "停顿后会自动结束，也可停止或取消"
+                    voice.status == QuickRecordVoiceRecorder.Status.FAILED ->
+                        voice.failureMessage ?: "语音识别失败，可直接打字"
+                    else -> null
+                },
+                showControls = voice.isListening,
+            )
+        } else null
+
+    QuickRecordSheetVisual(
+        state = QuickRecordVisualState(
+            text = text,
+            draft = draft,
+            overriddenKind = overriddenKind,
+            savedMessage = savedMessage,
+            errorMessage = errorMessage,
+            saving = saving,
+            kindMenuOpen = kindMenuOpen,
+            voiceCard = voiceCard,
+            canUseSpeech = voice.canUseSpeech,
+            isListening = voice.isListening,
+            canSave = canSaveQuickRecord(text) && !saving,
+        ),
+        onDismiss = onDismiss,
+        onTextChange = ::applyText,
+        onKindMenuOpenChange = { kindMenuOpen = it },
+        onKindOverride = { overriddenKind = it },
+        onMicClick = { ensureListening() },
+        onStopVoice = { voice.stop() },
+        onCancelVoice = { voice.cancel() },
+        onSave = ::commit,
+    )
+}
+
+/**
+ * 快速记录 Sheet 纯渲染内容（不含语音识别器 / Repository，供 Paparazzi 截图用）。
+ * 渲染逻辑与 QuickRecordSheetContent 完全一致，仅把状态与回调经参数注入。
+ */
+internal data class QuickRecordVoiceCardState(
+    val title: String,
+    val subtitle: String?,
+    val showControls: Boolean,
+)
+
+internal data class QuickRecordVisualState(
+    val text: String,
+    val draft: QuickRecordDraft?,
+    val overriddenKind: QuickRecordKind?,
+    val savedMessage: String?,
+    val errorMessage: String?,
+    val saving: Boolean,
+    val kindMenuOpen: Boolean,
+    val voiceCard: QuickRecordVoiceCardState?,
+    val canUseSpeech: Boolean,
+    val isListening: Boolean,
+    val canSave: Boolean,
+)
+
+@Composable
+internal fun QuickRecordSheetVisual(
+    state: QuickRecordVisualState,
+    onDismiss: () -> Unit,
+    onTextChange: (String) -> Unit,
+    onKindMenuOpenChange: (Boolean) -> Unit,
+    onKindOverride: (QuickRecordKind) -> Unit,
+    onMicClick: () -> Unit,
+    onStopVoice: () -> Unit,
+    onCancelVoice: () -> Unit,
+    onSave: () -> Unit,
+) {
+    val palettes = LocalXzgPalettes.current
+
+    val visualDraft = state.draft?.let { d ->
+        state.overriddenKind?.let { d.copy(kind = it) } ?: d
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -214,11 +290,13 @@ fun QuickRecordSheetContent(onDismiss: () -> Unit) {
             }
         }
 
-        if (voice.status != QuickRecordVoiceRecorder.Status.IDLE) {
+        state.voiceCard?.let { card ->
             VoiceStatusCard(
-                voice = voice,
-                onStop = { voice.stop() },
-                onCancel = { voice.cancel() },
+                title = card.title,
+                subtitle = card.subtitle,
+                showControls = card.showControls,
+                onStop = onStopVoice,
+                onCancel = onCancelVoice,
             )
         }
 
@@ -228,15 +306,15 @@ fun QuickRecordSheetContent(onDismiss: () -> Unit) {
                 title = "一句话",
                 trailing = {
                     // 监听期间头部麦克风整体不渲染；识别器不可用时直接隐藏。
-                    if (voice.canUseSpeech && !voice.isListening) {
-                        MicButton(onClick = { ensureListening() })
+                    if (state.canUseSpeech && !state.isListening) {
+                        MicButton(onClick = onMicClick)
                     }
                 },
             )
             V32Card {
                 XzgSheetTextField(
-                    value = text,
-                    onValueChange = ::applyText,
+                    value = state.text,
+                    onValueChange = onTextChange,
                     placeholder = "例如：今天美团680",
                     minLines = 3,
                     maxLines = 6,
@@ -250,7 +328,7 @@ fun QuickRecordSheetContent(onDismiss: () -> Unit) {
         }
 
         // 只读识别结果卡
-        effectiveDraft?.let { d ->
+        visualDraft?.let { d ->
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 V32SectionHeader(title = "识别结果")
                 V32Card {
@@ -262,7 +340,7 @@ fun QuickRecordSheetContent(onDismiss: () -> Unit) {
                                 trailing = {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.clickable { kindMenuOpen = true },
+                                        modifier = Modifier.clickable { onKindMenuOpenChange(true) },
                                     ) {
                                         Text(
                                             text = kindLabel(d.kind),
@@ -279,8 +357,8 @@ fun QuickRecordSheetContent(onDismiss: () -> Unit) {
                                 },
                             )
                             DropdownMenu(
-                                expanded = kindMenuOpen,
-                                onDismissRequest = { kindMenuOpen = false },
+                                expanded = state.kindMenuOpen,
+                                onDismissRequest = { onKindMenuOpenChange(false) },
                             ) {
                                 QuickRecordKind.entries.forEach { kind ->
                                     DropdownMenuItem(
@@ -301,8 +379,8 @@ fun QuickRecordSheetContent(onDismiss: () -> Unit) {
                                             }
                                         } else null,
                                         onClick = {
-                                            overriddenKind = kind
-                                            kindMenuOpen = false
+                                            onKindOverride(kind)
+                                            onKindMenuOpenChange(false)
                                         },
                                     )
                                 }
@@ -323,7 +401,7 @@ fun QuickRecordSheetContent(onDismiss: () -> Unit) {
             }
         }
 
-        savedMessage?.let { message ->
+        state.savedMessage?.let { message ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = Icons.Filled.Check,
@@ -340,7 +418,7 @@ fun QuickRecordSheetContent(onDismiss: () -> Unit) {
             }
         }
 
-        errorMessage?.let { message ->
+        state.errorMessage?.let { message ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = Icons.Filled.Close,
@@ -359,8 +437,8 @@ fun QuickRecordSheetContent(onDismiss: () -> Unit) {
 
         V32PrimaryButton(
             text = "确认保存",
-            onClick = ::commit,
-            enabled = canSave,
+            onClick = onSave,
+            enabled = state.canSave,
             modifier = Modifier.fillMaxWidth(),
         )
     }
@@ -437,7 +515,9 @@ private fun MicButton(onClick: () -> Unit) {
 /** 监听状态卡。对应 iOS voiceCard。 */
 @Composable
 private fun VoiceStatusCard(
-    voice: QuickRecordVoiceRecorder,
+    title: String,
+    subtitle: String?,
+    showControls: Boolean,
     onStop: () -> Unit,
     onCancel: () -> Unit,
 ) {
@@ -466,18 +546,11 @@ private fun VoiceStatusCard(
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = voice.statusTitle(),
+                    text = title,
                     style = XzgType.subhead,
                     color = palettes.background.textPrimary,
                 )
                 Spacer(modifier = Modifier.height(3.dp))
-                val subtitle = when {
-                    voice.isListening && voice.liveTranscript.isNotEmpty() -> voice.liveTranscript
-                    voice.isListening -> "停顿后会自动结束，也可停止或取消"
-                    voice.status == QuickRecordVoiceRecorder.Status.FAILED ->
-                        voice.failureMessage ?: "语音识别失败，可直接打字"
-                    else -> null
-                }
                 subtitle?.let {
                     Text(
                         text = it,
@@ -486,7 +559,7 @@ private fun VoiceStatusCard(
                     )
                 }
             }
-            if (voice.isListening) {
+            if (showControls) {
                 Surface(
                     onClick = onStop,
                     shape = CircleShape,

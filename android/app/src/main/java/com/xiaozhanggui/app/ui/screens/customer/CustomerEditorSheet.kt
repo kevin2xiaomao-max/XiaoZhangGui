@@ -74,8 +74,69 @@ fun CustomerEditorSheet(
 ) {
     val palettes = LocalXzgPalettes.current
     val repo = XzgGraph.customerRepository
-    val scope = rememberCoroutineScope()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = palettes.background.pageBG
+    ) {
+        CustomerEditorContent(
+            request = request,
+            onDismiss = onDismiss,
+            onSave = { req, content, address, phone, deliveryTime, note, imagePath ->
+                val encoded = CustomerDeliveryStorage.encode(
+                    CustomerDeliveryInfo(
+                        deliveryTime = deliveryTime,
+                        note = note.trim(),
+                        legacyCustomer = address.trim()
+                    )
+                )
+                if (req != null) {
+                    repo.update(
+                        req.copy(
+                            customer = encoded,
+                            roomOrAddress = address.trim(),
+                            phone = phone.trim(),
+                            content = content.trim(),
+                            imagePath = imagePath
+                        )
+                    )
+                } else {
+                    repo.add(
+                        customer = encoded,
+                        roomOrAddress = address.trim(),
+                        phone = phone.trim(),
+                        content = content.trim(),
+                        imagePath = imagePath
+                    )
+                }
+            }
+        )
+    }
+}
+
+/**
+ * 配送需求编辑 Sheet 纯渲染内容（不含 ModalBottomSheet 包裹，供 Paparazzi 截图用）。
+ * 状态逻辑与 CustomerEditorSheet 完全一致，仅剥离手势容器与 Repository 写入
+ * （写入经 [onSave] 回调交由外层执行）。
+ */
+@Composable
+internal fun CustomerEditorContent(
+    request: CustomerRequestEntity?,
+    onDismiss: () -> Unit,
+    onSave: suspend (
+        request: CustomerRequestEntity?,
+        content: String,
+        address: String,
+        phone: String,
+        deliveryTime: Long?,
+        note: String,
+        imagePath: String?
+    ) -> Unit
+) {
+    val palettes = LocalXzgPalettes.current
+    val scope = rememberCoroutineScope()
 
     var content by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
@@ -112,32 +173,15 @@ fun CustomerEditorSheet(
     fun save() {
         scope.launch {
             runCatching {
-                val encoded = CustomerDeliveryStorage.encode(
-                    CustomerDeliveryInfo(
-                        deliveryTime = if (hasDeliveryTime) deliveryTime else null,
-                        note = note.trim(),
-                        legacyCustomer = address.trim()
-                    )
+                onSave(
+                    request,
+                    content.trim(),
+                    address.trim(),
+                    phone.trim(),
+                    if (hasDeliveryTime) deliveryTime else null,
+                    note.trim(),
+                    imagePath
                 )
-                if (request != null) {
-                    repo.update(
-                        request.copy(
-                            customer = encoded,
-                            roomOrAddress = address.trim(),
-                            phone = phone.trim(),
-                            content = content.trim(),
-                            imagePath = imagePath
-                        )
-                    )
-                } else {
-                    repo.add(
-                        customer = encoded,
-                        roomOrAddress = address.trim(),
-                        phone = phone.trim(),
-                        content = content.trim(),
-                        imagePath = imagePath
-                    )
-                }
             }.onSuccess {
                 onDismiss()
             }.onFailure {
@@ -146,157 +190,151 @@ fun CustomerEditorSheet(
         }
     }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = palettes.background.pageBG
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = XzgDimens.pageMargin)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = XzgDimens.pageMargin)
+        // 标题栏
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // 标题栏
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "取消",
-                    style = XzgType.body,
-                    color = palettes.background.textTertiary,
-                    modifier = Modifier.clickable(onClick = onDismiss)
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                Text(
-                    text = if (request == null) "新增配送需求" else "编辑配送需求",
-                    style = XzgType.headline,
-                    color = palettes.background.textPrimary
-                )
-                Spacer(modifier = Modifier.weight(1f))
-            }
-            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "取消",
+                style = XzgType.body,
+                color = palettes.background.textTertiary,
+                modifier = Modifier.clickable(onClick = onDismiss)
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            Text(
+                text = if (request == null) "新增配送需求" else "编辑配送需求",
+                style = XzgType.headline,
+                color = palettes.background.textPrimary
+            )
+            Spacer(modifier = Modifier.weight(1f))
+        }
+        Spacer(modifier = Modifier.height(16.dp))
 
-            // 购买内容
-            V32SectionHeader(title = "购买内容")
-            Spacer(modifier = Modifier.height(10.dp))
-            V32Card(modifier = Modifier.fillMaxWidth()) {
-                SheetTextField(
-                    value = content,
-                    onValueChange = { content = it },
-                    placeholder = "例：矿泉水2箱、啤酒10瓶、纸巾2包",
-                    minLines = 3,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // 地址与联系
-            V32SectionHeader(title = "地址与联系")
-            Spacer(modifier = Modifier.height(10.dp))
-            V32Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    SheetTextField(
-                        value = address,
-                        onValueChange = { address = it },
-                        placeholder = "配送地址 / 别墅地址，例：清泉八街24号",
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    SheetTextField(
-                        value = phone,
-                        onValueChange = { phone = it },
-                        placeholder = "联系电话（选填）",
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // 配送时间
-            V32SectionHeader(title = "配送时间")
-            Spacer(modifier = Modifier.height(10.dp))
-            V32Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "设置配送时间",
-                            style = XzgType.title,
-                            color = palettes.background.textPrimary,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Switch(
-                            checked = hasDeliveryTime,
-                            onCheckedChange = { hasDeliveryTime = it },
-                            colors = SwitchDefaults.colors(
-                                checkedTrackColor = palettes.accent.accent
-                            )
-                        )
-                    }
-                    if (hasDeliveryTime) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { showDatePicker = true }
-                                .padding(vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = "送达时间",
-                                style = XzgType.title,
-                                color = palettes.background.textPrimary
-                            )
-                            Text(
-                                text = Format.monthDayTime(deliveryTime),
-                                style = XzgType.body,
-                                color = palettes.background.textSecondary
-                            )
-                        }
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // 备注
-            V32SectionHeader(title = "备注")
-            Spacer(modifier = Modifier.height(10.dp))
-            V32Card(modifier = Modifier.fillMaxWidth()) {
-                SheetTextField(
-                    value = note,
-                    onValueChange = { note = it },
-                    placeholder = "例：到了打电话 / 放门口 / 晚上8点送",
-                    minLines = 2,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // 图片
-            V32SectionHeader(title = "图片")
-            Spacer(modifier = Modifier.height(10.dp))
-            V32Card(modifier = Modifier.fillMaxWidth()) {
-                PhotoPickerField(
-                    imagePath = imagePath,
-                    onPick = { imagePath = it },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-            Spacer(modifier = Modifier.height(20.dp))
-
-            V32PrimaryButton(
-                text = "保存",
-                onClick = ::save,
-                enabled = canSave,
+        // 购买内容
+        V32SectionHeader(title = "购买内容")
+        Spacer(modifier = Modifier.height(10.dp))
+        V32Card(modifier = Modifier.fillMaxWidth()) {
+            SheetTextField(
+                value = content,
+                onValueChange = { content = it },
+                placeholder = "例：矿泉水2箱、啤酒10瓶、纸巾2包",
+                minLines = 3,
                 modifier = Modifier.fillMaxWidth()
             )
-            Spacer(modifier = Modifier.height(XzgDimens.bottomPad))
         }
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 地址与联系
+        V32SectionHeader(title = "地址与联系")
+        Spacer(modifier = Modifier.height(10.dp))
+        V32Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                SheetTextField(
+                    value = address,
+                    onValueChange = { address = it },
+                    placeholder = "配送地址 / 别墅地址，例：清泉八街24号",
+                    modifier = Modifier.fillMaxWidth()
+                )
+                SheetTextField(
+                    value = phone,
+                    onValueChange = { phone = it },
+                    placeholder = "联系电话（选填）",
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 配送时间
+        V32SectionHeader(title = "配送时间")
+        Spacer(modifier = Modifier.height(10.dp))
+        V32Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "设置配送时间",
+                        style = XzgType.title,
+                        color = palettes.background.textPrimary,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Switch(
+                        checked = hasDeliveryTime,
+                        onCheckedChange = { hasDeliveryTime = it },
+                        colors = SwitchDefaults.colors(
+                            checkedTrackColor = palettes.accent.accent
+                        )
+                    )
+                }
+                if (hasDeliveryTime) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showDatePicker = true }
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "送达时间",
+                            style = XzgType.title,
+                            color = palettes.background.textPrimary
+                        )
+                        Text(
+                            text = Format.monthDayTime(deliveryTime),
+                            style = XzgType.body,
+                            color = palettes.background.textSecondary
+                        )
+                    }
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 备注
+        V32SectionHeader(title = "备注")
+        Spacer(modifier = Modifier.height(10.dp))
+        V32Card(modifier = Modifier.fillMaxWidth()) {
+            SheetTextField(
+                value = note,
+                onValueChange = { note = it },
+                placeholder = "例：到了打电话 / 放门口 / 晚上8点送",
+                minLines = 2,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 图片
+        V32SectionHeader(title = "图片")
+        Spacer(modifier = Modifier.height(10.dp))
+        V32Card(modifier = Modifier.fillMaxWidth()) {
+            PhotoPickerField(
+                imagePath = imagePath,
+                onPick = { imagePath = it },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        Spacer(modifier = Modifier.height(20.dp))
+
+        V32PrimaryButton(
+            text = "保存",
+            onClick = ::save,
+            enabled = canSave,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(XzgDimens.bottomPad))
     }
 
     if (showDatePicker) {

@@ -42,6 +42,30 @@ fun MemoEditorSheet(
     onSave: suspend (title: String, content: String, imagePath: String?) -> Unit
 ) {
     val palettes = LocalXzgPalettes.current
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(XzgDimens.sheet),
+        containerColor = palettes.background.pageBG
+    ) {
+        MemoEditorContent(
+            memo = memo,
+            onDismiss = onDismiss,
+            onSave = onSave
+        )
+    }
+}
+
+/**
+ * 备忘编辑 Sheet 纯渲染内容（不含 ModalBottomSheet 包裹，供 Paparazzi 截图用）。
+ * 状态逻辑与 MemoEditorSheet 完全一致，仅剥离手势容器。
+ */
+@Composable
+internal fun MemoEditorContent(
+    memo: MemoEntity?,
+    onDismiss: () -> Unit,
+    onSave: suspend (title: String, content: String, imagePath: String?) -> Unit
+) {
+    val palettes = LocalXzgPalettes.current
     val scope = rememberCoroutineScope()
 
     var title by remember(memo) { mutableStateOf(memo?.title ?: "") }
@@ -67,19 +91,14 @@ fun MemoEditorSheet(
         }
     }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(XzgDimens.sheet),
-        containerColor = palettes.background.pageBG
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .imePadding()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = XzgDimens.pageMargin)
+            .padding(bottom = 24.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .imePadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = XzgDimens.pageMargin)
-                .padding(bottom = 24.dp)
-        ) {
             SheetHeader(
                 title = if (memo == null) "新增备忘" else "编辑备忘",
                 onCancel = onDismiss
@@ -120,7 +139,6 @@ fun MemoEditorSheet(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = canSave
             )
-        }
     }
 
     if (showSaveError) {

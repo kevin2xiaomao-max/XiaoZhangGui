@@ -91,8 +91,73 @@ fun MoneyEditorSheet(
     onDismiss: () -> Unit
 ) {
     val palettes = LocalXzgPalettes.current
-    val scope = rememberCoroutineScope()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = palettes.background.pageBG
+    ) {
+        MoneyEditorContent(
+            mode = mode,
+            performance = performance,
+            expense = expense,
+            onDismiss = onDismiss,
+            onSave = { amount, note, date, category, incomeSource ->
+                when (mode) {
+                    MoneyEditorMode.NEW_INCOME ->
+                        XzgGraph.performanceRepository.add(amount, note, date, incomeSource)
+                    MoneyEditorMode.NEW_EXPENSE ->
+                        XzgGraph.expenseRepository.add(amount, category, note, date)
+                    MoneyEditorMode.EDIT_PERFORMANCE ->
+                        performance?.let {
+                            XzgGraph.performanceRepository.update(
+                                it.copy(
+                                    amount = amount,
+                                    note = note,
+                                    date = date,
+                                    incomeSource = incomeSource
+                                )
+                            )
+                        }
+                    MoneyEditorMode.EDIT_EXPENSE ->
+                        expense?.let {
+                            XzgGraph.expenseRepository.update(
+                                it.copy(
+                                    amount = amount,
+                                    note = note,
+                                    category = category,
+                                    date = date
+                                )
+                            )
+                        }
+                }
+            }
+        )
+    }
+}
+
+/**
+ * 记账编辑器纯渲染内容（不含 ModalBottomSheet 包裹，供 Paparazzi 截图用）。
+ * 状态逻辑与 MoneyEditorSheet 完全一致，仅剥离手势容器与 Repository 写入
+ * （写入经 [onSave] 回调交由外层执行；编辑模式实体缺失时不保存、不关闭，与原逻辑一致）。
+ */
+@Composable
+internal fun MoneyEditorContent(
+    mode: MoneyEditorMode,
+    performance: PerformanceEntity? = null,
+    expense: ExpenseEntity? = null,
+    onDismiss: () -> Unit,
+    onSave: suspend (
+        amount: Double,
+        note: String,
+        date: Long,
+        category: String,
+        incomeSource: String
+    ) -> Unit
+) {
+    val palettes = LocalXzgPalettes.current
+    val scope = rememberCoroutineScope()
     val isIncome = mode == MoneyEditorMode.NEW_INCOME || mode == MoneyEditorMode.EDIT_PERFORMANCE
 
     var amountText by remember {
@@ -152,36 +217,12 @@ fun MoneyEditorSheet(
 
     fun save() {
         val value = amount ?: return
+        // 编辑模式实体缺失时不保存、不关闭（与原逻辑一致：原 `return@launch`）。
+        if (mode == MoneyEditorMode.EDIT_PERFORMANCE && performance == null) return
+        if (mode == MoneyEditorMode.EDIT_EXPENSE && expense == null) return
         scope.launch {
             try {
-                when (mode) {
-                    MoneyEditorMode.NEW_INCOME ->
-                        XzgGraph.performanceRepository.add(value, note.trim(), date, incomeSource)
-                    MoneyEditorMode.NEW_EXPENSE ->
-                        XzgGraph.expenseRepository.add(value, category, note.trim(), date)
-                    MoneyEditorMode.EDIT_PERFORMANCE -> {
-                        val p = performance ?: return@launch
-                        XzgGraph.performanceRepository.update(
-                            p.copy(
-                                amount = value,
-                                note = note.trim(),
-                                date = date,
-                                incomeSource = incomeSource
-                            )
-                        )
-                    }
-                    MoneyEditorMode.EDIT_EXPENSE -> {
-                        val e = expense ?: return@launch
-                        XzgGraph.expenseRepository.update(
-                            e.copy(
-                                amount = value,
-                                note = note.trim(),
-                                category = category,
-                                date = date
-                            )
-                        )
-                    }
-                }
+                onSave(value, note.trim(), date, category, incomeSource)
                 onDismiss()
             } catch (_: Exception) {
                 saveError = "经营记录未保存，请重试。"
@@ -189,171 +230,165 @@ fun MoneyEditorSheet(
         }
     }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = palettes.background.pageBG
+    Column(
+        modifier = Modifier
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = XzgDimens.pageMargin)
+            .padding(top = 14.dp, bottom = XzgDimens.bottomPad),
+        verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = XzgDimens.pageMargin)
-                .padding(top = 14.dp, bottom = XzgDimens.bottomPad),
-            verticalArrangement = Arrangement.spacedBy(18.dp)
-        ) {
-            // 头部：左上"取消" + 居中标题
-            Box(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = title,
-                    style = XzgType.headline,
-                    color = palettes.background.textPrimary,
-                    modifier = Modifier.align(Alignment.Center)
-                )
-                TextButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.align(Alignment.CenterStart)
-                ) {
-                    Text(
-                        text = "取消",
-                        style = XzgType.body,
-                        color = palettes.background.textTertiary
-                    )
-                }
-            }
-
-            // 金额卡
-            Column(
-                modifier = Modifier.padding(top = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+        // 头部：左上"取消" + 居中标题
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = title,
+                style = XzgType.headline,
+                color = palettes.background.textPrimary,
+                modifier = Modifier.align(Alignment.Center)
+            )
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.align(Alignment.CenterStart)
             ) {
                 Text(
-                    text = if (isIncome) "收入金额" else "支出金额",
-                    style = XzgType.caption,
-                    color = palettes.background.textSecondary
-                )
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text(
-                        text = "¥",
-                        style = XzgType.title.copy(
-                            fontSize = 26.sp,
-                            fontWeight = FontWeight.SemiBold
-                        ),
-                        color = palettes.background.textSecondary
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    BasicTextField(
-                        value = amountText,
-                        onValueChange = { amountText = it },
-                        textStyle = XzgType.heroMoney.copy(
-                            fontSize = 46.sp,
-                            color = palettes.background.textPrimary
-                        ),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        singleLine = true,
-                        modifier = Modifier.weight(1f),
-                        decorationBox = { innerTextField ->
-                            Box {
-                                if (amountText.isEmpty()) {
-                                    Text(
-                                        text = "0.00",
-                                        style = XzgType.heroMoney.copy(
-                                            fontSize = 46.sp,
-                                            color = palettes.background.textQuaternary
-                                        )
-                                    )
-                                }
-                                innerTextField()
-                            }
-                        }
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(2.dp)
-                        .background(palettes.accent.accent.copy(alpha = 0.45f))
+                    text = "取消",
+                    style = XzgType.body,
+                    color = palettes.background.textTertiary
                 )
             }
+        }
 
-            // 明细卡：备注 + 日期
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                V32SectionHeader("明细")
+        // 金额卡
+        Column(
+            modifier = Modifier.padding(top = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = if (isIncome) "收入金额" else "支出金额",
+                style = XzgType.caption,
+                color = palettes.background.textSecondary
+            )
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(
+                    text = "¥",
+                    style = XzgType.title.copy(
+                        fontSize = 26.sp,
+                        fontWeight = FontWeight.SemiBold
+                    ),
+                    color = palettes.background.textSecondary
+                )
+                Spacer(Modifier.width(8.dp))
                 BasicTextField(
-                    value = note,
-                    onValueChange = { note = it },
-                    textStyle = XzgType.body.copy(color = palettes.background.textPrimary),
+                    value = amountText,
+                    onValueChange = { amountText = it },
+                    textStyle = XzgType.heroMoney.copy(
+                        fontSize = 46.sp,
+                        color = palettes.background.textPrimary
+                    ),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.weight(1f),
                     decorationBox = { innerTextField ->
                         Box {
-                            if (note.isEmpty()) {
+                            if (amountText.isEmpty()) {
                                 Text(
-                                    text = if (isIncome) "备注（选填）" else "备注（选填，如：进了两箱可乐）",
-                                    style = XzgType.body,
-                                    color = palettes.background.textQuaternary
+                                    text = "0.00",
+                                    style = XzgType.heroMoney.copy(
+                                        fontSize = 46.sp,
+                                        color = palettes.background.textQuaternary
+                                    )
                                 )
                             }
                             innerTextField()
                         }
                     }
                 )
-                HorizontalDivider(color = palettes.background.divider)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .v32PressFeedback(onClick = { showDatePicker = true })
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "日期",
-                        style = XzgType.title,
-                        color = palettes.background.textPrimary
-                    )
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        text = Format.formatDate(date),
-                        style = XzgType.body,
-                        color = palettes.background.textSecondary
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Icon(
-                        imageVector = Icons.Filled.CalendarToday,
-                        contentDescription = null,
-                        tint = palettes.background.textTertiary,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
             }
-
-            // 分类（仅支出）/ 收入来源（仅收入）
-            if (isIncome) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    V32SectionHeader("收入来源")
-                    V32SegmentedPicker(
-                        options = INCOME_SOURCES,
-                        selectedIndex = INCOME_SOURCES.indexOf(incomeSource).takeIf { it >= 0 } ?: 0,
-                        onSelect = { incomeSource = INCOME_SOURCES[it] }
-                    )
-                }
-            } else {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    V32SectionHeader("分类")
-                    V32SegmentedPicker(
-                        options = EXPENSE_CATEGORIES,
-                        selectedIndex = EXPENSE_CATEGORIES.indexOf(category).takeIf { it >= 0 }
-                            ?: (EXPENSE_CATEGORIES.size - 1),
-                        onSelect = { category = EXPENSE_CATEGORIES[it] }
-                    )
-                }
-            }
-
-            V32PrimaryButton(
-                text = "保存",
-                onClick = ::save,
-                enabled = amount != null
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(2.dp)
+                    .background(palettes.accent.accent.copy(alpha = 0.45f))
             )
         }
+
+        // 明细卡：备注 + 日期
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            V32SectionHeader("明细")
+            BasicTextField(
+                value = note,
+                onValueChange = { note = it },
+                textStyle = XzgType.body.copy(color = palettes.background.textPrimary),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                decorationBox = { innerTextField ->
+                    Box {
+                        if (note.isEmpty()) {
+                            Text(
+                                text = if (isIncome) "备注（选填）" else "备注（选填，如：进了两箱可乐）",
+                                style = XzgType.body,
+                                color = palettes.background.textQuaternary
+                            )
+                        }
+                        innerTextField()
+                    }
+                }
+            )
+            HorizontalDivider(color = palettes.background.divider)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .v32PressFeedback(onClick = { showDatePicker = true })
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "日期",
+                    style = XzgType.title,
+                    color = palettes.background.textPrimary
+                )
+                Spacer(Modifier.weight(1f))
+                Text(
+                    text = Format.formatDate(date),
+                    style = XzgType.body,
+                    color = palettes.background.textSecondary
+                )
+                Spacer(Modifier.width(8.dp))
+                Icon(
+                    imageVector = Icons.Filled.CalendarToday,
+                    contentDescription = null,
+                    tint = palettes.background.textTertiary,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+
+        // 分类（仅支出）/ 收入来源（仅收入）
+        if (isIncome) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                V32SectionHeader("收入来源")
+                V32SegmentedPicker(
+                    options = INCOME_SOURCES,
+                    selectedIndex = INCOME_SOURCES.indexOf(incomeSource).takeIf { it >= 0 } ?: 0,
+                    onSelect = { incomeSource = INCOME_SOURCES[it] }
+                )
+            }
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                V32SectionHeader("分类")
+                V32SegmentedPicker(
+                    options = EXPENSE_CATEGORIES,
+                    selectedIndex = EXPENSE_CATEGORIES.indexOf(category).takeIf { it >= 0 }
+                        ?: (EXPENSE_CATEGORIES.size - 1),
+                    onSelect = { category = EXPENSE_CATEGORIES[it] }
+                )
+            }
+        }
+
+        V32PrimaryButton(
+            text = "保存",
+            onClick = ::save,
+            enabled = amount != null
+        )
     }
 
     if (showDatePicker) {

@@ -172,9 +172,54 @@ fun VoiceSheetContent(onDismiss: () -> Unit) {
         }
     }
 
-    val draftValue = draftState
-    val inPreview = (phaseState is VoicePhase.Preview || phaseState is VoicePhase.Saving) &&
-        draftValue != null
+    VoiceSheetVisual(
+        phase = phaseState,
+        transcript = transcriptState,
+        draft = draftValue,
+        didSave = didSave,
+        speechAvailable = speech.isAvailable,
+        speechUnavailableHint = vm.speechUnavailableHint,
+        manualText = manualText,
+        onManualTextChange = { manualText = it },
+        onClose = {
+            vm.reset()
+            onDismiss()
+        },
+        onMicClick = ::onMicClick,
+        onSubmitManual = ::submitManual,
+        onEnterTextFallback = { vm.enterTextFallback() },
+        onSetRecordType = { vm.setRecordType(it) },
+        onSave = { vm.save() },
+        performHaptic = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) },
+    )
+}
+
+/**
+ * 语音 Sheet 纯渲染内容（不含 ViewModel / 语音识别器，供 Paparazzi 截图用）。
+ * 渲染逻辑与 VoiceSheetContent 完全一致，仅把状态与回调经参数注入。
+ */
+@Composable
+internal fun VoiceSheetVisual(
+    phase: VoicePhase,
+    transcript: String,
+    draft: VoiceDraft?,
+    didSave: Boolean,
+    speechAvailable: Boolean,
+    speechUnavailableHint: String,
+    manualText: String,
+    onManualTextChange: (String) -> Unit,
+    onClose: () -> Unit,
+    onMicClick: () -> Unit,
+    onSubmitManual: () -> Unit,
+    onEnterTextFallback: () -> Unit,
+    onSetRecordType: (VoiceRecordType) -> Unit,
+    onSave: () -> Unit,
+    performHaptic: () -> Unit,
+) {
+    val palettes = LocalXzgPalettes.current
+
+    val inPreview = (phase is VoicePhase.Preview || phase is VoicePhase.Saving) &&
+        draft != null
 
     Column(
         modifier = Modifier
@@ -186,8 +231,8 @@ fun VoiceSheetContent(onDismiss: () -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             val (titleText, titleColor) = when {
                 didSave -> "已记录" to palettes.accent.accent
-                phaseState is VoicePhase.Error -> "出错了，点击重试" to palettes.fixed.danger
-                else -> phaseState.statusText to palettes.background.textPrimary
+                phase is VoicePhase.Error -> "出错了，点击重试" to palettes.fixed.danger
+                else -> phase.statusText to palettes.background.textPrimary
             }
             Text(
                 text = titleText,
@@ -196,10 +241,7 @@ fun VoiceSheetContent(onDismiss: () -> Unit) {
                 modifier = Modifier.weight(1f),
             )
             IconButton(
-                onClick = {
-                    vm.reset()
-                    onDismiss()
-                },
+                onClick = onClose,
                 modifier = Modifier
                     .size(28.dp)
                     .clip(CircleShape)
@@ -218,10 +260,12 @@ fun VoiceSheetContent(onDismiss: () -> Unit) {
 
         if (inPreview) {
             VoicePreviewSection(
-                vm = vm,
-                phase = phaseState,
-                transcript = transcriptState,
-                draft = draftValue!!,
+                phase = phase,
+                transcript = transcript,
+                draft = draft!!,
+                onSetRecordType = onSetRecordType,
+                onSave = onSave,
+                performHaptic = performHaptic,
             )
         } else {
             // 聆听 / 转写区
@@ -232,22 +276,22 @@ fun VoiceSheetContent(onDismiss: () -> Unit) {
                 contentAlignment = Alignment.Center,
             ) {
                 when {
-                    phaseState is VoicePhase.TextFallback -> {
+                    phase is VoicePhase.TextFallback -> {
                         OutlinedTextField(
                             value = manualText,
-                            onValueChange = { manualText = it },
+                            onValueChange = onManualTextChange,
                             placeholder = { Text("例如：明天下午三点联系饮料供应商") },
                             minLines = 2,
                             maxLines = 3,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                            keyboardActions = KeyboardActions(onDone = { submitManual() }),
+                            keyboardActions = KeyboardActions(onDone = { onSubmitManual() }),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
-                    transcriptState.isNotEmpty() -> {
+                    transcript.isNotEmpty() -> {
                         Text(
-                            text = transcriptState,
+                            text = transcript,
                             style = XzgType.body,
                             color = palettes.background.textPrimary,
                             textAlign = TextAlign.Center,
@@ -267,15 +311,15 @@ fun VoiceSheetContent(onDismiss: () -> Unit) {
             Spacer(modifier = Modifier.height(12.dp))
 
             // 主语音按钮（60dp；listening 时红色 stop 图标；识别器不可用时置灰）
-            val listening = phaseState is VoicePhase.Listening
-            val micEnabled = speech.isAvailable
+            val listening = phase is VoicePhase.Listening
+            val micEnabled = speechAvailable
             val micTint = if (listening) palettes.fixed.danger else palettes.accent.accent
             Box(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center,
             ) {
                 Button(
-                    onClick = ::onMicClick,
+                    onClick = onMicClick,
                     enabled = micEnabled,
                     shape = CircleShape,
                     colors = ButtonDefaults.buttonColors(
@@ -290,7 +334,7 @@ fun VoiceSheetContent(onDismiss: () -> Unit) {
                     Icon(
                         imageVector = when {
                             listening -> Icons.Filled.Stop
-                            phaseState is VoicePhase.TextFallback -> Icons.Filled.Send
+                            phase is VoicePhase.TextFallback -> Icons.Filled.Send
                             else -> Icons.Filled.Mic
                         },
                         contentDescription = if (listening) "停止" else "开始语音",
@@ -301,11 +345,11 @@ fun VoiceSheetContent(onDismiss: () -> Unit) {
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            val hint = when (phaseState) {
+            val hint = when (phase) {
                 is VoicePhase.Listening -> "点击停止"
                 is VoicePhase.TextFallback -> "输入后回车解析"
                 is VoicePhase.Preview, is VoicePhase.Saving, is VoicePhase.Parsing -> ""
-                else -> if (micEnabled) "点击重新说" else vm.speechUnavailableHint
+                else -> if (micEnabled) "点击重新说" else speechUnavailableHint
             }
             if (hint.isNotEmpty()) {
                 Text(
@@ -318,11 +362,11 @@ fun VoiceSheetContent(onDismiss: () -> Unit) {
             }
 
             // 失败保留转写 → "填入文字"（走同一解析链路，不丢话）
-            if (phaseState is VoicePhase.Error) {
+            if (phase is VoicePhase.Error) {
                 Spacer(modifier = Modifier.height(8.dp))
                 V32SecondaryButton(
                     text = "填入文字",
-                    onClick = { vm.enterTextFallback() },
+                    onClick = onEnterTextFallback,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -330,15 +374,17 @@ fun VoiceSheetContent(onDismiss: () -> Unit) {
     }
 }
 
+
 /** 预览区：识别原文卡 + 解析字段 + 6 类分段选择 + 确认保存（对齐 iOS previewSection）。 */
 @Composable
 private fun VoicePreviewSection(
-    vm: VoiceViewModel,
     phase: VoicePhase,
     transcript: String,
     draft: VoiceDraft,
+    onSetRecordType: (VoiceRecordType) -> Unit,
+    onSave: () -> Unit,
+    performHaptic: () -> Unit,
 ) {
-    val haptic = LocalHapticFeedback.current
     val palettes = LocalXzgPalettes.current
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
@@ -361,8 +407,8 @@ private fun VoicePreviewSection(
             options = types.map { it.title },
             selectedIndex = types.indexOf(draft.type).coerceAtLeast(0),
             onSelect = { index ->
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                vm.setRecordType(types[index])
+                performHaptic()
+                onSetRecordType(types[index])
             },
         )
 
@@ -371,8 +417,8 @@ private fun VoicePreviewSection(
             V32PrimaryButton(
                 text = "确认保存",
                 onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    vm.save()
+                    performHaptic()
+                    onSave()
                 },
                 enabled = !saving,
                 modifier = Modifier.fillMaxWidth(),

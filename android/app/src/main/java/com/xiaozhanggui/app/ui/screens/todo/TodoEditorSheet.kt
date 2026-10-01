@@ -173,6 +173,30 @@ fun TodoEditorSheet(
     onSave: suspend (title: String, detail: String, dueDate: Long?, priority: Int, imagePath: String?) -> Unit
 ) {
     val palettes = LocalXzgPalettes.current
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(XzgDimens.sheet),
+        containerColor = palettes.background.pageBG
+    ) {
+        TodoEditorContent(
+            todo = todo,
+            onDismiss = onDismiss,
+            onSave = onSave
+        )
+    }
+}
+
+/**
+ * 待办编辑 Sheet 纯渲染内容（不含 ModalBottomSheet 包裹，供 Paparazzi 截图用）。
+ * 状态逻辑与 TodoEditorSheet 完全一致，仅剥离手势容器。
+ */
+@Composable
+internal fun TodoEditorContent(
+    todo: TodoEntity?,
+    onDismiss: () -> Unit,
+    onSave: suspend (title: String, detail: String, dueDate: Long?, priority: Int, imagePath: String?) -> Unit
+) {
+    val palettes = LocalXzgPalettes.current
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -230,19 +254,14 @@ fun TodoEditorSheet(
         }
     }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(XzgDimens.sheet),
-        containerColor = palettes.background.pageBG
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .imePadding()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = XzgDimens.pageMargin)
+            .padding(bottom = 24.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .imePadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = XzgDimens.pageMargin)
-                .padding(bottom = 24.dp)
-        ) {
             SheetHeader(
                 title = if (todo == null) "新增待办" else "编辑待办",
                 onCancel = onDismiss
@@ -350,7 +369,6 @@ fun TodoEditorSheet(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = canSave
             )
-        }
     }
 
     if (showSaveError) {

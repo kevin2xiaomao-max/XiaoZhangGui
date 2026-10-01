@@ -73,14 +73,48 @@ fun GoodsEditorSheet(
     onDismiss: () -> Unit
 ) {
     val palettes = LocalXzgPalettes.current
-    val scope = rememberCoroutineScope()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = palettes.background.pageBG
+    ) {
+        GoodsEditorContent(
+        mode = mode,
+        goods = goods,
+        onDismiss = onDismiss,
+        onSave = { entity ->
+            if (mode == GoodsEditorMode.EDIT) {
+                XzgGraph.goodsRepository.update(entity)
+            } else {
+                XzgGraph.goodsRepository.add(entity)
+            }
+        }
+        )
+    }
+}
+
+/**
+ * 商品编辑器纯渲染内容（不含 ModalBottomSheet 包裹，供 Paparazzi 截图用）。
+ * 状态逻辑与 GoodsEditorSheet 完全一致，仅剥离手势容器与 Repository 写入
+ * （写入经 [onSave] 回调交由外层执行；保存失败静默行为不变）。
+ */
+@Composable
+internal fun GoodsEditorContent(
+    mode: GoodsEditorMode,
+    goods: GoodsEntity? = null,
+    onDismiss: () -> Unit,
+    onSave: suspend (entity: GoodsEntity) -> Unit
+) {
+    val palettes = LocalXzgPalettes.current
+    val scope = rememberCoroutineScope()
 
     var name by remember { mutableStateOf(goods?.name ?: "") }
     var category by remember {
         mutableStateOf(
-            if (goods != null && GoodsCategory.ALL.contains(goods.category)) goods.category
-            else GoodsCategory.OTHER
+        if (goods != null && GoodsCategory.ALL.contains(goods.category)) goods.category
+        else GoodsCategory.OTHER
         )
     }
     var barcode by remember { mutableStateOf(goods?.barcode ?: "") }
@@ -112,200 +146,190 @@ fun GoodsEditorSheet(
         if (!canSave) return
         val trimmedName = name.trim()
         val entity = GoodsEntity(
-            id = goods?.id ?: java.util.UUID.randomUUID().toString(),
-            name = trimmedName,
-            category = category,
-            barcode = barcode.trim(),
-            stock = stockText.filter { it.isDigit() }.toIntOrNull() ?: 0,
-            minStock = minStockText.filter { it.isDigit() }.toIntOrNull() ?: 0,
-            purchasePrice = purchaseText.toDoubleOrNull() ?: 0.0,
-            salePrice = saleText.toDoubleOrNull() ?: 0.0,
-            productionDate = if (hasProductionDate) productionDate else null,
-            shelfLifeDays = shelfLifeText.filter { it.isDigit() }.toIntOrNull() ?: 0,
-            expiryDate = if (hasExpiryDate) expiryDate else null,
-            note = note.trim(),
-            imagePath = imagePath,
-            createdAt = goods?.createdAt ?: System.currentTimeMillis(),
-            updatedAt = System.currentTimeMillis()
+        id = goods?.id ?: java.util.UUID.randomUUID().toString(),
+        name = trimmedName,
+        category = category,
+        barcode = barcode.trim(),
+        stock = stockText.filter { it.isDigit() }.toIntOrNull() ?: 0,
+        minStock = minStockText.filter { it.isDigit() }.toIntOrNull() ?: 0,
+        purchasePrice = purchaseText.toDoubleOrNull() ?: 0.0,
+        salePrice = saleText.toDoubleOrNull() ?: 0.0,
+        productionDate = if (hasProductionDate) productionDate else null,
+        shelfLifeDays = shelfLifeText.filter { it.isDigit() }.toIntOrNull() ?: 0,
+        expiryDate = if (hasExpiryDate) expiryDate else null,
+        note = note.trim(),
+        imagePath = imagePath,
+        createdAt = goods?.createdAt ?: System.currentTimeMillis(),
+        updatedAt = System.currentTimeMillis()
         )
         scope.launch {
-            try {
-                if (mode == GoodsEditorMode.EDIT) {
-                    XzgGraph.goodsRepository.update(entity)
-                } else {
-                    XzgGraph.goodsRepository.add(entity)
-                }
-                onDismiss()
-            } catch (_: Exception) {
-                // 与 iOS 一致：保存失败静默（仅记录状态以便排查，不打断用户）
-                saveError = "商品未保存，请重试。"
-            }
+        try {
+            onSave(entity)
+            onDismiss()
+        } catch (_: Exception) {
+            // 与 iOS 一致：保存失败静默（仅记录状态以便排查，不打断用户）
+            saveError = "商品未保存，请重试。"
+        }
         }
     }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = palettes.background.pageBG
+    Column(
+        modifier = Modifier
+        .verticalScroll(rememberScrollState())
+        .padding(horizontal = XzgDimens.pageMargin)
+        .padding(top = 14.dp, bottom = XzgDimens.bottomPad),
+        verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = XzgDimens.pageMargin)
-                .padding(top = 14.dp, bottom = XzgDimens.bottomPad),
-            verticalArrangement = Arrangement.spacedBy(18.dp)
-        ) {
-            // 头部
-            Box(modifier = Modifier.fillMaxWidth()) {
+        // 头部
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = if (mode == GoodsEditorMode.NEW) "新增商品" else "编辑商品",
+                style = XzgType.headline,
+                color = palettes.background.textPrimary,
+                modifier = Modifier.align(Alignment.Center)
+            )
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.align(Alignment.CenterStart)
+            ) {
                 Text(
-                    text = if (mode == GoodsEditorMode.NEW) "新增商品" else "编辑商品",
-                    style = XzgType.headline,
-                    color = palettes.background.textPrimary,
-                    modifier = Modifier.align(Alignment.Center)
-                )
-                TextButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.align(Alignment.CenterStart)
-                ) {
-                    Text(
-                        text = "取消",
-                        style = XzgType.body,
-                        color = palettes.background.textTertiary
-                    )
-                }
-            }
-
-            // 商品名称
-            FieldSection("商品名称") {
-                EditorTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    placeholder = "如：可口可乐 330ml"
+                    text = "取消",
+                    style = XzgType.body,
+                    color = palettes.background.textTertiary
                 )
             }
+        }
 
-            // 分类
-            FieldSection("分类") {
-                V32SegmentedPicker(
-                    options = GoodsCategory.ALL,
-                    selectedIndex = GoodsCategory.ALL.indexOf(category).takeIf { it >= 0 }
-                        ?: (GoodsCategory.ALL.size - 1),
-                    onSelect = { category = GoodsCategory.ALL[it] }
-                )
-            }
-
-            // 条码
-            FieldSection("条码") {
-                EditorTextField(
-                    value = barcode,
-                    onValueChange = { barcode = it },
-                    placeholder = "选填，扫码枪可直接录入",
-                    keyboardType = KeyboardType.Number
-                )
-            }
-
-            // 库存
-            FieldSection("库存") {
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    NumberField(
-                        label = "当前库存",
-                        value = stockText,
-                        onValueChange = { if (it.all { c -> c.isDigit() }) stockText = it },
-                        modifier = Modifier.weight(1f)
-                    )
-                    NumberField(
-                        label = "最低库存",
-                        value = minStockText,
-                        onValueChange = { if (it.all { c -> c.isDigit() }) minStockText = it },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-
-            // 价格
-            FieldSection("价格") {
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    NumberField(
-                        label = "进价",
-                        value = purchaseText,
-                        onValueChange = { if (it.matches(DECIMAL_RE)) purchaseText = it },
-                        decimal = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                    NumberField(
-                        label = "售价",
-                        value = saleText,
-                        onValueChange = { if (it.matches(DECIMAL_RE)) saleText = it },
-                        decimal = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-
-            // 生产日期
-            FieldSection("生产日期") {
-                ToggleRow(
-                    title = "设置生产日期",
-                    checked = hasProductionDate,
-                    onCheckedChange = { hasProductionDate = it }
-                )
-                if (hasProductionDate) {
-                    DateRow(
-                        dateText = Format.formatDate(productionDate),
-                        onClick = { showProductionPicker = true }
-                    )
-                }
-            }
-
-            // 保质期
-            FieldSection("保质期") {
-                NumberField(
-                    label = "保质期（天）",
-                    value = shelfLifeText,
-                    onValueChange = { if (it.all { c -> c.isDigit() }) shelfLifeText = it },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-
-            // 到期日期
-            FieldSection("到期日期") {
-                ToggleRow(
-                    title = "设置到期日期",
-                    checked = hasExpiryDate,
-                    onCheckedChange = { hasExpiryDate = it }
-                )
-                if (hasExpiryDate) {
-                    DateRow(
-                        dateText = Format.formatDate(expiryDate),
-                        onClick = { showExpiryPicker = true }
-                    )
-                }
-            }
-
-            // 备注
-            FieldSection("备注") {
-                EditorTextField(
-                    value = note,
-                    onValueChange = { note = it },
-                    placeholder = "选填"
-                )
-            }
-
-            // 商品图片
-            FieldSection("商品图片") {
-                PhotoPickerField(
-                    imagePath = imagePath,
-                    onPick = { imagePath = it },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-
-            V32PrimaryButton(
-                text = "保存",
-                onClick = ::save,
-                enabled = canSave
+        // 商品名称
+        FieldSection("商品名称") {
+            EditorTextField(
+                value = name,
+                onValueChange = { name = it },
+                placeholder = "如：可口可乐 330ml"
             )
         }
+
+        // 分类
+        FieldSection("分类") {
+            V32SegmentedPicker(
+                options = GoodsCategory.ALL,
+                selectedIndex = GoodsCategory.ALL.indexOf(category).takeIf { it >= 0 }
+                    ?: (GoodsCategory.ALL.size - 1),
+                onSelect = { category = GoodsCategory.ALL[it] }
+            )
+        }
+
+        // 条码
+        FieldSection("条码") {
+            EditorTextField(
+                value = barcode,
+                onValueChange = { barcode = it },
+                placeholder = "选填，扫码枪可直接录入",
+                keyboardType = KeyboardType.Number
+            )
+        }
+
+        // 库存
+        FieldSection("库存") {
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                NumberField(
+                    label = "当前库存",
+                    value = stockText,
+                    onValueChange = { if (it.all { c -> c.isDigit() }) stockText = it },
+                    modifier = Modifier.weight(1f)
+                )
+                NumberField(
+                    label = "最低库存",
+                    value = minStockText,
+                    onValueChange = { if (it.all { c -> c.isDigit() }) minStockText = it },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
+        // 价格
+        FieldSection("价格") {
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                NumberField(
+                    label = "进价",
+                    value = purchaseText,
+                    onValueChange = { if (it.matches(DECIMAL_RE)) purchaseText = it },
+                    decimal = true,
+                    modifier = Modifier.weight(1f)
+                )
+                NumberField(
+                    label = "售价",
+                    value = saleText,
+                    onValueChange = { if (it.matches(DECIMAL_RE)) saleText = it },
+                    decimal = true,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
+        // 生产日期
+        FieldSection("生产日期") {
+            ToggleRow(
+                title = "设置生产日期",
+                checked = hasProductionDate,
+                onCheckedChange = { hasProductionDate = it }
+            )
+            if (hasProductionDate) {
+                DateRow(
+                    dateText = Format.formatDate(productionDate),
+                    onClick = { showProductionPicker = true }
+                )
+            }
+        }
+
+        // 保质期
+        FieldSection("保质期") {
+            NumberField(
+                label = "保质期（天）",
+                value = shelfLifeText,
+                onValueChange = { if (it.all { c -> c.isDigit() }) shelfLifeText = it },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        // 到期日期
+        FieldSection("到期日期") {
+            ToggleRow(
+                title = "设置到期日期",
+                checked = hasExpiryDate,
+                onCheckedChange = { hasExpiryDate = it }
+            )
+            if (hasExpiryDate) {
+                DateRow(
+                    dateText = Format.formatDate(expiryDate),
+                    onClick = { showExpiryPicker = true }
+                )
+            }
+        }
+
+        // 备注
+        FieldSection("备注") {
+            EditorTextField(
+                value = note,
+                onValueChange = { note = it },
+                placeholder = "选填"
+            )
+        }
+
+        // 商品图片
+        FieldSection("商品图片") {
+            PhotoPickerField(
+                imagePath = imagePath,
+                onPick = { imagePath = it },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        V32PrimaryButton(
+            text = "保存",
+            onClick = ::save,
+            enabled = canSave
+        )
     }
 
     if (showProductionPicker) {
