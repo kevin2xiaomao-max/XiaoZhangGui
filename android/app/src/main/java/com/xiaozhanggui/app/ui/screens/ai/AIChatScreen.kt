@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xiaozhanggui.app.XzgApplication
 import com.xiaozhanggui.app.data.di.XzgGraph
+import com.xiaozhanggui.app.domain.ai.ActionProposal
 import com.xiaozhanggui.app.domain.ai.AiRole
 import com.xiaozhanggui.app.domain.ai.AiUiMessage
 import com.xiaozhanggui.app.ui.components.PillTone
