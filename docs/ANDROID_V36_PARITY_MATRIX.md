@@ -51,7 +51,7 @@
 | App 启动三路 | App/XiaoZhangGuiApp.swift:29-59 | MainActivity + XzgApplication | — | 单元测试宿主→空；UI 测试→内存 DB + 种子；生产→Room 真实库；**失败显式报错页，绝不静默回退内存库**（P0-2） | 启动态/错误页 | — | ✅ | ⬜ |
 | 5 Tab 导航 | App/RootView.swift:19-41 | NavHost + 底部导航栏 | — | tab 状态 + lastContentTab | home/schedule/assistant/todo/profile | Tab 点击切换；iOS 26 下滑隐藏 tab bar → Android nestedScroll 等价 | ✅ | ⬜ |
 | 深链接 xzg:// | RootView.swift:74-87, Assistant/AI/Core/AppDeepLink.swift | Manifest intent-filter + onNewIntent | — | voice→语音 sheet；quickrecord/quick→速记 sheet；ai→小掌柜 tab；ai?mode=voice→小掌柜+语音面板；未知 host 忽略 | — | 外部唤起 | ✅ | ⬜ |
-| 全局 Sheet（语音/速记） | RootView.swift:46-56 | ModalBottomSheet（圆角 28，固定高度 260/340） | — | — | showVoice/showQuickRecord | 全局可唤起 | 🟡 | ⬜ |
+| 全局 Sheet（语音/速记） | RootView.swift:46-56 | ModalBottomSheet（圆角 28，固定高度 260/340） | — | — | ✅ showVoice/showQuickRecord | ✅ 全局可唤起 | ✅ 🟡 | ✅ |
 | Demo Mode | Demo/DemoMode.swift | DataStore xzg_demo_mode_enabled + 内存 Room | DemoCatalog 种子 | 切换强制重建 UI 树；演示数据独立内存库 | 开关 + 重置按钮 | Toggle | ⬜ | ⬜ |
 
 ---
@@ -75,8 +75,8 @@
 
 | 项 | iOS Source | Android Target | 数据模型 | Repository/业务逻辑 | UI 状态 | Interaction | Android 实现 | Test |
 |---|---|---|---|---|---|---|---|---|
-| 日程页 | Features/Schedule/ScheduleView.swift | ScheduleScreen | 复用 CalendarAgenda | ScheduleAgenda.make：timedEvents（真实钟点）/全天（无钟点+临期+备忘）；仅今天注入无截止待办；收支只聚合摘要 | weekStrip（周一起始）/时间轴/全天/当日经营 | 今天按钮；日历图标→日历页；临期行展开；待办勾选 | ✅ | ⬜ |
-| 日历页 | Features/Calendar/CalendarView.swift | CalendarScreen（日程内二级入口） | CalendarAgenda.dayData/eventFlags | 周日首列；状态点5色；详情行（营业额/待办/记录/临期/客户） | 月导航 | 月切换 | ✅ | ⬜ |
+| 日程页 | Features/Schedule/ScheduleView.swift | ScheduleScreen | 复用 CalendarAgenda | ScheduleAgenda.make：timedEvents（真实钟点）/全天（无钟点+临期+备忘）；仅今天注入无截止待办；收支只聚合摘要 | ✅ weekStrip（周一起始）/时间轴/全天/当日经营 | ✅ 今天按钮；日历图标→日历页；临期行展开；待办勾选 | ✅ | ✅ |
+| 日历页 | Features/Calendar/CalendarView.swift | CalendarScreen（日程内二级入口） | CalendarAgenda.dayData/eventFlags | 周日首列；状态点5色；详情行（营业额/待办/记录/临期/客户） | ✅ 月导航 | ✅ 月切换 | ✅ | ✅ |
 
 ---
 
@@ -86,7 +86,7 @@
 
 | 项 | iOS Source | Android Target | 数据模型 | Repository/业务逻辑 | UI 状态 | Interaction | Android 实现 | Test |
 |---|---|---|---|---|---|---|---|---|
-| AI 聊天页 | AI/UI/AIChatView.swift（314 行） | ui/screens/ai/AIChatScreen | ConversationStore（单会话；json 落盘） | AgentCore 对话编排；**无 SSE 流式**（单次 complete；UI 仅 isProcessing+processingLabel 二元态） | 头部说明+Key 状态 pill；emptyState 4 范例句；消息气泡（用户右/助手左+Markdown）；ActionCard；TypingIndicator；语音遮罩面板 | 发送/语音/图片/文件/+菜单/右上 Menu（新对话/清空/AI 设置） | ✅ | ⬜ |
+| AI 聊天页 | AI/UI/AIChatView.swift（314 行） | ui/screens/ai/AIChatScreen | ConversationStore（单会话；json 落盘） | AgentCore 对话编排；**无 SSE 流式**（单次 complete；UI 仅 isProcessing+processingLabel 二元态） | ✅ 头部说明+Key 状态 pill；emptyState 4 范例句；消息气泡（用户右/助手左+Markdown）；ActionCard；TypingIndicator；语音遮罩面板 | ✅ 发送/语音/图片/文件/+菜单/右上 Menu（新对话/清空/AI 设置） | ✅ | ✅ |
 | 业务动作 5 工具 | AI/Tools/ToolCatalog.swift（liteTools 固定顺序） | domain/ai/AiTools.kt | — | searchRecords（只读，read 权限→自动执行不确认）；recordRevenue/createTodo/createMemo/createDelivery（create 权限→**必须 ActionCard 确认**）；addExpiry/update/delete **不注册** | ActionCard 五态：pending/confirmed/executed/duplicate/failed/cancelled；预览模式琥珀横幅"不会真实保存" | 确认记录/修改（回填原文）/不记录；失败可重试 | ✅ | ✅ |
 | 执行器与幂等 | Integration/RepositoryToolExecutor.swift（唯一写库执行器） | data/ai/RepositoryToolExecutor | ExecutionJournal（json 落盘，损坏隔离重命名） | 双键幂等：toolCallID（call_<UUID>）+ 业务指纹（rev/todo/memo/del/search 规则）；校验顺序：注册→参数→幂等→Repository 写入→journal markExecuted | — | — | ✅ | ✅ |
 | 确认流程 | AI/Core/AgentCore.swift:508-623 | data/ai/AgentCore + domain/ai/PendingAction | PendingActionStore（pending-actions.json，原子写入） | handleToolCall→pending.upsert→ActionCard；confirm→preview 门只置 acknowledged / live 门真实执行；cancel→cancelled；modify→取消旧卡回填原文 | — | — | ✅ | ✅ |
@@ -94,7 +94,7 @@
 | 本地解析 | AI/Providers/LocalBusinessParser.swift（Free First 0-Token） | domain/ai/LocalBusinessParser.kt | — | **无 Key 时本地 CREATE 照常工作**；8 示例规则（金额/房号/人名/商品/歧义时钟追问绝不静默回落） | clarify 追问 | — | ✅ | ✅ |
 | Provider 配置 | AI/Core/AISettings.swift | data/ai/AiSettings + OpenAiCompatProvider | — | 默认 DeepSeek（https://api.deepseek.com，deepseek-flash/deepseek-v4-pro）；temperature 0.2 硬编码；**无流式/SSE**；ProviderChain 只跳 1 次（401/403 不换链）；Key 只进 Keychain→Android Keystore | 设置页 tier 三档/主备 baseURL+模型+Key/搜索 provider 四档；连接测试状态胶囊（仅真实成功才绿） | 配置/测试连接 | ✅ | ⬜ |
 | 旧引擎 | Features/Assistant/BusinessAssistantEngine.swift | 首页摘要本地计算 | BusinessAssistantInput（6 模型快照） | 本地纯规则只读；退化为首页每日摘要/洞察计算；聊天页真正引擎是 AgentCore | — | — | ✅ | ⬜ |
-| 短语音 | AI/Voice/ShortVoiceSession.swift + ShortVoicePanel | AIChatScreen onVoice→VoiceSheetContent（复用语音链路） | — | 复用 SpeechService；3 秒静音收尾；final 为空→failed；转写后走相同 send 流程；失败保留转写填回输入框 | idle/listening/finalizing/failed；三种取消（按钮/遮罩/失败关闭） | 语音输入 | ✅ | ⬜ |
+| 短语音 | AI/Voice/ShortVoiceSession.swift + ShortVoicePanel | AIChatScreen onVoice→VoiceSheetContent（复用语音链路） | — | 复用 SpeechService；3 秒静音收尾；final 为空→failed；转写后走相同 send 流程；失败保留转写填回输入框 | ✅ idle/listening/finalizing/failed；三种取消（按钮/遮罩/失败关闭） | ✅ 语音输入 | ✅ | ✅ |
 | 能力 | AI/Capabilities/（Vision/Document/URLReading/WebSearch） | data/ai/Skills.kt | — | 均为只读不产生 ActionCard；Vision/Document 经 OpenAI 兼容 chat/completions；WebSearch 三档（Tavily/JSON 代理/免费优先，默认 disabled）；**上云 context 恒空**（经营数据不随云端 CREATE 外发） | — | — | ✅ | ⬜ |
 | 技能 | AI/Skills/（GoodsLookup/MetaReply/Weather） | domain/ai/ | — | 商品本地查询/元问题固定回复/本地天气回答（降雨≥60% 追加配送提示） | — | — | ✅ | ⬜ |
 
@@ -161,8 +161,8 @@
 
 | 项 | iOS Source | Android Target | 数据模型 | Repository/业务逻辑 | UI 状态 | Interaction | Android 实现 | Test |
 |---|---|---|---|---|---|---|---|---|
-| 快速记录 | Features/QuickRecord/QuickRecordSheet.swift | QuickRecordSheet | 各 Entity | QuickRecordParser 分流（营业额→备忘→待办→配送→临期→兜底备忘）；金额缺失写0（与语音链路不一致，待产品确认） | 识别结果卡；类型覆盖菜单 | 输入/语音/确认保存 | ✅ | ✅ |
-| 语音记一笔 | Features/Voice/VoiceView.swift | VoiceSheet | 各 Entity | VoiceParser（独立规则，有 expense）；静音3s 自动结束；金额缺失报错；textFallback | 8 态状态机；装饰波形 | 录音/停止/类型覆盖/确认保存 | ✅ | ✅ |
+| 快速记录 | Features/QuickRecord/QuickRecordSheet.swift | QuickRecordSheet | 各 Entity | QuickRecordParser 分流（营业额→备忘→待办→配送→临期→兜底备忘）；金额缺失写0（与语音链路不一致，待产品确认） | ✅ 识别结果卡；类型覆盖菜单 | ✅ 输入/语音/确认保存 | ✅ | ✅ |
+| 语音记一笔 | Features/Voice/VoiceView.swift | VoiceSheet | 各 Entity | VoiceParser（独立规则，有 expense）；静音3s 自动结束；金额缺失报错；textFallback | ✅ 8 态状态机；装饰波形 | ✅ 录音/停止/类型覆盖/确认保存 | ✅ | ✅ |
 
 ---
 
