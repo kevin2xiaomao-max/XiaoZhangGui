@@ -46,6 +46,7 @@ import com.xiaozhanggui.app.domain.Format
 import com.xiaozhanggui.app.ui.components.PhotoPickerField
 import com.xiaozhanggui.app.ui.components.V32Card
 import com.xiaozhanggui.app.ui.components.V32PrimaryButton
+import com.xiaozhanggui.app.ui.components.V32SectionHeader
 import com.xiaozhanggui.app.ui.components.V32SegmentedPicker
 import com.xiaozhanggui.app.ui.theme.LocalXzgPalettes
 import com.xiaozhanggui.app.ui.theme.XzgDimens
@@ -59,8 +60,14 @@ import kotlinx.coroutines.launch
  * Sheet 头：左上"取消" + 居中标题。对应 iOS 各 EditorSheet 的导航栏样式。
  */
 @Composable
-internal fun SheetHeader(title: String, onCancel: () -> Unit) {
+internal fun SheetHeader(
+    title: String,
+    onCancel: () -> Unit,
+    cancelColor: Color = Color.Unspecified
+) {
     val palettes = LocalXzgPalettes.current
+    val resolvedCancelColor =
+        if (cancelColor == Color.Unspecified) palettes.background.textSecondary else cancelColor
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -73,7 +80,7 @@ internal fun SheetHeader(title: String, onCancel: () -> Unit) {
             Text(
                 text = "取消",
                 style = XzgType.body,
-                color = palettes.accent.accent
+                color = resolvedCancelColor
             )
         }
         Text(
@@ -267,6 +274,8 @@ internal fun TodoEditorContent(
                 onCancel = onDismiss
             )
 
+            V32SectionHeader(title = "标题")
+            Spacer(Modifier.height(8.dp))
             V32Card {
                 Column {
                     XzgSheetTextField(
@@ -288,6 +297,8 @@ internal fun TodoEditorContent(
 
             Spacer(Modifier.height(12.dp))
 
+            V32SectionHeader(title = "时间")
+            Spacer(Modifier.height(8.dp))
             V32Card {
                 Column {
                     Row(
@@ -340,14 +351,10 @@ internal fun TodoEditorContent(
 
             Spacer(Modifier.height(12.dp))
 
-            Text(
-                text = "优先级",
-                style = XzgType.subhead,
-                color = palettes.background.textSecondary,
-                modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
-            )
+            V32SectionHeader(title = "优先级")
+            Spacer(Modifier.height(8.dp))
             V32SegmentedPicker(
-                options = listOf("低", "中", "高"),
+                options = listOf("低优先级", "中优先级", "高优先级"),
                 selectedIndex = priority,
                 onSelect = { priority = it },
                 modifier = Modifier.fillMaxWidth()
@@ -355,6 +362,8 @@ internal fun TodoEditorContent(
 
             Spacer(Modifier.height(12.dp))
 
+            V32SectionHeader(title = "图片")
+            Spacer(Modifier.height(8.dp))
             PhotoPickerField(
                 imagePath = imagePath,
                 onPick = { imagePath = it },

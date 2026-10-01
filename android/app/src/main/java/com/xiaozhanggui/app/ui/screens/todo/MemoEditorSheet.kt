@@ -10,7 +10,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -24,6 +23,7 @@ import com.xiaozhanggui.app.data.db.MemoEntity
 import com.xiaozhanggui.app.ui.components.PhotoPickerField
 import com.xiaozhanggui.app.ui.components.V32Card
 import com.xiaozhanggui.app.ui.components.V32PrimaryButton
+import com.xiaozhanggui.app.ui.components.V32SectionHeader
 import com.xiaozhanggui.app.ui.theme.LocalXzgPalettes
 import com.xiaozhanggui.app.ui.theme.XzgDimens
 import kotlinx.coroutines.launch
@@ -101,30 +101,39 @@ internal fun MemoEditorContent(
     ) {
             SheetHeader(
                 title = if (memo == null) "新增备忘" else "编辑备忘",
-                onCancel = onDismiss
+                onCancel = onDismiss,
+                cancelColor = palettes.background.textTertiary
             )
 
+            V32SectionHeader(title = "标题")
+            Spacer(Modifier.height(8.dp))
             V32Card {
-                Column {
-                    XzgSheetTextField(
-                        value = title,
-                        onValueChange = { title = it },
-                        placeholder = "记录标题",
-                        singleLine = true
-                    )
-                    HorizontalDivider(color = palettes.background.divider)
-                    XzgSheetTextField(
-                        value = content,
-                        onValueChange = { content = it },
-                        placeholder = "记点什么…",
-                        minLines = 4,
-                        maxLines = 8
-                    )
-                }
+                XzgSheetTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    placeholder = "记录标题",
+                    singleLine = true
+                )
             }
 
             Spacer(Modifier.height(12.dp))
 
+            V32SectionHeader(title = "内容")
+            Spacer(Modifier.height(8.dp))
+            V32Card {
+                XzgSheetTextField(
+                    value = content,
+                    onValueChange = { content = it },
+                    placeholder = "记点什么…",
+                    minLines = 4,
+                    maxLines = 8
+                )
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            V32SectionHeader(title = "图片")
+            Spacer(Modifier.height(8.dp))
             PhotoPickerField(
                 imagePath = imagePath,
                 onPick = { imagePath = it },
