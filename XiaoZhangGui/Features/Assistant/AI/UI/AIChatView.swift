@@ -99,9 +99,9 @@ struct AIChatView: View {
         }
         // V3.6.1 P0 修复：系统 TabBar 必须彻底隐藏。
         // 注意：不要在这里加 `.toolbar(.hidden, for: .tabBar)`——RootView 的 TabView 级别
-        // 已经全局隐藏（且 V36FloatingTabBar 接管了导航）。之前这里的旧三元
-        // `showVoicePanel ? .hidden : .visible` 会在语音面板关闭时把系统 TabBar 重新设为
-        // visible，是双底栏的根因；而显式的 hidden 写在 NavigationStack 内、又与输入框的
+        // 已经全局隐藏（且 V36FloatingTabBar 接管了导航）。之前这里按 showVoicePanel 切换
+        // hidden / visible 的旧写法，会在语音面板关闭时把系统 TabBar 重新设为可见，
+        // 是双底栏的根因；而显式的 hidden 写在 NavigationStack 内、又与输入框的
         // keyboard toolbar 同处 toolbar 解析作用域，iOS 26 键盘弹起时重解析 toolbar 会抖动，
         // 曾导致 XCUITest 里 ai.input 在键盘动画期间掉出无障碍树。保持此处无 toolbar 可见性
         // 修饰符，统一由 RootView 兜底隐藏。
