@@ -105,7 +105,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
 import java.time.Instant
-import java.time.LocalDate
 import java.time.ZoneId
 
 /**
@@ -365,7 +364,7 @@ class HomeViewModel(
     }
 
     private fun weekdayLabel(nowMillis: Long): String {
-        val dow = LocalDate.ofInstant(Instant.ofEpochMilli(nowMillis), ZoneId.systemDefault()).dayOfWeek
+        val dow = Instant.ofEpochMilli(nowMillis).atZone(ZoneId.systemDefault()).dayOfWeek
         val symbol = when (dow) {
             DayOfWeek.MONDAY -> "一"
             DayOfWeek.TUESDAY -> "二"
