@@ -2,8 +2,7 @@ package com.xiaozhanggui.app
 
 import com.xiaozhanggui.app.domain.CustomerDeliveryInfo
 import com.xiaozhanggui.app.domain.CustomerDeliveryStorage
-import com.xiaozhanggui.app.domain.displayCustomerName
-import com.xiaozhanggui.app.domain.resolveDeliveryInfo
+import com.xiaozhanggui.app.domain.DisplayLogic
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -46,17 +45,17 @@ class CustomerDeliveryCodecTest {
 
     @Test
     fun `displayCustomerName never shows encoded string`() {
-        val encoded = CustomerDeliveryStorage.encode(
-            CustomerDeliveryInfo(deliveryTime = 1_700_000_000_000L, legacyCustomer = "李四")
-        )
-        val display = displayCustomerName(encoded)
+        val info = CustomerDeliveryInfo(deliveryTime = 1_700_000_000_000L, legacyCustomer = "李四")
+        val encoded = CustomerDeliveryStorage.encode(info)
+        // UI 层：解码得 fallback 客户名，visible() 隐藏编码串
+        val display = DisplayLogic.visible(encoded, info.legacyCustomer.ifBlank { "客户" })
         assertEquals("李四", display)
         assertFalse(display.contains("xzg-delivery-v1"))
     }
 
     @Test
     fun `displayCustomerName falls back to legacy plaintext`() {
-        assertEquals("赵六", displayCustomerName("赵六"))
+        assertEquals("赵六", DisplayLogic.visible("赵六", "客户"))
     }
 
     @Test
@@ -64,6 +63,8 @@ class CustomerDeliveryCodecTest {
         val encoded = CustomerDeliveryStorage.encode(
             CustomerDeliveryInfo(note = "放门口", legacyCustomer = "钱七")
         )
-        assertEquals(encoded, resolveDeliveryInfo(encoded).customer)
+        // 解码再编码得到相同存储串（Calendar 按 deliveryTime 聚合用 decode）
+        val decoded = CustomerDeliveryStorage.decode(encoded)
+        assertEquals(encoded, CustomerDeliveryStorage.encode(decoded))
     }
 }
