@@ -51,13 +51,21 @@ final class HomeQuickEntryAuditTests: XCTestCase {
 
     func testAIChatViewAlwaysHidesSystemTabBar_NoDoubleBottomBar() throws {
         let aiChat = try source("XiaoZhangGui/Features/Assistant/AI/UI/AIChatView.swift")
-        XCTAssertTrue(
-            aiChat.contains(".toolbar(.hidden, for: .tabBar)"),
-            "V36 自定义悬浮底栏下，系统 TabBar 必须始终隐藏，语音面板展示/关闭均不得恢复"
-        )
         XCTAssertFalse(
             aiChat.contains("showVoicePanel ? .hidden : .visible"),
             "旧三元表达式在语音面板关闭时把系统 TabBar 设回 visible，是双底栏 P0 的根因，不得回归"
+        )
+        XCTAssertFalse(
+            aiChat.contains(".toolbar(.visible, for: .tabBar)"),
+            "AI 页不得以任何方式把系统 TabBar 设为可见，否则与 V36FloatingTabBar 形成双底栏"
+        )
+        // 系统 TabBar 的隐藏统一由 RootView 在 TabView 级别兜底；AIChatView 内不再重复声明
+        // toolbar 可见性修饰符（曾因与 keyboard toolbar 同作用域，在 iOS 26 键盘弹起重解析时
+        // 把 ai.input 挤出无障碍树，导致 XCUITest 批量失败）。
+        let root = try source("XiaoZhangGui/App/RootView.swift")
+        XCTAssertTrue(
+            root.contains(".toolbar(.hidden, for: .tabBar)"),
+            "V36 自定义悬浮底栏下，系统 TabBar 必须在 RootView TabView 级别始终隐藏"
         )
     }
 
