@@ -60,6 +60,17 @@ jobs:
       - name: Lint
         run: ./gradlew lint --stacktrace
 
+      - name: Paparazzi 截图（Visual Gate）
+        run: ./gradlew recordPaparazziDebug --stacktrace
+
+      - name: 上传 Paparazzi 截图
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: paparazzi-screenshots
+          path: android/app/src/test/snapshots/
+          if-no-files-found: warn
+
       - name: 上传 Debug APK
         if: success()
         uses: actions/upload-artifact@v4
