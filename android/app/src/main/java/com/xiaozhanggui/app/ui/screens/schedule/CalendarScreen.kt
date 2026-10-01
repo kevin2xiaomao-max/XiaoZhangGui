@@ -69,7 +69,6 @@ private val FLAG_ORDER = listOf(EventFlag.MONEY, EventFlag.TODO, EventFlag.EXPIR
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalendarScreen(modifier: Modifier = Modifier) {
-    val palettes = LocalXzgPalettes.current
     val vm: ScheduleViewModel = viewModel(
         factory = XzgGraph.vmFactory {
             ScheduleViewModel(
@@ -87,6 +86,33 @@ fun CalendarScreen(modifier: Modifier = Modifier) {
     val selectedDay by vm.selectedDayMillis.collectAsStateWithLifecycle()
     val flags by vm.monthFlags.collectAsStateWithLifecycle()
     val data by vm.dayData.collectAsStateWithLifecycle()
+
+    CalendarContent(
+        monthMillis = monthMillis,
+        selectedDayMillis = selectedDay,
+        flags = flags,
+        data = data,
+        onShiftMonth = { vm.shiftMonth(it) },
+        onSelectDay = { vm.selectDay(it) },
+        modifier = modifier
+    )
+}
+
+/**
+ * 日历页纯渲染内容（Paparazzi 截图入口）。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CalendarContent(
+    monthMillis: Long,
+    selectedDayMillis: Long,
+    flags: Map<Long, Set<EventFlag>>,
+    data: CalendarDayData,
+    onShiftMonth: (Int) -> Unit = {},
+    onSelectDay: (Long) -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    val palettes = LocalXzgPalettes.current
 
     Scaffold(
         modifier = modifier,
@@ -121,7 +147,7 @@ fun CalendarScreen(modifier: Modifier = Modifier) {
             item(key = "navigator") {
                 CalendarMonthNavigator(
                     monthMillis = monthMillis,
-                    onShiftMonth = { vm.shiftMonth(it) }
+                    onShiftMonth = onShiftMonth
                 )
             }
             item(key = "grid") {
@@ -130,15 +156,15 @@ fun CalendarScreen(modifier: Modifier = Modifier) {
                     Spacer(Modifier.height(8.dp))
                     CalendarMonthGrid(
                         monthMillis = monthMillis,
-                        selectedDay = selectedDay,
+                        selectedDay = selectedDayMillis,
                         flags = flags,
-                        onSelectDay = { vm.selectDay(it) }
+                        onSelectDay = onSelectDay
                     )
                 }
             }
             item(key = "detailHeader") {
                 Text(
-                    text = "${Format.monthDay(selectedDay)} · 星期${weekdaySymbol(selectedDay)}",
+                    text = "${Format.monthDay(selectedDayMillis)} · 星期${weekdaySymbol(selectedDayMillis)}",
                     style = XzgType.headline,
                     color = palettes.background.textPrimary
                 )
@@ -148,6 +174,7 @@ fun CalendarScreen(modifier: Modifier = Modifier) {
             }
         }
     }
+}
 }
 
 /** 月份导航：chevron.left /「2026年10月」/ chevron.right。对应 iOS monthNavigator。 */

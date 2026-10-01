@@ -120,13 +120,57 @@ private fun goodsStateOf(g: GoodsEntity, now: Long): GoodsUiState {
 fun GoodsScreen() {
     val vm: GoodsViewModel = viewModel(factory = remember { goodsViewModelFactory() })
     val goods by vm.goods.collectAsStateWithLifecycle(initialValue = emptyList())
-    val palettes = LocalXzgPalettes.current
     val scope = rememberCoroutineScope()
 
-    var searchText by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf("全部") }
     var editingGoods by remember { mutableStateOf<GoodsEntity?>(null) }
     var showNew by remember { mutableStateOf(false) }
+
+    GoodsContent(
+        goods = goods,
+        onAdd = { showNew = true },
+        onEdit = { editingGoods = it },
+        onDelete = { item ->
+            // 与 iOS 一致：删除无确认，失败静默
+            scope.launch {
+                try {
+                    vm.delete(item)
+                } catch (_: Exception) {
+                    // 失败静默（与 iOS 一致）
+                }
+            }
+        }
+    )
+
+    if (showNew) {
+        GoodsEditorSheet(
+            mode = GoodsEditorMode.NEW,
+            onDismiss = { showNew = false }
+        )
+    }
+    editingGoods?.let { g ->
+        GoodsEditorSheet(
+            mode = GoodsEditorMode.EDIT,
+            goods = g,
+            onDismiss = { editingGoods = null }
+        )
+    }
+}
+
+/**
+ * 商品页纯渲染内容（Paparazzi 截图入口）。
+ * 搜索 / 分类为内部状态；编辑 Sheet 保留在 [GoodsScreen]。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun GoodsContent(
+    goods: List<GoodsEntity>,
+    onAdd: () -> Unit = {},
+    onEdit: (GoodsEntity) -> Unit = {},
+    onDelete: (GoodsEntity) -> Unit = {}
+) {
+    val palettes = LocalXzgPalettes.current
+    var searchText by remember { mutableStateOf("") }
+    var category by remember { mutableStateOf("全部") }
 
     val now = System.currentTimeMillis()
     val filtered = remember(goods, searchText, category) {
@@ -152,7 +196,7 @@ fun GoodsScreen() {
             TopAppBar(
                 title = { Text("商品", style = XzgType.headline, color = palettes.background.textPrimary) },
                 actions = {
-                    IconButton(onClick = { showNew = true }) {
+                    IconButton(onClick = onAdd) {
                         Icon(
                             imageVector = Icons.Filled.Add,
                             contentDescription = "新增商品",
@@ -215,7 +259,7 @@ fun GoodsScreen() {
                         icon = Icons.Filled.Inventory2,
                         title = "还没有商品",
                         actionText = "新增商品",
-                        onAction = { showNew = true }
+                        onAction = onAdd
                     )
                 }
             } else {
@@ -227,36 +271,13 @@ fun GoodsScreen() {
                         GoodsCard(
                             goods = item,
                             now = now,
-                            onEdit = { editingGoods = item },
-                            onDelete = {
-                                // 与 iOS 一致：删除无确认，失败静默
-                                scope.launch {
-                                    try {
-                                        vm.delete(item)
-                                    } catch (_: Exception) {
-                                        // 失败静默（与 iOS 一致）
-                                    }
-                                }
-                            }
+                            onEdit = { onEdit(item) },
+                            onDelete = { onDelete(item) }
                         )
                     }
                 }
             }
         }
-    }
-
-    if (showNew) {
-        GoodsEditorSheet(
-            mode = GoodsEditorMode.NEW,
-            onDismiss = { showNew = false }
-        )
-    }
-    editingGoods?.let { g ->
-        GoodsEditorSheet(
-            mode = GoodsEditorMode.EDIT,
-            goods = g,
-            onDismiss = { editingGoods = null }
-        )
     }
 }
 

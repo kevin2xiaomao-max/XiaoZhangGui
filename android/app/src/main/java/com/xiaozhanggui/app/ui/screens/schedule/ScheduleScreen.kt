@@ -118,6 +118,78 @@ fun ScheduleScreen(
     val togglingIds by vm.togglingIds.collectAsStateWithLifecycle()
     val error by vm.error.collectAsStateWithLifecycle()
 
+    ScheduleContent(
+        selectedDayMillis = selectedDay,
+        day = day,
+        togglingIds = togglingIds,
+        onSelectDay = {
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            vm.selectDay(it)
+        },
+        onShiftWeek = { vm.shiftWeek(it) },
+        onSelectToday = { vm.selectToday() },
+        onOpenCalendar = onOpenCalendar,
+        onToggleTodo = {
+            val completing = !it.isCompleted
+            haptic.performHapticFeedback(
+                if (completing) HapticFeedbackType.LongPress
+                else HapticFeedbackType.TextHandleMove
+            )
+            vm.toggleTodo(it)
+        },
+        onTodoClick = onTodoClick,
+        onCustomerClick = onCustomerClick,
+        onExpiryClick = onExpiryClick,
+        modifier = modifier
+    )
+
+    error?.let {
+        AlertDialog(
+            onDismissRequest = vm::clearError,
+            title = {
+                Text(
+                    text = it.title,
+                    style = XzgType.headline,
+                    color = palettes.background.textPrimary
+                )
+            },
+            text = {
+                Text(
+                    text = it.message,
+                    style = XzgType.body,
+                    color = palettes.background.textSecondary
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = vm::clearError) { Text("知道了") }
+            },
+            containerColor = palettes.background.card
+        )
+    }
+}
+
+/**
+ * 日程页纯渲染内容（Paparazzi 截图入口）。
+ * 错误弹窗保留在 [ScheduleScreen]。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ScheduleContent(
+    selectedDayMillis: Long,
+    day: ScheduleDay,
+    onSelectDay: (Long) -> Unit = {},
+    onShiftWeek: (Int) -> Unit = {},
+    onSelectToday: () -> Unit = {},
+    onOpenCalendar: () -> Unit = {},
+    togglingIds: Set<String> = emptySet(),
+    onToggleTodo: (TodoEntity) -> Unit = {},
+    onTodoClick: (String) -> Unit = {},
+    onCustomerClick: (String) -> Unit = {},
+    onExpiryClick: (String) -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    val palettes = LocalXzgPalettes.current
+
     Scaffold(
         modifier = modifier,
         containerColor = palettes.background.pageBG,
@@ -131,7 +203,7 @@ fun ScheduleScreen(
                     )
                 },
                 actions = {
-                    TextButton(onClick = { vm.selectToday() }) {
+                    TextButton(onClick = onSelectToday) {
                         Text(
                             text = "今天",
                             style = XzgType.subhead,
@@ -166,12 +238,9 @@ fun ScheduleScreen(
         ) {
             item(key = "weekStrip") {
                 ScheduleWeekStrip(
-                    selectedDay = selectedDay,
-                    onSelectDay = {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        vm.selectDay(it)
-                    },
-                    onShiftWeek = { vm.shiftWeek(it) }
+                    selectedDay = selectedDayMillis,
+                    onSelectDay = onSelectDay,
+                    onShiftWeek = onShiftWeek
                 )
             }
             if (day.timedEvents.isNotEmpty()) {
@@ -187,14 +256,7 @@ fun ScheduleScreen(
                 ScheduleAllDaySection(
                     day = day,
                     togglingIds = togglingIds,
-                    onToggleTodo = {
-                        val completing = !it.isCompleted
-                        haptic.performHapticFeedback(
-                            if (completing) HapticFeedbackType.LongPress
-                            else HapticFeedbackType.TextHandleMove
-                        )
-                        vm.toggleTodo(it)
-                    },
+                    onToggleTodo = onToggleTodo,
                     onTodoClick = onTodoClick,
                     onCustomerClick = onCustomerClick,
                     onExpiryClick = onExpiryClick
@@ -204,30 +266,6 @@ fun ScheduleScreen(
                 ScheduleSummarySection(day = day)
             }
         }
-    }
-
-    error?.let {
-        AlertDialog(
-            onDismissRequest = vm::clearError,
-            title = {
-                Text(
-                    text = it.title,
-                    style = XzgType.headline,
-                    color = palettes.background.textPrimary
-                )
-            },
-            text = {
-                Text(
-                    text = it.message,
-                    style = XzgType.body,
-                    color = palettes.background.textSecondary
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = vm::clearError) { Text("知道了") }
-            },
-            containerColor = palettes.background.card
-        )
     }
 }
 

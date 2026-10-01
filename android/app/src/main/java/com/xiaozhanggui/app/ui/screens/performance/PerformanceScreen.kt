@@ -194,115 +194,27 @@ fun PerformanceScreen(
     val vm: PerformanceViewModel = viewModel(factory = remember { performanceViewModelFactory() })
     val performances by vm.performances.collectAsStateWithLifecycle(initialValue = emptyList())
     val expenses by vm.expenses.collectAsStateWithLifecycle(initialValue = emptyList())
-    val palettes = LocalXzgPalettes.current
     val scope = rememberCoroutineScope()
 
-    var menuExpanded by remember { mutableStateOf(false) }
     var newMode by remember { mutableStateOf<MoneyEditorMode?>(null) }
     var editingPerformance by remember { mutableStateOf<PerformanceEntity?>(null) }
     var editingExpense by remember { mutableStateOf<ExpenseEntity?>(null) }
     var deletingItem by remember { mutableStateOf<PerformanceRowItem?>(null) }
     var deleteError by remember { mutableStateOf<String?>(null) }
 
-    val now = System.currentTimeMillis()
-    val todayStart = DateExt.startOfDay(now)
-    val todayRevenue = performances.filter { DateExt.isToday(it.date) }.sumOf { it.amount }
-    val yesterdayRevenue =
-        performances.filter { DateExt.isSameDay(it.date, todayStart - 24 * 3600 * 1000L) }.sumOf { it.amount }
-    val monthRevenue = performances
-        .filter { it.date in DateExt.startOfMonth(now)..DateExt.endOfDay(now) }
-        .sumOf { it.amount }
-    val yearRevenue = performances
-        .filter { it.date in startOfYear(now)..DateExt.endOfDay(now) }
-        .sumOf { it.amount }
-    // changePercent = (今-昨)/昨*100；昨日为 0 → null（显示"暂无昨日对比"）
-    val changePercent: Double? =
-        if (yesterdayRevenue > 0) (todayRevenue - yesterdayRevenue) / yesterdayRevenue * 100 else null
-    val trend = remember(performances, now) {
-        PerformanceStats2.last7Days(performances, now).map { it.amount }
-    }
-    val records = remember(performances, expenses, now) {
-        val start = todayStart - 30L * 24 * 3600 * 1000
-        val end = DateExt.endOfDay(now)
-        (performances.filter { it.date in start..end }.map(::toRowItem) +
-                expenses.filter { it.date in start..end }.map(::toExpenseRowItem))
-            .sortedByDescending { it.date }
-            .take(12)
-    }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("经营数据", style = XzgType.headline, color = palettes.background.textPrimary) },
-                actions = {
-                    Box {
-                        IconButton(onClick = { menuExpanded = true }) {
-                            Icon(
-                                imageVector = Icons.Filled.Add,
-                                contentDescription = "经营数据操作",
-                                tint = palettes.background.textPrimary
-                            )
-                        }
-                        DropdownMenu(
-                            expanded = menuExpanded,
-                            onDismissRequest = { menuExpanded = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("记收入") },
-                                onClick = { menuExpanded = false; newMode = MoneyEditorMode.NEW_INCOME }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("记支出") },
-                                onClick = { menuExpanded = false; newMode = MoneyEditorMode.NEW_EXPENSE }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("扫呗导入") },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Filled.Download,
-                                        contentDescription = null
-                                    )
-                                },
-                                onClick = { menuExpanded = false; onOpenSaobei() }
-                            )
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = palettes.background.pageBG
-                )
-            )
+    PerformanceContent(
+        performances = performances,
+        expenses = expenses,
+        onOpenTransactions = onOpenTransactions,
+        onOpenSaobei = onOpenSaobei,
+        onAddIncome = { newMode = MoneyEditorMode.NEW_INCOME },
+        onAddExpense = { newMode = MoneyEditorMode.NEW_EXPENSE },
+        onEdit = { item ->
+            if (item.performance != null) editingPerformance = item.performance
+            else if (item.expense != null) editingExpense = item.expense
         },
-        containerColor = palettes.background.pageBG
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = XzgDimens.pageMargin)
-                .padding(top = 16.dp, bottom = XzgDimens.bottomPad),
-            verticalArrangement = Arrangement.spacedBy(30.dp)
-        ) {
-            HeroCard(
-                monthRevenue = monthRevenue,
-                todayRevenue = todayRevenue,
-                changePercent = changePercent,
-                trend = trend
-            )
-            KeyMetrics(yesterdayRevenue = yesterdayRevenue, yearRevenue = yearRevenue)
-            IncomeSources(performances = performances, now = now)
-            RecordsSection(
-                records = records,
-                onAddIncome = { newMode = MoneyEditorMode.NEW_INCOME },
-                onEdit = { item ->
-                    if (item.performance != null) editingPerformance = item.performance
-                    else if (item.expense != null) editingExpense = item.expense
-                },
-                onDelete = { deletingItem = it },
-                onOpenTransactions = onOpenTransactions
-            )
-        }
-    }
+        onDelete = { deletingItem = it }
+    )
 
     newMode?.let { mode ->
         MoneyEditorSheet(mode = mode, onDismiss = { newMode = null })
@@ -349,6 +261,123 @@ fun PerformanceScreen(
                 TextButton(onClick = { deleteError = null }) { Text("知道了") }
             }
         )
+    }
+}
+
+/**
+ * 经营数据页纯渲染内容（Paparazzi 截图入口）。
+ * 统计派生保留在此；记账 Sheet / 删除确认保留在 [PerformanceScreen]。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PerformanceContent(
+    performances: List<PerformanceEntity>,
+    expenses: List<ExpenseEntity>,
+    onOpenTransactions: () -> Unit = {},
+    onOpenSaobei: () -> Unit = {},
+    onAddIncome: () -> Unit = {},
+    onAddExpense: () -> Unit = {},
+    onEdit: (PerformanceRowItem) -> Unit = {},
+    onDelete: (PerformanceRowItem) -> Unit = {}
+) {
+    val palettes = LocalXzgPalettes.current
+    var menuExpanded by remember { mutableStateOf(false) }
+
+    val now = System.currentTimeMillis()
+    val todayStart = DateExt.startOfDay(now)
+    val todayRevenue = performances.filter { DateExt.isToday(it.date) }.sumOf { it.amount }
+    val yesterdayRevenue =
+        performances.filter { DateExt.isSameDay(it.date, todayStart - 24 * 3600 * 1000L) }.sumOf { it.amount }
+    val monthRevenue = performances
+        .filter { it.date in DateExt.startOfMonth(now)..DateExt.endOfDay(now) }
+        .sumOf { it.amount }
+    val yearRevenue = performances
+        .filter { it.date in startOfYear(now)..DateExt.endOfDay(now) }
+        .sumOf { it.amount }
+    // changePercent = (今-昨)/昨*100；昨日为 0 → null（显示"暂无昨日对比"）
+    val changePercent: Double? =
+        if (yesterdayRevenue > 0) (todayRevenue - yesterdayRevenue) / yesterdayRevenue * 100 else null
+    val trend = remember(performances, now) {
+        PerformanceStats2.last7Days(performances, now).map { it.amount }
+    }
+    val records = remember(performances, expenses, now) {
+        val start = todayStart - 30L * 24 * 3600 * 1000
+        val end = DateExt.endOfDay(now)
+        (performances.filter { it.date in start..end }.map(::toRowItem) +
+                expenses.filter { it.date in start..end }.map(::toExpenseRowItem))
+            .sortedByDescending { it.date }
+            .take(12)
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("经营数据", style = XzgType.headline, color = palettes.background.textPrimary) },
+                actions = {
+                    Box {
+                        IconButton(onClick = { menuExpanded = true }) {
+                            Icon(
+                                imageVector = Icons.Filled.Add,
+                                contentDescription = "经营数据操作",
+                                tint = palettes.background.textPrimary
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = menuExpanded,
+                            onDismissRequest = { menuExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("记收入") },
+                                onClick = { menuExpanded = false; onAddIncome() }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("记支出") },
+                                onClick = { menuExpanded = false; onAddExpense() }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("扫呗导入") },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Filled.Download,
+                                        contentDescription = null
+                                    )
+                                },
+                                onClick = { menuExpanded = false; onOpenSaobei() }
+                            )
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = palettes.background.pageBG
+                )
+            )
+        },
+        containerColor = palettes.background.pageBG
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = XzgDimens.pageMargin)
+                .padding(top = 16.dp, bottom = XzgDimens.bottomPad),
+            verticalArrangement = Arrangement.spacedBy(30.dp)
+        ) {
+            HeroCard(
+                monthRevenue = monthRevenue,
+                todayRevenue = todayRevenue,
+                changePercent = changePercent,
+                trend = trend
+            )
+            KeyMetrics(yesterdayRevenue = yesterdayRevenue, yearRevenue = yearRevenue)
+            IncomeSources(performances = performances, now = now)
+            RecordsSection(
+                records = records,
+                onAddIncome = onAddIncome,
+                onEdit = onEdit,
+                onDelete = onDelete,
+                onOpenTransactions = onOpenTransactions
+            )
+        }
     }
 }
 

@@ -136,7 +136,6 @@ private fun badgeText(item: ExpiryItemEntity, nowMillis: Long): String {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExpiryScreen() {
-    val palettes = LocalXzgPalettes.current
     val vm: ExpiryViewModel = viewModel(
         factory = XzgGraph.vmFactory { ExpiryViewModel(XzgGraph.expiryRepository) }
     )
@@ -146,6 +145,67 @@ fun ExpiryScreen() {
     var deletingItem by remember { mutableStateOf<ExpiryItemEntity?>(null) }
     var deleteFailed by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+
+    ExpiryContent(
+        items = items,
+        onAdd = { showNewEditor = true },
+        onEdit = { editingItem = it },
+        onToggleReturn = { item ->
+            scope.launch {
+                runCatching { vm.toggleReturn(item) }
+            }
+        },
+        onDelete = { deletingItem = it }
+    )
+
+    if (showNewEditor) {
+        ExpiryEditorSheet(item = null, onDismiss = { showNewEditor = false })
+    }
+    editingItem?.let { item ->
+        ExpiryEditorSheet(item = item, onDismiss = { editingItem = null })
+    }
+    if (deletingItem != null) {
+        ConfirmDeleteDialog(
+            title = "删除这条临期记录？",
+            onConfirm = {
+                val target = deletingItem
+                deletingItem = null
+                if (target != null) {
+                    scope.launch {
+                        runCatching { vm.delete(target) }
+                            .onFailure { deleteFailed = true }
+                    }
+                }
+            },
+            onDismiss = { deletingItem = null }
+        )
+    }
+    if (deleteFailed) {
+        AlertDialog(
+            onDismissRequest = { deleteFailed = false },
+            title = { Text(text = "删除失败", style = XzgType.headline) },
+            text = { Text(text = "临期记录未删除，请重试。", style = XzgType.body) },
+            confirmButton = {
+                TextButton(onClick = { deleteFailed = false }) { Text(text = "知道了") }
+            }
+        )
+    }
+}
+
+/**
+ * 临期提醒页纯渲染内容（Paparazzi 截图入口）。
+ * 统计/分组派生保留在此；编辑 Sheet / 删除确认保留在 [ExpiryScreen]。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ExpiryContent(
+    items: List<ExpiryItemEntity>,
+    onAdd: () -> Unit = {},
+    onEdit: (ExpiryItemEntity) -> Unit = {},
+    onToggleReturn: (ExpiryItemEntity) -> Unit = {},
+    onDelete: (ExpiryItemEntity) -> Unit = {}
+) {
+    val palettes = LocalXzgPalettes.current
 
     val stats = remember(items) { ExpiryStats.compute(items) }
     val buckets = remember(items) {
@@ -181,7 +241,7 @@ fun ExpiryScreen() {
                 )
             },
             actions = {
-                IconButton(onClick = { showNewEditor = true }) {
+                IconButton(onClick = onAdd) {
                     Icon(
                         imageVector = Icons.Filled.Add,
                         contentDescription = "新增临期商品",
@@ -248,7 +308,7 @@ fun ExpiryScreen() {
                         title = "暂无临期商品",
                         message = "可以新增一条临期记录",
                         actionText = "新增临期商品",
-                        onAction = { showNewEditor = true }
+                        onAction = onAdd
                     )
                 }
             } else {
@@ -272,13 +332,9 @@ fun ExpiryScreen() {
                                 ExpiryRow(
                                     item = item,
                                     group = bucket.group,
-                                    onEdit = { editingItem = item },
-                                    onToggleReturn = {
-                                        scope.launch {
-                                            runCatching { vm.toggleReturn(item) }
-                                        }
-                                    },
-                                    onDelete = { deletingItem = item }
+                                    onEdit = { onEdit(item) },
+                                    onToggleReturn = { onToggleReturn(item) },
+                                    onDelete = { onDelete(item) }
                                 )
                             }
                         }
@@ -288,39 +344,6 @@ fun ExpiryScreen() {
             }
             Spacer(modifier = Modifier.height(XzgDimens.bottomPad))
         }
-    }
-
-    if (showNewEditor) {
-        ExpiryEditorSheet(item = null, onDismiss = { showNewEditor = false })
-    }
-    editingItem?.let { item ->
-        ExpiryEditorSheet(item = item, onDismiss = { editingItem = null })
-    }
-    if (deletingItem != null) {
-        ConfirmDeleteDialog(
-            title = "删除这条临期记录？",
-            onConfirm = {
-                val target = deletingItem
-                deletingItem = null
-                if (target != null) {
-                    scope.launch {
-                        runCatching { vm.delete(target) }
-                            .onFailure { deleteFailed = true }
-                    }
-                }
-            },
-            onDismiss = { deletingItem = null }
-        )
-    }
-    if (deleteFailed) {
-        AlertDialog(
-            onDismissRequest = { deleteFailed = false },
-            title = { Text(text = "删除失败", style = XzgType.headline) },
-            text = { Text(text = "临期记录未删除，请重试。", style = XzgType.body) },
-            confirmButton = {
-                TextButton(onClick = { deleteFailed = false }) { Text(text = "知道了") }
-            }
-        )
     }
 }
 

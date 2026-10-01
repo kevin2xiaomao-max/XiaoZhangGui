@@ -137,12 +137,10 @@ class CustomerViewModel(private val repo: CustomerRepository) : ViewModel() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CustomerScreen() {
-    val palettes = LocalXzgPalettes.current
     val vm: CustomerViewModel = viewModel(
         factory = XzgGraph.vmFactory { CustomerViewModel(XzgGraph.customerRepository) }
     )
     val requests by vm.requests.collectAsStateWithLifecycle()
-    var filter by remember { mutableStateOf(CustomerFilter.ALL) }
     var showNewEditor by remember { mutableStateOf(false) }
     var editingRequest by remember { mutableStateOf<CustomerRequestEntity?>(null) }
     var deletingRequest by remember { mutableStateOf<CustomerRequestEntity?>(null) }
@@ -151,11 +149,6 @@ fun CustomerScreen() {
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
 
-    val shown = remember(requests, filter) {
-        val list = filter.status?.let { s -> requests.filter { it.status == s } } ?: requests
-        list.sortedByDescending { it.createdAt }
-    }
-
     LaunchedEffect(showDoneToast) {
         if (showDoneToast) {
             kotlinx.coroutines.delay(2000)
@@ -163,124 +156,26 @@ fun CustomerScreen() {
         }
     }
 
-    fun advance(request: CustomerRequestEntity) {
-        scope.launch {
-            val willComplete = request.status == CustomerStatus.DELIVERING
-            runCatching { vm.advance(request) }
-            if (willComplete) showDoneToast = true
-        }
-    }
-
-    fun copyAddress(request: CustomerRequestEntity) {
-        val address = request.roomOrAddress.trim()
-        if (address.isNotEmpty()) {
-            clipboard.setText(AnnotatedString(address))
-        }
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(palettes.background.pageBG)
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            CenterAlignedTopAppBar(
-                title = {
-                    Text(
-                        text = "客户配送",
-                        style = XzgType.headline,
-                        color = palettes.background.textPrimary
-                    )
-                },
-                actions = {
-                    IconButton(onClick = { showNewEditor = true }) {
-                        Icon(
-                            imageVector = Icons.Filled.Add,
-                            contentDescription = "新增配送",
-                            tint = palettes.background.textPrimary
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = palettes.background.pageBG
-                )
-            )
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = XzgDimens.pageMargin)
-            ) {
-                V32SegmentedPicker(
-                    options = CustomerFilter.values().map { it.label },
-                    selectedIndex = filter.ordinal,
-                    onSelect = { filter = CustomerFilter.values()[it] },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(18.dp))
-                if (shown.isEmpty()) {
-                    V32Card(modifier = Modifier.fillMaxWidth()) {
-                        if (requests.isEmpty()) {
-                            V32EmptyState(
-                                icon = Icons.Filled.Inventory,
-                                title = "暂无客户需求",
-                                message = "可以先新增一条配送需求",
-                                actionText = "新增配送",
-                                onAction = { showNewEditor = true }
-                            )
-                        } else {
-                            V32EmptyState(
-                                icon = Icons.Filled.FilterList,
-                                title = "当前筛选暂无结果",
-                                message = "可以切换筛选查看其他需求"
-                            )
-                        }
-                    }
-                } else {
-                    LazyColumn(modifier = Modifier.fillMaxSize()) {
-                        itemsIndexed(shown, key = { _, r -> r.id }) { index, request ->
-                            if (index > 0) {
-                                HorizontalDivider(
-                                    color = palettes.background.divider,
-                                    thickness = 1.dp,
-                                    modifier = Modifier.padding(start = 48.dp)
-                                )
-                            }
-                            CustomerSwipeRow(
-                                request = request,
-                                onAction = { advance(request) }
-                            ) {
-                                CustomerRow(
-                                    request = request,
-                                    onEdit = { editingRequest = request },
-                                    onCopyAddress = { copyAddress(request) },
-                                    onAdvance = { advance(request) },
-                                    onDelete = { deletingRequest = request }
-                                )
-                            }
-                        }
-                    }
-                }
+    CustomerContent(
+        requests = requests,
+        showDoneToast = showDoneToast,
+        onAdd = { showNewEditor = true },
+        onEdit = { editingRequest = it },
+        onDelete = { deletingRequest = it },
+        onAdvance = { request ->
+            scope.launch {
+                val willComplete = request.status == CustomerStatus.DELIVERING
+                runCatching { vm.advance(request) }
+                if (willComplete) showDoneToast = true
+            }
+        },
+        onCopyAddress = { request ->
+            val address = request.roomOrAddress.trim()
+            if (address.isNotEmpty()) {
+                clipboard.setText(AnnotatedString(address))
             }
         }
-
-        AnimatedVisibility(
-            visible = showDoneToast,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = XzgDimens.bottomPad + 12.dp),
-            enter = fadeIn() + slideInVertically { it },
-            exit = fadeOut()
-        ) {
-            Text(
-                text = "✓ 已完成配送",
-                style = XzgType.subhead,
-                color = Color.White,
-                modifier = Modifier
-                    .background(palettes.fixed.hero, RoundedCornerShape(50))
-                    .padding(horizontal = 16.dp, vertical = 10.dp)
-            )
-        }
-    }
+    )
 
     if (showNewEditor) {
         CustomerEditorSheet(request = null, onDismiss = { showNewEditor = false })
@@ -313,6 +208,134 @@ fun CustomerScreen() {
                 TextButton(onClick = { deleteFailed = false }) { Text(text = "知道了") }
             }
         )
+    }
+}
+
+/**
+ * 客户配送页纯渲染内容（Paparazzi 截图入口）。
+ * 筛选为内部状态；编辑 Sheet / 删除确认保留在 [CustomerScreen]。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CustomerContent(
+    requests: List<CustomerRequestEntity>,
+    showDoneToast: Boolean = false,
+    onAdd: () -> Unit = {},
+    onEdit: (CustomerRequestEntity) -> Unit = {},
+    onDelete: (CustomerRequestEntity) -> Unit = {},
+    onAdvance: (CustomerRequestEntity) -> Unit = {},
+    onCopyAddress: (CustomerRequestEntity) -> Unit = {}
+) {
+    val palettes = LocalXzgPalettes.current
+    var filter by remember { mutableStateOf(CustomerFilter.ALL) }
+
+    val shown = remember(requests, filter) {
+        val list = filter.status?.let { s -> requests.filter { it.status == s } } ?: requests
+        list.sortedByDescending { it.createdAt }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(palettes.background.pageBG)
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            CenterAlignedTopAppBar(
+                title = {
+                    Text(
+                        text = "客户配送",
+                        style = XzgType.headline,
+                        color = palettes.background.textPrimary
+                    )
+                },
+                actions = {
+                    IconButton(onClick = onAdd) {
+                        Icon(
+                            imageVector = Icons.Filled.Add,
+                            contentDescription = "新增配送",
+                            tint = palettes.background.textPrimary
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = palettes.background.pageBG
+                )
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = XzgDimens.pageMargin)
+            ) {
+                V32SegmentedPicker(
+                    options = CustomerFilter.values().map { it.label },
+                    selectedIndex = filter.ordinal,
+                    onSelect = { filter = CustomerFilter.values()[it] },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(18.dp))
+                if (shown.isEmpty()) {
+                    V32Card(modifier = Modifier.fillMaxWidth()) {
+                        if (requests.isEmpty()) {
+                            V32EmptyState(
+                                icon = Icons.Filled.Inventory,
+                                title = "暂无客户需求",
+                                message = "可以先新增一条配送需求",
+                                actionText = "新增配送",
+                                onAction = onAdd
+                            )
+                        } else {
+                            V32EmptyState(
+                                icon = Icons.Filled.FilterList,
+                                title = "当前筛选暂无结果",
+                                message = "可以切换筛选查看其他需求"
+                            )
+                        }
+                    }
+                } else {
+                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        itemsIndexed(shown, key = { _, r -> r.id }) { index, request ->
+                            if (index > 0) {
+                                HorizontalDivider(
+                                    color = palettes.background.divider,
+                                    thickness = 1.dp,
+                                    modifier = Modifier.padding(start = 48.dp)
+                                )
+                            }
+                            CustomerSwipeRow(
+                                request = request,
+                                onAction = { onAdvance(request) }
+                            ) {
+                                CustomerRow(
+                                    request = request,
+                                    onEdit = { onEdit(request) },
+                                    onCopyAddress = { onCopyAddress(request) },
+                                    onAdvance = { onAdvance(request) },
+                                    onDelete = { onDelete(request) }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        AnimatedVisibility(
+            visible = showDoneToast,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = XzgDimens.bottomPad + 12.dp),
+            enter = fadeIn() + slideInVertically { it },
+            exit = fadeOut()
+        ) {
+            Text(
+                text = "✓ 已完成配送",
+                style = XzgType.subhead,
+                color = Color.White,
+                modifier = Modifier
+                    .background(palettes.fixed.hero, RoundedCornerShape(50))
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+            )
+        }
     }
 }
 

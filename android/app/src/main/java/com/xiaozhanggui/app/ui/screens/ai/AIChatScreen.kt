@@ -84,9 +84,87 @@ fun AIChatScreen(
     val isRemoteConfigured by viewModel.isRemoteConfigured.collectAsState()
 
     var input by remember { mutableStateOf("") }
-    var showMenu by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     var showClearConfirm by remember { mutableStateOf(false) }
+
+    AIChatContent(
+        messages = messages,
+        proposals = proposals,
+        isProcessing = isProcessing,
+        processingLabel = processingLabel,
+        isRemoteConfigured = isRemoteConfigured,
+        ready = ready,
+        inputText = input,
+        onInputTextChange = { input = it },
+        onSend = {
+            viewModel.send(input)
+            input = ""
+        },
+        onVoice = onVoice,
+        onRetry = { viewModel.retryLastFailed() },
+        onExample = { viewModel.send(it) },
+        onProposalConfirm = { viewModel.confirm(it.id) },
+        onProposalRetry = { viewModel.retry(it.id) },
+        onProposalModify = { viewModel.modify(it.id) { original -> input = original ?: "" } },
+        onProposalCancel = { viewModel.cancel(it.id) },
+        onNewConversation = { showClearConfirm = true },
+        onOpenSettings = { showSettings = true },
+        modifier = modifier
+    )
+
+    if (showSettings) {
+        AIProviderSettingsSheet(
+            onDismiss = { showSettings = false },
+            onSaved = { viewModel.refreshAfterSettingsChanged() }
+        )
+    }
+
+    if (showClearConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearConfirm = false },
+            title = { Text("清空当前对话？") },
+            text = { Text("将清空消息与未确认的卡片；已保存的营业额 / 待办 / 备忘 / 配送不会被删除。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showClearConfirm = false
+                    viewModel.clearConversation()
+                }) { Text("清空", color = palettes.fixed.danger) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearConfirm = false }) { Text("取消") }
+            }
+        )
+    }
+}
+
+/**
+ * AI 聊天页纯渲染内容（Paparazzi 截图入口）。
+ * 设置 Sheet / 清空确认弹窗保留在 [AIChatScreen]。
+ */
+@Composable
+fun AIChatContent(
+    messages: List<AiUiMessage>,
+    proposals: List<ActionProposal>,
+    isProcessing: Boolean,
+    processingLabel: String,
+    isRemoteConfigured: Boolean,
+    ready: Boolean,
+    inputText: String,
+    onInputTextChange: (String) -> Unit = {},
+    onSend: () -> Unit = {},
+    onVoice: () -> Unit = {},
+    onRetry: () -> Unit = {},
+    onExample: (String) -> Unit = {},
+    onProposalConfirm: (ActionProposal) -> Unit = {},
+    onProposalRetry: (ActionProposal) -> Unit = {},
+    onProposalModify: (ActionProposal) -> Unit = {},
+    onProposalCancel: (ActionProposal) -> Unit = {},
+    onNewConversation: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    val palettes = LocalXzgPalettes.current
+    var showMenu by remember { mutableStateOf(false) }
 
     val listState = rememberLazyListState()
     LaunchedEffect(messages.size, proposals.size, isProcessing) {
@@ -125,15 +203,15 @@ fun AIChatScreen(
                 DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                     DropdownMenuItem(
                         text = { Text("新对话") },
-                        onClick = { showMenu = false; showClearConfirm = true }
+                        onClick = { showMenu = false; onNewConversation() }
                     )
                     DropdownMenuItem(
                         text = { Text("清空当前对话") },
-                        onClick = { showMenu = false; showClearConfirm = true }
+                        onClick = { showMenu = false; onNewConversation() }
                     )
                     DropdownMenuItem(
                         text = { Text("AI 设置") },
-                        onClick = { showMenu = false; showSettings = true }
+                        onClick = { showMenu = false; onOpenSettings() }
                     )
                 }
             }
@@ -149,21 +227,21 @@ fun AIChatScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             if (messages.isEmpty() && proposals.isEmpty() && !isProcessing) {
-                item { EmptyState(onExample = { viewModel.send(it) }) }
+                item { EmptyState(onExample = onExample) }
             } else {
                 items(messages, key = { it.id }) { message ->
                     MessageRow(
                         message = message,
-                        onRetry = { viewModel.retryLastFailed() }
+                        onRetry = onRetry
                     )
                 }
                 items(proposals, key = { it.id }) { proposal ->
                     ActionCardView(
                         proposal = proposal,
-                        onConfirm = { viewModel.confirm(proposal.id) },
-                        onRetry = { viewModel.retry(proposal.id) },
-                        onModify = { viewModel.modify(proposal.id) { original -> input = original ?: "" } },
-                        onCancel = { viewModel.cancel(proposal.id) }
+                        onConfirm = { onProposalConfirm(proposal) },
+                        onRetry = { onProposalRetry(proposal) },
+                        onModify = { onProposalModify(proposal) },
+                        onCancel = { onProposalCancel(proposal) }
                     )
                 }
                 if (isProcessing) {
@@ -174,14 +252,11 @@ fun AIChatScreen(
 
         // 输入栏
         ChatInputBar(
-            text = input,
-            onTextChange = { input = it },
+            text = inputText,
+            onTextChange = onInputTextChange,
             isProcessing = isProcessing || !ready,
             voiceAvailable = true,
-            onSend = {
-                viewModel.send(input)
-                input = ""
-            },
+            onSend = onSend,
             onVoice = onVoice,
             modifier = Modifier
                 .fillMaxWidth()
@@ -189,29 +264,6 @@ fun AIChatScreen(
         )
     }
 
-    if (showSettings) {
-        AIProviderSettingsSheet(
-            onDismiss = { showSettings = false },
-            onSaved = { viewModel.refreshAfterSettingsChanged() }
-        )
-    }
-
-    if (showClearConfirm) {
-        AlertDialog(
-            onDismissRequest = { showClearConfirm = false },
-            title = { Text("清空当前对话？") },
-            text = { Text("将清空消息与未确认的卡片；已保存的营业额 / 待办 / 备忘 / 配送不会被删除。") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showClearConfirm = false
-                    viewModel.clearConversation()
-                }) { Text("清空", color = palettes.fixed.danger) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showClearConfirm = false }) { Text("取消") }
-            }
-        )
-    }
 }
 
 @Composable

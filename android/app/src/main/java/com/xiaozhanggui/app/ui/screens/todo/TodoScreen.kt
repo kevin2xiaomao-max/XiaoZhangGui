@@ -258,7 +258,6 @@ private fun groupTodos(todos: List<TodoEntity>): List<Pair<String, List<TodoEnti
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TodoScreen() {
-    val palettes = LocalXzgPalettes.current
     val haptic = LocalHapticFeedback.current
     val vm: TodoViewModel = viewModel(
         factory = XzgGraph.vmFactory { TodoViewModel(XzgGraph.todoRepository, XzgGraph.memoRepository) }
@@ -269,13 +268,115 @@ fun TodoScreen() {
     val togglingIds by vm.togglingIds.collectAsStateWithLifecycle()
     val error by vm.error.collectAsStateWithLifecycle()
 
-    var tab by remember { mutableStateOf(TodoTab.TODAY) }
     var showTodoEditor by remember { mutableStateOf(false) }
     var editingTodo by remember { mutableStateOf<TodoEntity?>(null) }
     var deletingTodo by remember { mutableStateOf<TodoEntity?>(null) }
     var showMemoEditor by remember { mutableStateOf(false) }
     var editingMemo by remember { mutableStateOf<MemoEntity?>(null) }
     var deletingMemo by remember { mutableStateOf<MemoEntity?>(null) }
+
+    TodoContent(
+        todos = todos,
+        memos = memos,
+        togglingIds = togglingIds,
+        onToggleTodo = { todo ->
+            val completing = !todo.isCompleted
+            haptic.performHapticFeedback(
+                if (completing) HapticFeedbackType.LongPress
+                else HapticFeedbackType.TextHandleMove
+            )
+            vm.toggleComplete(todo)
+        },
+        onEditTodo = {
+            editingTodo = it
+            showTodoEditor = true
+        },
+        onDeleteTodo = { deletingTodo = it },
+        onAddTodo = {
+            editingTodo = null
+            showTodoEditor = true
+        },
+        onEditMemo = {
+            editingMemo = it
+            showMemoEditor = true
+        },
+        onDeleteMemo = { deletingMemo = it },
+        onAddMemo = {
+            editingMemo = null
+            showMemoEditor = true
+        }
+    )
+
+    if (showTodoEditor) {
+        TodoEditorSheet(
+            todo = editingTodo,
+            onDismiss = {
+                showTodoEditor = false
+                editingTodo = null
+            },
+            onSave = { title, detail, dueDate, priority, imagePath ->
+                vm.saveTodo(title, detail, dueDate, priority, imagePath, editingTodo)
+            }
+        )
+    }
+    if (showMemoEditor) {
+        MemoEditorSheet(
+            memo = editingMemo,
+            onDismiss = {
+                showMemoEditor = false
+                editingMemo = null
+            },
+            onSave = { title, content, imagePath ->
+                vm.saveMemo(title, content, imagePath, editingMemo)
+            }
+        )
+    }
+    if (deletingTodo != null) {
+        ConfirmDeleteDialog(
+            title = "删除这条待办？",
+            onDismiss = { deletingTodo = null },
+            onConfirm = {
+                val target = deletingTodo
+                deletingTodo = null
+                if (target != null) vm.deleteTodo(target)
+            }
+        )
+    }
+    if (deletingMemo != null) {
+        ConfirmDeleteDialog(
+            title = "删除这条备忘？",
+            onDismiss = { deletingMemo = null },
+            onConfirm = {
+                val target = deletingMemo
+                deletingMemo = null
+                if (target != null) vm.deleteMemo(target)
+            }
+        )
+    }
+    error?.let { ScreenErrorDialog(error = it, onDismiss = vm::clearError) }
+}
+
+/**
+ * 待办页纯渲染内容（Paparazzi 截图入口）。
+ * tab 为内部状态（截图默认「今天」），编辑 Sheet / 删除确认 / 错误弹窗保留在 [TodoScreen]。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TodoContent(
+    todos: List<TodoEntity>,
+    memos: List<MemoEntity>,
+    initialTab: TodoTab = TodoTab.TODAY,
+    togglingIds: Set<String> = emptySet(),
+    onToggleTodo: (TodoEntity) -> Unit = {},
+    onEditTodo: (TodoEntity) -> Unit = {},
+    onDeleteTodo: (TodoEntity) -> Unit = {},
+    onAddTodo: () -> Unit = {},
+    onEditMemo: (MemoEntity) -> Unit = {},
+    onDeleteMemo: (MemoEntity) -> Unit = {},
+    onAddMemo: () -> Unit = {}
+) {
+    val palettes = LocalXzgPalettes.current
+    var tab by remember { mutableStateOf(initialTab) }
 
     val visibleTodos = remember(todos, tab) { filterTodos(todos, tab) }
     val groups = remember(visibleTodos, tab) {
@@ -298,13 +399,7 @@ fun TodoScreen() {
                 },
                 actions = {
                     IconButton(onClick = {
-                        if (tab == TodoTab.MEMO) {
-                            editingMemo = null
-                            showMemoEditor = true
-                        } else {
-                            editingTodo = null
-                            showTodoEditor = true
-                        }
+                        if (tab == TodoTab.MEMO) onAddMemo() else onAddTodo()
                     }) {
                         Icon(
                             imageVector = Icons.Filled.Add,
@@ -364,11 +459,8 @@ fun TodoScreen() {
                         items(memos, key = { it.id }) { memo ->
                             MemoCard(
                                 memo = memo,
-                                onClick = {
-                                    editingMemo = memo
-                                    showMemoEditor = true
-                                },
-                                onDeleteClick = { deletingMemo = memo }
+                                onClick = { onEditMemo(memo) },
+                                onDeleteClick = { onDeleteMemo(memo) }
                             )
                         }
                     }
@@ -419,19 +511,9 @@ fun TodoScreen() {
                                     todo = todo,
                                     timeAmber = tab == TodoTab.OVERDUE,
                                     toggleEnabled = !togglingIds.contains(todo.id),
-                                    onToggle = {
-                                        val completing = !todo.isCompleted
-                                        haptic.performHapticFeedback(
-                                            if (completing) HapticFeedbackType.LongPress
-                                            else HapticFeedbackType.TextHandleMove
-                                        )
-                                        vm.toggleComplete(todo)
-                                    },
-                                    onEdit = {
-                                        editingTodo = todo
-                                        showTodoEditor = true
-                                    },
-                                    onDelete = { deletingTodo = todo }
+                                    onToggle = { onToggleTodo(todo) },
+                                    onEdit = { onEditTodo(todo) },
+                                    onDelete = { onDeleteTodo(todo) }
                                 )
                                 if (index < groupTodos.lastIndex) {
                                     HorizontalDivider(color = palettes.background.divider)
@@ -443,54 +525,6 @@ fun TodoScreen() {
             }
         }
     }
-
-    if (showTodoEditor) {
-        TodoEditorSheet(
-            todo = editingTodo,
-            onDismiss = {
-                showTodoEditor = false
-                editingTodo = null
-            },
-            onSave = { title, detail, dueDate, priority, imagePath ->
-                vm.saveTodo(title, detail, dueDate, priority, imagePath, editingTodo)
-            }
-        )
-    }
-    if (showMemoEditor) {
-        MemoEditorSheet(
-            memo = editingMemo,
-            onDismiss = {
-                showMemoEditor = false
-                editingMemo = null
-            },
-            onSave = { title, content, imagePath ->
-                vm.saveMemo(title, content, imagePath, editingMemo)
-            }
-        )
-    }
-    if (deletingTodo != null) {
-        ConfirmDeleteDialog(
-            title = "删除这条待办？",
-            onDismiss = { deletingTodo = null },
-            onConfirm = {
-                val target = deletingTodo
-                deletingTodo = null
-                if (target != null) vm.deleteTodo(target)
-            }
-        )
-    }
-    if (deletingMemo != null) {
-        ConfirmDeleteDialog(
-            title = "删除这条备忘？",
-            onDismiss = { deletingMemo = null },
-            onConfirm = {
-                val target = deletingMemo
-                deletingMemo = null
-                if (target != null) vm.deleteMemo(target)
-            }
-        )
-    }
-    error?.let { ScreenErrorDialog(error = it, onDismiss = vm::clearError) }
 }
 
 /** 3 格统计卡：待办（品牌色）/ 已完成 / 逾期（>0 时 amber）。备忘 tab 时不显示。 */

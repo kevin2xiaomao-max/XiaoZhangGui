@@ -99,7 +99,6 @@ fun ProfileScreen(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val palettes = LocalXzgPalettes.current
     val settings = remember { XzgGraph.settings }
     val scope = rememberCoroutineScope()
     val toast = rememberToastState()
@@ -165,201 +164,34 @@ fun ProfileScreen(
     }
 
     Box(modifier = modifier.fillMaxSize()) {
-        Scaffold(
-            containerColor = palettes.background.pageBG,
-            topBar = {
-                TopAppBar(
-                    title = {
-                        Text(
-                            text = "我的",
-                            style = XzgType.pageTitle,
-                            color = palettes.background.textPrimary
-                        )
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = palettes.background.pageBG
-                    )
-                )
-            }
-        ) { padding ->
-            LazyColumn(
-                modifier = Modifier
-                    .padding(padding)
-                    .fillMaxSize(),
-                contentPadding = PaddingValues(
-                    horizontal = XzgDimens.pageMargin,
-                    vertical = 8.dp
-                ),
-                verticalArrangement = Arrangement.spacedBy(XzgDimens.sectionGap)
-            ) {
-                // ① profileHero
-                item {
-                    ProfileHero(
-                        shopName = shopName,
-                        ownerName = ownerName,
-                        onClick = { sheet = ProfileSheet.Shop }
-                    )
-                }
-                // ② 个性化
-                item {
-                    SettingsGroup(title = "个性化") {
-                        ProfileRow(
-                            icon = Icons.Filled.SettingsBrightness,
-                            tone = palettes.fixed.info,
-                            title = "显示模式",
-                            value = themeMode.displayName(),
-                            onClick = { sheet = ProfileSheet.Theme }
-                        )
-                        SettingsDivider()
-                        ProfileRow(
-                            icon = Icons.Filled.Palette,
-                            tone = palettes.accent.accent,
-                            title = "外观",
-                            value = accentTheme.displayName(),
-                            onClick = { sheet = ProfileSheet.Appearance }
-                        )
-                        SettingsDivider()
-                        ProfileRow(
-                            icon = Icons.Filled.Layers,
-                            tone = palettes.background.neutral,
-                            title = "背景风格",
-                            value = backgroundTheme.displayName(),
-                            onClick = { sheet = ProfileSheet.Background }
-                        )
-                        SettingsDivider()
-                        ProfileRow(
-                            icon = Icons.Filled.Image,
-                            tone = palettes.fixed.amber,
-                            title = "壁纸",
-                            value = if (wallpaperEnabled) "已设置" else "未设置",
-                            onClick = { sheet = ProfileSheet.Wallpaper }
-                        )
-                    }
-                }
-                // ③ 经营
-                item {
-                    SettingsGroup(title = "经营") {
-                        ProfileRow(
-                            icon = Icons.Filled.TrendingUp,
-                            tone = palettes.accent.accent,
-                            title = "月营业目标",
-                            value = Format.groupedInt(monthGoal),
-                            onClick = { sheet = ProfileSheet.Goal }
-                        )
-                        SettingsDivider()
-                        ProfileRow(
-                            icon = Icons.Filled.Notifications,
-                            tone = palettes.fixed.amber,
-                            title = "提醒设置",
-                            value = if (todoReminder || expiryReminder) "已开启" else "已关闭",
-                            onClick = { sheet = ProfileSheet.Reminder }
-                        )
-                    }
-                }
-                // ④ 演示
-                item {
-                    SettingsGroup(title = "演示") {
-                        DemoModeRow(
-                            checked = demoMode,
-                            onCheckedChange = {
-                                scope.launch { settings.setDemoModeEnabled(it) }
-                            }
-                        )
-                        if (demoMode) {
-                            SettingsDivider()
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 10.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(palettes.fixed.amberSoft)
-                                    .padding(12.dp)
-                            ) {
-                                Text(
-                                    text = "演示模式使用独立演示数据，不会影响真实经营数据。",
-                                    style = XzgType.caption,
-                                    color = palettes.fixed.amber
-                                )
-                            }
-                            ProfileRow(
-                                icon = Icons.Filled.Refresh,
-                                tone = palettes.background.neutral,
-                                title = "重置演示数据",
-                                value = "独立内存",
-                                showChevron = false,
-                                onClick = { toast.show("演示数据已重置") }
-                            )
-                        }
-                    }
-                }
-                // ⑤ 工具
-                item {
-                    SettingsGroup(title = "工具") {
-                        ProfileRow(
-                            icon = Icons.Filled.QrCode,
-                            tone = palettes.accent.accent,
-                            title = "收款码",
-                            onClick = onOpenPaymentCode
-                        )
-                    }
-                }
-                // ⑥ 数据与应用
-                item {
-                    SettingsGroup(title = "数据与应用") {
-                        ProfileRow(
-                            icon = Icons.Filled.Download,
-                            tone = palettes.background.neutral,
-                            title = "数据备份",
-                            value = "JSON 文件",
-                            showChevron = false,
-                            onClick = { doBackup() }
-                        )
-                        SettingsDivider()
-                        ProfileRow(
-                            icon = Icons.Filled.History,
-                            tone = palettes.background.neutral,
-                            title = "数据恢复",
-                            value = "JSON",
-                            showChevron = false,
-                            onClick = { restoreLauncher.launch(arrayOf("application/json")) }
-                        )
-                        SettingsDivider()
-                        ProfileRow(
-                            icon = Icons.Filled.Brush,
-                            tone = palettes.background.neutral,
-                            title = "清理缓存",
-                            onClick = { showClearCache = true }
-                        )
-                        SettingsDivider()
-                        ProfileRow(
-                            icon = Icons.Filled.Info,
-                            tone = palettes.fixed.info,
-                            title = "关于你的小掌柜",
-                            onClick = { sheet = ProfileSheet.About }
-                        )
-                        SettingsDivider()
-                        ProfileRow(
-                            icon = Icons.Filled.Lock,
-                            tone = palettes.background.neutral,
-                            title = "隐私说明",
-                            onClick = { sheet = ProfileSheet.Privacy }
-                        )
-                    }
-                }
-                // ⑦ 底部版本号
-                item {
-                    Text(
-                        text = "v$versionName",
-                        style = XzgType.caption,
-                        color = palettes.background.textQuaternary,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp)
-                    )
-                }
-            }
-        }
+        ProfileContent(
+            shopName = shopName,
+            ownerName = ownerName,
+            monthGoal = monthGoal,
+            themeModeLabel = themeMode.displayName(),
+            accentLabel = accentTheme.displayName(),
+            backgroundLabel = backgroundTheme.displayName(),
+            wallpaperEnabled = wallpaperEnabled,
+            reminderEnabled = todoReminder || expiryReminder,
+            demoMode = demoMode,
+            versionName = versionName,
+            onShopEdit = { sheet = ProfileSheet.Shop },
+            onTheme = { sheet = ProfileSheet.Theme },
+            onAppearance = { sheet = ProfileSheet.Appearance },
+            onBackground = { sheet = ProfileSheet.Background },
+            onWallpaper = { sheet = ProfileSheet.Wallpaper },
+            onGoal = { sheet = ProfileSheet.Goal },
+            onReminder = { sheet = ProfileSheet.Reminder },
+            onDemoChange = { scope.launch { settings.setDemoModeEnabled(it) } },
+            onResetDemo = { toast.show("演示数据已重置") },
+            onPaymentCode = onOpenPaymentCode,
+            onBackup = { doBackup() },
+            onRestore = { restoreLauncher.launch(arrayOf("application/json")) },
+            onClearCache = { showClearCache = true },
+            onAbout = { sheet = ProfileSheet.About },
+            onPrivacy = { sheet = ProfileSheet.Privacy },
+            modifier = modifier
+        )
         XzgToastHost(state = toast)
     }
 
@@ -413,6 +245,237 @@ fun ProfileScreen(
             },
             onDismiss = { showClearCache = false }
         )
+    }
+}
+
+/**
+ * 我的页纯渲染内容（Paparazzi 截图入口）。
+ * Sheet / 文件选择 / 备份分享 / Toast 保留在 [ProfileScreen]。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ProfileContent(
+    shopName: String,
+    ownerName: String,
+    monthGoal: Double,
+    themeModeLabel: String,
+    accentLabel: String,
+    backgroundLabel: String,
+    wallpaperEnabled: Boolean,
+    reminderEnabled: Boolean,
+    demoMode: Boolean,
+    versionName: String,
+    onShopEdit: () -> Unit = {},
+    onTheme: () -> Unit = {},
+    onAppearance: () -> Unit = {},
+    onBackground: () -> Unit = {},
+    onWallpaper: () -> Unit = {},
+    onGoal: () -> Unit = {},
+    onReminder: () -> Unit = {},
+    onDemoChange: (Boolean) -> Unit = {},
+    onResetDemo: () -> Unit = {},
+    onPaymentCode: () -> Unit = {},
+    onBackup: () -> Unit = {},
+    onRestore: () -> Unit = {},
+    onClearCache: () -> Unit = {},
+    onAbout: () -> Unit = {},
+    onPrivacy: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    val palettes = LocalXzgPalettes.current
+    Scaffold(
+        modifier = modifier,
+        containerColor = palettes.background.pageBG,
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = "我的",
+                        style = XzgType.pageTitle,
+                        color = palettes.background.textPrimary
+                    )
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = palettes.background.pageBG
+                )
+            )
+        }
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier
+                .padding(padding)
+                .fillMaxSize(),
+            contentPadding = PaddingValues(
+                horizontal = XzgDimens.pageMargin,
+                vertical = 8.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(XzgDimens.sectionGap)
+        ) {
+            // ① profileHero
+            item {
+                ProfileHero(
+                    shopName = shopName,
+                    ownerName = ownerName,
+                    onClick = onShopEdit
+                )
+            }
+            // ② 个性化
+            item {
+                SettingsGroup(title = "个性化") {
+                    ProfileRow(
+                        icon = Icons.Filled.SettingsBrightness,
+                        tone = palettes.fixed.info,
+                        title = "显示模式",
+                        value = themeModeLabel,
+                        onClick = onTheme
+                    )
+                    SettingsDivider()
+                    ProfileRow(
+                        icon = Icons.Filled.Palette,
+                        tone = palettes.accent.accent,
+                        title = "外观",
+                        value = accentLabel,
+                        onClick = onAppearance
+                    )
+                    SettingsDivider()
+                    ProfileRow(
+                        icon = Icons.Filled.Layers,
+                        tone = palettes.background.neutral,
+                        title = "背景风格",
+                        value = backgroundLabel,
+                        onClick = onBackground
+                    )
+                    SettingsDivider()
+                    ProfileRow(
+                        icon = Icons.Filled.Image,
+                        tone = palettes.fixed.amber,
+                        title = "壁纸",
+                        value = if (wallpaperEnabled) "已设置" else "未设置",
+                        onClick = onWallpaper
+                    )
+                }
+            }
+            // ③ 经营
+            item {
+                SettingsGroup(title = "经营") {
+                    ProfileRow(
+                        icon = Icons.Filled.TrendingUp,
+                        tone = palettes.accent.accent,
+                        title = "月营业目标",
+                        value = Format.groupedInt(monthGoal),
+                        onClick = onGoal
+                    )
+                    SettingsDivider()
+                    ProfileRow(
+                        icon = Icons.Filled.Notifications,
+                        tone = palettes.fixed.amber,
+                        title = "提醒设置",
+                        value = if (reminderEnabled) "已开启" else "已关闭",
+                        onClick = onReminder
+                    )
+                }
+            }
+            // ④ 演示
+            item {
+                SettingsGroup(title = "演示") {
+                    DemoModeRow(
+                        checked = demoMode,
+                        onCheckedChange = onDemoChange
+                    )
+                    if (demoMode) {
+                        SettingsDivider()
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 10.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(palettes.fixed.amberSoft)
+                                .padding(12.dp)
+                        ) {
+                            Text(
+                                text = "演示模式使用独立演示数据，不会影响真实经营数据。",
+                                style = XzgType.caption,
+                                color = palettes.fixed.amber
+                            )
+                        }
+                        ProfileRow(
+                            icon = Icons.Filled.Refresh,
+                            tone = palettes.background.neutral,
+                            title = "重置演示数据",
+                            value = "独立内存",
+                            showChevron = false,
+                            onClick = onResetDemo
+                        )
+                    }
+                }
+            }
+            // ⑤ 工具
+            item {
+                SettingsGroup(title = "工具") {
+                    ProfileRow(
+                        icon = Icons.Filled.QrCode,
+                        tone = palettes.accent.accent,
+                        title = "收款码",
+                        onClick = onPaymentCode
+                    )
+                }
+            }
+            // ⑥ 数据与应用
+            item {
+                SettingsGroup(title = "数据与应用") {
+                    ProfileRow(
+                        icon = Icons.Filled.Download,
+                        tone = palettes.background.neutral,
+                        title = "数据备份",
+                        value = "JSON 文件",
+                        showChevron = false,
+                        onClick = onBackup
+                    )
+                    SettingsDivider()
+                    ProfileRow(
+                        icon = Icons.Filled.History,
+                        tone = palettes.background.neutral,
+                        title = "数据恢复",
+                        value = "JSON",
+                        showChevron = false,
+                        onClick = onRestore
+                    )
+                    SettingsDivider()
+                    ProfileRow(
+                        icon = Icons.Filled.Brush,
+                        tone = palettes.background.neutral,
+                        title = "清理缓存",
+                        onClick = onClearCache
+                    )
+                    SettingsDivider()
+                    ProfileRow(
+                        icon = Icons.Filled.Info,
+                        tone = palettes.fixed.info,
+                        title = "关于你的小掌柜",
+                        onClick = onAbout
+                    )
+                    SettingsDivider()
+                    ProfileRow(
+                        icon = Icons.Filled.Lock,
+                        tone = palettes.background.neutral,
+                        title = "隐私说明",
+                        onClick = onPrivacy
+                    )
+                }
+            }
+            // ⑦ 底部版本号
+            item {
+                Text(
+                    text = "v$versionName",
+                    style = XzgType.caption,
+                    color = palettes.background.textQuaternary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                )
+            }
+        }
     }
 }
 

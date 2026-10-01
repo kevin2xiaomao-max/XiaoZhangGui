@@ -129,7 +129,6 @@ private fun filterMemos(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MemoScreen() {
-    val palettes = LocalXzgPalettes.current
     val vm: MemoViewModel = viewModel(
         factory = XzgGraph.vmFactory { MemoViewModel(XzgGraph.memoRepository) }
     )
@@ -137,11 +136,64 @@ fun MemoScreen() {
     val memos by vm.memos.collectAsStateWithLifecycle()
     val error by vm.error.collectAsStateWithLifecycle()
 
-    var query by remember { mutableStateOf("") }
-    var filter by remember { mutableStateOf(MemoFilterTab.ALL) }
     var showEditor by remember { mutableStateOf(false) }
     var editingMemo by remember { mutableStateOf<MemoEntity?>(null) }
     var deletingMemo by remember { mutableStateOf<MemoEntity?>(null) }
+
+    MemoContent(
+        memos = memos,
+        onAdd = {
+            editingMemo = null
+            showEditor = true
+        },
+        onEdit = {
+            editingMemo = it
+            showEditor = true
+        },
+        onDelete = { deletingMemo = it }
+    )
+
+    if (showEditor) {
+        MemoEditorSheet(
+            memo = editingMemo,
+            onDismiss = {
+                showEditor = false
+                editingMemo = null
+            },
+            onSave = { title, content, imagePath ->
+                vm.saveMemo(title, content, imagePath, editingMemo)
+            }
+        )
+    }
+    if (deletingMemo != null) {
+        ConfirmDeleteDialog(
+            title = "删除这条备忘？",
+            onDismiss = { deletingMemo = null },
+            onConfirm = {
+                val target = deletingMemo
+                deletingMemo = null
+                if (target != null) vm.deleteMemo(target)
+            }
+        )
+    }
+    error?.let { ScreenErrorDialog(error = it, onDismiss = vm::clearError) }
+}
+
+/**
+ * 备忘页纯渲染内容（Paparazzi 截图入口）。
+ * 搜索 / 筛选为内部状态；编辑 Sheet / 删除确认保留在 [MemoScreen]。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MemoContent(
+    memos: List<MemoEntity>,
+    onAdd: () -> Unit = {},
+    onEdit: (MemoEntity) -> Unit = {},
+    onDelete: (MemoEntity) -> Unit = {}
+) {
+    val palettes = LocalXzgPalettes.current
+    var query by remember { mutableStateOf("") }
+    var filter by remember { mutableStateOf(MemoFilterTab.ALL) }
 
     val visible = remember(memos, query, filter) { filterMemos(memos, query, filter) }
 
@@ -157,10 +209,7 @@ fun MemoScreen() {
                     )
                 },
                 actions = {
-                    IconButton(onClick = {
-                        editingMemo = null
-                        showEditor = true
-                    }) {
+                    IconButton(onClick = onAdd) {
                         Icon(
                             imageVector = Icons.Filled.Add,
                             contentDescription = "新增备忘",
@@ -218,40 +267,12 @@ fun MemoScreen() {
                     items(visible, key = { it.id }) { memo ->
                         MemoCard(
                             memo = memo,
-                            onClick = {
-                                editingMemo = memo
-                                showEditor = true
-                            },
-                            onDeleteClick = { deletingMemo = memo }
+                            onClick = { onEdit(memo) },
+                            onDeleteClick = { onDelete(memo) }
                         )
                     }
                 }
             }
         }
     }
-
-    if (showEditor) {
-        MemoEditorSheet(
-            memo = editingMemo,
-            onDismiss = {
-                showEditor = false
-                editingMemo = null
-            },
-            onSave = { title, content, imagePath ->
-                vm.saveMemo(title, content, imagePath, editingMemo)
-            }
-        )
-    }
-    if (deletingMemo != null) {
-        ConfirmDeleteDialog(
-            title = "删除这条备忘？",
-            onDismiss = { deletingMemo = null },
-            onConfirm = {
-                val target = deletingMemo
-                deletingMemo = null
-                if (target != null) vm.deleteMemo(target)
-            }
-        )
-    }
-    error?.let { ScreenErrorDialog(error = it, onDismiss = vm::clearError) }
 }

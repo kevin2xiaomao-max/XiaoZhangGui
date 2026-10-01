@@ -393,10 +393,66 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = viewModel(factory = XzgGraph.vmFactory { HomeViewModel() })
 ) {
-    val palettes = LocalXzgPalettes.current
-    val bg = palettes.background
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var showWeatherSheet by remember { mutableStateOf(false) }
+
+    HomeContent(
+        state = state,
+        onOpenPerformance = onOpenPerformance,
+        onOpenTodoTab = onOpenTodoTab,
+        onOpenCustomer = onOpenCustomer,
+        onOpenExpiry = onOpenExpiry,
+        onOpenMemo = onOpenMemo,
+        onOpenDrawer = onOpenDrawer,
+        onOpenQuickRecord = onOpenQuickRecord,
+        onToggleTodo = viewModel::toggleTodo,
+        onWeatherClick = {
+            showWeatherSheet = true
+            onOpenWeather()
+        },
+        modifier = modifier
+    )
+
+    if (showWeatherSheet) {
+        WeatherSheet(onDismiss = { showWeatherSheet = false })
+    }
+
+    state.actionError?.let { message ->
+        AlertDialog(
+            onDismissRequest = viewModel::clearActionError,
+            confirmButton = {
+                TextButton(onClick = viewModel::clearActionError) { Text("知道了") }
+            },
+            title = { Text("操作失败") },
+            text = { Text(message) }
+        )
+    }
+}
+
+/**
+ * 首页纯渲染内容（Paparazzi 截图入口）。
+ *
+ * [animateEntrance] = false 时跳过入场动画：Paparazzi 不推进动画时钟，
+ * 动画会停在透明初态导致截图空白，因此截图测试传 false。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HomeContent(
+    state: HomeUiState,
+    onOpenPerformance: () -> Unit,
+    onOpenTodoTab: () -> Unit,
+    onOpenCustomer: () -> Unit,
+    onOpenExpiry: () -> Unit,
+    onOpenMemo: () -> Unit,
+    onOpenDrawer: () -> Unit,
+    onOpenQuickRecord: () -> Unit,
+    onToggleTodo: (String) -> Unit,
+    onWeatherClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    animateEntrance: Boolean = true
+) {
+    val palettes = LocalXzgPalettes.current
+    val bg = palettes.background
 
     Scaffold(
         modifier = modifier,
@@ -438,20 +494,17 @@ fun HomeScreen(
                 greeting = state.greeting,
                 ownerName = state.ownerName,
                 dateLabel = state.dateLabel,
-                onWeatherClick = {
-                    showWeatherSheet = true
-                    onOpenWeather()
-                }
+                onWeatherClick = onWeatherClick
             )
             RevenueHero(
                 state = state,
                 onOpenPerformance = onOpenPerformance,
-                modifier = Modifier.homeEntrance(0)
+                modifier = Modifier.homeEntrance(0, animateEntrance)
             )
             WeekRail()
             FocusSection(
                 items = state.inboxItems,
-                onToggleTodo = viewModel::toggleTodo,
+                onToggleTodo = onToggleTodo,
                 onOpenRoute = { route ->
                     when (route) {
                         InboxRoute.TODO -> onOpenTodoTab()
@@ -459,13 +512,13 @@ fun HomeScreen(
                         InboxRoute.EXPIRY -> onOpenExpiry()
                     }
                 },
-                modifier = Modifier.homeEntrance(40)
+                modifier = Modifier.homeEntrance(40, animateEntrance)
             )
             if (state.recentMemos.isNotEmpty()) {
                 RecentMemo(
                     memos = state.recentMemos,
                     onOpenMemo = onOpenMemo,
-                    modifier = Modifier.homeEntrance(60)
+                    modifier = Modifier.homeEntrance(60, animateEntrance)
                 )
             }
             OverviewGrid(
@@ -478,31 +531,18 @@ fun HomeScreen(
                 onTodo = onOpenTodoTab,
                 onCustomer = onOpenCustomer,
                 onExpiry = onOpenExpiry,
-                modifier = Modifier.homeEntrance(80)
+                modifier = Modifier.homeEntrance(80, animateEntrance)
             )
             // 底部呼吸：V32 bottomPad(28) + 浮动 TabBar 预留(72+12)
             Spacer(modifier = Modifier.height((28 + 72 + 12).dp))
         }
     }
-
-    if (showWeatherSheet) {
-        WeatherSheet(onDismiss = { showWeatherSheet = false })
-    }
-
-    state.actionError?.let { message ->
-        AlertDialog(
-            onDismissRequest = viewModel::clearActionError,
-            confirmButton = {
-                TextButton(onClick = viewModel::clearActionError) { Text("知道了") }
-            },
-            title = { Text("操作失败") },
-            text = { Text(message) }
-        )
-    }
 }
 
-/** 首页入场：opacity 0→1 + 上浮 8dp（对应 iOS V32HomeEntrance；Reduce Motion 降级 Phase 5 接入） */
-private fun Modifier.homeEntrance(delayMs: Int): Modifier = composed {
+/** 首页入场：opacity 0→1 + 上浮 8dp（对应 iOS V32HomeEntrance；Reduce Motion 降级 Phase 5 接入）。
+ * [enabled] = false 时直接返回原 Modifier（截图测试用）。 */
+private fun Modifier.homeEntrance(delayMs: Int, enabled: Boolean = true): Modifier = composed {
+    if (!enabled) return@composed this
     val density = LocalDensity.current
     val alphaAnim = remember { Animatable(0f) }
     val riseAnim = remember { Animatable(with(density) { 8.dp.toPx() }) }
