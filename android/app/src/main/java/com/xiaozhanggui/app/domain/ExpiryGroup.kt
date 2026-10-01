@@ -1,7 +1,7 @@
 package com.xiaozhanggui.app.domain
 
 import com.xiaozhanggui.app.data.db.ExpiryItemEntity
-import com.xiaozhanggui.app.data.db.ExpiryItemEntity.Companion.RETURNED
+import com.xiaozhanggui.app.data.db.ReturnStatus
 
 /**
  * 临期分组。对应 iOS ExpiryGroup（Features/Expiry/ExpiryModel.swift）。
@@ -13,7 +13,7 @@ enum class ExpiryGroup {
 
     companion object {
         fun of(item: ExpiryItemEntity, nowMillis: Long = System.currentTimeMillis()): ExpiryGroup {
-            if (item.returnStatus == RETURNED) return RETURNED
+            if (item.returnStatus == ReturnStatus.RETURNED) return RETURNED
             val daysLeft = DateExt.daysBetween(
                 DateExt.startOfDay(nowMillis),
                 DateExt.startOfDay(item.expiryDate)
