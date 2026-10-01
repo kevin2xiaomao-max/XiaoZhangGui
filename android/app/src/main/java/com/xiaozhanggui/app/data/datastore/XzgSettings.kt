@@ -58,7 +58,15 @@ enum class BackgroundTheme(val raw: String) {
     }
 }
 
-class XzgSettings(private val context: Context) {
+/**
+ * Phase 6 可测试性：主构造器直接注入 [DataStore]，JVM 测试可用
+ * PreferenceDataStoreFactory 构造真实 DataStore；生产仍走 Context 构造器，行为不变。
+ */
+class XzgSettings(private val dataStore: DataStore<Preferences>) {
+
+    /** 生产构造器：走 Context 的 preferencesDataStore。 */
+
+    constructor(context: Context) : this(context.xzgDataStore)
 
     private object Keys {
         // AppSettings（Utilities/AppSettings.swift）
@@ -86,33 +94,33 @@ class XzgSettings(private val context: Context) {
         val V32_THEME_MIGRATED = booleanPreferencesKey("v32_theme_migrated")
     }
 
-    val shopName: Flow<String> = context.xzgDataStore.data.map { it[Keys.SHOP_NAME] ?: "天福便利店" }
-    val ownerName: Flow<String> = context.xzgDataStore.data.map { it[Keys.OWNER_NAME] ?: "掌柜" }
-    val monthGoal: Flow<Double> = context.xzgDataStore.data.map { it[Keys.MONTH_GOAL] ?: 120000.0 }
+    val shopName: Flow<String> = dataStore.data.map { it[Keys.SHOP_NAME] ?: "天福便利店" }
+    val ownerName: Flow<String> = dataStore.data.map { it[Keys.OWNER_NAME] ?: "掌柜" }
+    val monthGoal: Flow<Double> = dataStore.data.map { it[Keys.MONTH_GOAL] ?: 120000.0 }
     val themeMode: Flow<ThemeMode> =
-        context.xzgDataStore.data.map { ThemeMode.from(it[Keys.THEME_MODE] ?: "system") }
+        dataStore.data.map { ThemeMode.from(it[Keys.THEME_MODE] ?: "system") }
     val todoReminderEnabled: Flow<Boolean> =
-        context.xzgDataStore.data.map { it[Keys.TODO_REMINDER] ?: true }
+        dataStore.data.map { it[Keys.TODO_REMINDER] ?: true }
     val expiryReminderEnabled: Flow<Boolean> =
-        context.xzgDataStore.data.map { it[Keys.EXPIRY_REMINDER] ?: true }
+        dataStore.data.map { it[Keys.EXPIRY_REMINDER] ?: true }
     val voiceLanguage: Flow<String> =
-        context.xzgDataStore.data.map { it[Keys.VOICE_LANGUAGE] ?: "普通话" }
+        dataStore.data.map { it[Keys.VOICE_LANGUAGE] ?: "普通话" }
     val avatarEmoji: Flow<String> =
-        context.xzgDataStore.data.map { it[Keys.AVATAR_EMOJI] ?: "👨🏻‍💼" }
+        dataStore.data.map { it[Keys.AVATAR_EMOJI] ?: "👨🏻‍💼" }
     val avatarImageData: Flow<ByteArray?> =
-        context.xzgDataStore.data.map { it[Keys.AVATAR_IMAGE_DATA] }
+        dataStore.data.map { it[Keys.AVATAR_IMAGE_DATA] }
     val demoModeEnabled: Flow<Boolean> =
-        context.xzgDataStore.data.map { it[Keys.DEMO_MODE_ENABLED] ?: false }
+        dataStore.data.map { it[Keys.DEMO_MODE_ENABLED] ?: false }
     val paymentCodeMetadataJson: Flow<String> =
-        context.xzgDataStore.data.map { it[Keys.PAYMENT_CODE_METADATA] ?: "" }
+        dataStore.data.map { it[Keys.PAYMENT_CODE_METADATA] ?: "" }
     val accentTheme: Flow<AccentTheme> =
-        context.xzgDataStore.data.map { AccentTheme.from(it[Keys.V32_ACCENT] ?: "emerald") }
+        dataStore.data.map { AccentTheme.from(it[Keys.V32_ACCENT] ?: "emerald") }
     val backgroundTheme: Flow<BackgroundTheme> =
-        context.xzgDataStore.data.map { BackgroundTheme.from(it[Keys.V32_BACKGROUND] ?: "warmCream") }
+        dataStore.data.map { BackgroundTheme.from(it[Keys.V32_BACKGROUND] ?: "warmCream") }
     val wallpaperJson: Flow<String> =
-        context.xzgDataStore.data.map { it[Keys.V32_WALLPAPER] ?: "" }
+        dataStore.data.map { it[Keys.V32_WALLPAPER] ?: "" }
     val themeMigrated: Flow<Boolean> =
-        context.xzgDataStore.data.map { it[Keys.V32_THEME_MIGRATED] ?: false }
+        dataStore.data.map { it[Keys.V32_THEME_MIGRATED] ?: false }
 
     suspend fun setShopName(v: String) = edit { it[Keys.SHOP_NAME] = v }
     suspend fun setOwnerName(v: String) = edit { it[Keys.OWNER_NAME] = v }
@@ -136,6 +144,6 @@ class XzgSettings(private val context: Context) {
     suspend fun setThemeMigrated(v: Boolean) = edit { it[Keys.V32_THEME_MIGRATED] = v }
 
     private suspend fun edit(block: (androidx.datastore.preferences.core.MutablePreferences) -> Unit) {
-        context.xzgDataStore.edit(block)
+        dataStore.edit(block)
     }
 }
