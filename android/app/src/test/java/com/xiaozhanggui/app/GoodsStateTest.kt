@@ -3,6 +3,7 @@ package com.xiaozhanggui.app
 import com.xiaozhanggui.app.data.db.GoodsEntity
 import com.xiaozhanggui.app.domain.GoodsState
 import com.xiaozhanggui.app.domain.goodsStateOf
+import com.xiaozhanggui.app.domain.isExpiringWithin
 import com.xiaozhanggui.app.domain.isGoodsNameValid
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -64,6 +65,15 @@ class GoodsStateTest {
         assertEquals("即将到期", GoodsState.EXPIRING_SOON.label)
         assertEquals("库存不足", GoodsState.LOW_STOCK.label)
         assertEquals("正常", GoodsState.NORMAL.label)
+    }
+
+    @Test
+    fun `isExpiringWithin matches stats card window`() {
+        assertTrue(isExpiringWithin(goods(expiryDate = now), now))
+        assertTrue(isExpiringWithin(goods(expiryDate = now + 7 * day), now))
+        assertTrue(!isExpiringWithin(goods(expiryDate = now + 8 * day), now))
+        assertTrue(!isExpiringWithin(goods(expiryDate = now - day), now))
+        assertTrue(!isExpiringWithin(goods(expiryDate = null), now))
     }
 
     @Test

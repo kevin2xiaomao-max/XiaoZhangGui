@@ -26,5 +26,11 @@ fun goodsStateOf(g: GoodsEntity, now: Long): GoodsState {
     return GoodsState.NORMAL
 }
 
+/** 到期日在未来 [days] 天内（含当天与边界）。统计卡"临期"口径与 iOS 一致：expiry >= now。 */
+fun isExpiringWithin(g: GoodsEntity, now: Long, days: Long = 7): Boolean {
+    val expiry = g.expiryDate ?: return false
+    return expiry >= now && expiry <= now + days * 24 * 3600 * 1000
+}
+
 /** 商品编辑器校验：名称必填（对应 iOS GoodsEditorSheet 的保存启用条件）。 */
 fun isGoodsNameValid(name: String): Boolean = name.trim().isNotEmpty()

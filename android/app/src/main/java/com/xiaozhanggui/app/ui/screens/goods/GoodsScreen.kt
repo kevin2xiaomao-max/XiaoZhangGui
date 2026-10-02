@@ -53,6 +53,7 @@ import com.xiaozhanggui.app.data.repository.GoodsRepository
 import com.xiaozhanggui.app.domain.Format
 import com.xiaozhanggui.app.domain.GoodsState
 import com.xiaozhanggui.app.domain.goodsStateOf
+import com.xiaozhanggui.app.domain.isExpiringWithin
 import com.xiaozhanggui.app.ui.components.PillTone
 import com.xiaozhanggui.app.ui.components.V32Card
 import com.xiaozhanggui.app.ui.components.V32EmptyState
@@ -169,7 +170,7 @@ fun GoodsContent(
         }.sortedByDescending { it.createdAt }
     }
     val expiringCount = remember(goods, now) {
-        goods.count { it.expiryDate != null && it.expiryDate!! >= now && it.expiryDate!! <= now + SEVEN_DAYS }
+        goods.count { isExpiringWithin(it, now) }
     }
     val lowStockCount = remember(goods) { goods.count { it.stock <= it.minStock } }
     val totalStock = remember(goods) { goods.sumOf { maxOf(it.stock, 0) } }
