@@ -78,23 +78,8 @@ class DeepLinkJourneyTest {
         rule.onNodeWithTag("ai.input").assertIsDisplayed()
     }
 
-    /**
-     * teardown：主动 finish Activity。
-     *
-     * 根因：`ActivityScenarioRule.after → close()` 的 `moveToState(DESTROYED)`
-     * 在 CI 模拟器上超时（Activity 卡在 RESUMED/PAUSED，走不到 DESTROYED），
-     * 而测试本体断言已通过。改为在 @After（先于 Rule.after 执行）里直接
-     * `finish()`，让 rule 的 close() 看到已销毁的 Activity 而正常返回。
-     * 不碰 MainActivity 的 launchMode。
-     */
-    @After
-    fun tearDown() {
-        try {
-            rule.activityRule.scenario.onActivity { it.finish() }
-        } catch (e: Exception) {
-            // Activity 已销毁或测试中途失败时忽略，避免 teardown 二次抛错掩盖原始失败
-        }
-    }
+    // 注意：teardown 由 ActivityScenarioRule 自动处理（close → DESTROYED）。
+    // fireDeepLink 已改为直接调 onNewIntent，无 task 切换，Activity 全程 RESUMED。
 
     /**
      * 投递深链接并校验 manifest 配对。
