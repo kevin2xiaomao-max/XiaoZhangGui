@@ -7,6 +7,7 @@ import android.util.Log
 import android.view.View
 import android.widget.DatePicker
 import android.widget.TimePicker
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -29,6 +30,8 @@ import com.xiaozhanggui.app.MainActivity
 import com.xiaozhanggui.app.data.db.TodoEntity
 import com.xiaozhanggui.app.data.di.XzgGraph
 import com.xiaozhanggui.app.data.notification.XzgAlarmReceiver
+import com.xiaozhanggui.app.data.repository.TodoRepository
+import java.io.File
 import java.util.Calendar
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -96,6 +99,8 @@ class TodoReminderJourneyTest {
     fun createTodoWithReminder_schedulesAlarmPendingIntent() {
         val context: Context = ApplicationProvider.getApplicationContext()
         val todoRepo = XzgGraph.todoRepository
+        // Phase 6 诊断基线：实例身份 + DB 文件状态（与保存后的诊断对比）。
+        dumpDbState(context, "start", todoRepo)
         val title = "E2E待办-${System.currentTimeMillis()}"
         // 快照已有行 ID：之后用"新 ID"定位新建行，不依赖标题字符串匹配。
         // 根因（Phase 6 第三轮）：sheet 关闭（waitUntil 通过）但按标题查库报
@@ -148,12 +153,19 @@ class TodoReminderJourneyTest {
                 .check(matches(isDisplayed()))
             onView(withId(android.R.id.button1)).inRoot(isDialog()).perform(click())
 
-            // 保存
+            // 保存（fail-fast：V32PrimaryButton 禁用态点击会静默落空，
+            // 见 RevenueJourneyTest 同类注释；先断言可点，免得在库查询处报含糊的错）
+            rule.onNodeWithTag("todo.saveButton").assertIsEnabled()
             rule.onNodeWithTag("todo.saveButton").performClick()
             rule.waitUntil(10_000) {
                 rule.onAllNodesWithTag("todo.titleInput")
                     .fetchSemanticsNodes().isEmpty()
             }
+
+            // Phase 6 诊断：保存点击后、查库前 —— DB 文件级诊断，定位"行到底去哪了"。
+            // 文件路径/存在/大小 + Room 实际打开的路径 + 绕过 DAO/Flow 的原始 SQL
+            // + 实例 identityHashCode（验证测试与 UI 是否同一 DB/同一 Repository）。
+            dumpDbState(context, "afterSave", todoRepo)
 
             // 等待新行落库：轮询 ID 差集（insert 在 onSave suspend 链内先于
             // onDismiss 完成，轮询只为防极端调度延迟）。无论成功失败都打 Log，
@@ -171,8 +183,11 @@ class TodoReminderJourneyTest {
                 "落库等待结束，找到新行=${newTodo != null}，库内共 ${rows.size} 行，" +
                     "标题列表=${rows.map { it.title }}"
             )
+            // 轮询结束仍无行：再打一次 DB 级诊断（与 afterSave 对比，看轮询期间有无变化）。
+            dumpDbState(context, "afterPoll", todoRepo)
             val created = requireNotNull(newTodo) {
-                "保存后 10s 内库里没有出现新待办行（库内标题=${rows.map { it.title }}）"
+                "保存后 10s 内库里没有出现新待办行（库内标题=${rows.map { it.title }}；" +
+                    "DB 文件级诊断见 logcat tag=$TAG stage=start/afterSave/afterPoll）"
             }
             // 标题一致性校验：确认输入链路无改写
             assertEquals("落库标题与输入不一致", title, created.title)
@@ -198,5 +213,56 @@ class TodoReminderJourneyTest {
                 if (created != null) todoRepo.delete(created)
             }
         }
+    }
+
+    /**
+     * Phase 6 诊断：DB 文件级状态快照（logcat tag=[TAG]，stage 区分调用点）。
+     *
+     * 逐层排除"保存后库里没行"的可能原因：
+     * 1. DB 文件：路径/存在/大小（+wal/shm）——确认文件本身；
+     * 2. Room 实际打开的路径（openHelper.readableDatabase.path）——
+     *    确认没有第二个 DB 文件；
+     * 3. 原始 SQL `SELECT id, title FROM todos`（绕过 Repository/DAO/Flow）——
+     *    若此处有行而 observeAll() 为空，则是 Flow/DAO 读取问题；
+     *    若此处也为空，则 insert 真没落到这个文件；
+     * 4. identityHashCode ——确认测试与 UI 用的是同一个 XzgGraph.database /
+     *    同一个 todoRepository（XzgGraph 为单例 object，理论上必相同，打出来实证）。
+     */
+    private fun dumpDbState(context: Context, stage: String, todoRepo: TodoRepository) {
+        val dbFile = context.getDatabasePath("xzg.db")
+        val walLen = File(dbFile.absolutePath + "-wal").length()
+        val shmLen = File(dbFile.absolutePath + "-shm").length()
+        val db = XzgGraph.database
+        val roomPath = try {
+            db.openHelper.readableDatabase.path
+        } catch (e: Exception) {
+            "ERR:${e::class.java.simpleName}:${e.message}"
+        }
+        val rawRows = mutableListOf<String>()
+        var rawCount = -1
+        try {
+            db.openHelper.readableDatabase.rawQuery("SELECT id, title FROM todos", null).use { c ->
+                rawCount = c.count
+                val idIdx = c.getColumnIndex("id")
+                val titleIdx = c.getColumnIndex("title")
+                while (c.moveToNext()) {
+                    rawRows.add("${c.getString(idIdx)}|${c.getString(titleIdx)}")
+                }
+            }
+        } catch (e: Exception) {
+            rawRows.add("RAW_QUERY_FAILED:${e::class.java.simpleName}:${e.message}")
+        }
+        Log.d(
+            TAG,
+            "[$stage] dbFile=${dbFile.absolutePath} exists=${dbFile.exists()} " +
+                "size=${dbFile.length()} wal=$walLen shm=$shmLen roomPath=$roomPath"
+        )
+        Log.d(
+            TAG,
+            "[$stage] identity database=${System.identityHashCode(db)} " +
+                "todoRepoArg=${System.identityHashCode(todoRepo)} " +
+                "todoRepoFresh=${System.identityHashCode(XzgGraph.todoRepository)}"
+        )
+        Log.d(TAG, "[$stage] rawSQL SELECT id,title FROM todos -> count=$rawCount rows=$rawRows")
     }
 }
