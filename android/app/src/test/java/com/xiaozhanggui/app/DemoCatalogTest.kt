@@ -32,7 +32,7 @@ class DemoCatalogTest {
 
     private open class FakeDao<E : Any>(private val idOf: (E) -> String) {
         val items = mutableListOf<E>()
-        open suspend fun insert(e: E) {
+        suspend fun add(e: E) {
             items.removeAll { idOf(it) == idOf(e) }
             items.add(e)
         }
@@ -42,8 +42,8 @@ class DemoCatalogTest {
     }
 
     private class FakeTodoDao : FakeDao<TodoEntity>({ it.id }), TodoDao {
-        override suspend fun insert(entity: TodoEntity) = super.insert(entity)
-        override suspend fun update(entity: TodoEntity) = super.insert(entity)
+        override suspend fun insert(entity: TodoEntity) = add(entity)
+        override suspend fun update(entity: TodoEntity) = add(entity)
         override suspend fun delete(entity: TodoEntity) {
             items.removeAll { it.id == entity.id }
         }
@@ -53,8 +53,8 @@ class DemoCatalogTest {
     }
 
     private class FakeExpiryDao : FakeDao<ExpiryItemEntity>({ it.id }), ExpiryItemDao {
-        override suspend fun insert(entity: ExpiryItemEntity) = super.insert(entity)
-        override suspend fun update(entity: ExpiryItemEntity) = super.insert(entity)
+        override suspend fun insert(entity: ExpiryItemEntity) = add(entity)
+        override suspend fun update(entity: ExpiryItemEntity) = add(entity)
         override suspend fun delete(entity: ExpiryItemEntity) {
             items.removeAll { it.id == entity.id }
         }
@@ -64,8 +64,8 @@ class DemoCatalogTest {
     }
 
     private class FakeCustomerDao : FakeDao<CustomerRequestEntity>({ it.id }), CustomerRequestDao {
-        override suspend fun insert(entity: CustomerRequestEntity) = super.insert(entity)
-        override suspend fun update(entity: CustomerRequestEntity) = super.insert(entity)
+        override suspend fun insert(entity: CustomerRequestEntity) = add(entity)
+        override suspend fun update(entity: CustomerRequestEntity) = add(entity)
         override suspend fun delete(entity: CustomerRequestEntity) {
             items.removeAll { it.id == entity.id }
         }
@@ -75,8 +75,8 @@ class DemoCatalogTest {
     }
 
     private class FakeMemoDao : FakeDao<MemoEntity>({ it.id }), MemoDao {
-        override suspend fun insert(entity: MemoEntity) = super.insert(entity)
-        override suspend fun update(entity: MemoEntity) = super.insert(entity)
+        override suspend fun insert(entity: MemoEntity) = add(entity)
+        override suspend fun update(entity: MemoEntity) = add(entity)
         override suspend fun delete(entity: MemoEntity) {
             items.removeAll { it.id == entity.id }
         }
@@ -86,8 +86,8 @@ class DemoCatalogTest {
     }
 
     private class FakePerformanceDao : FakeDao<PerformanceEntity>({ it.id }), PerformanceDao {
-        override suspend fun insert(entity: PerformanceEntity) = super.insert(entity)
-        override suspend fun update(entity: PerformanceEntity) = super.insert(entity)
+        override suspend fun insert(entity: PerformanceEntity) = add(entity)
+        override suspend fun update(entity: PerformanceEntity) = add(entity)
         override suspend fun delete(entity: PerformanceEntity) {
             items.removeAll { it.id == entity.id }
         }
