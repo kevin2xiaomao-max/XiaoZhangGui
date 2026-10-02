@@ -114,13 +114,14 @@ class DeepLinkJourneyTest {
         //    CI 模拟器上经 startActivity 投递（无论是否带 NEW_TASK）都会把
         //    Activity 晾在 PAUSED，致 ActivityScenarioRule.after → close() 失败。
         //    直接调 onNewIntent 仍完整走生产链路
-        //    MainActivity.onNewIntent → XzgDeepLink → XzgNavGraph(pendingDeepLink)，
-        //    且 Activity 全程 RESUMED，rule 可正常关闭。
+        //    MainActivity.onNewIntent → XzgDeepLink → XzgNavGraph(pendingDeepLink)。
+        //    用 rule.runOnUiThread 而非 scenario.onActivity：后者在 CI 模拟器上
+        //    疑与 rule 的 teardown 产生死锁（Activity 卡在 RESUMED 关不掉）。
         val explicit = Intent(Intent.ACTION_VIEW, Uri.parse(uri)).apply {
             setClassName(context, MainActivity::class.java.name)
         }
-        rule.activityRule.scenario.onActivity { activity ->
-            activity.onNewIntent(explicit)
+        rule.runOnUiThread {
+            rule.activity.onNewIntent(explicit)
         }
     }
 }
