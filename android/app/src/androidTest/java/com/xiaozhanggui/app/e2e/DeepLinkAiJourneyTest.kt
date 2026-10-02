@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.waitUntil
 import androidx.test.filters.LargeTest
 import androidx.test.platform.app.InstrumentationRegistry
 import com.xiaozhanggui.app.MainActivity
@@ -27,7 +28,8 @@ import org.junit.Test
 class DeepLinkAiJourneyTest {
 
     @get:Rule
-    val rule = createAndroidComposeRule<MainActivity>(
+    val rule = createAndroidComposeRule(
+        activityClass = MainActivity::class.java,
         activityIntentSupplier = {
             Intent(Intent.ACTION_VIEW, Uri.parse("xzg://ai"))
         }
