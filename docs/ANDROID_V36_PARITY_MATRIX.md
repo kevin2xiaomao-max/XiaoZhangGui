@@ -49,8 +49,8 @@
 | 项 | iOS Source | Android Target | 数据模型 | Repository/业务逻辑 | UI 状态 | Interaction | Android 实现 | Test |
 |---|---|---|---|---|---|---|---|---|
 | App 启动三路 | App/XiaoZhangGuiApp.swift:29-59 | MainActivity + XzgApplication | — | 单元测试宿主→空；UI 测试→内存 DB + 种子；生产→Room 真实库；**失败显式报错页，绝不静默回退内存库**（P0-2） | 启动态/错误页 | — | ✅ | ⬜ |
-| 5 Tab 导航 | App/RootView.swift:19-41 | NavHost + 底部导航栏 | — | tab 状态 + lastContentTab | home/schedule/assistant/todo/profile | Tab 点击切换；iOS 26 下滑隐藏 tab bar → Android nestedScroll 等价 | ✅ | ⬜ |
-| 深链接 xzg:// | RootView.swift:74-87, Assistant/AI/Core/AppDeepLink.swift | Manifest intent-filter + onNewIntent | — | voice→语音 sheet；quickrecord/quick→速记 sheet；ai→小掌柜 tab；ai?mode=voice→小掌柜+语音面板；未知 host 忽略 | — | 外部唤起 | ✅ | ⬜ |
+| 5 Tab 导航 | App/RootView.swift:19-41 | NavHost + 底部导航栏 | — | tab 状态 + lastContentTab | home/schedule/assistant/todo/profile | Tab 点击切换；iOS 26 下滑隐藏 tab bar → Android nestedScroll 等价 | ✅ | ✅ |
+| 深链接 xzg:// | RootView.swift:74-87, Assistant/AI/Core/AppDeepLink.swift | Manifest intent-filter + onNewIntent | — | voice→语音 sheet；quickrecord/quick→速记 sheet；ai→小掌柜 tab；ai?mode=voice→小掌柜+语音面板；未知 host 忽略 | — | 外部唤起 | ✅ | ✅ |
 | 全局 Sheet（语音/速记） | RootView.swift:46-56 | ModalBottomSheet（圆角 28，固定高度 260/340） | — | — | ✅ showVoice/showQuickRecord | ✅ 全局可唤起 | ✅ 🟡 | ✅ |
 | Demo Mode | Demo/DemoMode.swift | DataStore xzg_demo_mode_enabled + 内存 Room | DemoCatalog 种子 | 切换强制重建 UI 树；演示数据独立内存库 | 开关 + 重置按钮 | Toggle | ⬜ | ⬜ |
 
@@ -60,14 +60,14 @@
 
 | 项 | iOS Source | Android Target | 数据模型 | Repository/业务逻辑 | UI 状态 | Interaction | Android 实现 | Test |
 |---|---|---|---|---|---|---|---|---|
-| 问候 header | Features/Home/HomeView.swift:145-194 | HomeScreen Header | AppSettings(shopName/ownerName) | Greeting.phrase：<11 早上好/<14 中午好/<18 下午好/else 晚上好；日期 "M月d日 星期X" | — | 天气按钮→天气 sheet | ✅ | ⬜ |
-| Revenue Hero | Features/Home/V35HomeRevenueHero.swift | HomeRevenueHero（Compose Canvas 火花线） | Performance ✅ | 今日求和；涨跌=(今-昨)/昨（昨日0不显示）；本月/目标/完成；进度=月累计/月目标钳制0..1 | 点击→经营数据页 | 点击跳转 | ✅ | ⬜ |
-| weekRail | HomeView.swift:197-215 | WeekRail | — | 本周7天周一起始；今天高亮 | — | 无 | ✅ | ⬜ |
-| 今日事项 | V35HomeFocusSection.swift + HomeInbox（DisplayLogic.swift:135-222） | FocusSection | Todo/CustomerRequest/ExpiryItem | rank 排序（高优待办1/配送中2/普通配送3/普通待办4），limit=3；待办勾选→toggleComplete | 空态"今天暂无待处理事项" | 勾选/点击跳转 | ✅ | ⬜ |
-| 最近备忘 | V35HomeRecentMemo.swift | RecentMemo | Memo | 前2（updatedAt 倒序） | 仅非空显示 | 点击→备忘页 | ✅ | ⬜ |
-| 概览三格 | V35HomeOverviewGrid.swift | OverviewGrid | Todo/Customer/Expiry | 待办/配送/临期计数 | — | 点击→待办 tab/客户页/临期页 | ✅ | ⬜ |
-| 抽屉 | V35SideUtilityDrawer.swift | UtilityDrawer（ModalNavigationDrawer 自绘或定制） | — | 8 目的地（5 push + 3 sheet） | 开/关；手势阈值 0.32 | 左缘右滑/背景点按/xmark/左滑关闭 | ✅ | ⬜ |
-| 今日经营报告 | DailyReport/DailyReportSheet.swift | DailyReportSheet | 6 表聚合 | DailyReport.build 口径；shareText 模板（含"临时商品待处理"文案照搬） | — | 复制/分享 | ✅ | ⬜ |
+| 问候 header | Features/Home/HomeView.swift:145-194 | HomeScreen Header | AppSettings(shopName/ownerName) | Greeting.phrase：<11 早上好/<14 中午好/<18 下午好/else 晚上好；日期 "M月d日 星期X" | — | 天气按钮→天气 sheet | ✅ | ✅ |
+| Revenue Hero | Features/Home/V35HomeRevenueHero.swift | HomeRevenueHero（Compose Canvas 火花线） | Performance ✅ | 今日求和；涨跌=(今-昨)/昨（昨日0不显示）；本月/目标/完成；进度=月累计/月目标钳制0..1 | 点击→经营数据页 | 点击跳转 | ✅ | ✅ |
+| weekRail | HomeView.swift:197-215 | WeekRail | — | 本周7天周一起始；今天高亮 | — | 无 | ✅ | ✅ |
+| 今日事项 | V35HomeFocusSection.swift + HomeInbox（DisplayLogic.swift:135-222） | FocusSection | Todo/CustomerRequest/ExpiryItem | rank 排序（高优待办1/配送中2/普通配送3/普通待办4），limit=3；待办勾选→toggleComplete | 空态"今天暂无待处理事项" | 勾选/点击跳转 | ✅ | ✅ |
+| 最近备忘 | V35HomeRecentMemo.swift | RecentMemo | Memo | 前2（updatedAt 倒序） | 仅非空显示 | 点击→备忘页 | ✅ | ✅ |
+| 概览三格 | V35HomeOverviewGrid.swift | OverviewGrid | Todo/Customer/Expiry | 待办/配送/临期计数 | — | 点击→待办 tab/客户页/临期页 | ✅ | ✅ |
+| 抽屉 | V35SideUtilityDrawer.swift | UtilityDrawer（ModalNavigationDrawer 自绘或定制） | — | 8 目的地（5 push + 3 sheet） | 开/关；手势阈值 0.32 | 左缘右滑/背景点按/xmark/左滑关闭 | ✅ | ✅ |
+| 今日经营报告 | DailyReport/DailyReportSheet.swift | DailyReportSheet | 6 表聚合 | DailyReport.build 口径；shareText 模板（含"临时商品待处理"文案照搬） | — | 复制/分享 | ✅ | ✅ |
 
 ---
 
@@ -92,11 +92,11 @@
 | 确认流程 | AI/Core/AgentCore.swift:508-623 | data/ai/AgentCore + domain/ai/PendingAction | PendingActionStore（pending-actions.json，原子写入） | handleToolCall→pending.upsert→ActionCard；confirm→preview 门只置 acknowledged / live 门真实执行；cancel→cancelled；modify→取消旧卡回填原文 | — | — | ✅ | ✅ |
 | 意图路由 | AI/Core/IntentRouter.swift（7 case，9 步顺序） | domain/ai/IntentRouter.kt | — | 天气优先→经营分析→商品查询→经营读问答优先（问句绝不落 CREATE）→记账→配送→备忘先于待办→待办→兜底 worldChat；纯规则 0 Token | — | — | ✅ | ✅ |
 | 本地解析 | AI/Providers/LocalBusinessParser.swift（Free First 0-Token） | domain/ai/LocalBusinessParser.kt | — | **无 Key 时本地 CREATE 照常工作**；8 示例规则（金额/房号/人名/商品/歧义时钟追问绝不静默回落） | clarify 追问 | — | ✅ | ✅ |
-| Provider 配置 | AI/Core/AISettings.swift | data/ai/AiSettings + OpenAiCompatProvider | — | 默认 DeepSeek（https://api.deepseek.com，deepseek-flash/deepseek-v4-pro）；temperature 0.2 硬编码；**无流式/SSE**；ProviderChain 只跳 1 次（401/403 不换链）；Key 只进 Keychain→Android Keystore | 设置页 tier 三档/主备 baseURL+模型+Key/搜索 provider 四档；连接测试状态胶囊（仅真实成功才绿） | 配置/测试连接 | ✅ | ⬜ |
+| Provider 配置 | AI/Core/AISettings.swift | data/ai/AiSettings + OpenAiCompatProvider | — | 默认 DeepSeek（https://api.deepseek.com，deepseek-flash/deepseek-v4-pro）；temperature 0.2 硬编码；**无流式/SSE**；ProviderChain 只跳 1 次（401/403 不换链）；Key 只进 Keychain→Android Keystore | 设置页 tier 三档/主备 baseURL+模型+Key/搜索 provider 四档；连接测试状态胶囊（仅真实成功才绿） | 配置/测试连接 | ✅ | ✅ |
 | 旧引擎 | Features/Assistant/BusinessAssistantEngine.swift | 首页摘要本地计算 | BusinessAssistantInput（6 模型快照） | 本地纯规则只读；退化为首页每日摘要/洞察计算；聊天页真正引擎是 AgentCore | — | — | ✅ | ⬜ |
 | 短语音 | AI/Voice/ShortVoiceSession.swift + ShortVoicePanel | AIChatScreen onVoice→VoiceSheetContent（复用语音链路） | — | 复用 SpeechService；3 秒静音收尾；final 为空→failed；转写后走相同 send 流程；失败保留转写填回输入框 | ✅ idle/listening/finalizing/failed；三种取消（按钮/遮罩/失败关闭） | ✅ 语音输入 | ✅ | ✅ |
-| 能力 | AI/Capabilities/（Vision/Document/URLReading/WebSearch） | data/ai/Skills.kt | — | 均为只读不产生 ActionCard；Vision/Document 经 OpenAI 兼容 chat/completions；WebSearch 三档（Tavily/JSON 代理/免费优先，默认 disabled）；**上云 context 恒空**（经营数据不随云端 CREATE 外发） | — | — | ✅ | ⬜ |
-| 技能 | AI/Skills/（GoodsLookup/MetaReply/Weather） | domain/ai/ | — | 商品本地查询/元问题固定回复/本地天气回答（降雨≥60% 追加配送提示） | — | — | ✅ | ⬜ |
+| 能力 | AI/Capabilities/（Vision/Document/URLReading/WebSearch） | data/ai/Skills.kt | — | 均为只读不产生 ActionCard；Vision/Document 经 OpenAI 兼容 chat/completions；WebSearch 三档（Tavily/JSON 代理/免费优先，默认 disabled）；**上云 context 恒空**（经营数据不随云端 CREATE 外发） | — | — | ✅ | ✅ |
+| 技能 | AI/Skills/（GoodsLookup/MetaReply/Weather） | domain/ai/ | — | 商品本地查询/元问题固定回复/本地天气回答（降雨≥60% 追加配送提示） | — | — | ✅ | ✅ |
 
 ---
 
@@ -104,9 +104,9 @@
 
 | 项 | iOS Source | Android Target | 数据模型 | Repository/业务逻辑 | UI 状态 | Interaction | Android 实现 | Test |
 |---|---|---|---|---|---|---|---|---|
-| 待办列表 | Features/Todo/TodoView.swift | TodoScreen | TodoEntity ✅ | ✅ 5 tab 过滤（今天/明天/逾期/已完成/备忘）；时间轴分组（上午/下午/晚上/待安排）；排序规则 | statsCard；空态文案5种 | 勾选完成（0.3s 动画后移出）；trash→确认删除；点行→编辑 | ✅ | ⬜ |
+| 待办列表 | Features/Todo/TodoView.swift | TodoScreen | TodoEntity ✅ | ✅ 5 tab 过滤（今天/明天/逾期/已完成/备忘）；时间轴分组（上午/下午/晚上/待安排）；排序规则 | statsCard；空态文案5种 | 勾选完成（0.3s 动画后移出）；trash→确认删除；点行→编辑 | ✅ | ✅ |
 | 待办编辑器 | TodoEditorSheet.swift | TodoEditorSheet | TodoEntity ✅ | ✅ 标题必填；截止开关（默认今日9:00）；优先级低/中/高；图片 | 保存 disabled 态；视觉对照 ✅（docs/ANDROID_V36_VISUAL_PARITY.md #1，含分组头/优先级文案/取消色修复） | 保存/取消 | ✅ | ✅ |
-| 备忘 tab | TodoView.swift records | （同待办页内） | MemoEntity ✅ | ✅ updatedAt 倒序两列 grid | — | 同 Memo 交互 | ✅ | ⬜ |
+| 备忘 tab | TodoView.swift records | （同待办页内） | MemoEntity ✅ | ✅ updatedAt 倒序两列 grid | — | 同 Memo 交互 | ✅ | ✅ |
 
 ---
 
@@ -114,7 +114,7 @@
 
 | 项 | iOS Source | Android Target | 数据模型 | Repository/业务逻辑 | UI 状态 | Interaction | Android 实现 | Test |
 |---|---|---|---|---|---|---|---|---|
-| 客户列表 | Features/Customer/CustomerView.swift | CustomerScreen | CustomerRequestEntity ✅ | ✅ 筛选（全部/待处理/配送中/已完成）+createdAt 倒序；displayTitle 隐藏编码串 | 空态2种；完成 toast | 右滑推进（pending→delivering→done）；长按菜单（编辑/复制地址/删除）；行内推进按钮 | ✅ | ⬜ |
+| 客户列表 | Features/Customer/CustomerView.swift | CustomerScreen | CustomerRequestEntity ✅ | ✅ 筛选（全部/待处理/配送中/已完成）+createdAt 倒序；displayTitle 隐藏编码串 | 空态2种；完成 toast | 右滑推进（pending→delivering→done）；长按菜单（编辑/复制地址/删除）；行内推进按钮 | ✅ | ✅ |
 | 客户编辑器 | CustomerEditorSheet.swift | CustomerEditorSheet | CustomerRequestEntity ✅ | ✅ 内容+地址双必填；配送时间开关；备注；customer 字段编解码（xzg-delivery-v1:） | 视觉对照 ✅（docs/ANDROID_V36_VISUAL_PARITY.md #2） | 保存/取消 | ✅ | ✅ |
 
 ---
@@ -123,8 +123,8 @@
 
 | 项 | iOS Source | Android Target | 数据模型 | Repository/业务逻辑 | UI 状态 | Interaction | Android 实现 | Test |
 |---|---|---|---|---|---|---|---|---|
-| 临期列表 | Features/Expiry/ExpiryView.swift | ExpiryScreen | ExpiryItemEntity ✅ | ✅ 分组（已过期/3天内/7天内/30天内/30天外/已退货）；daysLeft 按0点算；三格统计 | badge 文案（还剩N天/已过期N天/已退货） | 退货/恢复按钮（无确认）；trash→确认删除；点行→编辑 | ✅ | ⬜ |
-| 临期编辑器 | ExpiryEditorSheet.swift | ExpiryEditorSheet | ExpiryItemEntity ✅ | ✅ 名称必填+数量>0；到期日不可选过去；提前提醒3/7/15天（仅通知用，不参与分组） | 视觉对照 ✅（docs/ANDROID_V36_VISUAL_PARITY.md #3） | 保存/取消 | ✅ | ⬜ |
+| 临期列表 | Features/Expiry/ExpiryView.swift | ExpiryScreen | ExpiryItemEntity ✅ | ✅ 分组（已过期/3天内/7天内/30天内/30天外/已退货）；daysLeft 按0点算；三格统计 | badge 文案（还剩N天/已过期N天/已退货） | 退货/恢复按钮（无确认）；trash→确认删除；点行→编辑 | ✅ | ✅ |
+| 临期编辑器 | ExpiryEditorSheet.swift | ExpiryEditorSheet | ExpiryItemEntity ✅ | ✅ 名称必填+数量>0；到期日不可选过去；提前提醒3/7/15天（仅通知用，不参与分组） | 视觉对照 ✅（docs/ANDROID_V36_VISUAL_PARITY.md #3） | 保存/取消 | ✅ | ✅ |
 
 ---
 
@@ -142,9 +142,9 @@
 | 项 | iOS Source | Android Target | 数据模型 | Repository/业务逻辑 | UI 状态 | Interaction | Android 实现 | Test |
 |---|---|---|---|---|---|---|---|---|
 | 经营数据页 | Features/Performance/PerformanceView.swift | PerformanceScreen | Performance/Expense Entity ✅ | ✅ Hero（本月+今日+昨日对比+7天趋势）；关键指标（昨日/今年）；收入来源占比；近30天流水前12 | — | +菜单（记收入/记支出/扫呗导入）；行点击→编辑；trash→确认删除 | ✅ | ✅ |
-| 记一笔编辑器 | MoneyEditorSheet.swift | MoneyEditorSheet | Performance/Expense ✅ | ✅ 金额>0 必填；收入来源3选；支出分类5选；日期 | 4 模式（新收入/新支出/编辑收入/编辑支出）；视觉对照 ✅（docs/ANDROID_V36_VISUAL_PARITY.md #5） | 保存/取消 | ✅ | ⬜ |
+| 记一笔编辑器 | MoneyEditorSheet.swift | MoneyEditorSheet | Performance/Expense ✅ | ✅ 金额>0 必填；收入来源3选；支出分类5选；日期 | 4 模式（新收入/新支出/编辑收入/编辑支出）；视觉对照 ✅（docs/ANDROID_V36_VISUAL_PARITY.md #5） | 保存/取消 | ✅ | ✅ |
 | 交易记录 | TransactionHistoryView.swift | TransactionHistoryScreen | Performance/Expense ✅ | ✅ insetGrouped 风格；搜索；只读无编辑/删除 | 空态 | 搜索 | ✅ | ⬜ |
-| 扫呗导入 | Features/Import/SaobeiImportSheet.swift | SaobeiImportScreen | SaobeiParsedRow→Performance ✅ | ✅ CSV/XLSX/截图OCR 解析；fingerprint 去重；单次落库；Demo 假提交 | 解析中/预览/结果卡 | 选文件/截图/确认导入 | ✅ | ⬜ |
+| 扫呗导入 | Features/Import/SaobeiImportSheet.swift | SaobeiImportScreen | SaobeiParsedRow→Performance ✅ | ✅ CSV/XLSX/截图OCR 解析；fingerprint 去重；单次落库；Demo 假提交 | 解析中/预览/结果卡 | 选文件/截图/确认导入 | ✅ | ✅ |
 
 ---
 
@@ -170,8 +170,8 @@
 
 | 项 | iOS Source | Android Target | 数据模型 | Repository/业务逻辑 | UI 状态 | Interaction | Android 实现 | Test |
 |---|---|---|---|---|---|---|---|---|
-| 收款码列表 | Features/PaymentCode/PaymentCodeView.swift | PaymentCodeScreen（我的→工具） | PaymentCode metadata（DataStore JSON）+ 图片文件 | order 追加；删除先删文件；替换先落新后删旧 | 空态；隐私脚注 | 新增/重命名/替换/删除（确认） | ✅ | ⬜ |
-| 全屏展示 | PaymentCodeFullScreenView.swift | FullscreenPaymentCode | — | 亮度拉高0.95+退出/后台/异常kill恢复；**图片绝不进 AI/网络** | 黑底；页码；关闭键 | 点击行→全屏；多码滑动 | ✅ | ⬜ |
+| 收款码列表 | Features/PaymentCode/PaymentCodeView.swift | PaymentCodeScreen（我的→工具） | PaymentCode metadata（DataStore JSON）+ 图片文件 | order 追加；删除先删文件；替换先落新后删旧 | 空态；隐私脚注 | 新增/重命名/替换/删除（确认） | ✅ | ✅ |
+| 全屏展示 | PaymentCodeFullScreenView.swift | FullscreenPaymentCode | — | 亮度拉高0.95+退出/后台/异常kill恢复；**图片绝不进 AI/网络** | 黑底；页码；关闭键 | 点击行→全屏；多码滑动 | ✅ | ✅ |
 
 ---
 
@@ -187,10 +187,10 @@
 
 | 项 | iOS Source | Android Target | 数据模型 | Repository/业务逻辑 | UI 状态 | Interaction | Android 实现 | Test |
 |---|---|---|---|---|---|---|---|---|
-| 我的页 | Features/Profile/ProfileView.swift | ProfileScreen | AppSettings/ThemeStore/DemoMode | 6 分组行项（见 A 报告 §3.1） | toast；版本号 | 12 sheet + 分享/导入/确认框 | ✅ | ⬜ |
-| 外观设置 | AppearanceSettingsView.swift | AppearanceScreen | ThemeStore | 显示模式3选；Accent 6；Background 6；壁纸（相册/文件+效果3档+遮罩3档） | — | 选择即时生效 | ✅ | ⬜ |
-| 提醒设置 | ReminderSettingsSheet | （Profile 内） | todo_reminder/expiry_reminder | 两 Toggle | — | Toggle | ✅ | ⬜ |
-| 数据备份/恢复 | Data/BackupService.swift | （Profile 内） | 7 Entity→JSON v2 | 导出分享真实文件；恢复追加+单次 save+通知重建；v1 兼容 | toast | 分享/选文件/确认 | ✅ | ⬜ |
+| 我的页 | Features/Profile/ProfileView.swift | ProfileScreen | AppSettings/ThemeStore/DemoMode | 6 分组行项（见 A 报告 §3.1） | toast；版本号 | 12 sheet + 分享/导入/确认框 | ✅ | ✅ |
+| 外观设置 | AppearanceSettingsView.swift | AppearanceScreen | ThemeStore | 显示模式3选；Accent 6；Background 6；壁纸（相册/文件+效果3档+遮罩3档） | — | 选择即时生效 | ✅ | ✅ |
+| 提醒设置 | ReminderSettingsSheet | （Profile 内） | todo_reminder/expiry_reminder | 两 Toggle | — | Toggle | ✅ | ✅ |
+| 数据备份/恢复 | Data/BackupService.swift | （Profile 内） | 7 Entity→JSON v2 | 导出分享真实文件；恢复追加+单次 save+通知重建；v1 兼容 | toast | 分享/选文件/确认 | ✅ | ✅ |
 
 ---
 
@@ -198,12 +198,12 @@
 
 | 项 | iOS Source | Android Target | 数据模型 | Repository/业务逻辑 | UI 状态 | Interaction | Android 实现 | Test |
 |---|---|---|---|---|---|---|---|---|
-| 待办提醒 | Services/NotificationManager.swift:22 | AlarmManager 精确闹钟 | TodoEntity ✅ | todo_reminder开+有dueDate+未完成；年月日时分触发；ID todo-<notificationID> | — | 点击→打开应用 | ✅(调度) | ⬜ |
-| 临期提醒 | NotificationManager.swift:47 | 同上 | ExpiryItemEntity ✅ | expiry_reminder开+pending；(expiry-remindDays)当天9:00；过去不调度 | — | 点击→打开应用 | ✅(调度) | ⬜ |
-| 客户跟进 | NotificationManager.swift:87 | WorkManager 延时 | CustomerRequestEntity ✅ | 仅 pending；1小时后；离开 pending 取消 | — | 点击→打开应用 | ✅(调度) | ⬜ |
-| 主屏 Widget | XiaoZhangGuiWidget/TodayStatsWidget.swift | AppWidgetProvider | BusinessSnapshot ✅ | 今日营业额+焦点2条+问小掌柜/语音记录按钮（xzg://ai, xzg://voice） | 小/中尺寸 | 点击→deep link；待办勾选→直接写库 | ⏭️ | ⬜ |
-| Live Activity | Services/LiveActivityManager.swift | 持续性通知 | BusinessSnapshot ✅ | 当日实况；次日0点过期 | 锁屏卡片 | — | ⏭️ | ⬜ |
-| Siri 快捷指令×3 | Features/Intents/XZGAppIntents.swift | App Actions | Todo/Performance/Memo ✅ | 新增待办/记录营业额/记记录（后台写库） | — | 语音唤起 | ⏭️ | ⬜ |
+| 待办提醒 | Services/NotificationManager.swift:22 | AlarmManager 精确闹钟 | TodoEntity ✅ | todo_reminder开+有dueDate+未完成；年月日时分触发；ID todo-<notificationID> | — | 点击→打开应用 | ✅(调度) | ✅ |
+| 临期提醒 | NotificationManager.swift:47 | 同上 | ExpiryItemEntity ✅ | expiry_reminder开+pending；(expiry-remindDays)当天9:00；过去不调度 | — | 点击→打开应用 | ✅(调度) | ✅ |
+| 客户跟进 | NotificationManager.swift:87 | WorkManager 延时 | CustomerRequestEntity ✅ | 仅 pending；1小时后；离开 pending 取消 | — | 点击→打开应用 | ✅(调度) | ✅ |
+| 主屏 Widget | XiaoZhangGuiWidget/TodayStatsWidget.swift | AppWidgetProvider | BusinessSnapshot ✅ | 今日营业额+焦点2条+问小掌柜/语音记录按钮（xzg://ai, xzg://voice） | 小/中尺寸 | 点击→deep link；待办勾选→直接写库 | ⏭️ | ✅ |
+| Live Activity | Services/LiveActivityManager.swift | 持续性通知 | BusinessSnapshot ✅ | 当日实况；次日0点过期 | 锁屏卡片 | — | ⏭️ | ✅ |
+| Siri 快捷指令×3 | Features/Intents/XZGAppIntents.swift | App Actions | Todo/Performance/Memo ✅ | 新增待办/记录营业额/记记录（后台写库） | — | 语音唤起 | ⏭️ | ✅ |
 
 ---
 
@@ -211,7 +211,7 @@
 
 | 项 | iOS Source | Android Target | 说明 | Android 实现 | Test |
 |---|---|---|---|---|---|
-| 色板 | DesignSystem/V32/V32Color.swift + V32ThemePalette | theme/Color.kt（light/dark 双套 hex 直译） | Hero/amber/danger/info 固定不随主题；默认 warmCream+emerald | ✅ | ⬜ |
+| 色板 | DesignSystem/V32/V32Color.swift + V32ThemePalette | theme/Color.kt（light/dark 双套 hex 直译） | Hero/amber/danger/info 固定不随主题；默认 warmCream+emerald | ✅ | ✅ |
 | 字体 | V32Font.swift | theme/Type.kt（字号/字重 1:1；数字等宽） | 中文系统字体；数字 SF Rounded→Android 用等宽数字字体 | ✅ | ⬜ |
 | 间距/圆角 | V32Layout.swift / V32Radius.swift | theme/Dimens.kt | pageMargin 22 / card 18 / sheet 28 等 | ✅ | ⬜ |
 | 组件库 | V32Components.swift（18 组件） | ui/components/（逐一 Compose 实现） | V32Card/V32Checkbox/V32EmptyState/按钮/进度条/分段选择等 | ✅ | ⬜ |
@@ -235,3 +235,4 @@
 - 2026-10-02：§4 AI 引擎细节补齐（C 报告终版 593 行：5 工具/ActionCard/幂等/IntentRouter/LocalBusinessParser/Provider 配置/短语音/能力/技能）。
 - 2026-10-02：Phase 3 UI 落地——§1/§2/§5/§6/§7/§8/§9/§10/§12/§14/§16 共 36 行标 ✅（11 业务页 + 抽屉 + 深链接 + 收款码 + 我的/设置）；§11 快速记录/语音、§13 天气标 🟡（Phase 4/5 桩已接线）；§3 日程/日历、§4 AI 仍为 Phase 4。
 - 2026-10-02：Phase 4 落地——§3 日程/日历（周一/周日开头区分）标 ✅；§4 小掌柜 AI 全部 11 行标 ✅（引擎层 37+28+QuickRecord 测试全绿，UI 文件待 CI 验证）；§11 快速记录/语音标 ✅（测试 ✅）。commit ce4a944。
+- 2026-10-02：Phase 6 测试收尾——Test 列 33 行标 ✅：Worker A（Compose UI 18 tests：导航冒烟/Home/Todo/Customer/Expiry/AI ActionCard/MoneyEditor/主题）commit a647cee；Worker B（E2E 4 旅程：营业额→首页统计/待办→通知调度/深链接 todo+ai 冷启动）commit b852dab+后续修复；Worker C（JVM 回归 47 tests：通知副作用/深链接解析/扫呗去重/备份恢复/主题 DataStore）commit aab80cd。CI run 36968594853 SUCCESS（含 E2E 模拟器任务）。另修生产 bug：冷启动深链接 LaunchedEffect 早于 NavHost setGraph 崩溃（改 startDestination，commit 62dcf69）。剩余 ⬜ 为 Demo Mode/旧引擎/商品/交易记录/备忘/天气/视觉 token（Paparazzi 覆盖或非 Phase 6 范围）。
