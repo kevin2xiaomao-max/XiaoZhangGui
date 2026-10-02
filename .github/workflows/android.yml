@@ -186,26 +186,26 @@ jobs:
 
       - name: 生成 CI 临时测试签名 keystore
         id: testkey
+        # 注意：JDK 17 keytool 默认生成 PKCS12 keystore，不支持 store/key 双密码
+        #（会报 "Different store and key passwords not supported" 并忽略 -keypass），
+        # 因此只生成一个密码，store 与 key 共用。
         run: |
           set -euo pipefail
-          STORE_PASS="$(openssl rand -hex 16)"
-          KEY_PASS="$(openssl rand -hex 16)"
-          echo "::add-mask::$STORE_PASS"
-          echo "::add-mask::$KEY_PASS"
+          KS_PASS="$(openssl rand -hex 16)"
+          echo "::add-mask::$KS_PASS"
           keytool -genkeypair -keystore /tmp/xzg-ci-test.jks \
-            -storepass "$STORE_PASS" -alias xzgtest -keypass "$KEY_PASS" \
+            -storepass "$KS_PASS" -alias xzgtest \
             -keyalg RSA -keysize 2048 -validity 1 \
             -dname "CN=XiaoZhangGui CI Test, OU=Test, O=XiaoZhangGui, C=CN" \
             -noprompt
-          echo "store_pass=$STORE_PASS" >> "$GITHUB_OUTPUT"
-          echo "key_pass=$KEY_PASS" >> "$GITHUB_OUTPUT"
+          echo "ks_pass=$KS_PASS" >> "$GITHUB_OUTPUT"
 
       - name: assembleRelease + bundleRelease
         env:
           XZG_RELEASE_KEYSTORE_FILE: /tmp/xzg-ci-test.jks
-          XZG_RELEASE_KEYSTORE_PASSWORD: ${{ steps.testkey.outputs.store_pass }}
+          XZG_RELEASE_KEYSTORE_PASSWORD: ${{ steps.testkey.outputs.ks_pass }}
           XZG_RELEASE_KEY_ALIAS: xzgtest
-          XZG_RELEASE_KEY_PASSWORD: ${{ steps.testkey.outputs.key_pass }}
+          XZG_RELEASE_KEY_PASSWORD: ${{ steps.testkey.outputs.ks_pass }}
         run: ./gradlew assembleRelease bundleRelease --stacktrace
 
       - name: 验证 release 产物（badging）
