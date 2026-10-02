@@ -32,7 +32,7 @@ class DemoCatalogTest {
 
     private open class FakeDao<E : Any>(private val idOf: (E) -> String) {
         val items = mutableListOf<E>()
-        suspend fun insert(e: E) {
+        open suspend fun insert(e: E) {
             items.removeAll { idOf(it) == idOf(e) }
             items.add(e)
         }
