@@ -39,8 +39,10 @@ import org.junit.Test
  * 因此本测试改为：
  *  1. 用 PackageManager.resolveActivity 断言隐式 intent 能解析到 MainActivity
  *    （即"intent-filter 配对"检查）；
- *  2. 用显式 Component 的 VIEW intent 经 targetContext 投递（绕过坏掉的 am 路径），
- *     仍完整走 MainActivity.onNewIntent → XzgDeepLink → XzgNavGraph 生产链路。
+ *  2. 用显式 Component 的 VIEW intent 经 rule 的前台 Activity 直接投递
+ *     （不带 FLAG_ACTIVITY_NEW_TASK，绕过坏掉的 am 路径，且避免 task 切换
+ *     把 Activity 晾在 PAUSED 致 teardown 失败），仍完整走
+ *     MainActivity.onNewIntent → XzgDeepLink → XzgNavGraph 生产链路。
  */
 @LargeTest
 class DeepLinkJourneyTest {
@@ -77,14 +79,16 @@ class DeepLinkJourneyTest {
     }
 
     /**
-     * teardown 前把 Activity 带回前台。
+     * teardown 前把 Activity 带回前台（兜底）。
      *
-     * 根因：[fireDeepLink] 经 Application context + FLAG_ACTIVITY_NEW_TASK 向
-     * singleTask 的 MainActivity 投递显式 intent；task 切换可能把 Activity 留在
+     * 背景：之前 [fireDeepLink] 经 Application context + FLAG_ACTIVITY_NEW_TASK
+     * 向 singleTask 的 MainActivity 投递显式 intent；task 切换会把 Activity 留在
      * PAUSED（测试本体断言已通过），而 ActivityScenarioRule.after → close()
      * 要求从前台状态走到 DESTROYED，卡在 PAUSED 会超时抛 AssertionError。
-     * JUnit 中 @After 在 Rule.after 之前执行，故在此先 moveToState(RESUMED)，
-     * 再让 rule 正常关闭。不碰 MainActivity 的 launchMode。
+     * 现 fireDeepLink 已改为经 rule.activity（前台 Activity context）直接投递、
+     * 不带 NEW_TASK，singleTask 走 onNewIntent，无 task 切换，Activity 全程
+     * RESUMED；此 @After 仅作兜底。JUnit 中 @After 在 Rule.after 之前执行。
+     * 不碰 MainActivity 的 launchMode。
      */
     @After
     fun bringActivityToForeground() {
@@ -100,6 +104,14 @@ class DeepLinkJourneyTest {
      *
      * MainActivity 为 singleTask：已在前台时走 onNewIntent（本测试的场景，
      * rule 已先启动 Activity）。
+     *
+     * 投递方式（Phase 6 第三轮修复）：显式 intent 经 rule 的 Activity（前台
+     * Activity context）直接 startActivity，**不带 FLAG_ACTIVITY_NEW_TASK**。
+     * 根因：之前经 Application context + NEW_TASK 投递，task 切换把 Activity
+     * 晾在 PAUSED，测试本体断言虽通过，但 ActivityScenarioRule.after → close()
+     * 走不到 DESTROYED，teardown 抛 AssertionError。从前台 Activity context
+     * 向 singleTask 的自己投递 → 走 onNewIntent，无 task 切换，Activity 全程
+     * RESUMED，rule 可正常关闭。不碰 MainActivity 的 launchMode。
      */
     private fun fireDeepLink(uri: String) {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
@@ -116,11 +128,11 @@ class DeepLinkJourneyTest {
             resolved!!.activityInfo.name
         )
 
-        // 2. 显式投递（绕过 CI 模拟器上 am 隐式投递失败的环境问题）
+        // 2. 显式投递（绕过 CI 模拟器上 am 隐式投递失败的环境问题）：
+        //    经前台 Activity 直接投递，不带 NEW_TASK，避免 task 切换致 PAUSED 残留。
         val explicit = Intent(Intent.ACTION_VIEW, Uri.parse(uri)).apply {
-            setClassName(context, MainActivity::class.java.name)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            setClassName(rule.activity, MainActivity::class.java.name)
         }
-        context.startActivity(explicit)
+        rule.activity.startActivity(explicit)
     }
 }
