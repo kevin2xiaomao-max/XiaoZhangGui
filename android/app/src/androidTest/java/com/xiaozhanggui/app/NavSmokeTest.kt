@@ -46,24 +46,25 @@ class NavSmokeTest {
         // 首页（默认 Tab）：抽屉菜单钮存在
         rule.onNodeWithContentDescription("打开经营快捷中心").assertExists()
 
+        // 底部栏图标 contentDescription 在未合并树中（NavigationBarItem 合并语义），需 useUnmergedTree
         // 日程：底部栏 label + 屏内标题各一处
-        rule.onNodeWithContentDescription(XzgTab.SCHEDULE.label).performClick()
+        rule.onNodeWithContentDescription(XzgTab.SCHEDULE.label, useUnmergedTree = true).performClick()
         rule.onAllNodesWithText("日程").assertCountEquals(2)
 
         // 小掌柜：对话页顶栏标题
-        rule.onNodeWithContentDescription(XzgTab.ASSISTANT.label).performClick()
+        rule.onNodeWithContentDescription(XzgTab.ASSISTANT.label, useUnmergedTree = true).performClick()
         rule.onNodeWithText("说句话，帮你记账、派单、备忘").assertExists()
 
         // 待办：TodoContent 纯渲染根节点 tag（屏内"待办"文案有多处，用 tag 精确定位）
-        rule.onNodeWithContentDescription(XzgTab.TODO.label).performClick()
+        rule.onNodeWithContentDescription(XzgTab.TODO.label, useUnmergedTree = true).performClick()
         rule.onNodeWithTag("todo.screen").assertExists()
 
         // 我的：底部栏 label + 屏内标题各一处
-        rule.onNodeWithContentDescription(XzgTab.PROFILE.label).performClick()
+        rule.onNodeWithContentDescription(XzgTab.PROFILE.label, useUnmergedTree = true).performClick()
         rule.onAllNodesWithText("我的").assertCountEquals(2)
 
         // 回到首页
-        rule.onNodeWithContentDescription(XzgTab.HOME.label).performClick()
+        rule.onNodeWithContentDescription(XzgTab.HOME.label, useUnmergedTree = true).performClick()
         rule.onNodeWithContentDescription("打开经营快捷中心").assertExists()
     }
 
@@ -71,9 +72,9 @@ class NavSmokeTest {
     fun drawer_pushDestinations_navigateWithoutCrash() {
         launchGraph()
 
-        // 交易记录：抽屉行 + 二级页标题各一处
+        // 交易记录：push 目的地会替换首页（含抽屉），抽屉行已不在语义树上，只剩二级页标题一处
         openDrawerAndClick("交易记录")
-        rule.onAllNodesWithText("交易记录").assertCountEquals(2)
+        rule.onAllNodesWithText("交易记录").assertCountEquals(1)
         pressBack()
 
         // 客户需求
@@ -86,9 +87,9 @@ class NavSmokeTest {
         rule.onNodeWithText("临期提醒").assertExists()
         pressBack()
 
-        // 商品：抽屉行 + 二级页标题各一处
+        // 商品：同上，push 后只剩二级页标题一处
         openDrawerAndClick("商品")
-        rule.onAllNodesWithText("商品").assertCountEquals(2)
+        rule.onAllNodesWithText("商品").assertCountEquals(1)
         pressBack()
 
         // 备忘（MemoScreen 标题为"记录"）

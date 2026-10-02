@@ -1,6 +1,8 @@
 package com.xiaozhanggui.app
 
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.xiaozhanggui.app.data.db.ExpenseEntity
@@ -78,6 +80,8 @@ class MoneyEditorSheetTest {
         )
         rule.onNodeWithText("编辑支出").assertExists()
         rule.onNodeWithText("50.5").assertExists()
-        rule.onNodeWithText("进货").assertExists()
+        // 备注输入框用 testTag 精确定位："进货"同时出现在输入框文本与分类 chip，
+        // onNodeWithText 会命中 2 个节点
+        rule.onNodeWithTag("money.noteInput").assertTextContains("进货")
     }
 }

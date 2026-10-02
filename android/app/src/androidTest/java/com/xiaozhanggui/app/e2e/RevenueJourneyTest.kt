@@ -3,12 +3,14 @@ package com.xiaozhanggui.app.e2e
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.test.espresso.Espresso
 import androidx.test.filters.LargeTest
@@ -75,7 +77,16 @@ class RevenueJourneyTest {
             }
             rule.onNodeWithTag("money.amountInput").performTextInput("500")
             rule.onNodeWithTag("money.noteInput").performTextInput(marker)
-            rule.onNodeWithTag("money.saveButton").performClick()
+            // 收起软键盘：防止键盘遮挡底部保存按钮导致点击落空（sheet 内容可滚动，按钮在底部）
+            Espresso.closeSoftKeyboard()
+            rule.waitForIdle()
+            val saveButton = rule.onNodeWithTag("money.saveButton")
+            saveButton.performScrollTo()
+            // 金额未被正确解析时按钮为禁用态（V32PrimaryButton 的 disabled clickable
+            // 在语义树中仍保留 OnClick，点击会静默落空）：先断言可点，失败即给出明确信号
+            // 而不是在后面的 sheet 关闭等待中超时。
+            saveButton.assertIsEnabled()
+            saveButton.performClick()
 
             // Sheet 关闭
             rule.waitUntil(10_000) {

@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -76,12 +77,13 @@ class ExpiryToggleTest {
         // 初始待处理：退货按钮可见
         rule.onNodeWithText("退货").assertExists()
 
-        // 退货 → 已退货徽标
+        // 退货 → 已退货徽标。"已退货"有 2 处（分组标题 + 卡片徽标），
+        // 用计数断言同时覆盖两者，避免 onNodeWithText 的歧义失败。
         rule.onNodeWithText("退货").performClick()
         rule.waitUntil(timeoutMillis = 5_000) {
             dao.current.firstOrNull()?.returnStatus == ReturnStatus.RETURNED
         }
-        rule.onNodeWithText("已退货").assertExists()
+        rule.onAllNodesWithText("已退货").assertCountEquals(2)
         rule.onNodeWithText("恢复").assertExists()
 
         // 恢复 → 回到待处理
@@ -90,6 +92,8 @@ class ExpiryToggleTest {
             val item = dao.current.firstOrNull()
             item?.returnStatus == ReturnStatus.PENDING && item.returnedAt == null
         }
+        // 徽标与分组标题一并消失
+        rule.onAllNodesWithText("已退货").assertCountEquals(0)
         rule.onNodeWithText("退货").assertExists()
         assertEquals(ReturnStatus.PENDING, dao.current.first().returnStatus)
         assertNull(dao.current.first().returnedAt)

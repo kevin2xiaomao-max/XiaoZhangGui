@@ -5,8 +5,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -69,21 +69,26 @@ class CustomerStatusTest {
         rule.waitUntil(timeoutMillis = 5_000) {
             rule.onAllNodesWithText("测试客户").fetchSemanticsNodes().isNotEmpty()
         }
-        rule.onNodeWithText(CustomerStatus.PENDING).assertExists()
+        // 初始：待处理。状态文案有 2 处（筛选 chip + 卡片状态胶囊），
+        // 用计数断言同时覆盖两者，避免 onNodeWithText 的歧义失败。
+        rule.onAllNodesWithText(CustomerStatus.PENDING).assertCountEquals(2)
 
         // 推进 → 配送中
         rule.onNodeWithContentDescription("推进").performClick()
         rule.waitUntil(timeoutMillis = 5_000) {
             dao.current.firstOrNull()?.status == CustomerStatus.DELIVERING
         }
-        rule.onNodeWithText(CustomerStatus.DELIVERING).assertExists()
+        // 胶囊变为配送中（chip + 胶囊 = 2 处）；待处理只剩筛选 chip（1 处）
+        rule.onAllNodesWithText(CustomerStatus.DELIVERING).assertCountEquals(2)
+        rule.onAllNodesWithText(CustomerStatus.PENDING).assertCountEquals(1)
 
         // 推进 → 已完成（完成后推进钮消失）
         rule.onNodeWithContentDescription("推进").performClick()
         rule.waitUntil(timeoutMillis = 5_000) {
             dao.current.firstOrNull()?.status == CustomerStatus.DONE
         }
-        rule.onNodeWithText(CustomerStatus.DONE).assertExists()
+        rule.onAllNodesWithText(CustomerStatus.DONE).assertCountEquals(2)
+        rule.onAllNodesWithText(CustomerStatus.DELIVERING).assertCountEquals(1)
         assertEquals(CustomerStatus.DONE, dao.current.first().status)
     }
 }

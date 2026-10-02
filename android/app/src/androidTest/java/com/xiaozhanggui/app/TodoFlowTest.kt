@@ -5,10 +5,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.semantics.SemanticsActions
-import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
@@ -30,7 +29,6 @@ import com.xiaozhanggui.app.ui.screens.todo.TodoEditorSheet
 import com.xiaozhanggui.app.ui.screens.todo.TodoViewModel
 import com.xiaozhanggui.app.ui.theme.XzgTheme
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -114,9 +112,12 @@ class TodoFlowTest {
         rule.onNodeWithText("保存").performClick()
         rule.waitUntil(timeoutMillis = 5_000) { dao.current.size == 1 }
         assertEquals("买两箱可乐", dao.current[0].title)
-        // Sheet 关闭，列表出现该行（今天 tab：默认 dueDate 为今日 9:00）
+        // Sheet 关闭，列表出现该行（今天 tab：默认 dueDate 为今日 9:00）。
+        // 注意：待办行标题 Column 带 clickable（mergeDescendants），标题与副标题会合并为一个语义节点，
+        // 精确匹配找不到，必须用 substring=true。
         rule.waitUntil(timeoutMillis = 5_000) {
-            rule.onAllNodesWithText("买两箱可乐").fetchSemanticsNodes().isNotEmpty()
+            rule.onAllNodesWithText("买两箱可乐", substring = true)
+                .fetchSemanticsNodes().isNotEmpty()
         }
 
         // ---- 标记完成 ----
@@ -128,7 +129,7 @@ class TodoFlowTest {
 
         // 切到「已完成」tab：分段选项可点，统计卡的「已完成」文案不可点，以此区分
         rule.onNode(hasText("已完成") and hasClickAction()).performClick()
-        rule.onNodeWithText("买两箱可乐").assertExists()
+        rule.onNodeWithText("买两箱可乐", substring = true).assertExists()
 
         // ---- 删除 ----
         rule.onNodeWithContentDescription("删除待办").performClick()
@@ -145,10 +146,10 @@ class TodoFlowTest {
         }
         rule.onNodeWithContentDescription("新增待办").performClick()
         rule.onNodeWithText("新增待办").assertExists()
-        // 空标题时保存按钮禁用：合并语义树上无点击动作（doSave 另有空标题守卫兜底）
-        val saveNode = rule.onNodeWithText("保存")
-            .fetchSemanticsNode("找不到保存按钮")
-        assertNull(saveNode.config.getOrNull(SemanticsActions.OnClick))
+        // 空标题时保存按钮禁用（生产：TodoEditorSheet canSave=false → V32PrimaryButton enabled=false，
+        // 且 doSave 有空标题守卫）。注意 Compose 的 Modifier.clickable(enabled=false) 仍会在语义树中
+        // 保留 OnClick action（仅标记 Disabled），故不断言 action 缺失，而断言禁用态。
+        rule.onNodeWithText("保存").assertIsNotEnabled()
         rule.waitForIdle()
         assertTrue(dao.current.isEmpty())
     }

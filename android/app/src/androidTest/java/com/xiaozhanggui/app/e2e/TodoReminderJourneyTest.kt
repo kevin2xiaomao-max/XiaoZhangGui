@@ -66,8 +66,9 @@ class TodoReminderJourneyTest {
         val title = "E2E待办-${System.currentTimeMillis()}"
 
         try {
-            // 待办 Tab（底部栏 contentDescription 精确匹配，避免与首页"今天待办N项"混淆）
-            rule.onNodeWithContentDescription("待办").performClick()
+            // 待办 Tab（底部栏 contentDescription 精确匹配，避免与首页"今天待办N项"混淆；
+            // 底部栏图标语义在未合并树中，需 useUnmergedTree）
+            rule.onNodeWithContentDescription("待办", useUnmergedTree = true).performClick()
             rule.onNodeWithContentDescription("新增待办").performClick()
 
             // 标题
