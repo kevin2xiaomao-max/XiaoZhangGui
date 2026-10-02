@@ -28,7 +28,35 @@ android {
     }
 
     buildTypes {
+        // ── CI 临时测试签名（测试签名口径，非正式发布签名）──
+        // 仅当 CI release job 用 keytool 现场生成临时 keystore 并传入
+        // XZG_RELEASE_KEYSTORE_FILE 等 env 时才挂签名配置；
+        // keystore 文件与密码绝不提交到仓库。
+        // 本地/无 env 时 release 保持未签名（unsigned）。
+        signingConfigs {
+            create("ciTest") {
+                val ksFile: String? =
+                    System.getenv("XZG_RELEASE_KEYSTORE_FILE")
+                        ?: (findProperty("xzgReleaseKeystoreFile") as String?)
+                if (!ksFile.isNullOrBlank()) {
+                    storeFile = file(ksFile)
+                    storePassword =
+                        System.getenv("XZG_RELEASE_KEYSTORE_PASSWORD")
+                            ?: (findProperty("xzgReleaseKeystorePassword") as String?)
+                    keyAlias =
+                        System.getenv("XZG_RELEASE_KEY_ALIAS")
+                            ?: (findProperty("xzgReleaseKeyAlias") as String?)
+                    keyPassword =
+                        System.getenv("XZG_RELEASE_KEY_PASSWORD")
+                            ?: (findProperty("xzgReleaseKeyPassword") as String?)
+                }
+            }
+        }
         release {
+            if (!(System.getenv("XZG_RELEASE_KEYSTORE_FILE")
+                    ?: (findProperty("xzgReleaseKeystoreFile") as String?)).isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("ciTest")
+            }
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
