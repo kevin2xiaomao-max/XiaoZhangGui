@@ -72,7 +72,9 @@ class TodoReminderJourneyTest {
                 context,
                 tag.hashCode(),
                 alarmIntent,
-                PendingIntent.FLAG_NO_CREATE
+                // 注意：生产侧 pendingIntent() 带 FLAG_IMMUTABLE 创建，
+                // 查询时必须带同样的 mutability flag，否则 FLAG_NO_CREATE 匹配不到。
+                PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
             )
             assertNotNull("待办提醒的 PendingIntent 未被调度 (tag=$tag)", scheduled)
         } finally {

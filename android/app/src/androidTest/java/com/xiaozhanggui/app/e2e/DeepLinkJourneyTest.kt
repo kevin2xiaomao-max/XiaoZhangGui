@@ -79,21 +79,18 @@ class DeepLinkJourneyTest {
     }
 
     /**
-     * teardown 前把 Activity 带回前台（兜底）。
+     * teardown：主动 finish Activity。
      *
-     * 背景：之前 [fireDeepLink] 经 Application context + FLAG_ACTIVITY_NEW_TASK
-     * 向 singleTask 的 MainActivity 投递显式 intent；task 切换会把 Activity 留在
-     * PAUSED（测试本体断言已通过），而 ActivityScenarioRule.after → close()
-     * 要求从前台状态走到 DESTROYED，卡在 PAUSED 会超时抛 AssertionError。
-     * 现 fireDeepLink 已改为经 rule.activity（前台 Activity context）直接投递、
-     * 不带 NEW_TASK，singleTask 走 onNewIntent，无 task 切换，Activity 全程
-     * RESUMED；此 @After 仅作兜底。JUnit 中 @After 在 Rule.after 之前执行。
+     * 根因：`ActivityScenarioRule.after → close()` 的 `moveToState(DESTROYED)`
+     * 在 CI 模拟器上超时（Activity 卡在 RESUMED/PAUSED，走不到 DESTROYED），
+     * 而测试本体断言已通过。改为在 @After（先于 Rule.after 执行）里直接
+     * `finish()`，让 rule 的 close() 看到已销毁的 Activity 而正常返回。
      * 不碰 MainActivity 的 launchMode。
      */
     @After
-    fun bringActivityToForeground() {
+    fun tearDown() {
         try {
-            rule.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
+            rule.activityRule.scenario.onActivity { it.finish() }
         } catch (e: Exception) {
             // Activity 已销毁或测试中途失败时忽略，避免 teardown 二次抛错掩盖原始失败
         }
