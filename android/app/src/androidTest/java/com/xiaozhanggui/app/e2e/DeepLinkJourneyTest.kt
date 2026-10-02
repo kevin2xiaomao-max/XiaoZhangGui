@@ -6,9 +6,11 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.lifecycle.Lifecycle
 import androidx.test.filters.LargeTest
 import androidx.test.platform.app.InstrumentationRegistry
 import com.xiaozhanggui.app.MainActivity
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.BeforeClass
@@ -72,6 +74,25 @@ class DeepLinkJourneyTest {
                 .fetchSemanticsNodes().isNotEmpty()
         }
         rule.onNodeWithTag("ai.input").assertIsDisplayed()
+    }
+
+    /**
+     * teardown 前把 Activity 带回前台。
+     *
+     * 根因：[fireDeepLink] 经 Application context + FLAG_ACTIVITY_NEW_TASK 向
+     * singleTask 的 MainActivity 投递显式 intent；task 切换可能把 Activity 留在
+     * PAUSED（测试本体断言已通过），而 ActivityScenarioRule.after → close()
+     * 要求从前台状态走到 DESTROYED，卡在 PAUSED 会超时抛 AssertionError。
+     * JUnit 中 @After 在 Rule.after 之前执行，故在此先 moveToState(RESUMED)，
+     * 再让 rule 正常关闭。不碰 MainActivity 的 launchMode。
+     */
+    @After
+    fun bringActivityToForeground() {
+        try {
+            rule.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
+        } catch (e: Exception) {
+            // Activity 已销毁或测试中途失败时忽略，避免 teardown 二次抛错掩盖原始失败
+        }
     }
 
     /**

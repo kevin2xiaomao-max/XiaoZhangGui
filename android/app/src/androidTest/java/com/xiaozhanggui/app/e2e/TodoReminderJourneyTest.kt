@@ -3,6 +3,7 @@ package com.xiaozhanggui.app.e2e
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.view.View
 import android.widget.DatePicker
 import android.widget.TimePicker
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -12,6 +13,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ApplicationProvider
+import androidx.test.espresso.Espresso
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.action.ViewActions.click
 import androidx.test.espresso.assertion.ViewAssertions.matches
@@ -27,6 +29,7 @@ import com.xiaozhanggui.app.data.notification.XzgAlarmReceiver
 import java.util.Calendar
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import org.hamcrest.Matcher
 import org.junit.Assert.assertNotNull
 import org.junit.BeforeClass
 import org.junit.Rule
@@ -59,6 +62,30 @@ class TodoReminderJourneyTest {
         }
     }
 
+    /**
+     * 轮询等待平台对话框出现。
+     *
+     * 根因：DatePickerDialog/TimePickerDialog 是平台 View 系统的 dialog，
+     * Compose 的 performClick 返回只保证 Compose idle，不保证 dialog 已 attach；
+     * Espresso onView 的默认 idle 等待也不覆盖"dialog 尚未出现"的情况。
+     * 直接 inRoot(isDialog()) 查找会在 dialog 出现前抛 NoMatchingRootException，
+     * 故先轮询等 dialog root 出现再操作。
+     */
+    private fun waitForDialogRoot(viewMatcher: Matcher<View>, timeoutMillis: Long = 10_000) {
+        val deadline = System.currentTimeMillis() + timeoutMillis
+        var lastError: Throwable? = null
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                onView(viewMatcher).inRoot(isDialog()).check(matches(isDisplayed()))
+                return
+            } catch (e: Throwable) {
+                lastError = e
+                Thread.sleep(200)
+            }
+        }
+        throw AssertionError("平台对话框在 ${timeoutMillis}ms 内未出现", lastError)
+    }
+
     @Test
     fun createTodoWithReminder_schedulesAlarmPendingIntent() {
         val context: Context = ApplicationProvider.getApplicationContext()
@@ -77,10 +104,15 @@ class TodoReminderJourneyTest {
                     .fetchSemanticsNodes().isNotEmpty()
             }
             rule.onNodeWithTag("todo.titleInput").performTextInput(title)
+            // 收起软键盘：键盘若遮挡日期行，Compose performClick 不做遮挡检查，
+            // 点击会落到键盘上导致 DatePickerDialog 根本没弹出来
+            //（NoMatchingRootException 的主因）。
+            Espresso.closeSoftKeyboard()
 
             // 日期 → 明天（平台 DatePickerDialog，Espresso 编程设置日期，与语言/布局无关）
             rule.onNodeWithTag("todo.dateRow").performClick()
             val tomorrow = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, 1) }
+            waitForDialogRoot(isAssignableFrom(DatePicker::class.java))
             onView(isAssignableFrom(DatePicker::class.java))
                 .inRoot(isDialog())
                 .perform(
@@ -94,6 +126,8 @@ class TodoReminderJourneyTest {
             onView(withId(android.R.id.button1)).inRoot(isDialog()).perform(click())
 
             // 时间 → 保持默认 9:00（编辑器默认即今日 9:00），直接确定
+            // （DatePicker 点确定后 TimePickerDialog 在 onDateSet 回调里 show，需等待出现）
+            waitForDialogRoot(isAssignableFrom(TimePicker::class.java))
             onView(isAssignableFrom(TimePicker::class.java))
                 .inRoot(isDialog())
                 .check(matches(isDisplayed()))

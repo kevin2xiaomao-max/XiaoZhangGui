@@ -9,7 +9,6 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasClickAction
-import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -17,7 +16,9 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.test.espresso.Espresso
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.xiaozhanggui.app.data.db.TodoEntity
@@ -107,9 +108,12 @@ class TodoFlowTest {
         // ---- 新建 ----
         rule.onNodeWithContentDescription("新增待办").performClick()
         rule.onNodeWithText("新增待办").assertExists() // Sheet 标题
-        // 第一个可编辑文本框 = 标题（"要做什么？"占位）
-        rule.onAllNodes(hasSetTextAction())[0].performTextInput("买两箱可乐")
-        rule.onNodeWithText("保存").performClick()
+        // 用确定性 testTag 定位标题框：onAllNodes(hasSetTextAction())[0] 的顺序不保证，
+        // 文本若误落到补充说明框会导致标题为空 → 保存按钮 disabled → 落库超时。
+        rule.onNodeWithTag("todo.titleInput").performTextInput("买两箱可乐")
+        // 收起软键盘：Compose performClick 不做遮挡检查，键盘遮挡会导致点击落到键盘上。
+        Espresso.closeSoftKeyboard()
+        rule.onNodeWithTag("todo.saveButton").performScrollTo().performClick()
         rule.waitUntil(timeoutMillis = 5_000) { dao.current.size == 1 }
         assertEquals("买两箱可乐", dao.current[0].title)
         // Sheet 关闭，列表出现该行（今天 tab：默认 dueDate 为今日 9:00）。
