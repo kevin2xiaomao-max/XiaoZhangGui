@@ -241,7 +241,7 @@ class TodoReminderJourneyTest {
         val rawRows = mutableListOf<String>()
         var rawCount = -1
         try {
-            db.openHelper.readableDatabase.query("SELECT id, title FROM todos", null).use { c ->
+            db.openHelper.readableDatabase.query("SELECT id, title FROM todos").use { c ->
                 rawCount = c.count
                 val idIdx = c.getColumnIndex("id")
                 val titleIdx = c.getColumnIndex("title")
