@@ -64,6 +64,10 @@ jobs:
       - name: 单元测试
         run: ./gradlew test --stacktrace
 
+      # 临时诊断：Phase 6 androidTest 编译问题排查，修好后删除
+      - name: 诊断 androidTest 依赖（临时）
+        run: ./gradlew dependencies --configuration debugAndroidTestCompileClasspath 2>&1 | grep -E "androidx.compose.ui:ui-test" | head -10
+
       - name: Lint
         run: ./gradlew lint --stacktrace
 
