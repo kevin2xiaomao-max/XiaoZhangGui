@@ -51,6 +51,8 @@ import com.xiaozhanggui.app.data.db.GoodsEntity
 import com.xiaozhanggui.app.data.di.XzgGraph
 import com.xiaozhanggui.app.data.repository.GoodsRepository
 import com.xiaozhanggui.app.domain.Format
+import com.xiaozhanggui.app.domain.GoodsState
+import com.xiaozhanggui.app.domain.goodsStateOf
 import com.xiaozhanggui.app.ui.components.PillTone
 import com.xiaozhanggui.app.ui.components.V32Card
 import com.xiaozhanggui.app.ui.components.V32EmptyState
@@ -88,25 +90,6 @@ internal fun goodsViewModelFactory(): ViewModelProvider.Factory =
     }
 
 private val FILTERS = listOf("全部") + GoodsCategory.ALL
-private const val SEVEN_DAYS = 7L * 24 * 3600 * 1000
-
-/** 商品状态：已过期 > 即将到期(7天) > 库存不足(stock<=minStock) > 正常。对应 iOS GoodsState。 */
-private enum class GoodsUiState(val label: String) {
-    EXPIRED("已过期"),
-    EXPIRING_SOON("即将到期"),
-    LOW_STOCK("库存不足"),
-    NORMAL("正常")
-}
-
-private fun goodsStateOf(g: GoodsEntity, now: Long): GoodsUiState {
-    val expiry = g.expiryDate
-    if (expiry != null) {
-        if (expiry < now) return GoodsUiState.EXPIRED
-        if (expiry <= now + SEVEN_DAYS) return GoodsUiState.EXPIRING_SOON
-    }
-    if (g.stock <= g.minStock) return GoodsUiState.LOW_STOCK
-    return GoodsUiState.NORMAL
-}
 
 /**
  * 商品页。对应 iOS `GoodsView`：
@@ -313,7 +296,7 @@ private fun GoodsCard(
                         Spacer(Modifier.width(6.dp))
                         V32StatusPill(
                             text = state.label,
-                            tone = if (state == GoodsUiState.NORMAL) PillTone.DONE else PillTone.EXPIRY
+                            tone = if (state == GoodsState.NORMAL) PillTone.DONE else PillTone.EXPIRY
                         )
                     }
                     if (goods.barcode.isNotEmpty()) {
@@ -351,9 +334,9 @@ private fun GoodsCard(
                     text = "到期 ${Format.formatDate(expiry)}",
                     style = XzgType.caption,
                     color = when (state) {
-                        GoodsUiState.EXPIRED -> palettes.fixed.danger
-                        GoodsUiState.EXPIRING_SOON, GoodsUiState.LOW_STOCK -> palettes.fixed.amber
-                        GoodsUiState.NORMAL -> palettes.accent.accent
+                        GoodsState.EXPIRED -> palettes.fixed.danger
+                        GoodsState.EXPIRING_SOON, GoodsState.LOW_STOCK -> palettes.fixed.amber
+                        GoodsState.NORMAL -> palettes.accent.accent
                     },
                     maxLines = 1
                 )

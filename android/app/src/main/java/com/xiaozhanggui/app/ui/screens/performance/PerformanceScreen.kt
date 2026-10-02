@@ -66,6 +66,7 @@ import com.xiaozhanggui.app.data.repository.PerformanceRepository
 import com.xiaozhanggui.app.domain.DateExt
 import com.xiaozhanggui.app.domain.DisplayLogic
 import com.xiaozhanggui.app.domain.Format
+import com.xiaozhanggui.app.domain.TransactionSearchable
 import com.xiaozhanggui.app.domain.PerformanceStats2
 import com.xiaozhanggui.app.ui.components.BubbleTone
 import com.xiaozhanggui.app.ui.components.ConfirmDeleteDialog
@@ -122,15 +123,15 @@ internal fun performanceViewModelFactory(): ViewModelProvider.Factory =
  */
 data class PerformanceRowItem(
     val id: String,
-    val title: String,
+    override val title: String,
     /** 收入为正、支出为负 */
     val amount: Double,
     val date: Long,
-    val source: String,
+    override val source: String,
     val isIncome: Boolean,
     val performance: PerformanceEntity?,
     val expense: ExpenseEntity?
-)
+) : TransactionSearchable
 
 internal fun toRowItem(p: PerformanceEntity): PerformanceRowItem = PerformanceRowItem(
     id = "p-${p.id}",

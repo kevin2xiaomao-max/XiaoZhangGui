@@ -1,5 +1,6 @@
 package com.xiaozhanggui.app
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -49,5 +50,20 @@ class MainActivity : ComponentActivity() {
         intent.data?.let { XzgDeepLink.handle(it) }
             ?.takeIf { it != DeepLinkAction.Ignore }
             ?.let { pendingDeepLink = it }
+    }
+
+    companion object {
+        /**
+         * 强制重建整个 UI 树：清掉当前任务栈后重启 MainActivity。
+         * 用于演示模式开关/重置（对应 iOS DemoMode 切换时 sessionID 刷新）——
+         * 旧 Activity（含全部 ViewModel/Repository 引用）被销毁，
+         * 新实例从 XzgGraph 取到切换后的数据库依赖。
+         */
+        fun restart(context: Context) {
+            val intent = Intent(context, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            }
+            context.startActivity(intent)
+        }
     }
 }

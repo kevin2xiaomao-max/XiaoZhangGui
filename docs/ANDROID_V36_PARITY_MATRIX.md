@@ -48,11 +48,11 @@
 
 | 项 | iOS Source | Android Target | 数据模型 | Repository/业务逻辑 | UI 状态 | Interaction | Android 实现 | Test |
 |---|---|---|---|---|---|---|---|---|
-| App 启动三路 | App/XiaoZhangGuiApp.swift:29-59 | MainActivity + XzgApplication | — | 单元测试宿主→空；UI 测试→内存 DB + 种子；生产→Room 真实库；**失败显式报错页，绝不静默回退内存库**（P0-2） | 启动态/错误页 | — | ✅ | ⬜ |
+| App 启动三路 | App/XiaoZhangGuiApp.swift:29-59 | MainActivity + XzgApplication | — | 单元测试宿主→空；UI 测试→内存 DB + 种子；生产→Room 真实库；**失败显式报错页，绝不静默回退内存库**（P0-2） | 启动态/错误页 | — | ✅ | 🟡（三路切换 + P0-2 报错页需 Android 运行时验证；JVM/E2E 均未覆盖） |
 | 5 Tab 导航 | App/RootView.swift:19-41 | NavHost + 底部导航栏 | — | tab 状态 + lastContentTab | home/schedule/assistant/todo/profile | Tab 点击切换；iOS 26 下滑隐藏 tab bar → Android nestedScroll 等价 | ✅ | ✅ |
 | 深链接 xzg:// | RootView.swift:74-87, Assistant/AI/Core/AppDeepLink.swift | Manifest intent-filter + onNewIntent | — | voice→语音 sheet；quickrecord/quick→速记 sheet；ai→小掌柜 tab；ai?mode=voice→小掌柜+语音面板；未知 host 忽略 | — | 外部唤起 | ✅ | ✅ |
 | 全局 Sheet（语音/速记） | RootView.swift:46-56 | ModalBottomSheet（圆角 28，固定高度 260/340） | — | — | ✅ showVoice/showQuickRecord | ✅ 全局可唤起 | ✅ 🟡 | ✅ |
-| Demo Mode | Demo/DemoMode.swift | DataStore xzg_demo_mode_enabled + 内存 Room | DemoCatalog 种子 | 切换强制重建 UI 树；演示数据独立内存库 | 开关 + 重置按钮 | Toggle | ⬜ | ⬜ |
+| Demo Mode | Demo/DemoMode.swift | DataStore xzg_demo_mode_enabled + 内存 Room（XzgGraph.switchDatabase 重建 Graph；MainActivity.restart 重建 UI 树） | DemoCatalog 种子（data/demo/DemoCatalog.kt，对齐 iOS 5 类样本） | 切换强制重建 UI 树；演示数据独立内存库（close 即弃）；关闭不碰磁盘真实库 | 开关 + 重置按钮（真实重建+重写种子） | Toggle | ✅ | ✅（DemoCatalogTest：5 类计数+今日 2680.50/昨日 2381.20+客户编码串，对齐 iOS DemoCatalogTests） |
 
 ---
 
@@ -93,7 +93,7 @@
 | 意图路由 | AI/Core/IntentRouter.swift（7 case，9 步顺序） | domain/ai/IntentRouter.kt | — | 天气优先→经营分析→商品查询→经营读问答优先（问句绝不落 CREATE）→记账→配送→备忘先于待办→待办→兜底 worldChat；纯规则 0 Token | — | — | ✅ | ✅ |
 | 本地解析 | AI/Providers/LocalBusinessParser.swift（Free First 0-Token） | domain/ai/LocalBusinessParser.kt | — | **无 Key 时本地 CREATE 照常工作**；8 示例规则（金额/房号/人名/商品/歧义时钟追问绝不静默回落） | clarify 追问 | — | ✅ | ✅ |
 | Provider 配置 | AI/Core/AISettings.swift | data/ai/AiSettings + OpenAiCompatProvider | — | 默认 DeepSeek（https://api.deepseek.com，deepseek-flash/deepseek-v4-pro）；temperature 0.2 硬编码；**无流式/SSE**；ProviderChain 只跳 1 次（401/403 不换链）；Key 只进 Keychain→Android Keystore | 设置页 tier 三档/主备 baseURL+模型+Key/搜索 provider 四档；连接测试状态胶囊（仅真实成功才绿） | 配置/测试连接 | ✅ | ✅ |
-| 旧引擎 | Features/Assistant/BusinessAssistantEngine.swift | 首页摘要本地计算 | BusinessAssistantInput（6 模型快照） | 本地纯规则只读；退化为首页每日摘要/洞察计算；聊天页真正引擎是 AgentCore | — | — | ✅ | ⬜ |
+| 旧引擎 | Features/Assistant/BusinessAssistantEngine.swift | 首页摘要本地计算 | BusinessAssistantInput（6 模型快照） | 本地纯规则只读；退化为首页每日摘要/洞察计算；聊天页真正引擎是 AgentCore | — | — | ✅ | ✅（DataSemanticsTest：HomeStats.compute 今日收入/待办/临期/目标进度口径） |
 | 短语音 | AI/Voice/ShortVoiceSession.swift + ShortVoicePanel | AIChatScreen onVoice→VoiceSheetContent（复用语音链路） | — | 复用 SpeechService；3 秒静音收尾；final 为空→failed；转写后走相同 send 流程；失败保留转写填回输入框 | ✅ idle/listening/finalizing/failed；三种取消（按钮/遮罩/失败关闭） | ✅ 语音输入 | ✅ | ✅ |
 | 能力 | AI/Capabilities/（Vision/Document/URLReading/WebSearch） | data/ai/Skills.kt | — | 均为只读不产生 ActionCard；Vision/Document 经 OpenAI 兼容 chat/completions；WebSearch 三档（Tavily/JSON 代理/免费优先，默认 disabled）；**上云 context 恒空**（经营数据不随云端 CREATE 外发） | — | — | ✅ | ✅ |
 | 技能 | AI/Skills/（GoodsLookup/MetaReply/Weather） | domain/ai/ | — | 商品本地查询/元问题固定回复/本地天气回答（降雨≥60% 追加配送提示） | — | — | ✅ | ✅ |
@@ -132,8 +132,8 @@
 
 | 项 | iOS Source | Android Target | 数据模型 | Repository/业务逻辑 | UI 状态 | Interaction | Android 实现 | Test |
 |---|---|---|---|---|---|---|---|---|
-| 商品列表 | Features/Goods/GoodsView.swift | GoodsScreen | GoodsEntity ✅ | ✅ 搜索（名称/条码）+分类筛选；状态判定（已过期>即将到期>库存不足>正常）；统计4格 | 导航标题"临时商品"；空态无新增按钮 | 整卡→编辑；pencil→编辑；trash→直接删除无确认 | ✅ | ⬜ |
-| 商品编辑器 | GoodsEditorSheet.swift | GoodsEditorSheet | GoodsEntity ✅ | ✅ 名称必填；分类5选；库存/价格/条码/生产日期/保质期/到期日/备注/图片 | 视觉对照 ✅（docs/ANDROID_V36_VISUAL_PARITY.md #4） | 保存/取消（失败静默） | ✅ | ⬜ |
+| 商品列表 | Features/Goods/GoodsView.swift | GoodsScreen | GoodsEntity ✅ | ✅ 搜索（名称/条码）+分类筛选；状态判定（已过期>即将到期>库存不足>正常）；统计4格 | 导航标题"临时商品"；空态无新增按钮 | 整卡→编辑；pencil→编辑；trash→直接删除无确认 | ✅ | ✅（GoodsStateTest：状态判定优先级链+标签文案） |
+| 商品编辑器 | GoodsEditorSheet.swift | GoodsEditorSheet | GoodsEntity ✅ | ✅ 名称必填；分类5选；库存/价格/条码/生产日期/保质期/到期日/备注/图片 | 视觉对照 ✅（docs/ANDROID_V36_VISUAL_PARITY.md #4） | 保存/取消（失败静默） | ✅ | ✅（GoodsStateTest：isGoodsNameValid 名称必填；其余为 UI 层内联逻辑） |
 
 ---
 
@@ -143,7 +143,7 @@
 |---|---|---|---|---|---|---|---|---|
 | 经营数据页 | Features/Performance/PerformanceView.swift | PerformanceScreen | Performance/Expense Entity ✅ | ✅ Hero（本月+今日+昨日对比+7天趋势）；关键指标（昨日/今年）；收入来源占比；近30天流水前12 | — | +菜单（记收入/记支出/扫呗导入）；行点击→编辑；trash→确认删除 | ✅ | ✅ |
 | 记一笔编辑器 | MoneyEditorSheet.swift | MoneyEditorSheet | Performance/Expense ✅ | ✅ 金额>0 必填；收入来源3选；支出分类5选；日期 | 4 模式（新收入/新支出/编辑收入/编辑支出）；视觉对照 ✅（docs/ANDROID_V36_VISUAL_PARITY.md #5） | 保存/取消 | ✅ | ✅ |
-| 交易记录 | TransactionHistoryView.swift | TransactionHistoryScreen | Performance/Expense ✅ | ✅ insetGrouped 风格；搜索；只读无编辑/删除 | 空态 | 搜索 | ✅ | ⬜ |
+| 交易记录 | TransactionHistoryView.swift | TransactionHistoryScreen | Performance/Expense ✅ | ✅ insetGrouped 风格；搜索；只读无编辑/删除 | 空态 | 搜索 | ✅ | ✅（TransactionFilterTest：标题/来源大小写不敏感搜索） |
 | 扫呗导入 | Features/Import/SaobeiImportSheet.swift | SaobeiImportScreen | SaobeiParsedRow→Performance ✅ | ✅ CSV/XLSX/截图OCR 解析；fingerprint 去重；单次落库；Demo 假提交 | 解析中/预览/结果卡 | 选文件/截图/确认导入 | ✅ | ✅ |
 
 ---
@@ -152,7 +152,7 @@
 
 | 项 | iOS Source | Android Target | 数据模型 | Repository/业务逻辑 | UI 状态 | Interaction | Android 实现 | Test |
 |---|---|---|---|---|---|---|---|---|
-| 备忘列表 | Features/Memo/MemoView.swift | MemoScreen | MemoEntity ✅ | ✅ 搜索+筛选（全部/文字/图片/语音恒空）；updatedAt 倒序；色条=createdAt 秒%3 | 导航标题"记录"；空态 | 点卡→编辑；trash→确认删除 | ✅ | ⬜ |
+| 备忘列表 | Features/Memo/MemoView.swift | MemoScreen | MemoEntity ✅ | ✅ 搜索+筛选（全部/文字/图片/语音恒空）；updatedAt 倒序；色条=createdAt 秒%3 | 导航标题"记录"；空态 | 点卡→编辑；trash→确认删除 | ✅ | ✅（MemoFilterTest：搜索+4 筛选 tab，语音恒空） |
 | 备忘编辑器 | MemoEditorSheet.swift | MemoEditorSheet | MemoEntity ✅ | ✅ 标题或内容任一必填；标题≤100/内容≤2000 静默截断 | 视觉对照 ✅（docs/ANDROID_V36_VISUAL_PARITY.md #6，含拆分标题/内容卡片+分组头修复） | 保存/取消 | ✅ | ✅ |
 
 ---
@@ -179,7 +179,7 @@
 
 | 项 | iOS Source | Android Target | 数据模型 | Repository/业务逻辑 | UI 状态 | Interaction | Android 实现 | Test |
 |---|---|---|---|---|---|---|---|---|
-| 天气按钮+详情 | Features/Weather/（首页 header） | WeatherButton + WeatherDetailSheet | WeatherSnapshot（内存+缓存） | WeatherAPI.com；Key 经 BuildConfig 注入；30分钟缓存/6小时陈旧降级；定位失败 fallback 恩平 | idle/loading/loaded/notConfigured/unavailable | 点击→详情 sheet；刷新 | 🟡 | ⬜ |
+| 天气按钮+详情 | Features/Weather/（首页 header） | WeatherButton + WeatherDetailSheet | WeatherSnapshot（内存+缓存） | WeatherAPI.com；Key 经 BuildConfig 注入；30分钟缓存/6小时陈旧降级；定位失败 fallback 恩平 | idle/loading/loaded/notConfigured/unavailable | 点击→详情 sheet；刷新 | 🟡 | 🟡（占位实现，无真实 API 调用可断言；待 WeatherAPI.com 真实接入后补测试） |
 
 ---
 
@@ -212,10 +212,10 @@
 | 项 | iOS Source | Android Target | 说明 | Android 实现 | Test |
 |---|---|---|---|---|---|
 | 色板 | DesignSystem/V32/V32Color.swift + V32ThemePalette | theme/Color.kt（light/dark 双套 hex 直译） | Hero/amber/danger/info 固定不随主题；默认 warmCream+emerald | ✅ | ✅ |
-| 字体 | V32Font.swift | theme/Type.kt（字号/字重 1:1；数字等宽） | 中文系统字体；数字 SF Rounded→Android 用等宽数字字体 | ✅ | ⬜ |
-| 间距/圆角 | V32Layout.swift / V32Radius.swift | theme/Dimens.kt | pageMargin 22 / card 18 / sheet 28 等 | ✅ | ⬜ |
-| 组件库 | V32Components.swift（18 组件） | ui/components/（逐一 Compose 实现） | V32Card/V32Checkbox/V32EmptyState/按钮/进度条/分段选择等 | ✅ | ⬜ |
-| 动效 | V32Motion.swift | Motion.kt | 时长/弹簧参数；Reduce Motion 降级 | 🟡 | ⬜ |
+| 字体 | V32Font.swift | theme/Type.kt（字号/字重 1:1；数字等宽） | 中文系统字体；数字 SF Rounded→Android 用等宽数字字体 | ✅ | ✅（Paparazzi 40 张截图 + docs/ANDROID_V36_VISUAL_PARITY.md 视觉对照） |
+| 间距/圆角 | V32Layout.swift / V32Radius.swift | theme/Dimens.kt | pageMargin 22 / card 18 / sheet 28 等 | ✅ | ✅（Paparazzi 40 张截图 + docs/ANDROID_V36_VISUAL_PARITY.md 视觉对照） |
+| 组件库 | V32Components.swift（18 组件） | ui/components/（逐一 Compose 实现） | V32Card/V32Checkbox/V32EmptyState/按钮/进度条/分段选择等 | ✅ | ✅（Paparazzi 40 张截图 + docs/ANDROID_V36_VISUAL_PARITY.md 视觉对照） |
+| 动效 | V32Motion.swift | Motion.kt | 时长/弹簧参数 1:1；Reduce Motion 降级（resolve 纯函数 + reducedFade） | 🟡（参数与降级 API 已落地；调用方尚未统一使用，系统减弱动态效果开关未接线） | ✅（MotionResolveTest：时长 token + resolve 降级矩阵） |
 
 ---
 
@@ -236,3 +236,4 @@
 - 2026-10-02：Phase 3 UI 落地——§1/§2/§5/§6/§7/§8/§9/§10/§12/§14/§16 共 36 行标 ✅（11 业务页 + 抽屉 + 深链接 + 收款码 + 我的/设置）；§11 快速记录/语音、§13 天气标 🟡（Phase 4/5 桩已接线）；§3 日程/日历、§4 AI 仍为 Phase 4。
 - 2026-10-02：Phase 4 落地——§3 日程/日历（周一/周日开头区分）标 ✅；§4 小掌柜 AI 全部 11 行标 ✅（引擎层 37+28+QuickRecord 测试全绿，UI 文件待 CI 验证）；§11 快速记录/语音标 ✅（测试 ✅）。commit ce4a944。
 - 2026-10-02：Phase 6 测试收尾——Test 列 33 行标 ✅：Worker A（Compose UI 18 tests：导航冒烟/Home/Todo/Customer/Expiry/AI ActionCard/MoneyEditor/主题）commit a647cee；Worker B（E2E 4 旅程：营业额→首页统计/待办→通知调度/深链接 todo+ai 冷启动）commit b852dab+后续修复；Worker C（JVM 回归 47 tests：通知副作用/深链接解析/扫呗去重/备份恢复/主题 DataStore）commit aab80cd。CI run 36968594853 SUCCESS（含 E2E 模拟器任务）。另修生产 bug：冷启动深链接 LaunchedEffect 早于 NavHost setGraph 崩溃（改 startDestination，commit 62dcf69）。剩余 ⬜ 为 Demo Mode/旧引擎/商品/交易记录/备忘/天气/视觉 token（Paparazzi 覆盖或非 Phase 6 范围）。
+- 2026-10-02：Phase 7-B Demo Mode 真实落地 + Matrix 缺口收敛——Demo Mode 行实现/Test 双 ✅：data/demo/DemoCatalog.kt（对齐 iOS DemoCatalog 5 类种子：经营 42/待办 21/客户 9/临期 9/备忘 9）；XzgGraph 重构为可重建 Graph（switchDatabase：演示开→内存 Room+种子，关→磁盘 xzg.db，内存库 close 即弃不碰真实数据）；ProfileScreen 开关/重置真实接线（MainActivity.restart 清栈重启强制重建 UI 树，重置不再是 toast）；DemoCatalogTest（fake DAO，对齐 iOS DemoCatalogTests 计数+今日 2680.50/昨日 2381.20 断言）。Test 列补齐：旧引擎 ✅（DataSemanticsTest/HomeStats.compute）、商品列表/编辑器 ✅（GoodsStateTest，状态判定逻辑与名称校验抽取至 domain/GoodsState.kt）、交易记录 ✅（TransactionFilterTest，搜索逻辑抽取至 domain/TransactionFilter.kt）、备忘列表 ✅（MemoFilterTest，筛选逻辑抽取至 domain/MemoFilter.kt）、字体/间距/组件库 ✅（Paparazzi 40 张截图+视觉对照文档）、动效 ✅（MotionResolveTest；实现仍 🟡：调用方未统一使用 resolve，系统减弱动态效果开关未接线）。🟡 保留 3 处：App 启动三路 Test（需 Android 运行时验证三路+P0-2 报错页）、天气按钮+详情 Test（占位实现，待真实 API 接入后补）。至此 55 功能点无 ⬜ 空白行。

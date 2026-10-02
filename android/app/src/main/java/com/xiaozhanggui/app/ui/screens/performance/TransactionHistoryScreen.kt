@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xiaozhanggui.app.domain.Format
+import com.xiaozhanggui.app.domain.filterTransactions
 import com.xiaozhanggui.app.ui.components.V32Card
 import com.xiaozhanggui.app.ui.components.V32EmptyState
 import com.xiaozhanggui.app.ui.components.V32SearchField
@@ -61,13 +62,9 @@ fun TransactionHistoryScreen(onBack: () -> Unit) {
     var searchText by remember { mutableStateOf("") }
 
     val records = remember(performances, expenses, searchText) {
-        val query = searchText.trim().lowercase()
         val all = (performances.map(::toRowItem) + expenses.map(::toExpenseRowItem))
             .sortedByDescending { it.date }
-        if (query.isEmpty()) all
-        else all.filter {
-            it.title.lowercase().contains(query) || it.source.lowercase().contains(query)
-        }
+        filterTransactions(all, searchText)
     }
 
     Scaffold(

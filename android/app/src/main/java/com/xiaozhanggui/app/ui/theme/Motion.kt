@@ -54,3 +54,38 @@ object XzgMotion {
 /** 位移淡入组合（与 iOS V32PressButtonStyle 按压缩放 0.98 对应，Compose 侧用 scale 修饰符实现） */
 const val PRESS_SCALE = 0.98f
 const val PRESS_ALPHA = 0.82f
+
+/** 动效表面分类，对应 iOS `V32Motion.Surface`：crossfade / 弹簧位移 / 数字滚动。 */
+enum class MotionSurface {
+    /** 短淡入 / crossfade（普通切换、状态淡入） */
+    FADE,
+    /** 弹簧 / 位移类（展开、卡片状态变化） */
+    SPRING,
+    /** 数字滚动类（numericText 金额、进度数值） */
+    NUMERIC
+}
+
+/** 解析后的动效选择（值语义，可单测）。对应 iOS `V32Motion.Resolved`。 */
+enum class ResolvedMotion {
+    QUICK, STANDARD, SLOW, SOFT_SPRING, INTERACTIVE_SPRING, NONE
+}
+
+/**
+ * 按系统「减弱动态效果」开关解析应使用的动效。对应 iOS `V32Motion.resolve`（纯函数，可单测）：
+ * - reduceMotion 为 true：无位移、无弹簧、无明显 scale；fade/spring 统一退化为短淡入，
+ *   numeric 直接替换终值（NONE → 调用方立即应用终值，不做动画）。
+ * - reduceMotion 为 false：fade→quick，spring→softSpring，numeric→standard。
+ *
+ * 注意：调用方需自行读取系统无障碍设置（Settings.Global.ANIMATOR_DURATION_SCALE == 0
+ * 或 AccessibilityManager.isReducedMotion 等）并传入；集中接线待后续 Phase。
+ */
+fun resolveMotion(surface: MotionSurface, reduceMotion: Boolean): ResolvedMotion {
+    if (reduceMotion) {
+        return if (surface == MotionSurface.NUMERIC) ResolvedMotion.NONE else ResolvedMotion.QUICK
+    }
+    return when (surface) {
+        MotionSurface.FADE -> ResolvedMotion.QUICK
+        MotionSurface.SPRING -> ResolvedMotion.SOFT_SPRING
+        MotionSurface.NUMERIC -> ResolvedMotion.STANDARD
+    }
+}

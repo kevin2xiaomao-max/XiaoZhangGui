@@ -67,6 +67,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.pm.PackageInfoCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.widget.Toast
+import com.xiaozhanggui.app.MainActivity
 import com.xiaozhanggui.app.data.backup.BackupService
 import com.xiaozhanggui.app.data.datastore.AccentTheme
 import com.xiaozhanggui.app.data.datastore.BackgroundTheme
@@ -182,8 +184,32 @@ fun ProfileScreen(
             onWallpaper = { sheet = ProfileSheet.Wallpaper },
             onGoal = { sheet = ProfileSheet.Goal },
             onReminder = { sheet = ProfileSheet.Reminder },
-            onDemoChange = { scope.launch { settings.setDemoModeEnabled(it) } },
-            onResetDemo = { toast.show("演示数据已重置") },
+            // 演示模式：切换 DataStore 开关 → 按模式重建数据库（内存库+种子 / 磁盘真实库）
+            // → 重启 MainActivity 强制重建 UI 树（对应 iOS DemoMode sessionID 刷新）。
+            onDemoChange = { enabled ->
+                scope.launch {
+                    try {
+                        settings.setDemoModeEnabled(enabled)
+                        XzgGraph.switchDatabase(enabled)
+                        MainActivity.restart(context)
+                    } catch (e: Exception) {
+                        toast.show("演示模式切换失败：${e.message ?: "未知错误"}")
+                    }
+                }
+            },
+            // 重置演示数据：重建内存库并重写种子（不再是 toast 假重置）。
+            // 用系统 Toast（Compose toast 宿主会随 Activity 重建消失）。
+            onResetDemo = {
+                scope.launch {
+                    try {
+                        XzgGraph.resetDemoData()
+                        Toast.makeText(context, "演示数据已重置", Toast.LENGTH_SHORT).show()
+                        MainActivity.restart(context)
+                    } catch (e: Exception) {
+                        toast.show("重置失败：${e.message ?: "未知错误"}")
+                    }
+                }
+            },
             onPaymentCode = onOpenPaymentCode,
             onBackup = { doBackup() },
             onRestore = { restoreLauncher.launch(arrayOf("application/json")) },

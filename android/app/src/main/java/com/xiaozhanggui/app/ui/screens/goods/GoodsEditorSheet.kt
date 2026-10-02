@@ -44,6 +44,7 @@ import com.xiaozhanggui.app.data.db.GoodsEntity
 import com.xiaozhanggui.app.data.di.XzgGraph
 import com.xiaozhanggui.app.domain.DateExt
 import com.xiaozhanggui.app.domain.Format
+import com.xiaozhanggui.app.domain.isGoodsNameValid
 import com.xiaozhanggui.app.ui.components.PhotoPickerField
 import com.xiaozhanggui.app.ui.components.V32PrimaryButton
 import com.xiaozhanggui.app.ui.components.V32SectionHeader
@@ -141,7 +142,7 @@ internal fun GoodsEditorContent(
     var showExpiryPicker by remember { mutableStateOf(false) }
     var saveError by remember { mutableStateOf<String?>(null) }
 
-    val canSave = name.trim().isNotEmpty()
+    val canSave = isGoodsNameValid(name)
 
     fun save() {
         if (!canSave) return

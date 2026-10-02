@@ -36,6 +36,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xiaozhanggui.app.data.db.MemoEntity
 import com.xiaozhanggui.app.data.di.XzgGraph
 import com.xiaozhanggui.app.data.repository.MemoRepository
+import com.xiaozhanggui.app.domain.MemoFilterTab
+import com.xiaozhanggui.app.domain.filterMemos
 import com.xiaozhanggui.app.ui.components.ConfirmDeleteDialog
 import com.xiaozhanggui.app.ui.components.V32EmptyState
 import com.xiaozhanggui.app.ui.components.V32PillBar
@@ -49,14 +51,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-
-/** 备忘筛选，对应 iOS MemoFilter：全部 / 文字（无图）/ 图片（有图）/ 语音（恒为空）。 */
-enum class MemoFilterTab(val label: String) {
-    ALL("全部"),
-    TEXT("文字"),
-    IMAGE("图片"),
-    VOICE("语音")
-}
 
 /** 备忘页 ViewModel：memoRepository.observeAll（DAO 已按 updatedAt 倒序）。 */
 class MemoViewModel(
@@ -94,30 +88,6 @@ class MemoViewModel(
                 _error.value = ScreenError("删除失败", "备忘未删除，请重试。")
             }
         }
-    }
-}
-
-/**
- * 搜索 + 筛选，对应 iOS MemoSearch.filtered：
- * 标题/内容大小写不敏感匹配；语音恒为空；结果按 updatedAt 倒序（DAO 层已排）。
- */
-private fun filterMemos(
-    memos: List<MemoEntity>,
-    query: String,
-    filter: MemoFilterTab
-): List<MemoEntity> {
-    val q = query.trim()
-    return memos.filter { memo ->
-        val passFilter = when (filter) {
-            MemoFilterTab.ALL -> true
-            MemoFilterTab.TEXT -> memo.imagePath.isNullOrBlank()
-            MemoFilterTab.IMAGE -> !memo.imagePath.isNullOrBlank()
-            MemoFilterTab.VOICE -> false
-        }
-        val passQuery = q.isEmpty() ||
-            memo.title.contains(q, ignoreCase = true) ||
-            memo.content.contains(q, ignoreCase = true)
-        passFilter && passQuery
     }
 }
 
