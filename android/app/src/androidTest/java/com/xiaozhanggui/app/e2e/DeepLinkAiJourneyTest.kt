@@ -3,15 +3,18 @@ package com.xiaozhanggui.app.e2e
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.filters.LargeTest
 import androidx.test.platform.app.InstrumentationRegistry
 import com.xiaozhanggui.app.MainActivity
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Rule
 import org.junit.Test
@@ -22,20 +25,15 @@ import org.junit.Test
  * 链路：冷启动 VIEW intent → MainActivity.onCreate(intent) →
  * XzgDeepLink → XzgNavGraph(pendingDeepLink) → 切小掌柜 Tab。
  *
- * 投递方式与 manifest 配对检查见 [DeepLinkTodoJourneyTest]（同源修复史）。
+ * 实现方式与 manifest 配对检查见 [DeepLinkTodoJourneyTest]（同源修复史）。
  */
 @LargeTest
 class DeepLinkAiJourneyTest {
 
     @get:Rule
-    val rule = createAndroidComposeRule<MainActivity>(
-        Intent(
-            Intent.ACTION_VIEW,
-            Uri.parse("xzg://ai"),
-            ApplicationProvider.getApplicationContext(),
-            MainActivity::class.java
-        )
-    )
+    val composeTestRule = createEmptyComposeRule()
+
+    private lateinit var scenario: ActivityScenario<MainActivity>
 
     companion object {
         @JvmStatic
@@ -45,14 +43,35 @@ class DeepLinkAiJourneyTest {
         }
     }
 
+    @Before
+    fun launchWithDeepLink() {
+        val intent = Intent(
+            Intent.ACTION_VIEW,
+            Uri.parse("xzg://ai"),
+            ApplicationProvider.getApplicationContext(),
+            MainActivity::class.java
+        )
+        scenario = ActivityScenario.launch(intent)
+    }
+
+    @After
+    fun closeScenario() {
+        // 手动关闭；若模拟器上关不掉也不让 teardown 掩盖测试本体结果
+        try {
+            scenario.close()
+        } catch (e: Exception) {
+            // ignore: CI 模拟器上 ActivityScenario.close() 偶发超时
+        }
+    }
+
     @Test
     fun deepLinkAi_opensAssistantTab() {
         assertDeepLinkResolves("xzg://ai")
-        rule.waitUntil(10_000) {
-            rule.onAllNodesWithTag("ai.input")
+        composeTestRule.waitUntil(10_000) {
+            composeTestRule.onAllNodesWithTag("ai.input")
                 .fetchSemanticsNodes().isNotEmpty()
         }
-        rule.onNodeWithTag("ai.input").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("ai.input").assertIsDisplayed()
     }
 
     /**
