@@ -51,7 +51,7 @@
 | App 启动三路 | App/XiaoZhangGuiApp.swift:29-59 | MainActivity + XzgApplication | — | 单元测试宿主→空；UI 测试→内存 DB + 种子；生产→Room 真实库；**失败显式报错页，绝不静默回退内存库**（P0-2） | 启动态/错误页 | — | ✅ | 🟡（三路切换 + P0-2 报错页需 Android 运行时验证；JVM/E2E 均未覆盖） |
 | 5 Tab 导航 | App/RootView.swift:19-41 | NavHost + 底部导航栏 | — | tab 状态 + lastContentTab | home/schedule/assistant/todo/profile | Tab 点击切换；iOS 26 下滑隐藏 tab bar → Android nestedScroll 等价 | ✅ | ✅ |
 | 深链接 xzg:// | RootView.swift:74-87, Assistant/AI/Core/AppDeepLink.swift | Manifest intent-filter + onNewIntent | — | voice→语音 sheet；quickrecord/quick→速记 sheet；ai→小掌柜 tab；ai?mode=voice→小掌柜+语音面板；未知 host 忽略 | — | 外部唤起 | ✅ | ✅ |
-| 全局 Sheet（语音/速记） | RootView.swift:46-56 | ModalBottomSheet（圆角 28，固定高度 260/340） | — | — | ✅ showVoice/showQuickRecord | ✅ 全局可唤起 | ✅ 🟡 | ✅ |
+| 全局 Sheet（语音/速记） | RootView.swift:46-56 | ModalBottomSheet（圆角 28，固定高度 260/340） | — | — | ✅ showVoice/showQuickRecord | ✅ 全局可唤起 | ✅ | ✅ |
 | Demo Mode | Demo/DemoMode.swift | DataStore xzg_demo_mode_enabled + 内存 Room（XzgGraph.switchDatabase 重建 Graph；MainActivity.restart 重建 UI 树） | DemoCatalog 种子（data/demo/DemoCatalog.kt，对齐 iOS 5 类样本） | 切换强制重建 UI 树；演示数据独立内存库（close 即弃）；关闭不碰磁盘真实库 | 开关 + 重置按钮（真实重建+重写种子） | Toggle | ✅ | ✅（DemoCatalogTest：5 类计数+今日 2680.50/昨日 2381.20+客户编码串，对齐 iOS DemoCatalogTests） |
 
 ---
