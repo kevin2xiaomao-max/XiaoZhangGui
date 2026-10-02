@@ -64,16 +64,6 @@ jobs:
       - name: 单元测试
         run: ./gradlew test --stacktrace
 
-      # 临时诊断：Phase 6 androidTest 编译问题排查，修好后删除
-      - name: 诊断 androidTest 依赖（临时）
-        run: |
-          AAR=$(find ~/.gradle/caches -name "ui-test-android-1.7.0.aar" | head -1)
-          echo "AAR=$AAR"
-          cd /tmp && rm -rf uitest && mkdir uitest && cd uitest && unzip -o -q "$AAR" classes.jar
-          javap -classpath classes.jar androidx.compose.ui.test.AssertionsKt 2>/dev/null | grep -iE "assertExists|assertCountEquals|assertIsDisplayed" | head -10
-          echo "=== FindersKt ==="
-          javap -classpath classes.jar androidx.compose.ui.test.FindersKt 2>/dev/null | grep -iE "onAllNodesWithText|onNodeWithText" | head -10
-
       - name: Lint
         run: ./gradlew lint --stacktrace
 
