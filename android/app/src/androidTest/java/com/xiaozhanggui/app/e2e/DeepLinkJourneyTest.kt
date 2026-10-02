@@ -128,11 +128,17 @@ class DeepLinkJourneyTest {
             resolved!!.activityInfo.name
         )
 
-        // 2. 显式投递（绕过 CI 模拟器上 am 隐式投递失败的环境问题）：
-        //    经前台 Activity 直接投递，不带 NEW_TASK，避免 task 切换致 PAUSED 残留。
+        // 2. 直接调用 onNewIntent（绕过 ActivityManager 的 task 调度）：
+        //    CI 模拟器上经 startActivity 投递（无论是否带 NEW_TASK）都会把
+        //    Activity 晾在 PAUSED，致 ActivityScenarioRule.after → close() 失败。
+        //    直接调 onNewIntent 仍完整走生产链路
+        //    MainActivity.onNewIntent → XzgDeepLink → XzgNavGraph(pendingDeepLink)，
+        //    且 Activity 全程 RESUMED，rule 可正常关闭。
         val explicit = Intent(Intent.ACTION_VIEW, Uri.parse(uri)).apply {
-            setClassName(rule.activity, MainActivity::class.java.name)
+            setClassName(context, MainActivity::class.java.name)
         }
-        rule.activity.startActivity(explicit)
+        rule.activityRule.scenario.onActivity { activity ->
+            activity.onNewIntent(explicit)
+        }
     }
 }
