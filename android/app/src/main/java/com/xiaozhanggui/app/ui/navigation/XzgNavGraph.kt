@@ -77,10 +77,40 @@ fun XzgNavGraph(
 
     var activeSheet by remember { mutableStateOf<RootSheet?>(null) }
 
-    // 深链接：remember 暂存 pending action，LaunchedEffect 中处理。
+    // 深链接冷启动：直接决定 NavHost 的 startDestination，避免
+    // LaunchedEffect 在 NavHost setGraph 之前调用 navigate() 崩溃
+    // （`You must call setGraph() before calling getGraph()`）。
+    // remember 锁存初始值：热启动（onNewIntent）的新 deepLinkAction
+    // 走下面的 LaunchedEffect 导航，不重置 NavHost。
+    val initialDeepLink = remember { deepLinkAction }
+    val startTab = when (initialDeepLink) {
+        DeepLinkAction.OpenTodoTab -> XzgTab.TODO
+        DeepLinkAction.OpenAssistantTab,
+        DeepLinkAction.OpenAssistantVoice -> XzgTab.ASSISTANT
+        else -> XzgTab.HOME
+    }
+    // 冷启动的 Sheet 类深链接（语音/速记）仍需 LaunchedEffect 打开，
+    // Tab 类已由 startDestination 处理。
+    LaunchedEffect(initialDeepLink) {
+        when (initialDeepLink) {
+            DeepLinkAction.OpenVoice -> activeSheet = RootSheet.VOICE
+            DeepLinkAction.OpenQuickRecord -> activeSheet = RootSheet.QUICK_RECORD
+            DeepLinkAction.OpenAssistantVoice -> activeSheet = RootSheet.VOICE
+            else -> {}
+        }
+        if (initialDeepLink != null && initialDeepLink != DeepLinkAction.Ignore) {
+            onDeepLink(initialDeepLink)
+        }
+    }
+
+    // 深链接热启动（onNewIntent）：deepLinkAction 在首帧之后变化，
+    // 此时 NavHost 已 setGraph，可安全 navigate。
     var pendingDeepLink by remember { mutableStateOf<DeepLinkAction?>(null) }
     LaunchedEffect(deepLinkAction) {
-        if (deepLinkAction != null && deepLinkAction != DeepLinkAction.Ignore) {
+        if (deepLinkAction != null &&
+            deepLinkAction != DeepLinkAction.Ignore &&
+            deepLinkAction != initialDeepLink
+        ) {
             pendingDeepLink = deepLinkAction
         }
     }
@@ -138,7 +168,7 @@ fun XzgNavGraph(
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = XzgTab.HOME.route,
+            startDestination = startTab.route,
             modifier = Modifier.padding(innerPadding)
         ) {
             // ---- 5 Tab ----
