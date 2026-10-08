@@ -19,7 +19,12 @@ struct RootView: View {
     private let canInitializeSpeechRecognizer = SpeechService.canInitializeRecognizer
 
     private var sharedContainer: ModelContainer {
-        UITestMode.isEnabled ? UITestMode.container : AppDatabase.shared.container
+        // 语义与 XiaoZhangGuiApp 入口保持一致：UI 测试用内存库，正常用持久库。
+        // 计算属性无法 throws，失败时回退到 DemoCatalog 内存库（绝不崩溃）。
+        if UITestMode.isEnabled {
+            return (try? AppDatabase.makeInMemoryContainer()) ?? DemoCatalog.container
+        }
+        return (try? AppDatabase.makeContainer()) ?? DemoCatalog.container
     }
 
     var body: some View {
@@ -30,8 +35,8 @@ struct RootView: View {
                         tab: $tab,
                         showVoice: $showVoice,
                         showQuickRecord: $showQuickRecord,
-                        showsVoiceButton: canInitializeSpeechRecognizer || UITestMode.isEnabled,
-                        showAI: $showAI
+                        showAI: $showAI,
+                        showsVoiceButton: canInitializeSpeechRecognizer || UITestMode.isEnabled
                     )
                 }
             }
