@@ -16,8 +16,6 @@ struct GoodsView: View {
     @State private var editingGoods: Goods?
     @State private var failedDeleteGoods: Goods?
     @State private var deleteError: String?
-    // Phase 0 诊断：暴露删除路径状态（诊断后移除）
-    @State private var diagDeleteState = "idle"
     private var isMockPreview: Bool { RuntimeMode.allowsMockData }
 
     private var filtered: [Goods] {
@@ -45,15 +43,6 @@ struct GoodsView: View {
         }
         .scrollIndicators(.hidden)
         .accessibilityIdentifier(V371AccessibilityID.screenGoods)
-        #if DEBUG
-        .overlay(alignment: .topLeading) {
-            if UITestMode.isEnabled {
-                Text(diagDeleteState)
-                    .accessibilityIdentifier("goods.deleteDiag")
-                    .hidden()
-            }
-        }
-        #endif
         .v371Canvas()
         .v371DockInset()
         .navigationTitle("临时商品")
@@ -72,13 +61,10 @@ struct GoodsView: View {
         }
         .alert("删除失败", isPresented: Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })) {
             Button("重试") {
+                // 关键修复：先捕获 goods，避免 alert dismiss 导致状态丢失
+                let goodsToDelete = failedDeleteGoods
                 deleteError = nil
-                #if DEBUG
-                if UITestMode.isEnabled {
-                    diagDeleteState = failedDeleteGoods == nil ? "retry_failedDeleteGoods_nil" : "retry_called_delete"
-                }
-                #endif
-                if let goods = failedDeleteGoods { delete(goods) }
+                if let goods = goodsToDelete { delete(goods) }
             }
             .accessibilityIdentifier(V371AccessibilityID.reliabilityRetry)
             Button("取消", role: .cancel) {
@@ -288,31 +274,11 @@ struct GoodsView: View {
 
     private func delete(_ goods: Goods) {
         Haptic.warning()
-        #if DEBUG
-        if UITestMode.isEnabled {
-            diagDeleteState = "delete_called:\(goods.persistentModelID)"
-        }
-        #endif
         do {
             try UITestFailureInjection.throwIfRequested(.goodsDelete)
-            #if DEBUG
-            if UITestMode.isEnabled {
-                diagDeleteState = "injection_passed"
-            }
-            #endif
             try GoodsRepository(context: context).delete(goods)
-            #if DEBUG
-            if UITestMode.isEnabled {
-                diagDeleteState = "repository_delete_succeeded"
-            }
-            #endif
             failedDeleteGoods = nil
         } catch {
-            #if DEBUG
-            if UITestMode.isEnabled {
-                diagDeleteState = "caught_error"
-            }
-            #endif
             Haptic.error()
             failedDeleteGoods = goods
             deleteError = "商品未删除，请重试。"
