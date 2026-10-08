@@ -99,6 +99,7 @@ struct ScheduleView: View {
             .animation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion)), value: selectedDate)
         }
         .scrollIndicators(.hidden)
+        .accessibilityIdentifier(V371AccessibilityID.screenCalendar)
         .v371Canvas()
         .v371DockInset()
         .alert("操作失败", isPresented: Binding(get: { stateActionError != nil }, set: { if !$0 { stateActionError = nil } })) {

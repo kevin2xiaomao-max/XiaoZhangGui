@@ -30,7 +30,7 @@ struct RootView: View {
                         tab: $tab,
                         showVoice: $showVoice,
                         showQuickRecord: $showQuickRecord,
-                        showsVoiceButton: canInitializeSpeechRecognizer,
+                        showsVoiceButton: canInitializeSpeechRecognizer || UITestMode.isEnabled,
                         showAI: $showAI
                     )
                 }

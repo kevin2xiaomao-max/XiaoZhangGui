@@ -41,6 +41,7 @@ struct MemoView: View {
             .padding(.top, 8)
         }
         .scrollIndicators(.hidden)
+        .accessibilityIdentifier(V371AccessibilityID.screenMemo)
         .v371Canvas()
         .v371DockInset()
         .navigationTitle("记录")

@@ -26,10 +26,12 @@ struct DailyReportSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("关闭") { dismiss() }
+                        .accessibilityIdentifier(V371AccessibilityID.dailyReportClose)
                 }
             }
         }
         .presentationDetents([.medium, .large])
+        .accessibilityIdentifier(V371AccessibilityID.sheetDailyReport)
         .presentationDragIndicator(.visible)
     }
 

@@ -31,6 +31,7 @@ struct TransactionHistoryView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .accessibilityIdentifier(V371AccessibilityID.screenTransactions)
         .navigationTitle("全部交易")
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $search, prompt: "搜索交易或来源")

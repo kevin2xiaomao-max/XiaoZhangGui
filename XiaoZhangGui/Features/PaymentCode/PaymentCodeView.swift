@@ -61,6 +61,7 @@ struct PaymentCodeView: View {
             .padding(.bottom, 12)
         }
         .scrollIndicators(.hidden)
+        .accessibilityIdentifier(V371AccessibilityID.screenPaymentCodes)
         .v371Canvas()
         .navigationTitle("收款码")
         .navigationBarTitleDisplayMode(.inline)

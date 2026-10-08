@@ -37,6 +37,7 @@ struct VoiceView: View {
                 }
             }
         }
+        .accessibilityIdentifier(V371AccessibilityID.sheetVoice)
         .onChange(of: viewModel?.didSave ?? false) { _, saved in
             guard saved else { return }
             Task { @MainActor in

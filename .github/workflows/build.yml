@@ -1,10 +1,12 @@
-name: 小掌柜 3.5 构建
+name: 小掌柜 V3.7.1 构建与验收
 
 on:
   push:
-    # main / ios-dev 触发保持不变；V3.5 分支也自动运行完整 CI。
+    # main / ios-dev 等现有触发保持不变；V3.7.1 目标分支与 Phase 0 实施分支运行完整 CI。
     # Release 步骤仍另有分支条件，不会因此在其它分支发版。
-    branches: [ios-dev, main, redesign/v3.2.0, feature/v3.5-liquid-glass-leap, feature/v3.4-intelligence-experience, fix/v3.4-build34-real-data-repair]
+    branches: [ios-dev, main, redesign/v3.2.0, feature/v3.5-liquid-glass-leap, feature/v3.4-intelligence-experience, fix/v3.4-build34-real-data-repair, feature/v3.7.1-muse-rebuild, codex/v371-phase0-protection]
+  pull_request:
+    branches: [feature/v3.7.1-muse-rebuild]
   workflow_dispatch:
 
 permissions:
@@ -53,6 +55,13 @@ jobs:
       - name: 显示工程信息
         run: xcodebuild -list -project XiaoZhangGui.xcodeproj
 
+      - name: 记录 Phase 0 Git Diff 与文件清单
+        run: |
+          set -euo pipefail
+          git diff --stat 1eba796cde0eb47a5e393abdc419fd41827770a7...HEAD > "$RUNNER_TEMP/phase0-diff-stat.txt"
+          git diff --name-status 1eba796cde0eb47a5e393abdc419fd41827770a7...HEAD > "$RUNNER_TEMP/phase0-files.txt"
+          git rev-parse HEAD > "$RUNNER_TEMP/phase0-commit.txt"
+
       - name: Resolve Swift Packages
         run: |
           set -euo pipefail
@@ -99,7 +108,7 @@ jobs:
             -derivedDataPath build/Simulator \
             XZG_WEATHER_API_KEY="${{ secrets.XZG_WEATHER_API_KEY }}" \
             CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO
+            CODE_SIGNING_REQUIRED=NO | tee "$RUNNER_TEMP/simulator-build.log"
 
       - name: XCTest
         timeout-minutes: 55
@@ -111,6 +120,7 @@ jobs:
           # 期望用例总数直接从源码统计，新增 / 删除测试自动跟随，不写死数字。
           EXPECTED=$(grep -rEho 'func[[:space:]]+test[A-Za-z0-9_]+' Tests --include='*.swift' --exclude-dir=UITests | wc -l | tr -d '[:space:]')
           echo "期望测试用例数: $EXPECTED"
+          echo "discovered=$EXPECTED" > "$RUNNER_TEMP/unit-test-counts.txt"
           test "$EXPECTED" -gt 0
           # 测试类套件数（每个含 func test 的 Swift 文件对应一个类套件），
           # 供“碎片化启动并集判定”使用，新增 / 删除测试自动跟随。
@@ -174,12 +184,15 @@ jobs:
           # （降级宿主已知 600s 挂起）或重启级联里，直接结束本轮并判过。
           run_attempt() {
             local attempt="$1" raw="$RUNNER_TEMP/xctest-attempt-$attempt.log"
+            local result="$RUNNER_TEMP/unit-attempt-$attempt.xcresult"
             : > "$raw"
+            rm -rf "$result"
             xcodebuild test \
               -project XiaoZhangGui.xcodeproj \
               -scheme XiaoZhangGui \
               -destination "platform=iOS Simulator,name=$NAME" \
               -only-testing:XiaoZhangGuiTests \
+              -resultBundlePath "$result" \
               -derivedDataPath build/Simulator \
               XZG_WEATHER_API_KEY="${{ secrets.XZG_WEATHER_API_KEY }}" \
               CODE_SIGNING_ALLOWED=NO \
@@ -252,6 +265,7 @@ jobs:
             reset_sim
             if run_attempt "$attempt"; then
               echo "XCTest PASS（attempt ${attempt}，${EXPECTED} tests / 0 failures）"
+              printf 'passed=%s\nfailed=0\nstatus=PASS\n' "$EXPECTED" >> "$RUNNER_TEMP/unit-test-counts.txt"
               exit 0
             fi
             echo "attempt $attempt 未全绿，重置模拟器后重试"
@@ -260,6 +274,12 @@ jobs:
           done
 
           echo "FAIL: 3 次尝试后 XCTest 仍未全绿"
+          PASSED_COUNT=$(grep -oE "Test Case '[^']+' passed" "$LOG" | sort -u | wc -l | tr -d '[:space:]')
+          FAILED_COUNT=$(grep -oE "Test Case '[^']+' failed" "$LOG" | sort -u | wc -l | tr -d '[:space:]')
+          NOT_RUN_COUNT=$(( EXPECTED - PASSED_COUNT - FAILED_COUNT ))
+          if [ "$NOT_RUN_COUNT" -lt 0 ]; then NOT_RUN_COUNT=0; fi
+          printf 'passed=%s\nfailed=%s\nnot_run=%s\nstatus=FAIL\n' \
+            "$PASSED_COUNT" "$FAILED_COUNT" "$NOT_RUN_COUNT" >> "$RUNNER_TEMP/unit-test-counts.txt"
           echo "--- 末轮诊断：失败用例 / 未完成套件 / 最大 0-failure 汇总 ---"
           grep -E "Test Case '[^']+' failed|Test Suite '[^']+' failed" "$LOG" | tail -n 30 || true
           passed=$(grep -oE "Test Suite '[^']+' passed" "$LOG" | sed -E "s/Test Suite '([^']+)' passed/\1/" | grep -vE '^(Selected tests|XiaoZhangGuiTests\.xctest|All tests)$' | sort -u)
@@ -272,21 +292,57 @@ jobs:
       - name: XCUITest
         timeout-minutes: 20
         run: |
-          set -o pipefail
+          set +e
+          set -uo pipefail
           NAME="${{ steps.sim.outputs.name }}"
           EXPECTED_UI=$(grep -rEho 'func[[:space:]]+test[A-Za-z0-9_]+' Tests/UITests --include='*.swift' | wc -l | tr -d '[:space:]')
           test "$EXPECTED_UI" -gt 0
+          rm -rf "$RUNNER_TEMP/UITests.xcresult"
           xcodebuild test \
             -project XiaoZhangGui.xcodeproj \
             -scheme XiaoZhangGui \
             -destination "platform=iOS Simulator,name=$NAME" \
             -only-testing:XiaoZhangGuiUITests \
+            -resultBundlePath "$RUNNER_TEMP/UITests.xcresult" \
             -parallel-testing-enabled NO \
             -derivedDataPath build/Simulator \
             XZG_WEATHER_API_KEY="${{ secrets.XZG_WEATHER_API_KEY }}" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO | tee "$RUNNER_TEMP/xcuitest.log"
-          grep -Eq "Executed $EXPECTED_UI tests, with 0 failures" "$RUNNER_TEMP/xcuitest.log"
+          code=$?
+          summary=$(grep -Eo 'Executed [0-9]+ tests?, with [0-9]+ failures?' "$RUNNER_TEMP/xcuitest.log" | tail -n 1)
+          PASSED_UI=$(grep -oE "Test Case '[^']+' passed" "$RUNNER_TEMP/xcuitest.log" | sort -u | wc -l | tr -d '[:space:]')
+          FAILED_UI=$(grep -oE "Test Case '[^']+' failed" "$RUNNER_TEMP/xcuitest.log" | sort -u | wc -l | tr -d '[:space:]')
+          NOT_RUN_UI=$(( EXPECTED_UI - PASSED_UI - FAILED_UI ))
+          if [ "$NOT_RUN_UI" -lt 0 ]; then NOT_RUN_UI=0; fi
+          printf 'discovered=%s\npassed=%s\nfailed=%s\nnot_run=%s\nsummary=%s\n' \
+            "$EXPECTED_UI" "$PASSED_UI" "$FAILED_UI" "$NOT_RUN_UI" "${summary:-MISSING}" > "$RUNNER_TEMP/ui-test-counts.txt"
+          if [ "$code" -eq 0 ] && grep -Eq "Executed $EXPECTED_UI tests, with 0 failures" "$RUNNER_TEMP/xcuitest.log"; then
+            echo 'status=PASS' >> "$RUNNER_TEMP/ui-test-counts.txt"
+            exit 0
+          fi
+          echo 'status=FAIL' >> "$RUNNER_TEMP/ui-test-counts.txt"
+          exit $(( code == 0 ? 1 : code ))
+
+      - name: 上传 Phase 0 编译、测试与失败证据
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: V371-Phase0-Evidence-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/simulator-build.log
+            ${{ runner.temp }}/xctest-attempt-*.log
+            ${{ runner.temp }}/xcuitest.log
+            ${{ runner.temp }}/unit-test-counts.txt
+            ${{ runner.temp }}/ui-test-counts.txt
+            ${{ runner.temp }}/unit-attempt-*.xcresult
+            ${{ runner.temp }}/UITests.xcresult
+            ${{ runner.temp }}/phase0-diff-stat.txt
+            ${{ runner.temp }}/phase0-files.txt
+            ${{ runner.temp }}/phase0-commit.txt
+            V371_ROUTE_MANIFEST.md
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: iPhone Air 窄屏编译校验（无该设备时回退最接近的 iPhone 旗舰）
         id: aircheck
@@ -315,6 +371,7 @@ jobs:
             CODE_SIGNING_REQUIRED=NO
 
       - name: Device generic unsigned build + IPA
+        if: github.ref != 'refs/heads/feature/v3.7.1-muse-rebuild' && github.ref != 'refs/heads/codex/v371-phase0-protection'
         shell: bash
         run: |
           set -euo pipefail
@@ -411,6 +468,7 @@ jobs:
           echo "IPA_FILENAME=$IPA" >> "$GITHUB_ENV"
 
       - name: 上传版本化 IPA
+        if: github.ref != 'refs/heads/feature/v3.7.1-muse-rebuild' && github.ref != 'refs/heads/codex/v371-phase0-protection'
         uses: actions/upload-artifact@v4
         with:
           name: XiaoZhangGui-${{ env.XZG_VERSION }}-b${{ env.XZG_BUILD }}-${{ env.XZG_COMMIT }}-IPA

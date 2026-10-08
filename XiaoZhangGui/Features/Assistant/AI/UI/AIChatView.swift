@@ -81,6 +81,7 @@ struct AIChatView: View {
                 voiceOverlay
             }
         }
+        .accessibilityIdentifier(V371AccessibilityID.sheetAI)
         // V3.3 真机 hotfix：短语音面板展示 / 聆听期间隐藏底部 Tab 栏（Dock），
         // 让面板完整使用底部安全区；取消 / 完成 / 失败关闭后自动恢复。
         .toolbar(model.showVoicePanel ? .hidden : .visible, for: .tabBar)

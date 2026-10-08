@@ -15,11 +15,12 @@ import UniformTypeIdentifiers
 struct ProfileView: View {
     // V3.7.1：tab 绑定已删除（全仓确认无使用）；从首页右上角进入，无参构造。
     @Binding var showVoice: Bool
-    let showsVoiceButton: Bool = false
+    let showsVoiceButton: Bool
 
     /// 无参构造保留（首页右上角进入）；需要外部控制时可注入 binding。
-    init(showVoice: Binding<Bool> = .constant(false)) {
+    init(showVoice: Binding<Bool> = .constant(false), showsVoiceButton: Bool = false) {
         _showVoice = showVoice
+        self.showsVoiceButton = showsVoiceButton
     }
 
     @Environment(\.modelContext) private var context
@@ -37,6 +38,7 @@ struct ProfileView: View {
     @State private var backgroundSheet = false
     @State private var wallpaperSheet = false
     @State private var voiceDialog = false
+    @State private var showPaymentCodes = false
     @State private var reminderDialog = false
     @State private var aboutDialog = false
     @State private var privacyDialog = false
@@ -55,6 +57,7 @@ struct ProfileView: View {
                 profileHero
                 settingsSection("个性化") { personalRows }
                 settingsSection("经营") { businessRows }
+                settingsSection("工具") { toolRows }
                 demoSection
                 settingsSection("数据与应用") { dataRows }
                 Text("v\(appVersion)")
@@ -68,6 +71,7 @@ struct ProfileView: View {
             .padding(.bottom, 28)
         }
         .scrollIndicators(.hidden)
+        .accessibilityIdentifier(V371AccessibilityID.screenProfile)
         .v371Canvas()
         .v371DockInset()
         .navigationTitle("我的")
@@ -98,6 +102,7 @@ struct ProfileView: View {
         .sheet(isPresented: $voiceDialog) {
             VoiceSettingsSheet(showVoice: $showVoice, showsVoiceButton: showsVoiceButton)
         }
+        .navigationDestination(isPresented: $showPaymentCodes) { PaymentCodeView() }
         .sheet(isPresented: $reminderDialog) { ReminderSettingsSheet(settings: settings) }
         .sheet(isPresented: $aboutDialog) { AboutSheet() }
         .sheet(isPresented: $privacyDialog) {
@@ -212,6 +217,7 @@ struct ProfileView: View {
                 title: "语音输入", action: { voiceDialog = true }) {
             valueTrailing(settings.voiceLanguage)
         }
+        .accessibilityIdentifier(V371AccessibilityID.profileVoiceSettings)
     }
 
     @ViewBuilder
@@ -225,6 +231,15 @@ struct ProfileView: View {
                 title: "提醒设置", action: { reminderDialog = true }) {
             valueTrailing((settings.todoReminderEnabled || settings.expiryReminderEnabled) ? "已开启" : "已关闭")
         }
+    }
+
+    @ViewBuilder
+    private var toolRows: some View {
+        WorkRow(icon: "qrcode", iconColor: V371.Colors.blue,
+                title: "收款码", action: { showPaymentCodes = true }) {
+            V371Chevron()
+        }
+        .accessibilityIdentifier(V371AccessibilityID.profilePaymentCodes)
     }
 
     @ViewBuilder
@@ -1045,6 +1060,7 @@ private struct VoiceSettingsSheet: View {
                         } label: {
                             Label("测试语音", systemImage: "mic.fill")
                         }
+                        .accessibilityIdentifier(V371AccessibilityID.profileVoiceTest)
                     }
                 }
             }

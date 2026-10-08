@@ -10,7 +10,13 @@ struct PerformanceView: View {
     @Environment(AppSettings.self) private var settings
     @Query private var performances: [Performance]
     @Query private var expenses: [Expense]
+    @Query private var todos: [Todo]
+    @Query private var customers: [CustomerRequest]
+    @Query private var expiryItems: [ExpiryItem]
     @State private var showImport = false
+    @State private var showDailyReport = false
+    @State private var showGoods = false
+    @State private var showMemo = false
     @State private var newRecordKind: NewMoneyKind?
     @State private var editingPerformance: Performance?
     @State private var editingExpense: Expense?
@@ -70,23 +76,51 @@ struct PerformanceView: View {
             .padding(.top, V371.Space.page)
         }
         .scrollIndicators(.hidden)
+        .accessibilityIdentifier(V371AccessibilityID.screenBusiness)
         .v371Canvas()
         .v371DockInset()
         .navigationTitle("经营数据")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                Button { showGoods = true } label: {
+                    Image(systemName: "shippingbox")
+                }
+                .accessibilityLabel("临时商品")
+                .accessibilityIdentifier(V371AccessibilityID.businessGoods)
+
                 Menu {
                     Button("记收入") { newRecordKind = .income }
+                        .accessibilityIdentifier(V371AccessibilityID.businessAddIncome)
                     Button("记支出") { newRecordKind = .expense }
+                        .accessibilityIdentifier(V371AccessibilityID.businessAddExpense)
                     Button("扫呗导入", systemImage: "square.and.arrow.down") { showImport = true }
+                        .accessibilityIdentifier(V371AccessibilityID.businessImport)
+                    Divider()
+                    Button("记录", systemImage: "note.text") { showMemo = true }
+                        .accessibilityIdentifier(V371AccessibilityID.businessMemo)
+                    Button("今日经营日报", systemImage: "doc.text.magnifyingglass") { showDailyReport = true }
+                        .accessibilityIdentifier(V371AccessibilityID.businessDailyReport)
                 } label: {
                     Label("记一笔", systemImage: "plus")
                 }
                 .accessibilityLabel("记一笔")
+                .accessibilityIdentifier(V371AccessibilityID.businessMenu)
             }
         }
+        .navigationDestination(isPresented: $showGoods) { GoodsView() }
+        .navigationDestination(isPresented: $showMemo) { MemoView() }
         .sheet(isPresented: $showImport) { SaobeiImportSheet() }
+        .sheet(isPresented: $showDailyReport) {
+            DailyReportSheet(
+                report: .build(
+                    performances: performances,
+                    todos: todos,
+                    customers: customers,
+                    expiryItems: expiryItems
+                )
+            )
+        }
         .sheet(item: $newRecordKind) { MoneyEditorSheet(mode: .new($0)) }
         .sheet(item: $editingPerformance) { MoneyEditorSheet(mode: .editPerformance($0)) }
         .sheet(item: $editingExpense) { MoneyEditorSheet(mode: .editExpense($0)) }

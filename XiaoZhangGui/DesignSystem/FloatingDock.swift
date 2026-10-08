@@ -22,6 +22,15 @@ enum AppTab: Hashable {
         case .business: return "chart.bar.fill"
         }
     }
+
+    var accessibilityIdentifier: String {
+        switch self {
+        case .home: return V371AccessibilityID.tabHome
+        case .todo: return V371AccessibilityID.tabTodo
+        case .calendar: return V371AccessibilityID.tabCalendar
+        case .business: return V371AccessibilityID.tabBusiness
+        }
+    }
 }
 
 // MARK: - 触感反馈（V3.7.1 统一 Haptic System · 唯一定义点）

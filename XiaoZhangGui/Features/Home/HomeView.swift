@@ -56,11 +56,13 @@ struct HomeView: View {
                 focusSection
                 nextSection
                 AICommandEntry { showAI = true }
+                    .accessibilityIdentifier(V371AccessibilityID.homeAI)
             }
             .padding(.horizontal, 20)
             .padding(.top, 6)
         }
         .scrollIndicators(.hidden)
+        .accessibilityIdentifier(V371AccessibilityID.screenHome)
         .v371Canvas()
         .v371DockInset()
         .alert("操作失败", isPresented: Binding(get: { stateActionError != nil }, set: { if !$0 { stateActionError = nil } })) {
@@ -76,6 +78,7 @@ struct HomeView: View {
                             .contentShape(Rectangle())
                     }
                     .accessibilityLabel("一句话快速记录")
+                    .accessibilityIdentifier(V371AccessibilityID.homeQuickRecord)
                     Button { route = .profile } label: {
                         Image(systemName: "person.circle.fill")
                             .font(.system(size: 26))
@@ -84,6 +87,7 @@ struct HomeView: View {
                             .contentShape(Rectangle())
                     }
                     .accessibilityLabel("个人中心")
+                    .accessibilityIdentifier(V371AccessibilityID.homeProfile)
                 }
             }
         }
@@ -93,7 +97,8 @@ struct HomeView: View {
             case .expiry: ExpiryView()
             case .performance: PerformanceView()
             case .memo: MemoView()
-            case .profile: ProfileView()
+            case .profile:
+                ProfileView(showVoice: $showVoice, showsVoiceButton: showsVoiceButton)
             }
         }
         .sheet(isPresented: $showWeatherSheet) {
@@ -213,6 +218,7 @@ struct HomeView: View {
                         V371Chevron()
                     }
                 }
+                .accessibilityIdentifier(V371AccessibilityID.homeCustomer)
                 V371Divider()
                 WorkRow(icon: "checklist", iconColor: V371.Colors.green,
                         title: "今日待办", subtitle: todoSubtitle,
@@ -231,6 +237,7 @@ struct HomeView: View {
                         V371Chevron()
                     }
                 }
+                .accessibilityIdentifier(V371AccessibilityID.homeExpiry)
             }
         }
     }

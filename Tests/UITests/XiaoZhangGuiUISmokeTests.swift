@@ -2,11 +2,13 @@ import XCTest
 
 final class XiaoZhangGuiUISmokeTests: XCTestCase {
     private var app: XCUIApplication!
+    private var launchID: String!
 
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
-        app.launchArguments = ["--ui-testing", "--ui-testing-id", UUID().uuidString]
+        launchID = UUID().uuidString
+        app.launchArguments = ["--ui-testing", "--ui-testing-id", launchID]
         addUIInterruptionMonitor(withDescription: "Location permission") { alert in
             let allow = ["使用 App 时允许", "Allow While Using App", "允许一次", "Allow Once"]
                 .first { alert.buttons[$0].exists }
@@ -24,7 +26,130 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
     }
 
     func testAppLaunches() {
-        XCTAssertTrue(app.tabBars.buttons["小掌柜"].waitForExistence(timeout: 10))
+        XCTAssertTrue(element("screen.home").waitForExistence(timeout: 10))
+        for identifier in ["tab.home", "tab.todo", "tab.calendar", "tab.business"] {
+            XCTAssertTrue(element(identifier).exists, "Missing main tab: \(identifier)")
+        }
+        XCTAssertFalse(element("tab.ai").exists, "AI must remain independent from the four main tabs")
+    }
+
+    func testFourMainTabsAndSecondaryBackPath() {
+        assertTab("tab.todo", shows: "screen.todo")
+        assertTab("tab.calendar", shows: "screen.calendar")
+        assertTab("tab.business", shows: "screen.business")
+        assertTab("tab.home", shows: "screen.home")
+
+        tapElement("home.profile")
+        XCTAssertTrue(element("screen.profile").waitForExistence(timeout: 5))
+        tapNavigationBack()
+        XCTAssertTrue(element("screen.home").waitForExistence(timeout: 5))
+    }
+
+    func testAIUsesHomeEntryAndReturnsFromSheet() {
+        openAI()
+        XCTAssertTrue(element("sheet.ai").waitForExistence(timeout: 5))
+        app.swipeDown()
+        XCTAssertTrue(element("screen.home").waitForExistence(timeout: 5))
+    }
+
+    func testQuickRecordUsesHomeEntryAndReturns() {
+        XCTAssertTrue(element("home.quickRecord").waitForExistence(timeout: 5))
+        tapElement("home.quickRecord")
+        XCTAssertTrue(element("sheet.quickRecord").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("quickRecord.cancel").waitForExistence(timeout: 5))
+        element("quickRecord.cancel").tap()
+        XCTAssertTrue(element("screen.home").waitForExistence(timeout: 5))
+    }
+
+    func testBusinessRoutesGoodsAndDailyReport() {
+        assertTab("tab.business", shows: "screen.business")
+
+        tapElement("business.goods")
+        XCTAssertTrue(element("screen.goods").waitForExistence(timeout: 5))
+        tapNavigationBack()
+        XCTAssertTrue(element("screen.business").waitForExistence(timeout: 5))
+
+        openBusinessMenu(item: "business.memo")
+        XCTAssertTrue(element("screen.memo").waitForExistence(timeout: 5))
+        tapNavigationBack()
+        XCTAssertTrue(element("screen.business").waitForExistence(timeout: 5))
+
+        openBusinessMenu(item: "business.dailyReport")
+        XCTAssertTrue(element("sheet.dailyReport").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("dailyReport.close").waitForExistence(timeout: 5))
+        element("dailyReport.close").tap()
+        XCTAssertTrue(element("screen.business").waitForExistence(timeout: 5))
+    }
+
+    func testProfileRoutesPaymentCodesAndVoiceTest() {
+        tapElement("home.profile")
+        XCTAssertTrue(element("screen.profile").waitForExistence(timeout: 5))
+
+        tapElement("profile.paymentCodes")
+        XCTAssertTrue(element("screen.paymentCodes").waitForExistence(timeout: 5))
+        tapNavigationBack()
+
+        XCTAssertTrue(element("profile.voiceSettings").waitForExistence(timeout: 5))
+        tapElement("profile.voiceSettings")
+        XCTAssertTrue(element("profile.voiceTest").waitForExistence(timeout: 5))
+        tapElement("profile.voiceTest")
+        XCTAssertTrue(element("sheet.voice").waitForExistence(timeout: 5))
+    }
+
+    func testCustomerAdvanceFailureDoesNotReportSuccessAndRetrySucceeds() {
+        relaunch(failingOnce: "customer.advance")
+        tapElement("home.customer")
+        XCTAssertTrue(element("screen.customer").waitForExistence(timeout: 5))
+        let advance = element("customer.advance")
+        XCTAssertTrue(advance.waitForExistence(timeout: 5))
+        XCTAssertEqual(advance.label, "开始配送")
+        advance.tap()
+        XCTAssertTrue(app.alerts["操作失败"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["✓ 已完成配送"].exists)
+        tapRetry(in: "操作失败")
+        XCTAssertTrue(waitUntil(timeout: 5) { self.element("customer.advance").label == "完成配送" })
+    }
+
+    func testExpiryToggleFailureKeepsStateAndRetrySucceeds() {
+        relaunch(failingOnce: "expiry.toggleReturn")
+        tapElement("home.expiry")
+        XCTAssertTrue(element("screen.expiry").waitForExistence(timeout: 5))
+        let toggle = element("expiry.toggleReturn")
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        XCTAssertEqual(toggle.label, "标记为已退货")
+        toggle.tap()
+        XCTAssertTrue(app.alerts["操作失败"].waitForExistence(timeout: 5))
+        tapRetry(in: "操作失败")
+        XCTAssertTrue(waitUntil(timeout: 5) { self.element("expiry.toggleReturn").label == "恢复为待处理" })
+    }
+
+    func testGoodsDeleteFailureKeepsRowAndRetryDeletesOnce() {
+        relaunch(failingOnce: "goods.delete")
+        assertTab("tab.business", shows: "screen.business")
+        tapElement("business.goods")
+        XCTAssertTrue(element("screen.goods").waitForExistence(timeout: 5))
+        let before = app.buttons.matching(identifier: "goods.delete").count
+        XCTAssertGreaterThan(before, 0)
+        element("goods.delete").tap()
+        XCTAssertTrue(app.alerts["删除失败"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons.matching(identifier: "goods.delete").count, before)
+        tapRetry(in: "删除失败")
+        XCTAssertTrue(waitUntil(timeout: 5) {
+            self.app.buttons.matching(identifier: "goods.delete").count == before - 1
+        })
+    }
+
+    func testTodoToggleFailureKeepsPendingAndRetryCompletesOnce() {
+        relaunch(failingOnce: "todo.toggle")
+        assertTab("tab.todo", shows: "screen.todo")
+        let toggle = element("todo.toggle")
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        XCTAssertEqual(toggle.label, "标为已完成")
+        toggle.tap()
+        XCTAssertTrue(app.alerts["操作失败"].waitForExistence(timeout: 5))
+        XCTAssertTrue(element("todo.toggle").exists)
+        tapRetry(in: "操作失败")
+        XCTAssertTrue(waitUntil(timeout: 5) { !self.element("todo.toggle").exists })
     }
 
     func testMetaReplyIsLocal() {
@@ -90,8 +215,7 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
     }
 
     private func send(_ text: String) {
-        let tab = app.tabBars.buttons["小掌柜"]
-        if tab.exists { tab.tap() }
+        openAI()
         let input = app.textFields["ai.input"]
         XCTAssertTrue(input.waitForExistence(timeout: 8))
         input.tap()
@@ -123,6 +247,77 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
 
     private func element(_ identifier: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+    }
+
+    private func relaunch(failingOnce operation: String) {
+        app.terminate()
+        launchID = UUID().uuidString
+        app.launchArguments = [
+            "--ui-testing", "--ui-testing-id", launchID,
+            "--ui-testing-fail-once", operation,
+        ]
+        app.launch()
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 20))
+        XCTAssertTrue(element("screen.home").waitForExistence(timeout: 10))
+    }
+
+    private func assertTab(_ tabIdentifier: String, shows screenIdentifier: String) {
+        let tab = element(tabIdentifier)
+        XCTAssertTrue(tab.waitForExistence(timeout: 5), "Missing tab \(tabIdentifier)")
+        tab.tap()
+        XCTAssertTrue(element(screenIdentifier).waitForExistence(timeout: 5), "Missing screen \(screenIdentifier)")
+    }
+
+    private func openAI() {
+        if app.textFields["ai.input"].exists { return }
+        if !element("screen.home").exists {
+            assertTab("tab.home", shows: "screen.home")
+        }
+        let entry = element("home.ai")
+        XCTAssertTrue(entry.waitForExistence(timeout: 5))
+        tapElement("home.ai")
+        XCTAssertTrue(element("sheet.ai").waitForExistence(timeout: 5))
+    }
+
+    private func openBusinessMenu(item identifier: String) {
+        let menu = element("business.menu")
+        XCTAssertTrue(menu.waitForExistence(timeout: 5))
+        menu.tap()
+        let item = element(identifier)
+        XCTAssertTrue(item.waitForExistence(timeout: 5))
+        item.tap()
+    }
+
+    private func tapElement(_ identifier: String) {
+        let target = element(identifier)
+        XCTAssertTrue(target.waitForExistence(timeout: 5), "Missing element \(identifier)")
+        if !target.isHittable {
+            for _ in 0..<4 where !target.isHittable { app.swipeUp() }
+        }
+        if !target.isHittable {
+            for _ in 0..<8 where !target.isHittable { app.swipeDown() }
+        }
+        XCTAssertTrue(target.isHittable, "Element is not hittable: \(identifier)")
+        target.tap()
+    }
+
+    private func tapNavigationBack() {
+        let back = app.navigationBars.buttons.firstMatch
+        XCTAssertTrue(back.waitForExistence(timeout: 5))
+        back.tap()
+    }
+
+    /// SwiftUI alert actions do not expose custom identifiers consistently on every iOS runtime.
+    /// Prefer the stable identifier and use the owning alert's action only as a platform fallback.
+    private func tapRetry(in alertTitle: String) {
+        let stable = element("reliability.retry")
+        if stable.waitForExistence(timeout: 1) {
+            stable.tap()
+            return
+        }
+        let fallback = app.alerts[alertTitle].buttons["重试"]
+        XCTAssertTrue(fallback.waitForExistence(timeout: 2))
+        fallback.tap()
     }
 
     private func waitUntil(timeout: TimeInterval, condition: @escaping () -> Bool) -> Bool {

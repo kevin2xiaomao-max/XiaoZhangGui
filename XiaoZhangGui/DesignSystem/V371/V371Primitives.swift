@@ -424,6 +424,7 @@ struct FloatingTabDock: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(tab.title)
+                .accessibilityIdentifier(tab.accessibilityIdentifier)
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
             }
         }

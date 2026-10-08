@@ -81,10 +81,12 @@ struct QuickRecordSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
+                        .accessibilityIdentifier(V371AccessibilityID.quickRecordCancel)
                 }
             }
         }
         .presentationDetents([.medium, .large])
+        .accessibilityIdentifier(V371AccessibilityID.sheetQuickRecord)
         .presentationDragIndicator(.visible)
         .v371Canvas()
         .onAppear { autoStartListening() }
