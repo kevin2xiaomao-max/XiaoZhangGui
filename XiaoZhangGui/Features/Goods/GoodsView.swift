@@ -286,9 +286,8 @@ struct GoodsView: View {
     private func retryDelete() {
         guard let id = failedDeleteGoodsID else { return }
         deleteError = nil
-        // 重新 Fetch 新鲜对象，确保不是 fault
-        let descriptor = FetchDescriptor<Goods>(predicate: #Predicate { $0.persistentModelID == id })
-        if let goods = try? context.fetch(descriptor).first {
+        // 用 model(for:) 直接取，避免 predicate 对 PersistentIdentifier 比较失效
+        if let goods = context.model(for: id) as? Goods {
             delete(goods)
         } else {
             // 对象已不存在，清除状态
