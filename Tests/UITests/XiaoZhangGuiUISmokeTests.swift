@@ -86,8 +86,11 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         XCTAssertTrue(element("screen.profile").waitForExistence(timeout: 5))
 
         tapElement("profile.paymentCodes")
-        // 收款码页含二维码生成，首现可能稍慢；给足时间，必要时重 tap 一次。
+        // 收款码页含二维码生成，首现可能稍慢；给足时间，必要时返回重进一次。
         if !element("screen.paymentCodes").waitForExistence(timeout: 8) {
+            // 已离开个人页但目标未出现：先返回，再重 tap
+            tapNavigationBack()
+            XCTAssertTrue(element("screen.profile").waitForExistence(timeout: 5))
             tapElement("profile.paymentCodes")
             XCTAssertTrue(
                 element("screen.paymentCodes").waitForExistence(timeout: 8),

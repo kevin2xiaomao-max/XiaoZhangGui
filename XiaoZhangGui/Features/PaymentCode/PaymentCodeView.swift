@@ -61,6 +61,9 @@ struct PaymentCodeView: View {
             .padding(.bottom, 12)
         }
         .scrollIndicators(.hidden)
+        // 容器 identifier 会向下覆盖子控件：用 children: .contain 保留子元素独立标识
+        //（AIChatView 曾有同类问题，诊断 37783082341 证实）。
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier(V371AccessibilityID.screenPaymentCodes)
         .v371Canvas()
         .navigationTitle("收款码")
