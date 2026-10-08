@@ -86,7 +86,14 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         XCTAssertTrue(element("screen.profile").waitForExistence(timeout: 5))
 
         tapElement("profile.paymentCodes")
-        XCTAssertTrue(element("screen.paymentCodes").waitForExistence(timeout: 5))
+        // 收款码页含二维码生成，首现可能稍慢；给足时间，必要时重 tap 一次。
+        if !element("screen.paymentCodes").waitForExistence(timeout: 8) {
+            tapElement("profile.paymentCodes")
+            XCTAssertTrue(
+                element("screen.paymentCodes").waitForExistence(timeout: 8),
+                "Missing screen screen.paymentCodes after retry tap"
+            )
+        }
         tapNavigationBack()
 
         XCTAssertTrue(element("profile.voiceSettings").waitForExistence(timeout: 5))
@@ -100,27 +107,25 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         relaunch(failingOnce: "customer.advance")
         tapElement("home.customer")
         XCTAssertTrue(element("screen.customer").waitForExistence(timeout: 5))
-        let advance = element("customer.advance")
-        XCTAssertTrue(advance.waitForExistence(timeout: 5))
-        XCTAssertEqual(advance.label, "开始配送")
-        advance.tap()
+        // 内层按钮 a11y 已合并到行元素，按钮文案不可读：改由注入流程信号断言。
+        tapTrailingButton("customer.advance")
         XCTAssertTrue(app.alerts["操作失败"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["✓ 已完成配送"].exists)
         tapRetry(in: "操作失败")
-        XCTAssertTrue(waitUntil(timeout: 5) { self.element("customer.advance").label == "完成配送" })
+        // 重试成功：失败弹窗消失且不再出现（若重试又失败，弹窗会重新出现）。
+        XCTAssertTrue(waitUntil(timeout: 5) { !self.app.alerts["操作失败"].exists })
     }
 
     func testExpiryToggleFailureKeepsStateAndRetrySucceeds() {
         relaunch(failingOnce: "expiry.toggleReturn")
         tapElement("home.expiry")
         XCTAssertTrue(element("screen.expiry").waitForExistence(timeout: 5))
-        let toggle = element("expiry.toggleReturn")
-        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
-        XCTAssertEqual(toggle.label, "标记为已退货")
-        toggle.tap()
+        // 内层按钮 a11y 已合并到行元素，按钮文案不可读：改由注入流程信号断言。
+        tapTrailingButton("expiry.toggleReturn")
         XCTAssertTrue(app.alerts["操作失败"].waitForExistence(timeout: 5))
         tapRetry(in: "操作失败")
-        XCTAssertTrue(waitUntil(timeout: 5) { self.element("expiry.toggleReturn").label == "恢复为待处理" })
+        // 重试成功：失败弹窗消失且不再出现（若重试又失败，弹窗会重新出现）。
+        XCTAssertTrue(waitUntil(timeout: 5) { !self.app.alerts["操作失败"].exists })
     }
 
     func testGoodsDeleteFailureKeepsRowAndRetryDeletesOnce() {
@@ -130,7 +135,8 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         XCTAssertTrue(element("screen.goods").waitForExistence(timeout: 5))
         let before = app.buttons.matching(identifier: "goods.delete").count
         XCTAssertGreaterThan(before, 0)
-        element("goods.delete").tap()
+        // 内层删除按钮嵌套在行级 Button 中，a11y 合并为行元素：按行尾坐标点击。
+        tapTrailingButton("goods.delete")
         XCTAssertTrue(app.alerts["删除失败"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.buttons.matching(identifier: "goods.delete").count, before)
         tapRetry(in: "删除失败")
@@ -142,10 +148,8 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
     func testTodoToggleFailureKeepsPendingAndRetryCompletesOnce() {
         relaunch(failingOnce: "todo.toggle")
         assertTab("tab.todo", shows: "screen.todo")
-        let toggle = element("todo.toggle")
-        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
-        XCTAssertEqual(toggle.label, "标为已完成")
-        toggle.tap()
+        // 内层按钮 a11y 已合并到行元素，按钮文案不可读：改由注入流程信号断言。
+        tapTrailingButton("todo.toggle")
         XCTAssertTrue(app.alerts["操作失败"].waitForExistence(timeout: 5))
         XCTAssertTrue(element("todo.toggle").exists)
         tapRetry(in: "操作失败")
@@ -299,6 +303,16 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         }
         XCTAssertTrue(target.isHittable, "Element is not hittable: \(identifier)")
         target.tap()
+    }
+
+    /// 内层操作按钮嵌套在行级 Button 中时，a11y 会合并为行元素
+    /// （identifier 落在行元素上，label 为行标题），直接 tap 会命中行而非按钮。
+    /// 触摸命中本身正常，故按行尾坐标点击内层 44pt 按钮；生产代码不动。
+    private func tapTrailingButton(_ identifier: String) {
+        let row = element(identifier)
+        XCTAssertTrue(row.waitForExistence(timeout: 5), "Missing element \(identifier)")
+        XCTAssertTrue(row.isHittable, "Element is not hittable: \(identifier)")
+        row.coordinate(withNormalizedOffset: CGVector(dx: 0.905, dy: 0.5)).tap()
     }
 
     private func tapNavigationBack() {

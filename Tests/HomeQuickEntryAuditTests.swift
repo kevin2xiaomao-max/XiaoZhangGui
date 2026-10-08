@@ -70,9 +70,17 @@ final class HomeQuickEntryAuditTests: XCTestCase {
 
     func testAIChatViewHidesTabBarWhileVoicePanelPresented() throws {
         let aiChat = try source("XiaoZhangGui/Features/Assistant/AI/UI/AIChatView.swift")
+        let rootView = try source("XiaoZhangGui/App/RootView.swift")
+        // V3.7.1：系统 TabBar 由 RootView 在 TabView 级别统一隐藏；
+        // AIChatView 禁止复写 tabBar 可见性——旧三元表达式曾把 ai.input
+        // 挤出无障碍树（V3.6.1 同因），此处断言该禁区不回归。
+        XCTAssertFalse(
+            aiChat.contains("for: .tabBar"),
+            "AIChatView 不得复写系统 TabBar 可见性（a11y 回归禁区）"
+        )
         XCTAssertTrue(
-            aiChat.contains(".toolbar(model.showVoicePanel ? .hidden : .visible, for: .tabBar)"),
-            "短语音面板展示期间必须隐藏底部 Tab 栏，关闭后恢复"
+            rootView.contains(".toolbar(.hidden, for: .tabBar)"),
+            "RootView 必须在 TabView 级别兜底隐藏系统 TabBar"
         )
     }
 

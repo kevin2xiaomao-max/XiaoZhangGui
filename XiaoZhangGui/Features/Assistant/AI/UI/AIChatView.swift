@@ -82,9 +82,11 @@ struct AIChatView: View {
             }
         }
         .accessibilityIdentifier(V371AccessibilityID.sheetAI)
-        // V3.3 真机 hotfix：短语音面板展示 / 聆听期间隐藏底部 Tab 栏（Dock），
-        // 让面板完整使用底部安全区；取消 / 完成 / 失败关闭后自动恢复。
-        .toolbar(model.showVoicePanel ? .hidden : .visible, for: .tabBar)
+        // 注意：禁止在此处复写 tabBar 可见性（V3.6.1 已证实的禁区）：
+        // 该修饰符与 ChatInputBar 的 keyboard toolbar 同处 toolbar 解析作用域，
+        // iOS 重解析时会把 ai.input 挤出无障碍树（9 个 AI UI 测试因此失败）。
+        // V3.7.1 系统 TabBar 由 RootView 在 TabView 级别统一隐藏，
+        // 短语音面板展示期间底部安全区已天然完整，无需此处再隐藏。
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
