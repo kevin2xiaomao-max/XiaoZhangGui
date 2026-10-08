@@ -148,6 +148,20 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         XCTAssertTrue(app.alerts["删除失败"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.buttons.matching(identifier: "goods.delete").count, before)
         tapRetry(in: "删除失败")
+        // 读取诊断状态（临时诊断）
+        Thread.sleep(forTimeInterval: 2)
+        if app.staticTexts["goods.retryDiag"].exists {
+            print("DIAG-GOODS-RETRY: \(app.staticTexts["goods.retryDiag"].label)")
+        } else {
+            print("DIAG-GOODS-RETRY: 诊断元素不存在")
+        }
+        // 如果出现明确失败弹窗，输出其消息
+        if app.alerts.count > 0 {
+            for i in 0..<app.alerts.count {
+                let alert = app.alerts.allElementsBoundByIndex[i]
+                print("DIAG-GOODS-RETRY: alert[\(i)] = \(alert.label)")
+            }
+        }
         // 重试后滑动列表强制 cell 重用/刷新，区分数据未删除 vs a11y 树未更新
         app.swipeUp()
         app.swipeDown()

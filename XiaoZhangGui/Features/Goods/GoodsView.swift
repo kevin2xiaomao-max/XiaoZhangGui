@@ -16,6 +16,8 @@ struct GoodsView: View {
     @State private var editingGoods: Goods?
     @State private var failedDeleteGoodsID: PersistentIdentifier?
     @State private var deleteError: String?
+    // 临时诊断：重试路径状态（诊断后移除）
+    @State private var retryDiag = ""
     private var isMockPreview: Bool { RuntimeMode.allowsMockData }
 
     private var filtered: [Goods] {
@@ -28,6 +30,14 @@ struct GoodsView: View {
                 searchField
                 statSection
                 categoryPicker
+                #if DEBUG
+                if UITestMode.isEnabled && !retryDiag.isEmpty {
+                    Text(retryDiag)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .accessibilityIdentifier("goods.retryDiag")
+                }
+                #endif
 
                 if isMockPreview {
                     mockSection
@@ -284,14 +294,28 @@ struct GoodsView: View {
     }
 
     private func retryDelete() {
-        guard let id = failedDeleteGoodsID else { return }
+        #if DEBUG
+        let diagEnabled = UITestMode.isEnabled
+        #else
+        let diagEnabled = false
+        #endif
+        guard let id = failedDeleteGoodsID else {
+            if diagEnabled { retryDiag = "DIAG-RETRY: failedDeleteGoodsID 为空，未执行删除" }
+            // 明确显示失败，不允许静默结束
+            deleteError = "重试失败：未找到待删除的商品，请重新操作。"
+            return
+        }
+        if diagEnabled { retryDiag = "DIAG-RETRY: id=\(id)" }
         deleteError = nil
-        // 用 model(for:) 直接取，避免 predicate 对 PersistentIdentifier 比较失效
         if let goods = context.model(for: id) as? Goods {
+            if diagEnabled { retryDiag = "DIAG-RETRY: 取到对象 name=\(goods.name)，调用 delete" }
             delete(goods)
+            if diagEnabled { retryDiag += " → delete 返回" }
         } else {
-            // 对象已不存在，清除状态
+            if diagEnabled { retryDiag = "DIAG-RETRY: model(for:) 未取到对象，显示明确失败" }
+            // 对象无法定位：明确显示失败，不允许静默结束
             failedDeleteGoodsID = nil
+            deleteError = "商品数据异常，无法重试删除。"
         }
     }
 }
