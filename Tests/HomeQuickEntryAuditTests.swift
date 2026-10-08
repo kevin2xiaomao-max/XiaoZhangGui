@@ -1,4 +1,5 @@
 import XCTest
+import Foundation
 
 /// V3.7.1（2026-09-23 重写，原 V3.3 hotfix 审计已按 MD STEP 7 标记过时）：
 /// - V3.7.1 冻结 IA：AI 不再是底部 Tab，首页保留**唯一紧凑入口**
@@ -35,8 +36,22 @@ final class HomeQuickEntryAuditTests: XCTestCase {
             home.contains("AIChatView"),
             "首页不得内嵌完整 AI 对话视图"
         )
+        // 只统计真实组件调用：先剔除 // 行注释，再匹配「类型名 + (/{」
+        // 的调用语法。注释中提及类型名不计入——历史误判即源于文件头注释。
+        let codeOnly = home
+            .components(separatedBy: .newlines)
+            .map { line -> String in
+                guard let commentStart = line.range(of: "//") else { return line }
+                return String(line[..<commentStart.lowerBound])
+            }
+            .joined(separator: "\n")
+        let pattern = try NSRegularExpression(pattern: #"AICommandEntry\s*[\({]"#)
+        let matches = pattern.matches(
+            in: codeOnly,
+            range: NSRange(codeOnly.startIndex..., in: codeOnly)
+        )
         XCTAssertEqual(
-            home.components(separatedBy: "AICommandEntry").count - 1, 1,
+            matches.count, 1,
             "紧凑 AI 入口在首页只能出现一次"
         )
     }
