@@ -351,8 +351,9 @@ jobs:
           printf 'discovered=%s\npassed=%s\nfailed=%s\nnot_run=%s\nsummary=%s\n' \
             "$EXPECTED_UI" "$PASSED_UI" "$FAILED_UI" "$NOT_RUN_UI" "${summary:-MISSING}" > "$RUNNER_TEMP/ui-test-counts.txt"
           if [ "$TARGETED_MODE" = true ]; then
-            # 定向模式：实际执行且 0 失败即通过
-            if [ "$code" -eq 0 ] && grep -Eq "Executed [0-9]+ tests?, with 0 failures" "$RUNNER_TEMP/xcuitest.log"; then
+            # 定向模式：至少执行 1 个且 0 失败即通过（0 执行不算通过，防 -only-testing 名字写错的假阳性）
+            EXECUTED_N=$(grep -Eo 'Executed [0-9]+ tests?' "$RUNNER_TEMP/xcuitest.log" | tail -n 1 | grep -Eo '[0-9]+')
+            if [ "$code" -eq 0 ] && [ "${EXECUTED_N:-0}" -gt 0 ] && grep -Eq "Executed [0-9]+ tests?, with 0 failures" "$RUNNER_TEMP/xcuitest.log"; then
               echo 'status=PASS' >> "$RUNNER_TEMP/ui-test-counts.txt"
               exit 0
             fi
