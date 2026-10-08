@@ -327,15 +327,21 @@ struct GoodsView: View {
         }
         if diagEnabled { retryDiag = "DIAG-RETRY: id=\(id)" }
         deleteError = nil
-        if let goods = context.model(for: id) as? Goods {
-            if diagEnabled { retryDiag = "DIAG-RETRY: 取到对象 name=\(goods.name)，调用 delete" }
-            delete(goods)
-            if diagEnabled { retryDiag += " → delete 返回" }
-        } else {
-            if diagEnabled { retryDiag = "DIAG-RETRY: model(for:) 未取到对象，显示明确失败" }
-            // 对象无法定位：明确显示失败，不允许静默结束
-            failedDeleteGoodsID = nil
-            deleteError = "商品数据异常，无法重试删除。"
+        // 用 Fetch 全量后内存比对 ID（predicate 对 PersistentIdentifier 比较不可靠）
+        do {
+            let all = try context.fetch(FetchDescriptor<Goods>())
+            if let goods = all.first(where: { $0.persistentModelID == id }) {
+                if diagEnabled { retryDiag = "DIAG-RETRY: 取到对象 name=\(goods.name)，调用 delete" }
+                delete(goods)
+                if diagEnabled { retryDiag += " → delete 返回" }
+            } else {
+                if diagEnabled { retryDiag = "DIAG-RETRY: 全量fetch未找到对象，显示明确失败" }
+                failedDeleteGoodsID = nil
+                deleteError = "商品数据异常，无法重试删除。"
+            }
+        } catch {
+            if diagEnabled { retryDiag = "DIAG-RETRY: fetch抛错: \(error)" }
+            deleteError = "重试失败：\(error.localizedDescription)"
         }
     }
 }
