@@ -281,9 +281,29 @@ struct GoodsView: View {
 
     private func delete(_ goods: Goods) {
         Haptic.warning()
+        #if DEBUG
+        let diagEnabled = UITestMode.isEnabled
+        #else
+        let diagEnabled = false
+        #endif
         do {
             try UITestFailureInjection.throwIfRequested(.goodsDelete)
+            let targetID = goods.persistentModelID
             try GoodsRepository(context: context).delete(goods)
+            // 独立验证：用新 ModelContext 重查，确认持久化结果（不吞异常）
+            if diagEnabled {
+                do {
+                    let verifyContext = ModelContext(context.container)
+                    let fetched = verifyContext.model(for: targetID) as? Goods
+                    if fetched == nil {
+                        retryDiag = "DIAG-VERIFY: 独立查询目标不存在→持久化成功，查@Query/列表刷新"
+                    } else {
+                        retryDiag = "DIAG-VERIFY: 独立查询目标仍存在→删除未持久化，查delete/save"
+                    }
+                } catch {
+                    retryDiag = "DIAG-VERIFY: 独立查询抛错: \(error)"
+                }
+            }
             failedDeleteGoodsID = nil
         } catch {
             Haptic.error()
