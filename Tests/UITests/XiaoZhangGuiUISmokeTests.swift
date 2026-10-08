@@ -85,6 +85,9 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         tapElement("home.profile")
         XCTAssertTrue(element("screen.profile").waitForExistence(timeout: 5))
 
+        // 收款码行在页面底部，可能被 FloatingTabDock 遮挡导致 tap 误触日历 tab：
+        // 先上滑确保行位于屏幕中部再点击
+        app.swipeUp()
         tapElement("profile.paymentCodes")
         // 收款码页含二维码生成，首现可能稍慢；给足时间，必要时返回重进一次。
         if !element("screen.paymentCodes").waitForExistence(timeout: 8) {
@@ -368,29 +371,4 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         super.record(issue)
     }
 
-    /// 诊断用例：收款码导航状态（不触发失败）
-    func testDiagPaymentNav() {
-        tapElement("home.profile")
-        XCTAssertTrue(element("screen.profile").waitForExistence(timeout: 5))
-        print("=== DIAG-PAY: before tap, screen.profile exists ===")
-        // 截图：点击前
-        add(XCTAttachment(screenshot: XCUIScreen.main.screenshot()))
-        tapElement("profile.paymentCodes")
-        Thread.sleep(forTimeInterval: 3)
-        print("=== DIAG-PAY: after tap, screen.profile exists=\(element("screen.profile").exists) ===")
-        print("=== DIAG-PAY: after tap, screen.paymentCodes exists=\(element("screen.paymentCodes").exists) ===")
-        // 输出导航栏按钮
-        let navBars = app.navigationBars.allElementsBoundByIndex
-        print("=== DIAG-PAY: navigationBars count=\(navBars.count) ===")
-        for nb in navBars {
-            print("DIAG-PAY navbar: \(nb.identifier) buttons=\(nb.buttons.allElementsBoundByIndex.map { $0.label })")
-        }
-        // 截图：点击后
-        let shot = XCUIScreen.main.screenshot()
-        let att = XCTAttachment(screenshot: shot)
-        att.name = "diag-payment-after-tap"
-        att.lifetime = .keepAlways
-        add(att)
-        print("=== DIAG-PAY done ===")
-    }
 }
