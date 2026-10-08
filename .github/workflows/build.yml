@@ -265,7 +265,7 @@ jobs:
             reset_sim
             if run_attempt "$attempt"; then
               echo "XCTest PASS（attempt ${attempt}，${EXPECTED} tests / 0 failures）"
-              printf 'passed=%s\nfailed=0\nstatus=PASS\n' "$EXPECTED" >> "$RUNNER_TEMP/unit-test-counts.txt"
+              printf 'passed=%s\nfailed=0\nnot_run=0\nstatus=PASS\n' "$EXPECTED" >> "$RUNNER_TEMP/unit-test-counts.txt"
               exit 0
             fi
             echo "attempt $attempt 未全绿，重置模拟器后重试"
