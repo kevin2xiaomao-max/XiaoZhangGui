@@ -61,8 +61,9 @@ struct AIChatView: View {
                     }
                     .onAppear { scrollToBottom(proxy) }
                 }
-                // 输入栏放在 VStack 底部（而非 safeAreaInset）：safeAreaInset 内容
-                // 在 iOS 26 无障碍树中可能被排除，导致 ai.input 真实不可访问（UI 测试证实）。
+            }
+            .v371Canvas()
+            .safeAreaInset(edge: .bottom) {
                 ChatInputBar(
                     text: $model.input,
                     voiceAvailable: model.voiceAvailable,
@@ -73,7 +74,6 @@ struct AIChatView: View {
                     onFile: { showFileImporter = true }
                 )
             }
-            .v371Canvas()
             .navigationTitle("小掌柜")
             .navigationBarTitleDisplayMode(.inline)
 
@@ -81,10 +81,11 @@ struct AIChatView: View {
                 voiceOverlay
             }
         }
+        // 容器 identifier 会向下覆盖子控件：用 children: .contain 保留子元素独立标识，
+        // 同时容器本身仍可通过 sheet.ai 定位（诊断 37783082341 证实覆盖问题）。
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier(V371AccessibilityID.sheetAI)
         // 注意：禁止在此处复写 tabBar 可见性（V3.6.1 已证实的禁区）：
-        // 该修饰符与 ChatInputBar 的 keyboard toolbar 同处 toolbar 解析作用域，
-        // iOS 重解析时会把 ai.input 挤出无障碍树（9 个 AI UI 测试因此失败）。
         // V3.7.1 系统 TabBar 由 RootView 在 TabView 级别统一隐藏，
         // 短语音面板展示期间底部安全区已天然完整，无需此处再隐藏。
         .toolbar {
