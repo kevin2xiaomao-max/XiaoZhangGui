@@ -43,7 +43,6 @@ struct MemoView: View {
         .scrollIndicators(.hidden)
         .accessibilityIdentifier(V371AccessibilityID.screenMemo)
         .v371Canvas()
-        .v371DockInset()
         .navigationTitle("记录")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

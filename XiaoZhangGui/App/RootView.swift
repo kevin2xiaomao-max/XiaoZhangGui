@@ -50,7 +50,7 @@ struct RootView: View {
         }
         .toolbar(.hidden, for: .tabBar)
         .tint(V371.Colors.blue)
-        .overlay(alignment: .bottom) {
+        .safeAreaInset(edge: .bottom) {
             FloatingTabDock(selection: $tab, tabs: [.home, .todo, .calendar, .business])
         }
         .onOpenURL(perform: handleDeepLink)

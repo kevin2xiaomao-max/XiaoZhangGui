@@ -44,7 +44,6 @@ struct GoodsView: View {
         .scrollIndicators(.hidden)
         .accessibilityIdentifier(V371AccessibilityID.screenGoods)
         .v371Canvas()
-        .v371DockInset()
         .navigationTitle("临时商品")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

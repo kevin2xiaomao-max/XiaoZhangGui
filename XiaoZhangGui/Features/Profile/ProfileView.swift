@@ -75,7 +75,6 @@ struct ProfileView: View {
         // 容器 identifier 可能向下覆盖：保留子元素独立标识
         .accessibilityElement(children: .contain)
         .v371Canvas()
-        .v371DockInset()
         .navigationTitle("我的")
         .navigationBarTitleDisplayMode(.inline)
         .overlay(alignment: .bottom) {

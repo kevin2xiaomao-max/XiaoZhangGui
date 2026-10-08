@@ -58,7 +58,6 @@ struct ExpiryView: View {
         .scrollIndicators(.hidden)
         .accessibilityIdentifier(V371AccessibilityID.screenExpiry)
         .v371Canvas()
-        .v371DockInset()
         .navigationTitle("临期提醒")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

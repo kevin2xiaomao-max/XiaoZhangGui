@@ -61,7 +61,6 @@ struct TodoView: View {
         .scrollIndicators(.hidden)
         .accessibilityIdentifier(V371AccessibilityID.screenTodo)
         .v371Canvas()
-        .v371DockInset()
         .navigationTitle("待办")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

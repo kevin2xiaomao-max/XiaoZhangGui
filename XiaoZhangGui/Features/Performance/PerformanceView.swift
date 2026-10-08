@@ -78,7 +78,6 @@ struct PerformanceView: View {
         .scrollIndicators(.hidden)
         .accessibilityIdentifier(V371AccessibilityID.screenBusiness)
         .v371Canvas()
-        .v371DockInset()
         .navigationTitle("经营数据")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

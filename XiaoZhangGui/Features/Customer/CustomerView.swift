@@ -93,7 +93,6 @@ struct CustomerView: View {
         .scrollIndicators(.hidden)
         .accessibilityIdentifier(V371AccessibilityID.screenCustomer)
         .v371Canvas()
-        .v371DockInset()
         .navigationTitle("客户配送")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
