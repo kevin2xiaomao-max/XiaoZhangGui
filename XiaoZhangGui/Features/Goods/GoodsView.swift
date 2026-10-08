@@ -14,6 +14,8 @@ struct GoodsView: View {
     @State private var category = "全部"
     @State private var showNewEditor = false
     @State private var editingGoods: Goods?
+    @State private var failedDeleteGoods: Goods?
+    @State private var deleteError: String?
     private var isMockPreview: Bool { RuntimeMode.allowsMockData }
 
     private var filtered: [Goods] {
@@ -40,6 +42,7 @@ struct GoodsView: View {
             .padding(.top, 8)
         }
         .scrollIndicators(.hidden)
+        .accessibilityIdentifier(V371AccessibilityID.screenGoods)
         .v371Canvas()
         .v371DockInset()
         .navigationTitle("临时商品")
@@ -56,6 +59,17 @@ struct GoodsView: View {
         .sheet(item: $editingGoods) { goods in
             GoodsEditorSheet(goods: goods)
         }
+        .alert("删除失败", isPresented: Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })) {
+            Button("重试") {
+                deleteError = nil
+                if let goods = failedDeleteGoods { delete(goods) }
+            }
+            .accessibilityIdentifier(V371AccessibilityID.reliabilityRetry)
+            Button("取消", role: .cancel) {
+                deleteError = nil
+                failedDeleteGoods = nil
+            }
+        } message: { Text(deleteError ?? "商品未删除，请重试。") }
     }
 
     // MARK: 搜索与筛选
@@ -201,6 +215,7 @@ struct GoodsView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("删除商品")
+                .accessibilityIdentifier(V371AccessibilityID.goodsDelete)
             }
         }
     }
@@ -257,6 +272,14 @@ struct GoodsView: View {
 
     private func delete(_ goods: Goods) {
         Haptic.warning()
-        try? GoodsRepository(context: context).delete(goods)
+        do {
+            try UITestFailureInjection.throwIfRequested(.goodsDelete)
+            try GoodsRepository(context: context).delete(goods)
+            failedDeleteGoods = nil
+        } catch {
+            Haptic.error()
+            failedDeleteGoods = goods
+            deleteError = "商品未删除，请重试。"
+        }
     }
 }

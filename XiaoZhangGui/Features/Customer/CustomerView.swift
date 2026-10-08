@@ -14,6 +14,8 @@ struct CustomerView: View {
     @State private var deletingRequest: CustomerRequest?
     @State private var showDoneToast = false
     @State private var deleteError: String?
+    @State private var failedAdvanceRequest: CustomerRequest?
+    @State private var stateActionError: String?
 
     private var shown: [CustomerRequest] {
         let list = filter == .all ? requests : requests.filter { $0.statusEnum == filter.status }
@@ -89,6 +91,7 @@ struct CustomerView: View {
             .padding(.top, 8)
         }
         .scrollIndicators(.hidden)
+        .accessibilityIdentifier(V371AccessibilityID.screenCustomer)
         .v371Canvas()
         .v371DockInset()
         .navigationTitle("客户配送")
@@ -131,19 +134,38 @@ struct CustomerView: View {
         .alert("删除失败", isPresented: Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })) {
             Button("知道了", role: .cancel) { deleteError = nil }
         } message: { Text(deleteError ?? "请稍后重试") }
+        .alert("操作失败", isPresented: Binding(get: { stateActionError != nil }, set: { if !$0 { stateActionError = nil } })) {
+            Button("重试") {
+                stateActionError = nil
+                if let request = failedAdvanceRequest { advance(request) }
+            }
+            .accessibilityIdentifier(V371AccessibilityID.reliabilityRetry)
+            Button("取消", role: .cancel) {
+                stateActionError = nil
+                failedAdvanceRequest = nil
+            }
+        } message: { Text(stateActionError ?? "配送状态未改变，请重试。") }
     }
 
     private func advance(_ request: CustomerRequest) {
         let willComplete = request.statusEnum == .delivering
-        try? CustomerRepository(context: context).advanceStatus(request)
-        if willComplete {
-            Haptic.success()
-            withAnimation(reduceMotion ? nil : V32Motion.softSpring) { showDoneToast = true }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                withAnimation(reduceMotion ? nil : V32Motion.softSpring) { showDoneToast = false }
+        do {
+            try UITestFailureInjection.throwIfRequested(.customerAdvance)
+            try CustomerRepository(context: context).advanceStatus(request)
+            failedAdvanceRequest = nil
+            if willComplete {
+                Haptic.success()
+                withAnimation(reduceMotion ? nil : V32Motion.softSpring) { showDoneToast = true }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    withAnimation(reduceMotion ? nil : V32Motion.softSpring) { showDoneToast = false }
+                }
+            } else {
+                Haptic.light()
             }
-        } else {
-            Haptic.light()
+        } catch {
+            Haptic.error()
+            failedAdvanceRequest = request
+            stateActionError = "配送状态未改变，请重试。"
         }
     }
 
@@ -242,6 +264,7 @@ private struct CustomerWorkRow: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(status == .pending ? "开始配送" : "完成配送")
+                    .accessibilityIdentifier(V371AccessibilityID.customerAdvance)
                 }
             }
         }

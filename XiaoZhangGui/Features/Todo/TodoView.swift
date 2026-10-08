@@ -27,6 +27,7 @@ struct TodoView: View {
     @State private var deletingTodo: Todo?
     @State private var deleteError: String?
     @State private var stateActionError: String?
+    @State private var failedToggleTodo: Todo?
 
     private var list: [Todo] {
         if tab == .records { return [] }
@@ -58,6 +59,7 @@ struct TodoView: View {
             .padding(.top, 8)
         }
         .scrollIndicators(.hidden)
+        .accessibilityIdentifier(V371AccessibilityID.screenTodo)
         .v371Canvas()
         .v371DockInset()
         .navigationTitle("待办")
@@ -96,7 +98,19 @@ struct TodoView: View {
             Button("知道了", role: .cancel) { deleteError = nil }
         } message: { Text(deleteError ?? "请稍后重试") }
         .alert("操作失败", isPresented: Binding(get: { stateActionError != nil }, set: { if !$0 { stateActionError = nil } })) {
-            Button("知道了", role: .cancel) { stateActionError = nil }
+            Button("重试") {
+                stateActionError = nil
+                if let todo = failedToggleTodo {
+                    togglingIDs.remove(todo.persistentModelID)
+                    finishingIDs.remove(todo.persistentModelID)
+                    toggle(todo)
+                }
+            }
+            .accessibilityIdentifier(V371AccessibilityID.reliabilityRetry)
+            Button("取消", role: .cancel) {
+                stateActionError = nil
+                failedToggleTodo = nil
+            }
         } message: { Text(stateActionError ?? "待办状态未改变，请重试") }
     }
 
@@ -224,10 +238,13 @@ struct TodoView: View {
         finishingIDs.insert(pid)
         withAnimation(V32Motion.animation(V32Motion.resolve(.spring, reduceMotion: reduceMotion))) {
             do {
+                try UITestFailureInjection.throwIfRequested(.todoToggle)
                 try TodoRepository(context: context).toggleComplete(todo)
+                failedToggleTodo = nil
                 todo.isCompleted ? Haptic.success() : Haptic.light()
             } catch {
                 Haptic.error()
+                failedToggleTodo = todo
                 stateActionError = "待办状态未改变，请重试。"
             }
         }
@@ -341,6 +358,7 @@ private struct TodoListRow: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(todo.isCompleted ? "标为未完成" : "标为已完成")
+        .accessibilityIdentifier(V371AccessibilityID.todoToggle)
     }
 
     /// 删除走确认框流程（与 V3.6 一致）；44pt 命中区
@@ -381,6 +399,7 @@ private struct RecordEditorSheet: View {
     @State private var content = ""
     @State private var imageData: Data?
     @State private var selectedItem: PhotosPickerItem?
+    @State private var saveError: String?
 
     private var canSave: Bool {
         !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -423,6 +442,10 @@ private struct RecordEditorSheet: View {
         .onChange(of: selectedItem) { _, item in
             Task { imageData = try? await item?.loadTransferable(type: Data.self) }
         }
+        .alert("保存失败", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
+            Button("重试") { save() }
+            Button("取消", role: .cancel) { saveError = nil }
+        } message: { Text(saveError ?? "请稍后重试") }
     }
 
     private var header: some View {
@@ -462,8 +485,13 @@ private struct RecordEditorSheet: View {
     private func save() {
         let text = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        try? MemoRepository(context: context).add(title: text, content: text, imageData: imageData)
-        Haptic.success()
-        dismiss()
+        do {
+            try MemoRepository(context: context).add(title: text, content: text, imageData: imageData)
+            Haptic.success()
+            dismiss()
+        } catch {
+            Haptic.error()
+            saveError = "记录未保存，请重试。"
+        }
     }
 }

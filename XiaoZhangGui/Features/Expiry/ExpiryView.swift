@@ -10,6 +10,8 @@ struct ExpiryView: View {
     @State private var editingItem: ExpiryItem?
     @State private var deletingItem: ExpiryItem?
     @State private var deleteError: String?
+    @State private var failedToggleItem: ExpiryItem?
+    @State private var stateActionError: String?
 
     private var stats: ExpiryStats { ExpiryStats(items: items) }
 
@@ -54,6 +56,7 @@ struct ExpiryView: View {
             .padding(.top, 8)
         }
         .scrollIndicators(.hidden)
+        .accessibilityIdentifier(V371AccessibilityID.screenExpiry)
         .v371Canvas()
         .v371DockInset()
         .navigationTitle("临期提醒")
@@ -79,6 +82,17 @@ struct ExpiryView: View {
         .alert("删除失败", isPresented: Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })) {
             Button("知道了", role: .cancel) { deleteError = nil }
         } message: { Text(deleteError ?? "请稍后重试") }
+        .alert("操作失败", isPresented: Binding(get: { stateActionError != nil }, set: { if !$0 { stateActionError = nil } })) {
+            Button("重试") {
+                stateActionError = nil
+                if let item = failedToggleItem { toggleReturn(item) }
+            }
+            .accessibilityIdentifier(V371AccessibilityID.reliabilityRetry)
+            Button("取消", role: .cancel) {
+                stateActionError = nil
+                failedToggleItem = nil
+            }
+        } message: { Text(stateActionError ?? "退货状态未改变，请重试。") }
     }
 
     // MARK: 三格统计
@@ -120,8 +134,16 @@ struct ExpiryView: View {
 
     private func toggleReturn(_ item: ExpiryItem) {
         let wasReturned = item.status == .returned
-        try? ExpiryRepository(context: context).toggleReturn(item)
-        wasReturned ? Haptic.light() : Haptic.success()
+        do {
+            try UITestFailureInjection.throwIfRequested(.expiryToggleReturn)
+            try ExpiryRepository(context: context).toggleReturn(item)
+            failedToggleItem = nil
+            wasReturned ? Haptic.light() : Haptic.success()
+        } catch {
+            Haptic.error()
+            failedToggleItem = item
+            stateActionError = "退货状态未改变，请重试。"
+        }
     }
 }
 
@@ -175,6 +197,7 @@ private struct ExpiryWorkRow: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(item.status == .returned ? "恢复为待处理" : "标记为已退货")
+                    .accessibilityIdentifier(V371AccessibilityID.expiryToggleReturn)
                     Button(action: onDelete) {
                         Image(systemName: "trash")
                             .font(.system(size: 14, weight: .medium))
