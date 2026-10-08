@@ -61,9 +61,8 @@ struct AIChatView: View {
                     }
                     .onAppear { scrollToBottom(proxy) }
                 }
-            }
-            .v371Canvas()
-            .safeAreaInset(edge: .bottom) {
+                // 输入栏放在 VStack 底部（而非 safeAreaInset）：safeAreaInset 内容
+                // 在 iOS 26 无障碍树中可能被排除，导致 ai.input 真实不可访问（UI 测试证实）。
                 ChatInputBar(
                     text: $model.input,
                     voiceAvailable: model.voiceAvailable,
@@ -74,6 +73,7 @@ struct AIChatView: View {
                     onFile: { showFileImporter = true }
                 )
             }
+            .v371Canvas()
             .navigationTitle("小掌柜")
             .navigationBarTitleDisplayMode(.inline)
 
