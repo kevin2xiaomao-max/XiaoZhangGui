@@ -355,36 +355,6 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         return condition()
     }
 
-    /// 诊断用例：只输出 AI sheet 的无障碍树和截图，不做失败断言。
-    /// 用于确认 ai.input 是否存在、identifier 是否被容器覆盖。
-    func testDiagAISheetHierarchy() {
-        openAI()
-        // 等待 sheet 稳定
-        Thread.sleep(forTimeInterval: 2)
-        // 输出所有带 identifier 的元素
-        let all = app.descendants(matching: .any).allElementsBoundByIndex
-        print("=== DIAG: total elements: \(all.count) ===")
-        for el in all {
-            let id = el.identifier
-            if !id.isEmpty {
-                print("DIAG element: type=\(el.elementType.rawValue) id=\(id) label=\(el.label)")
-            }
-        }
-        print("=== DIAG: ai.input exists=\(element("ai.input").exists) ===")
-        print("=== DIAG: sheet.ai count=\(app.descendants(matching: .any).matching(identifier: "sheet.ai").count) ===")
-        // 输出完整无障碍树（确保没有 identifier 的 TextField/TextView 不被遗漏）
-        print("=== DIAG: full debugDescription start ===")
-        print(app.debugDescription)
-        print("=== DIAG: full debugDescription end ===")
-        // 截图
-        let shot = XCUIScreen.main.screenshot()
-        let att = XCTAttachment(screenshot: shot)
-        att.name = "diag-ai-sheet"
-        att.lifetime = .keepAlways
-        add(att)
-        print("=== DIAG done ===")
-    }
-
     override func record(_ issue: XCTIssue) {
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = "failure-\(issue.type.rawValue)"
