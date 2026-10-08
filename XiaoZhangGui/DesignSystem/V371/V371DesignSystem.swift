@@ -112,38 +112,38 @@ enum V371 {
         /// 即时反馈（0.10s）：tab 选中胶囊、press 高亮等最轻反馈
         static let instant: Animation = .easeOut(duration: 0.10)
         /// 快速（0.18s）：默认状态切换、淡入、行状态变化
-        static let fast: Animation = V371.Motion.quick
+        static let fast: Animation = V32Motion.quick
         /// 标准（0.28s）：数字滚动（numericText）、较大过渡
-        static let standard: Animation = V371.Motion.standard
+        static let standard: Animation = V32Motion.standard
         /// 强调（0.42s）：极少用，仅 deliberate 的大区块展开
-        static let emphasized: Animation = V371.Motion.slow
+        static let emphasized: Animation = V32Motion.slow
 
         /// 统一克制弹簧（response 0.35 / damping 0.86）：展开、卡片状态、完成态
-        static let spring: Animation = V371.Motion.softSpring
+        static let spring: Animation = V32Motion.softSpring
         /// 交互弹簧（response 0.28 / damping 0.82）：跟手、拖拽类
-        static let interactiveSpring: Animation = V371.Motion.interactiveSpring
+        static let interactiveSpring: Animation = V32Motion.interactiveSpring
 
         /// Quick Action 按压缩放（克制，不夸张）
         static let pressScale: CGFloat = 0.97
 
         // MARK: Reduce Motion（统一走 V32Motion 决策，保持单测可验证）
 
-        typealias Surface = V371.Motion.Surface
-        typealias Resolved = V371.Motion.Resolved
+        typealias Surface = V32Motion.Surface
+        typealias Resolved = V32Motion.Resolved
 
         /// 按系统「减弱动态效果」开关解析应使用的动效。
         static func resolve(_ surface: Surface, reduceMotion: Bool) -> Resolved {
-            V371.Motion.resolve(surface, reduceMotion: reduceMotion)
+            V32Motion.resolve(surface, reduceMotion: reduceMotion)
         }
 
         /// 由解析结果取 Animation；.none 返回 nil（调用方 withAnimation(nil) 即立即应用）。
         static func animation(_ resolved: Resolved) -> Animation? {
-            V371.Motion.animation(resolved)
+            V32Motion.animation(resolved)
         }
 
         /// 进度条宽度专用：Reduce Motion 关闭时 spring；开启时直切（nil）。
         static func progressWidth(reduceMotion: Bool) -> Animation? {
-            V371.Motion.progressWidth(reduceMotion: reduceMotion)
+            V32Motion.progressWidth(reduceMotion: reduceMotion)
         }
 
         /// 语义 token 的 Reduce Motion 安全版本：开启时返回 nil（立即应用，无装饰动效）。
