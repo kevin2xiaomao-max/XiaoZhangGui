@@ -69,16 +69,23 @@ struct CustomerView: View {
                             GroupSurface {
                                 ForEach(Array(section.items.enumerated()), id: \.element.persistentModelID) { index, request in
                                     if index > 0 { V371Divider(leading: 62) }
-                                    // 状态推进动作保留原行为：
-                                    // swipe（pending/delivering 露出推进按钮）+ 行内推进按钮 → advance(request)。
-                                    V32SwipeRow(actions: swipeActions(for: request)) {
-                                        CustomerWorkRow(
-                                            request: request,
-                                            onEdit: { editingRequest = request },
-                                            onCopyAddress: copyAddress,
-                                            onAdvance: { advance(request) },
-                                            onDelete: { deletingRequest = request }
-                                        )
+                                    // 状态推进动作：原生 swipeActions（pending/delivering 露出推进按钮）
+                                    CustomerWorkRow(
+                                        request: request,
+                                        onEdit: { editingRequest = request },
+                                        onCopyAddress: copyAddress,
+                                        onAdvance: { advance(request) },
+                                        onDelete: { deletingRequest = request }
+                                    )
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                        ForEach(swipeActions(for: request), id: \.title) { action in
+                                            Button {
+                                                action.perform()
+                                            } label: {
+                                                Label(action.title, systemImage: action.systemName)
+                                            }
+                                            .tint(action.tint)
+                                        }
                                     }
                                     .transition(.opacity.combined(with: reduceMotion ? .identity : .scale(scale: 0.98)))
                                 }
@@ -330,91 +337,3 @@ private struct V32SwipeAction: Identifiable {
     let perform: () -> Void
 }
 
-private struct V32SwipeRow<Content: View>: View {
-    let actions: [V32SwipeAction]
-    @ViewBuilder var content: Content
-
-    @State private var offsetX: CGFloat = 0
-    @State private var startOffset: CGFloat = 0
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private let buttonWidth: CGFloat = 76
-    private var maxSwipe: CGFloat { CGFloat(actions.count) * buttonWidth }
-    private var animation: Animation {
-        reduceMotion ? V32Motion.reducedFade : V32Motion.interactiveSpring
-    }
-
-    var body: some View {
-        ZStack(alignment: .trailing) {
-            // 背景按钮（右滑露出）
-            if !actions.isEmpty {
-                HStack(spacing: 0) {
-                    Spacer()
-                    ForEach(actions) { action in
-                        Button {
-                            trigger(action)
-                        } label: {
-                            VStack(spacing: 4) {
-                                Image(systemName: action.systemName)
-                                    .font(.system(size: 16, weight: .semibold))
-                                Text(action.title)
-                                    .font(.system(size: 11, weight: .medium))
-                            }
-                            .foregroundStyle(Color.white)
-                            .frame(width: buttonWidth)
-                            .frame(maxHeight: .infinity)
-                            .background(action.tint)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-            // 前景内容：done 时无 swipe 手势，避免拦截 ScrollView 滚动
-            foreground
-        }
-    }
-
-    @ViewBuilder
-    private var foreground: some View {
-        if actions.isEmpty {
-            content.background(Color.clear)
-        } else {
-            content
-                .background(Color.clear)
-                .offset(x: offsetX)
-                .highPriorityGesture(
-                    DragGesture(minimumDistance: 14)
-                        .onChanged { value in
-                            // 只允许左滑（向负方向），不超过 -maxSwipe
-                            let target = startOffset + value.translation.width
-                            offsetX = min(0, max(-maxSwipe, target))
-                        }
-                        .onEnded { value in
-                            let snapped = snap(offset: offsetX, predicted: value.predictedEndTranslation.width)
-                            startOffset = snapped
-                            withAnimation(animation) {
-                                offsetX = snapped
-                            }
-                        }
-                )
-        }
-    }
-
-    private func snap(offset: CGFloat, predicted: CGFloat) -> CGFloat {
-        if actions.isEmpty { return 0 }
-        let threshold = -maxSwipe / 2
-        if offset < threshold || predicted < -maxSwipe * 0.6 {
-            return -maxSwipe
-        }
-        return 0
-    }
-
-    private func trigger(_ action: V32SwipeAction) {
-        withAnimation(animation) {
-            offsetX = 0
-            startOffset = 0
-        }
-        action.perform()
-    }
-}
