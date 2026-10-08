@@ -24,6 +24,9 @@ jobs:
     steps:
       - name: 检出源码
         uses: actions/checkout@v4
+        with:
+          # Phase 0 证据步骤需要 triple-dot diff 基线 1eba796c：完整克隆而非浅克隆
+          fetch-depth: 0
 
       - name: V3.3 AI 写隔离检查（AI 层禁止 import SwiftData）
         run: |
