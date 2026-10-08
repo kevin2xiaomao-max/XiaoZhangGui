@@ -121,7 +121,8 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         tapElement("home.expiry")
         XCTAssertTrue(element("screen.expiry").waitForExistence(timeout: 5))
         // 内层按钮 a11y 已合并到行元素，按钮文案不可读：改由注入流程信号断言。
-        tapTrailingButton("expiry.toggleReturn")
+        // 退货按钮在行尾 HStack 内，左侧还有删除按钮：dx 按布局计算（W-97）/W。
+        tapTrailingButton("expiry.toggleReturn", dx: 0.76)
         XCTAssertTrue(app.alerts["操作失败"].waitForExistence(timeout: 5))
         tapRetry(in: "操作失败")
         // 重试成功：失败弹窗消失且不再出现（若重试又失败，弹窗会重新出现）。
@@ -136,7 +137,8 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         let before = app.buttons.matching(identifier: "goods.delete").count
         XCTAssertGreaterThan(before, 0)
         // 内层删除按钮嵌套在行级 Button 中，a11y 合并为行元素：按行尾坐标点击。
-        tapTrailingButton("goods.delete")
+        // 删除按钮 44pt 在行尾：dx 按（W-36）/W ≈ 0.905。
+        tapTrailingButton("goods.delete", dx: 0.905)
         XCTAssertTrue(app.alerts["删除失败"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.buttons.matching(identifier: "goods.delete").count, before)
         tapRetry(in: "删除失败")
@@ -149,7 +151,8 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         relaunch(failingOnce: "todo.toggle")
         assertTab("tab.todo", shows: "screen.todo")
         // 内层按钮 a11y 已合并到行元素，按钮文案不可读：改由注入流程信号断言。
-        tapTrailingButton("todo.toggle")
+        // 开关按钮在行尾 HStack 中间，右侧还有删除按钮：dx 按（W-82）/W ≈ 0.80。
+        tapTrailingButton("todo.toggle", dx: 0.80)
         XCTAssertTrue(app.alerts["操作失败"].waitForExistence(timeout: 5))
         XCTAssertTrue(element("todo.toggle").exists)
         tapRetry(in: "操作失败")
@@ -310,12 +313,15 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
 
     /// 内层操作按钮嵌套在行级 Button 中时，a11y 会合并为行元素
     /// （identifier 落在行元素上，label 为行标题），直接 tap 会命中行而非按钮。
-    /// 触摸命中本身正常，故按行尾坐标点击内层 44pt 按钮；生产代码不动。
-    private func tapTrailingButton(_ identifier: String) {
+    /// 触摸命中本身正常，故按行内坐标点击内层按钮；dx 按各行 trailing 布局
+    /// 从源码精确计算（见各测试处注释），生产代码不动。
+    private func tapTrailingButton(_ identifier: String, dx: CGFloat = 0.905) {
         let row = element(identifier)
         XCTAssertTrue(row.waitForExistence(timeout: 5), "Missing element \(identifier)")
         XCTAssertTrue(row.isHittable, "Element is not hittable: \(identifier)")
-        row.coordinate(withNormalizedOffset: CGVector(dx: 0.905, dy: 0.5)).tap()
+        let frame = row.frame
+        print("tapTrailingButton \(identifier): row frame=\(frame), tap dx=\(dx)")
+        row.coordinate(withNormalizedOffset: CGVector(dx: dx, dy: 0.5)).tap()
     }
 
     private func tapNavigationBack() {
