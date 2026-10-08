@@ -14,7 +14,7 @@ struct GoodsView: View {
     @State private var category = "全部"
     @State private var showNewEditor = false
     @State private var editingGoods: Goods?
-    @State private var failedDeleteGoods: Goods?
+    @State private var failedDeleteGoodsID: PersistentIdentifier?
     @State private var deleteError: String?
     private var isMockPreview: Bool { RuntimeMode.allowsMockData }
 
@@ -61,15 +61,12 @@ struct GoodsView: View {
         }
         .alert("删除失败", isPresented: Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })) {
             Button("重试") {
-                // 关键修复：先捕获 goods，避免 alert dismiss 导致状态丢失
-                let goodsToDelete = failedDeleteGoods
-                deleteError = nil
-                if let goods = goodsToDelete { delete(goods) }
+                retryDelete()
             }
             .accessibilityIdentifier(V371AccessibilityID.reliabilityRetry)
             Button("取消", role: .cancel) {
                 deleteError = nil
-                failedDeleteGoods = nil
+                failedDeleteGoodsID = nil
             }
         } message: { Text(deleteError ?? "商品未删除，请重试。") }
     }
@@ -277,11 +274,25 @@ struct GoodsView: View {
         do {
             try UITestFailureInjection.throwIfRequested(.goodsDelete)
             try GoodsRepository(context: context).delete(goods)
-            failedDeleteGoods = nil
+            failedDeleteGoodsID = nil
         } catch {
             Haptic.error()
-            failedDeleteGoods = goods
+            // 存 ID 而非对象，避免 SwiftData fault 导致重试时对象失效
+            failedDeleteGoodsID = goods.persistentModelID
             deleteError = "商品未删除，请重试。"
+        }
+    }
+
+    private func retryDelete() {
+        guard let id = failedDeleteGoodsID else { return }
+        deleteError = nil
+        // 重新 Fetch 新鲜对象，确保不是 fault
+        let descriptor = FetchDescriptor<Goods>(predicate: #Predicate { $0.persistentModelID == id })
+        if let goods = try? context.fetch(descriptor).first {
+            delete(goods)
+        } else {
+            // 对象已不存在，清除状态
+            failedDeleteGoodsID = nil
         }
     }
 }
