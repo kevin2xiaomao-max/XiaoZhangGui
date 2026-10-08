@@ -8,6 +8,15 @@ on:
   pull_request:
     branches: [feature/v3.7.1-muse-rebuild]
   workflow_dispatch:
+    inputs:
+      ui_test_filter:
+        description: '只运行指定的 UI 测试（-only-testing 参数，如 XiaoZhangGuiUITests/XiaoZhangGuiUISmokeTests/testMetaReplyIsLocal），空则运行全部 19 项'
+        required: false
+        default: ''
+      skip_unit_tests:
+        description: '跳过单元测试（UI 定向验证时加速）'
+        required: false
+        default: 'false'
 
 permissions:
   contents: write  # b28 T29: gh release create/upload 需要 contents: write
@@ -115,6 +124,7 @@ jobs:
 
       - name: XCTest
         timeout-minutes: 55
+        if: inputs.skip_unit_tests != 'true'
         run: |
           # GitHub 默认 shell 带 -e；整轮重试需要在 xcodebuild 失败后继续，显式关掉 -e。
           set +e
@@ -301,11 +311,18 @@ jobs:
           EXPECTED_UI=$(grep -rEho 'func[[:space:]]+test[A-Za-z0-9_]+' Tests/UITests --include='*.swift' | wc -l | tr -d '[:space:]')
           test "$EXPECTED_UI" -gt 0
           rm -rf "$RUNNER_TEMP/UITests.xcresult"
+          UI_FILTER="${{ inputs.ui_test_filter }}"
+          if [ -n "$UI_FILTER" ]; then
+            ONLY_TESTING="-only-testing:$UI_FILTER"
+            echo "定向 UI 测试：$UI_FILTER"
+          else
+            ONLY_TESTING="-only-testing:XiaoZhangGuiUITests"
+          fi
           xcodebuild test \
             -project XiaoZhangGui.xcodeproj \
             -scheme XiaoZhangGui \
             -destination "platform=iOS Simulator,name=$NAME" \
-            -only-testing:XiaoZhangGuiUITests \
+            "$ONLY_TESTING" \
             -resultBundlePath "$RUNNER_TEMP/UITests.xcresult" \
             -parallel-testing-enabled NO \
             -derivedDataPath build/Simulator \

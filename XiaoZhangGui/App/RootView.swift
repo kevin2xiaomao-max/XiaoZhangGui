@@ -16,16 +16,8 @@ struct RootView: View {
     @State private var showQuickRecord = false
     @State private var showAI = false
     @State private var showAIVoice = false
+    @Environment(\.modelContext) private var modelContext
     private let canInitializeSpeechRecognizer = SpeechService.canInitializeRecognizer
-
-    private var sharedContainer: ModelContainer {
-        // 语义与 XiaoZhangGuiApp 入口保持一致：UI 测试用内存库，正常用持久库。
-        // 计算属性无法 throws，失败时回退到 DemoCatalog 内存库（绝不崩溃）。
-        if UITestMode.isEnabled {
-            return (try? AppDatabase.makeInMemoryContainer()) ?? DemoCatalog.container
-        }
-        return (try? AppDatabase.makeContainer()) ?? DemoCatalog.container
-    }
 
     var body: some View {
         TabView(selection: $tab) {
@@ -66,7 +58,9 @@ struct RootView: View {
             QuickRecordSheet()
         }
         .sheet(isPresented: $showVoice) {
-            VoiceView(viewModel: VoiceViewModel(context: ModelContext(sharedContainer)))
+            // 直接使用 App 级主 modelContext：语音数据与主 App 同库，
+            // 不再创建重复容器（曾导致 UI 测试模式下内存库隔离、生产回退进演示库）。
+            VoiceView(viewModel: VoiceViewModel(context: modelContext))
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }

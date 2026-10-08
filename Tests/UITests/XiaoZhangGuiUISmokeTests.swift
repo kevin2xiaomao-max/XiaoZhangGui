@@ -220,8 +220,10 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
 
     private func send(_ text: String) {
         openAI()
-        let input = app.textFields["ai.input"]
-        XCTAssertTrue(input.waitForExistence(timeout: 8))
+        // ai.input 可能被识别为 textField 以外类型：用类型无关查询。
+        // 若元素真实缺失（而非类型问题），此处仍会失败，需修生产 UI。
+        let input = element("ai.input")
+        XCTAssertTrue(input.waitForExistence(timeout: 8), "ai.input not found as any element type")
         input.tap()
         let keyboardTutorial = app.buttons["Continue"]
         if keyboardTutorial.waitForExistence(timeout: 1) {
@@ -273,7 +275,8 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
     }
 
     private func openAI() {
-        if app.textFields["ai.input"].exists { return }
+        // ai.input 可能被识别为 textField 以外类型：用类型无关查询
+        if element("ai.input").exists { return }
         if !element("screen.home").exists {
             assertTab("tab.home", shows: "screen.home")
         }
