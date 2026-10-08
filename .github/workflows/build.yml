@@ -313,7 +313,13 @@ jobs:
           rm -rf "$RUNNER_TEMP/UITests.xcresult"
           UI_FILTER="${{ inputs.ui_test_filter }}"
           if [ -n "$UI_FILTER" ]; then
-            ONLY_TESTING="-only-testing:$UI_FILTER"
+            # 支持逗号分隔的多个用例，生成多个 -only-testing 参数
+            ONLY_TESTING=""
+            IFS=',' read -ra FILTERS <<< "$UI_FILTER"
+            for f in "${FILTERS[@]}"; do
+              f=$(echo "$f" | xargs)  # 去首尾空格
+              [ -n "$f" ] && ONLY_TESTING="$ONLY_TESTING -only-testing:$f"
+            done
             echo "定向 UI 测试：$UI_FILTER"
             TARGETED_MODE=true
           else
@@ -324,7 +330,7 @@ jobs:
             -project XiaoZhangGui.xcodeproj \
             -scheme XiaoZhangGui \
             -destination "platform=iOS Simulator,name=$NAME" \
-            "$ONLY_TESTING" \
+            $ONLY_TESTING \
             -resultBundlePath "$RUNNER_TEMP/UITests.xcresult" \
             -parallel-testing-enabled NO \
             -derivedDataPath build/Simulator \
