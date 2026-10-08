@@ -58,7 +58,7 @@ struct HomeView: View {
                 AICommandEntry { showAI = true }
                     .accessibilityIdentifier(V371AccessibilityID.homeAI)
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, V371.Space.page)
             .padding(.top, 6)
         }
         .scrollIndicators(.hidden)
