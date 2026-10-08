@@ -148,6 +148,12 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         XCTAssertTrue(app.alerts["删除失败"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.buttons.matching(identifier: "goods.delete").count, before)
         tapRetry(in: "删除失败")
+        // 读取诊断状态：确认 delete 是否被调用
+        Thread.sleep(forTimeInterval: 2)
+        if element("goods.deleteDiag").exists {
+            let diagState = app.staticTexts["goods.deleteDiag"].label
+            print("DIAG-GOODS: deleteState=\(diagState)")
+        }
         // 重试后滑动列表强制 cell 重用/刷新，区分数据未删除 vs a11y 树未更新
         app.swipeUp()
         app.swipeDown()
