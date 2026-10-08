@@ -125,7 +125,7 @@ struct MemoView: View {
     }
 
     private func setFilter(_ newValue: MemoFilter) {
-        withAnimation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion))) {
+        withAnimation(V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: reduceMotion))) {
             filter = newValue
         }
     }

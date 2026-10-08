@@ -108,7 +108,7 @@ struct AIChatView: View {
                 .accessibilityIdentifier("ai.menu")
             }
         }
-        .animation(V32Motion.animation(V32Motion.resolve(.spring, reduceMotion: reduceMotion)),
+        .animation(V371.Motion.animation(V371.Motion.resolve(.spring, reduceMotion: reduceMotion)),
                    value: model.showVoicePanel)
         .onChange(of: voiceDeepLink?.wrappedValue ?? false) { _, triggered in
             if triggered {
@@ -307,7 +307,7 @@ struct AIChatView: View {
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
-        withAnimation(reduceMotion ? nil : V32Motion.quick) {
+        withAnimation(reduceMotion ? nil : V371.Motion.quick) {
             proxy.scrollTo("bottom-anchor", anchor: .bottom)
         }
     }

@@ -123,7 +123,7 @@ struct GoodsView: View {
     }
 
     private func setCategory(_ newValue: String) {
-        withAnimation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion))) {
+        withAnimation(V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: reduceMotion))) {
             category = newValue
         }
     }

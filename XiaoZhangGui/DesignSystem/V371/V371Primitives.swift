@@ -404,7 +404,7 @@ struct FloatingTabDock: View {
                 let isSelected = tab == selection
                 Button {
                     Haptic.selection()
-                    withAnimation(V32Motion.quick) { selection = tab }
+                    withAnimation(V371.Motion.quick) { selection = tab }
                 } label: {
                     VStack(spacing: 3) {
                         Image(systemName: tab.icon)

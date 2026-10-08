@@ -65,7 +65,7 @@ struct ChatInputBar: View {
                         Button("完成") { focused = false }
                     }
                 }
-                .animation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion)), value: focused)
+                .animation(V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: reduceMotion)), value: focused)
                 .accessibilityIdentifier("ai.input")
 
             Button(action: sendAndDismiss) {

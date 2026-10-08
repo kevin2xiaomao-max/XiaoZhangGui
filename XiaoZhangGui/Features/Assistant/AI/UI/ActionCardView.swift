@@ -30,9 +30,9 @@ struct ActionCardView: View {
             .padding(V371.Space.rowPadding)
         }
         .transition(.opacity.combined(with: reduceMotion ? .identity : .move(edge: .bottom)))
-        .animation(V32Motion.animation(V32Motion.resolve(.spring, reduceMotion: reduceMotion)),
+        .animation(V371.Motion.animation(V371.Motion.resolve(.spring, reduceMotion: reduceMotion)),
                    value: proposal.status)
-        .animation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion)),
+        .animation(V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: reduceMotion)),
                    value: proposal.previewAcknowledged)
         .accessibilityIdentifier("ai.action-card")
     }

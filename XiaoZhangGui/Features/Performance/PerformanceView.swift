@@ -223,7 +223,7 @@ struct PerformanceView: View {
                             }
                     }
                     .frame(height: 6)
-                    .animation(V32Motion.progressWidth(reduceMotion: reduceMotion), value: goalProgress)
+                    .animation(V371.Motion.progressWidth(reduceMotion: reduceMotion), value: goalProgress)
                     .accessibilityElement()
                     .accessibilityLabel("月目标完成 \(Int((goalProgress * 100).rounded()))%")
                     V371Divider(leading: 0)

@@ -235,7 +235,7 @@ struct TodoView: View {
         guard !togglingIDs.contains(pid) else { return }
         togglingIDs.insert(pid)
         finishingIDs.insert(pid)
-        withAnimation(V32Motion.animation(V32Motion.resolve(.spring, reduceMotion: reduceMotion))) {
+        withAnimation(V371.Motion.animation(V371.Motion.resolve(.spring, reduceMotion: reduceMotion))) {
             do {
                 try UITestFailureInjection.throwIfRequested(.todoToggle)
                 try TodoRepository(context: context).toggleComplete(todo)
@@ -271,7 +271,7 @@ struct V32SegmentedPicker: View {
         HStack(spacing: 4) {
             ForEach(tabs.indices, id: \.self) { index in
                 Button {
-                    withAnimation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion))) {
+                    withAnimation(V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: reduceMotion))) {
                         selectionIndex = index
                     }
                     Haptic.light()

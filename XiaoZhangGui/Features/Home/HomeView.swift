@@ -166,7 +166,7 @@ struct HomeView: View {
             heroInfo
         }
         .contentTransition(.numericText(value: summary.revenue))
-        .animation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion)), value: summary.revenue)
+        .animation(V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: reduceMotion)), value: summary.revenue)
     }
 
     private var heroInfo: some View {

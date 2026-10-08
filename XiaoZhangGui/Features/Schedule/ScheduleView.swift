@@ -96,7 +96,7 @@ struct ScheduleView: View {
             }
             .padding(.horizontal, V371.Space.page)
             .padding(.top, 8)
-            .animation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion)), value: selectedDate)
+            .animation(V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: reduceMotion)), value: selectedDate)
         }
         .scrollIndicators(.hidden)
         .accessibilityIdentifier(V371AccessibilityID.screenCalendar)
@@ -367,7 +367,7 @@ struct ScheduleView: View {
                 title: "\(DisplayText.visible(item.name, fallback: "临期商品")) × \(item.quantity)",
                 subtitle: expiryHint(days),
                 action: {
-                    withAnimation(V32Motion.animation(V32Motion.resolve(.spring, reduceMotion: reduceMotion))) {
+                    withAnimation(V371.Motion.animation(V371.Motion.resolve(.spring, reduceMotion: reduceMotion))) {
                         if isExpanded { expandedExpiry.remove(item.notificationID) } else { expandedExpiry.insert(item.notificationID) }
                     }
                 }
@@ -453,7 +453,7 @@ struct ScheduleView: View {
     private var monthNavigator: some View {
         HStack {
             monthButton("chevron.left", label: "上个月") {
-                withAnimation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion))) {
+                withAnimation(V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: reduceMotion))) {
                     currentMonth = monthCalendar.date(byAdding: .month, value: -1, to: currentMonth) ?? currentMonth
                 }
             }
@@ -463,7 +463,7 @@ struct ScheduleView: View {
                 .foregroundStyle(V371.Colors.textPrimary)
             Spacer()
             monthButton("chevron.right", label: "下个月") {
-                withAnimation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion))) {
+                withAnimation(V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: reduceMotion))) {
                     currentMonth = monthCalendar.date(byAdding: .month, value: 1, to: currentMonth) ?? currentMonth
                 }
             }
@@ -516,7 +516,7 @@ struct ScheduleView: View {
                             memos: memos
                         )
                     ) {
-                        withAnimation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion))) {
+                        withAnimation(V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: reduceMotion))) {
                             selectedDate = date
                         }
                         Haptic.light()

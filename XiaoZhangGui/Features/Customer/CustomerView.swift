@@ -39,7 +39,7 @@ struct CustomerView: View {
                     selectionIndex: Binding(
                         get: { CustomerFilter.allCases.firstIndex(of: filter) ?? 0 },
                         set: { newValue in
-                            withAnimation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion))) {
+                            withAnimation(V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: reduceMotion))) {
                                 filter = CustomerFilter.allCases[newValue]
                             }
                         }
@@ -161,9 +161,9 @@ struct CustomerView: View {
             failedAdvanceRequest = nil
             if willComplete {
                 Haptic.success()
-                withAnimation(reduceMotion ? nil : V32Motion.softSpring) { showDoneToast = true }
+                withAnimation(reduceMotion ? nil : V371.Motion.softSpring) { showDoneToast = true }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                    withAnimation(reduceMotion ? nil : V32Motion.softSpring) { showDoneToast = false }
+                    withAnimation(reduceMotion ? nil : V371.Motion.softSpring) { showDoneToast = false }
                 }
             } else {
                 Haptic.light()
