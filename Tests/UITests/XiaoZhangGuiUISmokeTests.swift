@@ -369,6 +369,10 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         }
         print("=== DIAG: ai.input exists=\(element("ai.input").exists) ===")
         print("=== DIAG: sheet.ai count=\(app.descendants(matching: .any).matching(identifier: "sheet.ai").count) ===")
+        // 输出完整无障碍树（确保没有 identifier 的 TextField/TextView 不被遗漏）
+        print("=== DIAG: full debugDescription start ===")
+        print(app.debugDescription)
+        print("=== DIAG: full debugDescription end ===")
         // 截图
         let shot = XCUIScreen.main.screenshot()
         let att = XCTAttachment(screenshot: shot)

@@ -315,8 +315,10 @@ jobs:
           if [ -n "$UI_FILTER" ]; then
             ONLY_TESTING="-only-testing:$UI_FILTER"
             echo "定向 UI 测试：$UI_FILTER"
+            TARGETED_MODE=true
           else
             ONLY_TESTING="-only-testing:XiaoZhangGuiUITests"
+            TARGETED_MODE=false
           fi
           xcodebuild test \
             -project XiaoZhangGui.xcodeproj \
@@ -333,13 +335,27 @@ jobs:
           summary=$(grep -Eo 'Executed [0-9]+ tests?, with [0-9]+ failures?' "$RUNNER_TEMP/xcuitest.log" | tail -n 1)
           PASSED_UI=$(grep -oE "Test Case '[^']+' passed" "$RUNNER_TEMP/xcuitest.log" | sort -u | wc -l | tr -d '[:space:]')
           FAILED_UI=$(grep -oE "Test Case '[^']+' failed" "$RUNNER_TEMP/xcuitest.log" | sort -u | wc -l | tr -d '[:space:]')
-          NOT_RUN_UI=$(( EXPECTED_UI - PASSED_UI - FAILED_UI ))
-          if [ "$NOT_RUN_UI" -lt 0 ]; then NOT_RUN_UI=0; fi
+          if [ "$TARGETED_MODE" = true ]; then
+            # 定向模式：以选定用例的真实执行数及失败数为准，不计算 NOT_RUN
+            NOT_RUN_UI=0
+          else
+            NOT_RUN_UI=$(( EXPECTED_UI - PASSED_UI - FAILED_UI ))
+            if [ "$NOT_RUN_UI" -lt 0 ]; then NOT_RUN_UI=0; fi
+          fi
           printf 'discovered=%s\npassed=%s\nfailed=%s\nnot_run=%s\nsummary=%s\n' \
             "$EXPECTED_UI" "$PASSED_UI" "$FAILED_UI" "$NOT_RUN_UI" "${summary:-MISSING}" > "$RUNNER_TEMP/ui-test-counts.txt"
-          if [ "$code" -eq 0 ] && grep -Eq "Executed $EXPECTED_UI tests, with 0 failures" "$RUNNER_TEMP/xcuitest.log"; then
-            echo 'status=PASS' >> "$RUNNER_TEMP/ui-test-counts.txt"
-            exit 0
+          if [ "$TARGETED_MODE" = true ]; then
+            # 定向模式：实际执行且 0 失败即通过
+            if [ "$code" -eq 0 ] && grep -Eq "Executed [0-9]+ tests?, with 0 failures" "$RUNNER_TEMP/xcuitest.log"; then
+              echo 'status=PASS' >> "$RUNNER_TEMP/ui-test-counts.txt"
+              exit 0
+            fi
+          else
+            # 完整模式：严格要求全部发现用例执行且 0 失败
+            if [ "$code" -eq 0 ] && grep -Eq "Executed $EXPECTED_UI tests, with 0 failures" "$RUNNER_TEMP/xcuitest.log"; then
+              echo 'status=PASS' >> "$RUNNER_TEMP/ui-test-counts.txt"
+              exit 0
+            fi
           fi
           echo 'status=FAIL' >> "$RUNNER_TEMP/ui-test-counts.txt"
           exit $(( code == 0 ? 1 : code ))
