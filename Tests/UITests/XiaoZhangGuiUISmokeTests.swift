@@ -145,6 +145,11 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         XCTAssertTrue(app.alerts["删除失败"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.buttons.matching(identifier: "goods.delete").count, before)
         tapRetry(in: "删除失败")
+        // 重试后强制刷新 UI（切 tab 再回来），区分数据未删除 vs 列表未刷新
+        assertTab("tab.home", shows: "screen.home")
+        assertTab("tab.business", shows: "screen.business")
+        tapElement("business.goods")
+        XCTAssertTrue(element("screen.goods").waitForExistence(timeout: 5))
         XCTAssertTrue(waitUntil(timeout: 5) {
             self.app.buttons.matching(identifier: "goods.delete").count == before - 1
         })
@@ -361,5 +366,31 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
         super.record(issue)
+    }
+
+    /// 诊断用例：收款码导航状态（不触发失败）
+    func testDiagPaymentNav() {
+        tapElement("home.profile")
+        XCTAssertTrue(element("screen.profile").waitForExistence(timeout: 5))
+        print("=== DIAG-PAY: before tap, screen.profile exists ===")
+        // 截图：点击前
+        add(XCTAttachment(screenshot: XCUIScreen.main.screenshot()))
+        tapElement("profile.paymentCodes")
+        Thread.sleep(forTimeInterval: 3)
+        print("=== DIAG-PAY: after tap, screen.profile exists=\(element("screen.profile").exists) ===")
+        print("=== DIAG-PAY: after tap, screen.paymentCodes exists=\(element("screen.paymentCodes").exists) ===")
+        // 输出导航栏按钮
+        let navBars = app.navigationBars.allElementsBoundByIndex
+        print("=== DIAG-PAY: navigationBars count=\(navBars.count) ===")
+        for nb in navBars {
+            print("DIAG-PAY navbar: \(nb.identifier) buttons=\(nb.buttons.allElementsBoundByIndex.map { $0.label })")
+        }
+        // 截图：点击后
+        let shot = XCUIScreen.main.screenshot()
+        let att = XCTAttachment(screenshot: shot)
+        att.name = "diag-payment-after-tap"
+        att.lifetime = .keepAlways
+        add(att)
+        print("=== DIAG-PAY done ===")
     }
 }
