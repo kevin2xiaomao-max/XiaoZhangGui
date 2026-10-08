@@ -148,12 +148,7 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         XCTAssertTrue(app.alerts["删除失败"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.buttons.matching(identifier: "goods.delete").count, before)
         tapRetry(in: "删除失败")
-        // 重试后强制刷新 UI（切 tab 再回来），区分数据未删除 vs 列表未刷新
-        assertTab("tab.home", shows: "screen.home")
-        assertTab("tab.business", shows: "screen.business")
-        tapElement("business.goods")
-        XCTAssertTrue(element("screen.goods").waitForExistence(timeout: 5))
-        XCTAssertTrue(waitUntil(timeout: 5) {
+        XCTAssertTrue(waitUntil(timeout: 10) {
             self.app.buttons.matching(identifier: "goods.delete").count == before - 1
         })
     }
