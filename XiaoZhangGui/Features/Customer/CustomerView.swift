@@ -49,11 +49,11 @@ struct CustomerView: View {
                     V32FieldGroup {
                         VStack(spacing: 12) {
                             if requests.isEmpty {
-                                V32EmptyState(systemName: "shippingbox", title: "暂无客户需求", message: "可以先新增一条配送需求")
+                                EmptyState(icon: "shippingbox", title: "暂无客户需求", message: "可以先新增一条配送需求")
                                 V32PrimaryButton(title: "新增配送", systemName: "plus") { showNewEditor = true }
                                     .padding(.horizontal, 24)
                             } else {
-                                V32EmptyState(systemName: "line.3.horizontal.decrease.circle", title: "当前筛选暂无结果", message: "可以切换筛选查看其他需求")
+                                EmptyState(icon: "line.3.horizontal.decrease.circle", title: "当前筛选暂无结果", message: "可以切换筛选查看其他需求")
                             }
                         }
                         .padding(.vertical, 8)

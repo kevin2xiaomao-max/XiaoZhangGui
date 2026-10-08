@@ -22,7 +22,7 @@ struct ExpiryView: View {
                 if items.isEmpty {
                     V32FieldGroup {
                         VStack(spacing: 12) {
-                            V32EmptyState(systemName: "shippingbox", title: "暂无临期商品", message: "可以新增一条临期记录")
+                            EmptyState(icon: "shippingbox", title: "暂无临期商品", message: "可以新增一条临期记录")
                             V32PrimaryButton(title: "新增临期商品", systemName: "plus") { showNewEditor = true }
                                 .padding(.horizontal, 24)
                         }
