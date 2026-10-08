@@ -306,9 +306,9 @@ struct ProfileView: View {
     }
 
     private func showToast(_ text: String) {
-        withAnimation(reduceMotion ? nil : V371.Motion.quick) { toast = text }
+        withAnimation(reduceMotion ? nil : V371.Motion.fast) { toast = text }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-            withAnimation(reduceMotion ? nil : V371.Motion.quick) { toast = nil }
+            withAnimation(reduceMotion ? nil : V371.Motion.fast) { toast = nil }
         }
     }
 

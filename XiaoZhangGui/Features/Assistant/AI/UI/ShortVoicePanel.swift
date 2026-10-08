@@ -58,7 +58,7 @@ struct ShortVoicePanel: View {
                     .scaleEffect(reduceMotion ? 1 : (pulsing ? 1.12 : 0.94))
                     .opacity(reduceMotion ? 1 : (pulsing ? 0.55 : 1))
                     .animation(
-                        reduceMotion ? nil : V371.Motion.softSpring.repeatForever(autoreverses: true),
+                        reduceMotion ? nil : V371.Motion.spring.repeatForever(autoreverses: true),
                         value: pulsing
                     )
                 Image(systemName: phase == .finalizing ? "sparkles" : "mic.fill")

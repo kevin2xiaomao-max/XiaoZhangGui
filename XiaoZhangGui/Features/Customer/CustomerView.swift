@@ -161,9 +161,9 @@ struct CustomerView: View {
             failedAdvanceRequest = nil
             if willComplete {
                 Haptic.success()
-                withAnimation(reduceMotion ? nil : V371.Motion.softSpring) { showDoneToast = true }
+                withAnimation(reduceMotion ? nil : V371.Motion.spring) { showDoneToast = true }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                    withAnimation(reduceMotion ? nil : V371.Motion.softSpring) { showDoneToast = false }
+                    withAnimation(reduceMotion ? nil : V371.Motion.spring) { showDoneToast = false }
                 }
             } else {
                 Haptic.light()

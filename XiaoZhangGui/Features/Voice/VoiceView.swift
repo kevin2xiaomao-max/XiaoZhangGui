@@ -406,7 +406,7 @@ struct CompactVoiceWaveform: View {
                     .fill(V371.Colors.blue.opacity(0.7))
                     .frame(width: 2.5, height: height)
                     .animation(
-                        reduceMotion ? nil : V371.Motion.slow
+                        reduceMotion ? nil : V371.Motion.emphasized
                             .repeatForever(autoreverses: true)
                             .delay(Double(index % 5) * 0.07),
                         value: phase

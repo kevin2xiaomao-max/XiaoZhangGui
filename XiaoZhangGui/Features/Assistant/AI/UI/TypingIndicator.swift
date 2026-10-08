@@ -20,7 +20,7 @@ struct TypingIndicator: View {
                     .animation(
                         reduceMotion
                             ? nil
-                            : V371.Motion.quick.repeatForever().delay(0.12 * Double(index)),
+                            : V371.Motion.fast.repeatForever().delay(0.12 * Double(index)),
                         value: animating
                     )
             }

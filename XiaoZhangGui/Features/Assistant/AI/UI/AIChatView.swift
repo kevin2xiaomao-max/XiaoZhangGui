@@ -307,7 +307,7 @@ struct AIChatView: View {
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
-        withAnimation(reduceMotion ? nil : V371.Motion.quick) {
+        withAnimation(reduceMotion ? nil : V371.Motion.fast) {
             proxy.scrollTo("bottom-anchor", anchor: .bottom)
         }
     }
