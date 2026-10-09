@@ -141,21 +141,23 @@ struct PerformanceView: View {
     // MARK: Hero info（目标 / 对比）
 
     private var heroInfo: some View {
-        HStack(alignment: .bottom, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
+        // P0-B：窄屏自适应，主金额独立一行不折断
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text("今日")
                     .font(V371.Typography.rowSubtitle)
                     .foregroundStyle(V371.Colors.heroTextSecondary)
                 Text(Fmt.money(todayRevenue))
                     .font(.system(size: 20, weight: .semibold).monospacedDigit())
                     .foregroundStyle(V371.Colors.heroText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                changeBadge
             }
-            changeBadge
-            Spacer(minLength: 8)
             if !trend.isEmpty {
-                // 趋势只保留细线（TrendChart 无大面积填充）
-                TrendChart(points: trend, height: 44, onHero: true)
-                    .frame(width: 110)
+                // 趋势只保留细线（TrendChart 无大面积填充），独立一行
+                TrendChart(points: trend, height: 36, onHero: true)
+                    .frame(height: 36)
             }
         }
     }
