@@ -16,6 +16,8 @@ struct GoodsView: View {
     @State private var editingGoods: Goods?
     @State private var failedDeleteGoodsID: PersistentIdentifier?
     @State private var deleteError: String?
+    // 临时诊断：重试路径状态（诊断后移除）
+    @State private var retryDiag = ""
     private var isMockPreview: Bool { RuntimeMode.allowsMockData }
 
     private var filtered: [Goods] {
@@ -28,6 +30,14 @@ struct GoodsView: View {
                 searchField
                 statSection
                 categoryPicker
+                #if DEBUG
+                if UITestMode.isEnabled && !retryDiag.isEmpty {
+                    Text(retryDiag)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .accessibilityIdentifier("goods.retryDiag")
+                }
+                #endif
 
                 if isMockPreview {
                     mockSection
@@ -270,9 +280,37 @@ struct GoodsView: View {
 
     private func delete(_ goods: Goods) {
         Haptic.warning()
+        #if DEBUG
+        let diagEnabled = UITestMode.isEnabled
+        #else
+        let diagEnabled = false
+        #endif
         do {
             try UITestFailureInjection.throwIfRequested(.goodsDelete)
+            let targetID = goods.persistentModelID
+            let targetName = goods.name
+            // 记录删除前总数
+            var countBefore = -1
+            if diagEnabled {
+                countBefore = (try? context.fetchCount(FetchDescriptor<Goods>())) ?? -1
+            }
             try GoodsRepository(context: context).delete(goods)
+            // 严格验证：新 ModelContext + FetchDescriptor 全量查询 + 内存比对 ID（不吞异常，不用 model(for:)）
+            if diagEnabled {
+                do {
+                    let verifyContext = ModelContext(context.container)
+                    let allGoods = try verifyContext.fetch(FetchDescriptor<Goods>())
+                    let countAfter = allGoods.count
+                    let targetExists = allGoods.contains { $0.persistentModelID == targetID }
+                    if targetExists {
+                        retryDiag = "DIAG-VERIFY: 目标[\(targetName)]仍存在→删除未持久化|总数\(countBefore)→\(countAfter)"
+                    } else {
+                        retryDiag = "DIAG-VERIFY: 目标[\(targetName)]不存在→持久化成功|总数\(countBefore)→\(countAfter)|查@Query刷新"
+                    }
+                } catch {
+                    retryDiag = "DIAG-VERIFY: 查询抛错: \(error.localizedDescription)"
+                }
+            }
             failedDeleteGoodsID = nil
         } catch {
             Haptic.error()
@@ -283,14 +321,34 @@ struct GoodsView: View {
     }
 
     private func retryDelete() {
-        guard let id = failedDeleteGoodsID else { return }
+        #if DEBUG
+        let diagEnabled = UITestMode.isEnabled
+        #else
+        let diagEnabled = false
+        #endif
+        guard let id = failedDeleteGoodsID else {
+            if diagEnabled { retryDiag = "DIAG-RETRY: failedDeleteGoodsID 为空，未执行删除" }
+            // 明确显示失败，不允许静默结束
+            deleteError = "重试失败：未找到待删除的商品，请重新操作。"
+            return
+        }
+        if diagEnabled { retryDiag = "DIAG-RETRY: id=\(id)" }
         deleteError = nil
-        // 用 model(for:) 直接取，避免 predicate 对 PersistentIdentifier 比较失效
-        if let goods = context.model(for: id) as? Goods {
-            delete(goods)
-        } else {
-            // 对象已不存在，清除状态
-            failedDeleteGoodsID = nil
+        // 用 Fetch 全量后内存比对 ID（predicate 对 PersistentIdentifier 比较不可靠）
+        do {
+            let all = try context.fetch(FetchDescriptor<Goods>())
+            if let goods = all.first(where: { $0.persistentModelID == id }) {
+                if diagEnabled { retryDiag = "DIAG-RETRY: 取到对象 name=\(goods.name)，调用 delete" }
+                delete(goods)
+                if diagEnabled { retryDiag += " → delete 返回" }
+            } else {
+                if diagEnabled { retryDiag = "DIAG-RETRY: 全量fetch未找到对象，显示明确失败" }
+                failedDeleteGoodsID = nil
+                deleteError = "商品数据异常，无法重试删除。"
+            }
+        } catch {
+            if diagEnabled { retryDiag = "DIAG-RETRY: fetch抛错: \(error)" }
+            deleteError = "重试失败：\(error.localizedDescription)"
         }
     }
 }
