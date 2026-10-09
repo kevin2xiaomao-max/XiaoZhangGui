@@ -255,9 +255,7 @@ struct PerformanceView: View {
             SectionHeader("收入来源")
             GroupSurface {
                 if active.isEmpty {
-                    Text("本月暂无收入")
-                        .font(V371.Typography.rowSubtitle)
-                        .foregroundStyle(V371.Colors.textTertiary)
+                    EmptyState(icon: "chart.bar", title: "本月暂无收入", message: "记录第一笔收入开始统计")
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(V371.Space.rowPadding)
                 } else {
@@ -306,11 +304,16 @@ struct PerformanceView: View {
             SectionHeader("近期记录")
             if records.isEmpty {
                 GroupSurface {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Label("暂无交易记录", systemImage: "tray")
-                            .font(V371.Typography.rowSubtitle)
-                            .foregroundStyle(V371.Colors.textTertiary)
-                        V32PrimaryButton(title: "记一笔", systemName: "plus") { newRecordKind = .income }
+                    VStack(spacing: 12) {
+                        EmptyState(icon: "tray", title: "暂无交易记录", message: "记录第一笔交易开始统计")
+                        Button { newRecordKind = .income } label: {
+                            Label("记一笔", systemImage: "plus")
+                                .font(V371.Typography.headline)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 12)
+                                .background(Capsule().fill(V371.Colors.heroTop))
+                        }
                     }
                     .padding(V371.Space.rowPadding)
                 }
