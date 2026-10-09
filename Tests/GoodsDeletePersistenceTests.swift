@@ -17,7 +17,7 @@ final class GoodsDeletePersistenceTests: XCTestCase {
         let context = ModelContext(container)
 
         // 创建测试商品
-        let goods = Goods(name: "测试商品", category: "测试", price: 10.0, stock: 5)
+        let goods = Goods(name: "测试商品", category: "测试", stock: 5)
         context.insert(goods)
         try context.save()
 
@@ -42,7 +42,7 @@ final class GoodsDeletePersistenceTests: XCTestCase {
         let container = try makeContainer()
         let context = ModelContext(container)
 
-        let goods = Goods(name: "测试商品2", category: "测试", price: 20.0, stock: 3)
+        let goods = Goods(name: "测试商品2", category: "测试", stock: 3)
         context.insert(goods)
         try context.save()
 
