@@ -117,7 +117,7 @@ struct TodoView: View {
 
     /// P0-2：tab 导航独立于统计卡，任何 tab 下都可见
     private var tabPicker: some View {
-        V32SegmentedPicker(tabs: TodoTab.allCases.map(\.rawValue), selectionIndex: Binding(
+        TodoSegmentedPicker(tabs: TodoTab.allCases.map(\.rawValue), selectionIndex: Binding(
             get: { TodoTab.allCases.firstIndex(of: tab) ?? 0 },
             set: { tab = TodoTab.allCases[$0] }
         ))
@@ -262,7 +262,7 @@ struct TodoView: View {
 
 // MARK: - 分段选择器（V371 换肤：名称 / 初始化签名保持不变，供多处复用）
 
-struct V32SegmentedPicker: View {
+struct TodoSegmentedPicker: View {
     let tabs: [String]
     @Binding var selectionIndex: Int
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
