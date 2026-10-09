@@ -9,7 +9,7 @@ struct V32PressButtonStyle: ButtonStyle {
         configuration.label
             .opacity(configuration.isPressed ? 0.82 : 1)
             .scaleEffect(configuration.isPressed && !reduceMotion ? 0.98 : 1)
-            .animation(reduceMotion ? V371.Motion.reducedFade : V371.Motion.interactiveSpring,
+            .animation(reduceMotion ? V32Motion.reducedFade : V32Motion.interactiveSpring,
                        value: configuration.isPressed)
     }
 }
@@ -122,7 +122,7 @@ struct V32PillBar: View {
                 ForEach(items, id: \.self) { item in
                     let selected = selection == item
                     Button {
-                        withAnimation(V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: reduceMotion))) {
+                        withAnimation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion))) {
                             selection = item
                         }
                         Haptic.light()
@@ -266,7 +266,7 @@ struct V32StatusPill: View {
         // 状态变化 crossfade + 轻微 scale（0.96→1，quick）；Reduce Motion 仅 crossfade（T19）
         .id(status)
         .transition(.opacity.combined(with: reduceMotion ? .identity : .scale(scale: 0.96)))
-        .animation(V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: reduceMotion)), value: status)
+        .animation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion)), value: status)
     }
 }
 
@@ -419,7 +419,7 @@ struct V32Checkbox: View {
         .buttonStyle(V32PressButtonStyle())
         .disabled(action == nil)
         // 圆→勾 quick；Reduce Motion 无 scale，仅短淡入（T21）
-        .animation(V371.Motion.animation(V371.Motion.resolve(.spring, reduceMotion: reduceMotion)), value: checked)
+        .animation(V32Motion.animation(V32Motion.resolve(.spring, reduceMotion: reduceMotion)), value: checked)
     }
 }
 
@@ -520,7 +520,7 @@ struct V32ProgressBar: View {
                     .fill(onHero ? V32.brandOnHero : V32.brand)
                     .frame(width: max(4, geo.size.width * min(max(progress, 0), 1)))
                     // 进度变化 softSpring；Reduce Motion 直切（nil），不动 width/scale，组件内建（FR-21.7）
-                    .animation(V371.Motion.progressWidth(reduceMotion: reduceMotion), value: progress)
+                    .animation(V32Motion.progressWidth(reduceMotion: reduceMotion), value: progress)
             }
         }
         .frame(height: 7)
