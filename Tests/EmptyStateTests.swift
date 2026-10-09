@@ -9,11 +9,13 @@ final class EmptyStateTests: XCTestCase {
     func testCustomerAndExpiryEmptyStatesOfferExistingCreateFlows() throws {
         let customer = try source("XiaoZhangGui/Features/Customer/CustomerView.swift")
         XCTAssertTrue(customer.contains("requests.isEmpty"))
-        XCTAssertTrue(customer.contains("V32PrimaryButton(title: \"新增配送\""))
+        // 空状态提供新增配送入口（V371 原生 Button，不依赖旧 V32PrimaryButton 名称）
+        XCTAssertTrue(customer.contains("Label(\"新增配送\""))
         XCTAssertTrue(customer.contains("showNewEditor = true"))
 
         let expiry = try source("XiaoZhangGui/Features/Expiry/ExpiryView.swift")
-        XCTAssertTrue(expiry.contains("V32PrimaryButton(title: \"新增临期商品\""))
+        // 空状态提供新增临期商品入口
+        XCTAssertTrue(expiry.contains("Label(\"新增临期商品\""))
         XCTAssertTrue(expiry.contains("showNewEditor = true"))
     }
 
@@ -29,6 +31,7 @@ final class EmptyStateTests: XCTestCase {
         XCTAssertTrue(schedule.contains("这一天还没有安排"))
 
         let performance = try source("XiaoZhangGui/Features/Performance/PerformanceView.swift")
-        XCTAssertTrue(performance.contains("V32PrimaryButton(title: \"记一笔\""))
+        // 空状态提供记一笔入口（V371 原生 Button）
+        XCTAssertTrue(performance.contains("Label(\"记一笔\""))
     }
 }
