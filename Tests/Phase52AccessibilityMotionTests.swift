@@ -12,11 +12,11 @@ final class Phase52AccessibilityMotionTests: XCTestCase {
         let todo = try source("XiaoZhangGui/Features/Todo/TodoView.swift")
         let schedule = try source("XiaoZhangGui/Features/Schedule/ScheduleView.swift")
         let customer = try source("XiaoZhangGui/Features/Customer/CustomerView.swift")
-        XCTAssertTrue(home.contains("V32Motion.resolve(.fade, reduceMotion: reduceMotion)"))
+        XCTAssertTrue(home.contains("V371.Motion.resolve(.fade, reduceMotion: reduceMotion)"))
         XCTAssertTrue(drawer.contains("reduceMotion ? .easeOut(duration: 0.16)"))
-        XCTAssertTrue(todo.contains("V32Motion.resolve(.spring, reduceMotion: reduceMotion)"))
-        XCTAssertTrue(schedule.contains("V32Motion.resolve(.spring, reduceMotion: reduceMotion)"))
-        XCTAssertTrue(customer.contains("reduceMotion ? nil : V32Motion.softSpring"))
+        XCTAssertTrue(todo.contains("V371.Motion.resolve(.spring, reduceMotion: reduceMotion)"))
+        XCTAssertTrue(schedule.contains("V371.Motion.resolve(.spring, reduceMotion: reduceMotion)"))
+        XCTAssertTrue(customer.contains("reduceMotion ? nil : V371.Motion.spring"))
     }
 
     func testCoreRowsKeepAccessibleHitTargetsAndStateLabels() throws {
