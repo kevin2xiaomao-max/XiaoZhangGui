@@ -23,7 +23,9 @@ struct TransactionHistoryView: View {
     var body: some View {
         List {
             if records.isEmpty {
-                ContentUnavailableView("暂无交易", systemImage: "tray", description: Text("导入或记录交易后会显示在这里。"))
+                EmptyState(icon: "tray", title: "暂无交易", message: "导入或记录交易后会显示在这里。")
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
             } else {
                 ForEach(records) { record in
                     TransactionHistoryRow(record: record)
