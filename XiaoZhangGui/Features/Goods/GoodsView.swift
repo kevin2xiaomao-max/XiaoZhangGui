@@ -189,13 +189,39 @@ struct GoodsView: View {
     private func goodsRow(_ goods: Goods) -> some View {
         let state = GoodsState.of(goods)
         let tone = goodsTone(state)
-        return WorkRow(
-            icon: "shippingbox",
-            iconColor: tone,
-            title: goods.name,
-            subtitle: goodsSubtitle(goods),
-            action: { editingGoods = goods }
-        ) {
+        // P0: 编辑和删除为平级原生 Button，避免 Button 嵌套导致无障碍合并
+        // 保持 V371 视觉：图标+标题+副标题+trailing，与 WorkRow 一致
+        return HStack(spacing: 12) {
+            // 编辑按钮：主内容区
+            Button { editingGoods = goods } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "shippingbox")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(tone)
+                        .frame(width: 36, height: 36)
+                        .background(V371.Colors.tinted(tone), in: Circle())
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(goods.name)
+                            .font(V371.Typography.rowTitle)
+                            .foregroundStyle(V371.Colors.textPrimary)
+                            .lineLimit(2)
+                        let subtitle = goodsSubtitle(goods)
+                        if !subtitle.isEmpty {
+                            Text(subtitle)
+                                .font(V371.Typography.rowSubtitle)
+                                .foregroundStyle(V371.Colors.textTertiary)
+                                .lineLimit(1)
+                        }
+                    }
+                    Spacer(minLength: 8)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("编辑商品 \(goods.name)")
+
+            // trailing 区：状态+价格+删除按钮（与编辑平级）
             HStack(spacing: 4) {
                 VStack(alignment: .trailing, spacing: 5) {
                     StatusBadge(state.label, color: tone)
@@ -212,10 +238,13 @@ struct GoodsView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("删除商品")
+                .accessibilityLabel("删除商品 \(goods.name)")
                 .accessibilityIdentifier(V371AccessibilityID.goodsDelete)
             }
         }
+        .padding(.horizontal, V371.Space.rowPadding)
+        .padding(.vertical, 12)
+        .frame(minHeight: 60)
     }
 
     /// 状态色：已过期红 / 临期·缺货橙 / 正常蓝（warning 色只用在需要处）。
@@ -268,21 +297,52 @@ struct GoodsView: View {
 
     // MARK: 删除
 
+    #if DEBUG
+    @State private var retryCallCount = 0
+    #endif
+
     private func delete(_ goods: Goods) {
         Haptic.warning()
+        #if DEBUG
+        let diagOn = UITestMode.isEnabled
+        let targetID = goods.persistentModelID
+        if diagOn {
+            // 隔离模式诊断：只记录 ID 哈希与数量，不记录业务数据
+            let idHash = String(describing: targetID).hashValue
+            print("DIAG-DELETE: targetID_hash=\(idHash) @Query_count=\(allGoods.count)")
+        }
+        #endif
         do {
             try UITestFailureInjection.throwIfRequested(.goodsDelete)
             try GoodsRepository(context: context).delete(goods)
+            #if DEBUG
+            if diagOn {
+                let remaining = (try? context.fetch(FetchDescriptor<Goods>())) ?? []
+                print("DIAG-DELETE: 删除成功 DB_count=\(remaining.count) @Query_count=\(allGoods.count)")
+            }
+            #endif
             failedDeleteGoodsID = nil
         } catch {
             Haptic.error()
             // 存 ID 而非对象，避免 SwiftData fault 导致重试时对象失效
             failedDeleteGoodsID = goods.persistentModelID
             deleteError = "商品未删除，请重试。"
+            #if DEBUG
+            if diagOn {
+                print("DIAG-DELETE: 删除失败已记录 failedDeleteGoodsID")
+            }
+            #endif
         }
     }
 
     private func retryDelete() {
+        #if DEBUG
+        let diagOn = UITestMode.isEnabled
+        if diagOn {
+            retryCallCount += 1
+            print("DIAG-RETRY: 调用次数=\(retryCallCount)")
+        }
+        #endif
         guard let id = failedDeleteGoodsID else {
             // 明确显示失败，不允许静默结束
             deleteError = "重试失败：未找到待删除的商品，请重新操作。"
@@ -292,11 +352,22 @@ struct GoodsView: View {
         // 用 Fetch 全量后内存比对 ID（predicate 对 PersistentIdentifier 比较不可靠）
         do {
             let all = try context.fetch(FetchDescriptor<Goods>())
+            #if DEBUG
+            if diagOn {
+                let idHash = String(describing: id).hashValue
+                print("DIAG-RETRY: 查找ID_hash=\(idHash) DB_count=\(all.count) @Query_count=\(allGoods.count)")
+            }
+            #endif
             if let goods = all.first(where: { $0.persistentModelID == id }) {
                 delete(goods)
             } else {
                 failedDeleteGoodsID = nil
                 deleteError = "商品数据异常，无法重试删除。"
+                #if DEBUG
+                if diagOn {
+                    print("DIAG-RETRY: DB中未找到目标")
+                }
+                #endif
             }
         } catch {
             deleteError = "重试失败：\(error.localizedDescription)"
