@@ -34,24 +34,29 @@ struct CustomerView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: V371.Space.section) {
-                V32SegmentedPicker(
-                    tabs: CustomerFilter.allCases.map(\.rawValue),
-                    selectionIndex: Binding(
-                        get: { CustomerFilter.allCases.firstIndex(of: filter) ?? 0 },
-                        set: { newValue in
-                            withAnimation(V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: reduceMotion))) {
-                                filter = CustomerFilter.allCases[newValue]
-                            }
-                        }
-                    )
-                )
+                Picker("筛选", selection: $filter) {
+                    ForEach(CustomerFilter.allCases, id: \.self) { f in
+                        Text(f.rawValue).tag(f)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: filter) { _, _ in
+                    withAnimation(V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: reduceMotion))) {}
+                }
                 if shown.isEmpty {
-                    V32FieldGroup {
+                    GroupSurface {
                         VStack(spacing: 12) {
                             if requests.isEmpty {
                                 EmptyState(icon: "shippingbox", title: "暂无客户需求", message: "可以先新增一条配送需求")
-                                V32PrimaryButton(title: "新增配送", systemName: "plus") { showNewEditor = true }
-                                    .padding(.horizontal, 24)
+                                Button { showNewEditor = true } label: {
+                                    Label("新增配送", systemImage: "plus")
+                                        .font(V371.Typography.headline)
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 20)
+                                        .padding(.vertical, 12)
+                                        .background(Capsule().fill(V371.Colors.heroTop))
+                                }
+                                .padding(.horizontal, 24)
                             } else {
                                 EmptyState(icon: "line.3.horizontal.decrease.circle", title: "当前筛选暂无结果", message: "可以切换筛选查看其他需求")
                             }
@@ -115,8 +120,8 @@ struct CustomerView: View {
                     .foregroundStyle(Color.white)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
-                    .background(Capsule().fill(V32.hero))
-                    .padding(.bottom, V32Layout.bottomPad + 12)
+                    .background(Capsule().fill(V371.Colors.heroTop))
+                    .padding(.bottom, 12)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
@@ -186,14 +191,14 @@ struct CustomerView: View {
     // pending → [开始配送]；delivering → [✓ 完成]；done → []（不允许 swipe）。
     // 完成动作直接调用 advance(request)，由 CustomerRepository 写入唯一业务状态，
     // 不在 View 维护第二套 completed 状态。
-    private func swipeActions(for request: CustomerRequest) -> [V32SwipeAction] {
+    private func swipeActions(for request: CustomerRequest) -> [CustomerSwipeAction] {
         switch request.statusEnum {
         case .pending:
-            return [V32SwipeAction(title: "开始配送", systemName: "bicycle", tint: V32.brand) {
+            return [CustomerSwipeAction(title: "开始配送", systemName: "bicycle", tint: V371.Colors.blue) {
                 advance(request)
             }]
         case .delivering:
-            return [V32SwipeAction(title: "完成", systemName: "checkmark", tint: V32.brand) {
+            return [CustomerSwipeAction(title: "完成", systemName: "checkmark", tint: V371.Colors.blue) {
                 advance(request)
             }]
         case .done:
@@ -324,12 +329,12 @@ extension String {
     }
 }
 
-// MARK: - V32 Swipe Action（自绘 swipe，不退回裸 List 系统样式）
+// MARK: - Customer Swipe Action（自绘 swipe，不退回裸 List 系统样式）
 // P0-2：CustomerView 配送 Row 专用。pending/delivering 右滑露出操作按钮，
-// done 不允许 swipe。Swipe 动画统一引用 V32Motion（不夸张）。
+// done 不允许 swipe。Swipe 动画统一引用 V371.Motion（不夸张）。
 // V371：前景行背景透明，坐在 GroupSurface 上（不做嵌套卡片）。
 
-private struct V32SwipeAction: Identifiable {
+private struct CustomerSwipeAction: Identifiable {
     let id = UUID()
     let title: String
     let systemName: String
