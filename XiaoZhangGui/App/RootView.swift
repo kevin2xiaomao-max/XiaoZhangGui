@@ -32,21 +32,25 @@ struct RootView: View {
                     )
                 }
             }
+            .accessibilityIdentifier(V371AccessibilityID.tabHome)
             Tab("待办", systemImage: "checkmark.circle", value: AppTab.todo) {
                 NavigationStack {
                     TodoView()
                 }
             }
+            .accessibilityIdentifier(V371AccessibilityID.tabTodo)
             Tab("日历", systemImage: "calendar", value: AppTab.calendar) {
                 NavigationStack {
                     ScheduleView()
                 }
             }
+            .accessibilityIdentifier(V371AccessibilityID.tabCalendar)
             Tab("经营", systemImage: "chart.bar.fill", value: AppTab.business) {
                 NavigationStack {
                     PerformanceView()
                 }
             }
+            .accessibilityIdentifier(V371AccessibilityID.tabBusiness)
         }
         .tint(V371.Colors.blue)
         .onOpenURL(perform: handleDeepLink)
