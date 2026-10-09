@@ -2,11 +2,11 @@ import SwiftUI
 import SwiftData
 import Speech
 
-// MARK: - V3.7.1 Root Shell（§4：四 Tab 悬浮 dock）
+// MARK: - V3.7.1 Root Shell（P0-A：纯原生 TabView）
 //
-// 冻结 IA：首页 / 待办 / 日历 / 经营。系统 TabBar 隐藏，
-// 由 V371 FloatingTabDock（S3 surface）承载切换。
-// AI 不再是 Tab：xzg://ai / aivoice 深链与首页紧凑入口
+// 冻结 IA：首页 / 待办 / 日历 / 经营。使用系统原生 TabView，
+// 不再叠加自定义 FloatingTabDock（iOS 27 双 Tab 问题根因）。
+// AI 不再是 Tab：xzg://ai / aivoice 深链与首页入口
 // 都打开 AIChatView sheet（AI 执行语义不变）。
 // 「我的」从首页右上角头像进入（HomeView route=.profile）。
 
@@ -48,11 +48,7 @@ struct RootView: View {
                 }
             }
         }
-        .toolbar(.hidden, for: .tabBar)
         .tint(V371.Colors.blue)
-        .safeAreaInset(edge: .bottom) {
-            FloatingTabDock(selection: $tab, tabs: [.home, .todo, .calendar, .business])
-        }
         .onOpenURL(perform: handleDeepLink)
         .sheet(isPresented: $showQuickRecord) {
             QuickRecordSheet()

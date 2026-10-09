@@ -51,12 +51,10 @@ struct HomeView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: V371.Space.section) {
                 header
-                hero
-                QuickActionRow(items: quickActions)
+                heroFlat
                 focusSection
                 nextSection
-                AICommandEntry { showAI = true }
-                    .accessibilityIdentifier(V371AccessibilityID.homeAI)
+                aiEntryThin
             }
             .padding(.horizontal, V371.Space.page)
             .padding(.top, 6)
@@ -158,25 +156,57 @@ struct HomeView: View {
         .accessibilityLabel(weatherModel.snapshot.map { "\($0.city)，\($0.roundedTemperature)度" } ?? "天气")
     }
 
-    // MARK: Revenue Hero（S2 蓝色能量面）
+    // MARK: Revenue Hero（P1：Editorial 平面排版，无大蓝渐变）
 
-    private var hero: some View {
-        HeroMetric(title: "今日营业额", value: "¥" + Fmt.groupedAmount(summary.revenue),
-                   action: { route = .performance }) {
-            heroInfo
+    private var heroFlat: some View {
+        Button { route = .performance } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("今日营业额")
+                    .font(V371.Typography.rowSubtitle)
+                    .foregroundStyle(V371.Colors.textSecondary)
+                Text("¥" + Fmt.groupedAmount(summary.revenue))
+                    .font(V371.Typography.heroNumber)
+                    .foregroundStyle(V371.Colors.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                if !heroInfoParts.isEmpty {
+                    Text(heroInfoParts.joined(separator: " · "))
+                        .font(V371.Typography.badge)
+                        .foregroundStyle(V371.Colors.textTertiary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 16)
+            .contentShape(Rectangle())
         }
-        .contentTransition(.numericText(value: summary.revenue))
-        .animation(V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: reduceMotion)), value: summary.revenue)
+        .buttonStyle(.plain)
+        .accessibilityLabel("今日营业额 ¥\(Fmt.groupedAmount(summary.revenue))，查看经营详情")
     }
 
-    private var heroInfo: some View {
-        Group {
-            if !heroInfoParts.isEmpty {
-                Text(heroInfoParts.joined(separator: " · "))
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(V371.Colors.heroTextSecondary)
+    // MARK: AI 薄入口（首页专属，非 Tab）
+
+    private var aiEntryThin: some View {
+        Button { showAI = true } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 16))
+                    .foregroundStyle(V371.Colors.blue)
+                Text("问小掌柜")
+                    .font(V371.Typography.rowTitle)
+                    .foregroundStyle(V371.Colors.textPrimary)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(V371.Colors.textTertiary)
             }
+            .padding(.horizontal, V371.Space.rowPadding)
+            .padding(.vertical, 14)
+            .background(V371.Colors.group, in: RoundedRectangle(cornerRadius: 14))
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(V371AccessibilityID.homeAI)
+        .accessibilityLabel("问小掌柜，AI 助手")
     }
 
     private var heroInfoParts: [String] {
@@ -189,18 +219,6 @@ struct HomeView: View {
             parts.append("月目标 \(String(format: "%.0f", monthRevenue / monthGoal * 100))%")
         }
         return parts
-    }
-
-    // MARK: 快捷入口
-
-    private var quickActions: [QuickActionItem] {
-        [
-            QuickActionItem(icon: "box.truck.fill", title: "客户配送") { route = .customer },
-            QuickActionItem(icon: "hourglass", title: "临期退货") { route = .expiry },
-            QuickActionItem(icon: "plus.circle.fill", title: "快速记一笔") { showQuickRecord = true },
-            // audit 钉住 HomeView 不得出现 AI 名称字面量，此处用「小掌柜」映射到 AI
-            QuickActionItem(icon: "sparkles", title: "小掌柜") { showAI = true },
-        ]
     }
 
     // MARK: 今日重点
