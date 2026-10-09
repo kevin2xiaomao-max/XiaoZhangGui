@@ -50,7 +50,7 @@ struct CustomerView: View {
                                 EmptyState(icon: "shippingbox", title: "暂无客户需求", message: "可以先新增一条配送需求")
                                 Button { showNewEditor = true } label: {
                                     Label("新增配送", systemImage: "plus")
-                                        .font(V371.Typography.headline)
+                                        .font(V371.Typography.rowTitle)
                                         .foregroundStyle(.white)
                                         .padding(.horizontal, 20)
                                         .padding(.vertical, 12)

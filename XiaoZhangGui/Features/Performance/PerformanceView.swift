@@ -308,7 +308,7 @@ struct PerformanceView: View {
                         EmptyState(icon: "tray", title: "暂无交易记录", message: "记录第一笔交易开始统计")
                         Button { newRecordKind = .income } label: {
                             Label("记一笔", systemImage: "plus")
-                                .font(V371.Typography.headline)
+                                .font(V371.Typography.rowTitle)
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 20)
                                 .padding(.vertical, 12)

@@ -25,7 +25,7 @@ struct ExpiryView: View {
                             EmptyState(icon: "shippingbox", title: "暂无临期商品", message: "可以新增一条临期记录")
                             Button { showNewEditor = true } label: {
                                 Label("新增临期商品", systemImage: "plus")
-                                    .font(V371.Typography.headline)
+                                    .font(V371.Typography.rowTitle)
                                     .foregroundStyle(.white)
                                     .padding(.horizontal, 20)
                                     .padding(.vertical, 12)
