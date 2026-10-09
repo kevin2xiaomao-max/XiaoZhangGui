@@ -20,11 +20,18 @@ struct ExpiryView: View {
             VStack(alignment: .leading, spacing: V371.Space.section) {
                 statCard
                 if items.isEmpty {
-                    V32FieldGroup {
+                    GroupSurface {
                         VStack(spacing: 12) {
                             EmptyState(icon: "shippingbox", title: "暂无临期商品", message: "可以新增一条临期记录")
-                            V32PrimaryButton(title: "新增临期商品", systemName: "plus") { showNewEditor = true }
-                                .padding(.horizontal, 24)
+                            Button { showNewEditor = true } label: {
+                                Label("新增临期商品", systemImage: "plus")
+                                    .font(V371.Typography.headline)
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 20)
+                                    .padding(.vertical, 12)
+                                    .background(Capsule().fill(V371.Colors.heroTop))
+                            }
+                            .padding(.horizontal, 24)
                         }
                         .padding(.vertical, 8)
                     }
