@@ -289,19 +289,27 @@ struct GoodsView: View {
         do {
             try UITestFailureInjection.throwIfRequested(.goodsDelete)
             let targetID = goods.persistentModelID
+            let targetName = goods.name
+            // 记录删除前总数
+            var countBefore = -1
+            if diagEnabled {
+                countBefore = (try? context.fetchCount(FetchDescriptor<Goods>())) ?? -1
+            }
             try GoodsRepository(context: context).delete(goods)
-            // 独立验证：用新 ModelContext 重查，确认持久化结果（不吞异常）
+            // 严格验证：新 ModelContext + FetchDescriptor 全量查询 + 内存比对 ID（不吞异常，不用 model(for:)）
             if diagEnabled {
                 do {
                     let verifyContext = ModelContext(context.container)
-                    let fetched = verifyContext.model(for: targetID) as? Goods
-                    if fetched == nil {
-                        retryDiag = "DIAG-VERIFY: 独立查询目标不存在→持久化成功，查@Query/列表刷新"
+                    let allGoods = try verifyContext.fetch(FetchDescriptor<Goods>())
+                    let countAfter = allGoods.count
+                    let targetExists = allGoods.contains { $0.persistentModelID == targetID }
+                    if targetExists {
+                        retryDiag = "DIAG-VERIFY: 目标[\(targetName)]仍存在→删除未持久化|总数\(countBefore)→\(countAfter)"
                     } else {
-                        retryDiag = "DIAG-VERIFY: 独立查询目标仍存在→删除未持久化，查delete/save"
+                        retryDiag = "DIAG-VERIFY: 目标[\(targetName)]不存在→持久化成功|总数\(countBefore)→\(countAfter)|查@Query刷新"
                     }
                 } catch {
-                    retryDiag = "DIAG-VERIFY: 独立查询抛错: \(error)"
+                    retryDiag = "DIAG-VERIFY: 查询抛错: \(error.localizedDescription)"
                 }
             }
             failedDeleteGoodsID = nil
