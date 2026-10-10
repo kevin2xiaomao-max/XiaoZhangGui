@@ -57,6 +57,7 @@ struct TodoView: View {
             }
             .padding(.horizontal, V371.Space.page)
             .padding(.top, 8)
+            .padding(.bottom, 112)
         }
         .scrollIndicators(.hidden)
         .accessibilityIdentifier(V371AccessibilityID.screenTodo)

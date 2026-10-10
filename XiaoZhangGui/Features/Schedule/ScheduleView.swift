@@ -96,6 +96,7 @@ struct ScheduleView: View {
             }
             .padding(.horizontal, V371.Space.page)
             .padding(.top, 8)
+            .padding(.bottom, 112)
             .animation(V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: reduceMotion)), value: selectedDate)
         }
         .scrollIndicators(.hidden)
@@ -117,87 +118,31 @@ struct ScheduleView: View {
 
     // MARK: - Editorial 顶部（月标题 + 轻量周日期 strip）
 
-    private var monthTitle: String {
-        selectedDate.formatted(.dateTime.year().month(.wide).locale(Locale(identifier: "zh_CN")))
-    }
-
     private var masthead: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(monthTitle)
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(selectedDate, format: .dateTime.month(.wide).day().locale(Locale(identifier: "zh_CN")))
                     .font(.system(size: 30, weight: .bold, design: .default))
                     .foregroundStyle(V371.Colors.textPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                Spacer(minLength: 8)
-                Button("今天") {
-                    Haptic.selection()
-                    selectedDate = Date()
-                }
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(V371.Colors.blue)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(.thinMaterial, in: Capsule(style: .continuous))
-                .buttonStyle(.plain)
-                .frame(minHeight: 44)
-                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-                .accessibilityLabel("回到今天")
+                Text(scheduleWeekdayText(selectedDate))
+                    .font(.subheadline)
+                    .foregroundStyle(V371.Colors.textTertiary)
             }
-
-            GroupSurface {
-                HStack(spacing: 2) {
-                    ForEach(weekDays, id: \.self) { date in
-                        mastheadDayCell(date)
-                    }
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 8)
-                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+            Spacer(minLength: 8)
+            Button("今天") {
+                Haptic.selection()
+                selectedDate = Date()
             }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(V371.Colors.blue)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(.thinMaterial, in: Capsule(style: .continuous))
+            .buttonStyle(.plain)
+            .frame(minHeight: 44)
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+            .accessibilityLabel("回到今天")
         }
-    }
-
-    /// 本周日期（周一~周日）
-    private var weekDays: [Date] {
-        guard let weekStart = calendar.dateInterval(of: .weekOfYear, for: selectedDate)?.start else { return [] }
-        return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: weekStart) }
-    }
-
-    private func mastheadDayCell(_ date: Date) -> some View {
-        let isSelected = calendar.isDate(date, inSameDayAs: selectedDate)
-        let weekday = calendar.component(.weekday, from: date)
-        let symbols = ["日", "一", "二", "三", "四", "五", "六"]
-        let day = calendar.component(.day, from: date)
-
-        return Button {
-            Haptic.selection()
-            selectedDate = date
-        } label: {
-            VStack(spacing: 6) {
-                Text(symbols[weekday - 1])
-                    .font(.caption.weight(isSelected ? .semibold : .regular))
-                    .foregroundStyle(isSelected ? V371.Colors.blue : V371.Colors.textTertiary)
-                Text("\(day)")
-                    .font(.body)
-                    .fontWeight(date.isToday ? .bold : .medium)
-                    .foregroundStyle(isSelected ? Color.white : V371.Colors.textPrimary)
-                    .frame(width: 38, height: 38)
-                    .background(
-                        Circle().fill(isSelected ? V371.Colors.blue : Color.clear)
-                    )
-                    .overlay {
-                        if date.isToday && !isSelected {
-                            Circle().strokeBorder(V371.Colors.blue, lineWidth: 1.5)
-                        }
-                    }
-            }
-            .frame(maxWidth: .infinity, minHeight: 62)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(calendar.component(.month, from: date))月\(day)日星期\(symbols[weekday - 1])")
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     // MARK: - 当日事件（TimedRow）
@@ -269,7 +214,24 @@ struct ScheduleView: View {
             }
 
             if scheduleDay.allDay.isEmpty && scheduleDay.timedEvents.isEmpty {
-                EmptyState(icon: "sun.max", title: "该日期暂无事项", message: "这一天还没有安排")
+                HStack(spacing: 12) {
+                    Image(systemName: "sun.max")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundStyle(V371.Colors.textTertiary)
+                        .frame(width: 36, height: 36)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("该日期暂无事项")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(V371.Colors.textPrimary)
+                        Text("这一天还没有安排")
+                            .font(.footnote)
+                            .foregroundStyle(V371.Colors.textTertiary)
+                    }
+                }
+                .padding(.vertical, 8)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("该日期暂无事项")
             } else if !scheduleDay.allDay.isEmpty {
                 GroupSurface {
                     VStack(spacing: 0) {
@@ -427,21 +389,15 @@ struct ScheduleView: View {
     private var monthSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeader("月历")
-            GroupSurface {
-                VStack(spacing: 0) {
-                    monthNavigator
-                        .padding(.horizontal, V371.Space.rowPadding)
-                        .padding(.top, 10)
-                        .padding(.bottom, 4)
-                    weekdayHeader
-                        .padding(.horizontal, V371.Space.rowPadding)
-                    monthGrid
-                        .padding(.horizontal, V371.Space.rowPadding)
-                        .padding(.vertical, 6)
-                    V371Divider(leading: 0)
-                    dayDetail
-                        .padding(.bottom, 6)
-                }
+            VStack(spacing: 0) {
+                monthNavigator
+                    .padding(.bottom, 4)
+                weekdayHeader
+                monthGrid
+                    .padding(.vertical, 6)
+                V371Divider(leading: 0)
+                dayDetail
+                    .padding(.bottom, 6)
             }
         }
     }

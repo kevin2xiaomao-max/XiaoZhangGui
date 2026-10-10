@@ -65,3 +65,5 @@
 - `before/batch2-air`：第二批修改前的 iPhone Air Light / Dark 基线。
 - `after/batch2-air`：第二批修改后的 iPhone Air Light / Dark 截图及 iPhone 17e 大字号辅助验收。
 - Dark 截图通过 Simulator 系统外观切换并逐张核验，不能以测试进程环境变量代替系统 Color Scheme。
+- 成对 Light / Dark 截图使用固定 `--ui-testing-id p1-full-stable`、当天选中日期与默认筛选，确保仅比较 Color Scheme 和 Presentation，不混入测试数据差异。
+- 原生悬浮 Tab Bar 下的滚动页保留 112pt 底部呼吸区，末行可完整滚出底栏并保持可点击。
