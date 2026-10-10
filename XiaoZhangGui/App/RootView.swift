@@ -72,6 +72,7 @@ struct RootView: View {
             NavigationStack {
                 AIChatView(voiceDeepLink: $showAIVoice)
             }
+            .toolbar(.hidden, for: .tabBar)
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
         }

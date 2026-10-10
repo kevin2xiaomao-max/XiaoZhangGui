@@ -54,7 +54,11 @@ struct HomeView: View {
                 heroFlat
                 focusSection
                 nextSection
-                aiEntryThin
+                AICommandEntry {
+                    withAnimation(V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: reduceMotion))) {
+                        showAI = true
+                    }
+                }
             }
             .padding(.horizontal, V371.Space.page)
             .padding(.top, 6)
@@ -185,28 +189,32 @@ struct HomeView: View {
 
     // MARK: AI 薄入口（首页专属，非 Tab）
 
-    private var aiEntryThin: some View {
-        Button { showAI = true } label: {
-            HStack(spacing: 10) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 16))
-                    .foregroundStyle(V371.Colors.blue)
-                Text("问小掌柜")
-                    .font(V371.Typography.rowTitle)
-                    .foregroundStyle(V371.Colors.textPrimary)
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(V371.Colors.textTertiary)
+    private struct AICommandEntry: View {
+        let action: () -> Void
+
+        var body: some View {
+            Button(action: action) {
+                HStack(spacing: 10) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 16))
+                        .foregroundStyle(V371.Colors.blue)
+                    Text("问小掌柜")
+                        .font(V371.Typography.rowTitle)
+                        .foregroundStyle(V371.Colors.textPrimary)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(V371.Colors.textTertiary)
+                }
+                .padding(.horizontal, V371.Space.rowPadding)
+                .padding(.vertical, 14)
+                .background(V371.Colors.group, in: RoundedRectangle(cornerRadius: 14))
+                .contentShape(Rectangle())
             }
-            .padding(.horizontal, V371.Space.rowPadding)
-            .padding(.vertical, 14)
-            .background(V371.Colors.group, in: RoundedRectangle(cornerRadius: 14))
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+            .accessibilityIdentifier(V371AccessibilityID.homeAI)
+            .accessibilityLabel("问小掌柜，AI 助手")
         }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier(V371AccessibilityID.homeAI)
-        .accessibilityLabel("问小掌柜，AI 助手")
     }
 
     private var heroInfoParts: [String] {
