@@ -36,7 +36,13 @@ struct AIChatView: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 12) {
                             headerBlock
-                            if model.messages.isEmpty {
+                            // V3.7.1 修复：`model.messages` 在请求进行期间仍是旧值
+                            // （要等 refresh() 之后才写入本轮用户消息）。若只按
+                            // `messages.isEmpty` 判断，会话第一条消息处理期间会一直显示
+                            // emptyState，ThinkingOrbs 思考态根本不会出现。
+                            // 这里把「正在处理」也纳入 else 分支条件，保证
+                            // 「AI 开始实际处理时显示」在首条消息同样成立。
+                            if model.messages.isEmpty && !model.isProcessing {
                                 emptyState
                             } else {
                                 ForEach(model.messages) { message in

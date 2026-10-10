@@ -207,8 +207,16 @@ final class AIConversationViewModel {
     }
 
     private func refresh() async {
-        messages = await agent.messages()
-        for proposal in await agent.pendingProposals() {
+        // V3.7.1 修复：先取齐再一次性写入。
+        // 原实现在 `messages = await agent.messages()` 之后还有一次 await
+        // （pendingProposals），于是「messages 已更新、isProcessing 仍为 true」
+        // 的中间态会被 SwiftUI 渲染一帧——表现为答案已经出现、思考指示又闪一下。
+        // 改为无中间 await，使 messages 写入与 send() 中的 isProcessing = false
+        // 落在同一帧，思考指示严格在「处理结束」时停止。
+        let loaded = await agent.messages()
+        let pending = await agent.pendingProposals()
+        messages = loaded
+        for proposal in pending {
             proposals[proposal.id] = proposal
         }
     }

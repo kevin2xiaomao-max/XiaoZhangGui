@@ -12,6 +12,12 @@ packages:
   LLMProviderKit:
     url: https://github.com/ayman3000/LLMProviderKit
     exactVersion: 0.1.0-alpha.31
+  # V3.7.1 视觉：ThinkingOrbsKit（MIT © Jakub Antalik，iOS15+，零依赖，
+  # 纯 SwiftUI Canvas + TimelineView），仅用于 AI 思考态指示；精确锁版。
+  # 只在 TypingIndicator 内 import，业务层与 AI 执行链不依赖它。
+  ThinkingOrbsKit:
+    url: https://github.com/FujiwaraChoki/ThinkingOrbsKit
+    exactVersion: 0.3.1
 settings:
   base:
     SWIFT_VERSION: "5.0"
@@ -63,6 +69,8 @@ targets:
         product: LLMProviderKit
       - package: LLMProviderKit
         product: LLMProviderKitOpenAI
+      - package: ThinkingOrbsKit
+        product: ThinkingOrbsKit
   XiaoZhangGuiWidget:
     type: app-extension
     platform: iOS

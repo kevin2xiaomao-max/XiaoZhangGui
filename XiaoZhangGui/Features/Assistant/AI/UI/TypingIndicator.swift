@@ -1,43 +1,40 @@
 import SwiftUI
+import ThinkingOrbsKit
 
-// MARK: - 小掌柜「正在输入」指示（V3.7.1）
+// MARK: - 小掌柜「正在思考」指示（V3.7.1）
 //
-// 克制动画，Reduce Motion 下静止；内容区 solid 胶囊，不做 material。
+// 由真实 AI 请求状态驱动，而非独立循环动画：
+// AIChatView 仅在 `model.isProcessing` 为真时展示本视图，而该标志由
+// AIConversationViewModel 在请求真正开始（send / analyzeImage / analyzeDocument）
+// 时置位，并在「返回结果 / 失败 / 清空对话（取消）」后立即归位——
+// 视图随之从层级中移除，不存在脱离请求的常驻转动。
+//
+// Light/Dark：ThinkingOrb 的 `.auto` 主题跟随 colorScheme。
+// Reduce Motion：显式传入 paused，且 ThinkingOrb 自身也会在 Reduce Motion 下
+//   渲染确定性静态帧（其内部判定为 `reduceMotion || paused`）。
+// VoiceOver：整块合并为一个元素，朗读「小掌柜 + 当前处理文案」。
 
 struct TypingIndicator: View {
     var label = "正在思考"
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var animating = false
 
     var body: some View {
-        HStack(spacing: 5) {
-            ForEach(0..<3, id: \.self) { index in
-                Circle()
-                    .fill(V371.Colors.textTertiary)
-                    .frame(width: 7, height: 7)
-                    .opacity(animating || reduceMotion ? 1 : 0.35)
-                    .scaleEffect(reduceMotion ? 1 : (animating ? 1 : 0.8))
-                    .animation(
-                        reduceMotion
-                            ? nil
-                            : V371.Motion.fast.repeatForever().delay(0.12 * Double(index)),
-                        value: animating
-                    )
-            }
-        }
+        ThinkingOrb(
+            state: .composing,
+            size: .px20,
+            theme: .auto,
+            paused: reduceMotion,
+            displaySize: 24
+        )
         .padding(.horizontal, 14)
-        .padding(.vertical, 11)
+        .padding(.vertical, 8)
         .background(
             Capsule()
                 .fill(V371.Colors.group)
                 .overlay(Capsule().strokeBorder(V371.Colors.divider, lineWidth: 1))
         )
-        .onAppear {
-            if !reduceMotion {
-                animating = true
-            }
-        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("小掌柜\(label)")
+        .accessibilityIdentifier("ai.typing")
     }
 }
