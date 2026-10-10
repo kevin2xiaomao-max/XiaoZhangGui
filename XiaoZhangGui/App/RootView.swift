@@ -31,24 +31,28 @@ struct RootView: View {
                         showsVoiceButton: canInitializeSpeechRecognizer || UITestMode.isEnabled
                     )
                 }
+                .accessibilityIdentifier(V371AccessibilityID.screenHome)
             }
             .accessibilityIdentifier(V371AccessibilityID.tabHome)
             Tab("待办", systemImage: "checkmark.circle", value: AppTab.todo) {
                 NavigationStack {
                     TodoView()
                 }
+                .accessibilityIdentifier(V371AccessibilityID.screenTodo)
             }
             .accessibilityIdentifier(V371AccessibilityID.tabTodo)
             Tab("日历", systemImage: "calendar", value: AppTab.calendar) {
                 NavigationStack {
                     ScheduleView()
                 }
+                .accessibilityIdentifier(V371AccessibilityID.screenCalendar)
             }
             .accessibilityIdentifier(V371AccessibilityID.tabCalendar)
             Tab("经营", systemImage: "chart.bar.fill", value: AppTab.business) {
                 NavigationStack {
                     PerformanceView()
                 }
+                .accessibilityIdentifier(V371AccessibilityID.screenBusiness)
             }
             .accessibilityIdentifier(V371AccessibilityID.tabBusiness)
         }

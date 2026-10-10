@@ -28,6 +28,7 @@ struct VoiceView: View {
             if let vm = viewModel {
                 content(vm)
                     .onAppear {
+                        guard !UITestMode.isEnabled else { return }
                         guard vm.isSpeechRecognizerInitialized else { return }
                         vm.beginListening()
                     }

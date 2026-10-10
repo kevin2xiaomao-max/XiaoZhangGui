@@ -89,7 +89,12 @@ struct QuickRecordSheet: View {
         .accessibilityIdentifier(V371AccessibilityID.sheetQuickRecord)
         .presentationDragIndicator(.visible)
         .v371Canvas()
-        .onAppear { autoStartListening() }
+        // Permission sheets can terminate/relaunch the AUT while XCUITest is
+        // establishing its automation session. UI tests exercise this sheet's
+        // navigation contract, so keep voice capture opt-in in that mode.
+        .onAppear {
+            if !UITestMode.isEnabled { autoStartListening() }
+        }
         .onDisappear { voice.cancel() }
         .onChange(of: text) { _, newValue in
             overriddenKind = nil

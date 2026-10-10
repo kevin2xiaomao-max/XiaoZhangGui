@@ -67,25 +67,25 @@ struct HomeView: View {
         } message: { Text(stateActionError ?? "待办状态未改变，请重试") }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                HStack(spacing: 2) {
-                    Button { showQuickRecord = true } label: {
-                        Image(systemName: "mic.fill")
-                            .font(.system(size: 17, weight: .medium))
-                            .frame(minWidth: 44, minHeight: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .accessibilityLabel("一句话快速记录")
-                    .accessibilityIdentifier(V371AccessibilityID.homeQuickRecord)
-                    Button { route = .profile } label: {
-                        Image(systemName: "person.circle.fill")
-                            .font(.system(size: 26))
-                            .foregroundStyle(V371.Colors.textSecondary)
-                            .frame(minWidth: 44, minHeight: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .accessibilityLabel("个人中心")
-                    .accessibilityIdentifier(V371AccessibilityID.homeProfile)
+                Button { showQuickRecord = true } label: {
+                    Image(systemName: "mic.fill")
+                        .font(.system(size: 17, weight: .medium))
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
+                .accessibilityLabel("一句话快速记录")
+                .accessibilityIdentifier(V371AccessibilityID.homeQuickRecord)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { route = .profile } label: {
+                    Image(systemName: "person.circle.fill")
+                        .font(.system(size: 26))
+                        .foregroundStyle(V371.Colors.textSecondary)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel("个人中心")
+                .accessibilityIdentifier(V371AccessibilityID.homeProfile)
             }
         }
         .navigationDestination(item: $route) { destination in

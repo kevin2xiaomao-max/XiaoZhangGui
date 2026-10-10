@@ -9,9 +9,11 @@ struct XiaoZhangGuiApp: App {
     /// 快照落盘、WidgetCenter、Live Activity），规避预发布版 CI 模拟器
     /// CoreDevice lockdown 停滞时启动期主线程争用导致的测试宿主挂起。
     /// 单元测试各自构建 in-memory ModelContainer，不依赖 App 启动。
+    /// XCUITest 会将 XCTest 注入被测 App，因此不能只检查 XCTestCase；
+    /// 带 UI 测试启动参数的 AUT 必须继续走真实 RootView 启动路径。
     /// 生产进程中永远为 false，生产启动路径逻辑保持不变。
     private static var isUnitTesting: Bool {
-        NSClassFromString("XCTestCase") != nil
+        NSClassFromString("XCTestCase") != nil && !UITestMode.isEnabled
     }
 
     // P0-2：持久化失败时 container 为 nil 且保留错误原因，
@@ -66,7 +68,10 @@ struct XiaoZhangGuiApp: App {
             } else if let container {
                 RootView()
                     .id(demo.sessionID)
-                    .modelContainer(demo.isEnabled ? DemoCatalog.container : container)
+                    // UI tests must always use their freshly seeded in-memory store.
+                    // Demo mode is persisted in UserDefaults and can otherwise leak
+                    // across launches, replacing UITestSeed with DemoCatalog data.
+                    .modelContainer(UITestMode.isEnabled ? container : (demo.isEnabled ? DemoCatalog.container : container))
                     .environment(settings)
                     .environment(themeStore)
                     .tint(V32.brand)
@@ -75,7 +80,7 @@ struct XiaoZhangGuiApp: App {
                         NotificationManager.requestAuthorization()
                         // 首次启动即构建当日快照并尝试创建 Live Activity，
                         // 不依赖 scenePhase 的 onChange
-                        let contextContainer = demo.isEnabled ? DemoCatalog.container : container
+                        let contextContainer = UITestMode.isEnabled ? container : (demo.isEnabled ? DemoCatalog.container : container)
                         // P1-4：只有成功构建完整快照才落盘，失败时保留上一次有效快照
                         if let snapshot = SnapshotSyncManager.buildSnapshot(context: ModelContext(contextContainer)) {
                             snapshot.save()
@@ -97,7 +102,7 @@ struct XiaoZhangGuiApp: App {
             guard !Self.isUnitTesting else { return }
             guard phase == .active || phase == .background,
                   let container else { return }
-            let contextContainer = demo.isEnabled ? DemoCatalog.container : container
+            let contextContainer = UITestMode.isEnabled ? container : (demo.isEnabled ? DemoCatalog.container : container)
             // P1-4：查询失败不覆盖旧快照，Widget / Live Activity 继续显示上次有效数据
             guard let snapshot = SnapshotSyncManager.buildSnapshot(context: ModelContext(contextContainer)) else { return }
             snapshot.save()
