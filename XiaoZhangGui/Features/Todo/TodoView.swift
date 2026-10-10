@@ -113,7 +113,7 @@ struct TodoView: View {
         } message: { Text(stateActionError ?? "待办状态未改变，请重试") }
     }
 
-    // MARK: 分段胶囊 + 统计
+    // MARK: 分段导航 + Editorial 摘要
 
     /// P0-2：tab 导航独立于统计卡，任何 tab 下都可见
     private var tabPicker: some View {
@@ -125,18 +125,15 @@ struct TodoView: View {
 
     /// 统计数字区域（仅非「备忘」tab 显示）
     private var statsRow: some View {
-        GroupSurface {
-            HStack(spacing: 0) {
-                statCell(value: todayCount, label: "待办", icon: "sun.max", tint: V371.Colors.blue)
-                statDivider
-                statCell(value: doneCount, label: "已完成", icon: "checkmark.circle", tint: V371.Colors.green)
-                statDivider
-                statCell(value: overdueCount, label: "逾期", icon: "exclamationmark.circle",
-                         tint: overdueCount > 0 ? V371.Colors.orange : V371.Colors.textTertiary)
-            }
-            .padding(.horizontal, V371.Space.rowPadding)
-            .padding(.vertical, 4)
+        HStack(alignment: .firstTextBaseline, spacing: 0) {
+            statCell(value: todayCount, label: "待办", tint: V371.Colors.blue)
+            statDivider
+            statCell(value: doneCount, label: "已完成", tint: V371.Colors.green)
+            statDivider
+            statCell(value: overdueCount, label: "逾期",
+                     tint: overdueCount > 0 ? V371.Colors.orange : V371.Colors.textTertiary)
         }
+        .padding(.horizontal, 4)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("待办 \(todayCount)，已完成 \(doneCount)，逾期 \(overdueCount)")
     }
@@ -145,30 +142,22 @@ struct TodoView: View {
         Rectangle()
             .fill(V371.Colors.divider)
             .frame(width: 0.5)
-            .padding(.vertical, 14)
+            .frame(height: 30)
             .accessibilityHidden(true)
     }
 
-    private func statCell(value: Int, label: String, icon: String, tint: Color) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(tint)
-                .frame(width: 32, height: 32)
-                .background(V371.Colors.tinted(tint), in: Circle())
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("\(value)")
-                    .font(V371.Typography.rowTitle)
-                    .foregroundStyle(V371.Colors.textPrimary)
-                    .monospacedDigit()
-                Text(label)
-                    .font(V371.Typography.rowSubtitle)
-                    .foregroundStyle(V371.Colors.textTertiary)
-            }
+    private func statCell(value: Int, label: String, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("\(value)")
+                .font(.system(size: 24, weight: .semibold, design: .rounded).monospacedDigit())
+                .foregroundStyle(value > 0 ? tint : V371.Colors.textPrimary)
+            Text(label)
+                .font(.footnote)
+                .foregroundStyle(V371.Colors.textTertiary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 12)
+        .padding(.vertical, 2)
+        .padding(.leading, 12)
     }
 
     // MARK: 内容
@@ -178,13 +167,12 @@ struct TodoView: View {
         if tab == .records {
             recordsContent
         } else if list.isEmpty {
-            GroupSurface {
-                EmptyState(
-                    icon: "checkmark.circle",
-                    title: TodoFilter.emptyText(for: tab),
-                    message: nil
-                )
-            }
+            EmptyState(
+                icon: "checkmark.circle",
+                title: TodoFilter.emptyText(for: tab),
+                message: "新的安排会清晰地出现在这里"
+            )
+            .padding(.top, 24)
         } else {
             ForEach(groups, id: \.label) { group in
                 VStack(alignment: .leading, spacing: 8) {
@@ -310,19 +298,43 @@ private struct TodoListRow: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        WorkRow(
-            icon: rowIcon,
-            iconColor: rowColor,
-            title: DisplayText.visible(todo.title, fallback: "待办事项"),
-            subtitle: subtitle,
-            action: onEdit
-        ) {
-            HStack(spacing: 2) {
-                StatusBadge(timeText, color: timeColor)
-                toggleButton
-                deleteButton
+        HStack(spacing: 10) {
+            toggleButton
+            Button(action: onEdit) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(DisplayText.visible(todo.title, fallback: "待办事项"))
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(todo.isCompleted ? V371.Colors.textTertiary : V371.Colors.textPrimary)
+                        .strikethrough(todo.isCompleted, color: V371.Colors.textTertiary)
+                        .lineLimit(2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    ViewThatFits(in: .horizontal) {
+                        metadataLine
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 6) {
+                                Label(todo.priorityLevel.label, systemImage: rowIcon)
+                                    .foregroundStyle(rowColor)
+                                Text(timeText)
+                                    .foregroundStyle(timeColor)
+                            }
+                            if !subtitle.isEmpty {
+                                Text(subtitle)
+                                    .foregroundStyle(V371.Colors.textTertiary)
+                                    .lineLimit(2)
+                            }
+                        }
+                    }
+                    .font(.footnote)
+                }
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("编辑 \(DisplayText.visible(todo.title, fallback: "待办事项"))")
+            deleteMenu
         }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 10)
+        .frame(minHeight: 68)
         .opacity(isFinishing ? 0 : 1)
         .scaleEffect(isFinishing && !reduceMotion ? 0.97 : 1)
         .transition(.opacity.combined(with: reduceMotion ? .identity : .scale(scale: 0.98)))
@@ -350,8 +362,8 @@ private struct TodoListRow: View {
     private var toggleButton: some View {
         Button(action: onToggle) {
             Image(systemName: todo.isCompleted ? "checkmark.circle.fill" : "circle")
-                .font(.system(size: 22, weight: .medium))
-                .foregroundStyle(todo.isCompleted ? V371.Colors.green : V371.Colors.textTertiary)
+                .font(.system(size: 24, weight: .medium))
+                .foregroundStyle(todo.isCompleted ? V371.Colors.green : rowColor)
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
@@ -360,23 +372,44 @@ private struct TodoListRow: View {
         .accessibilityIdentifier(V371AccessibilityID.todoToggle)
     }
 
-    /// 删除走确认框流程（与 V3.6 一致）；44pt 命中区
-    private var deleteButton: some View {
-        Button(action: onDelete) {
-            Image(systemName: "trash")
-                .font(.system(size: 16, weight: .regular))
+    /// 编辑与删除收进原生菜单，减少行尾竞争；删除仍走原确认流程。
+    private var deleteMenu: some View {
+        Menu {
+            Button("编辑", systemImage: "pencil", action: onEdit)
+            Button("删除", systemImage: "trash", role: .destructive, action: onDelete)
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(V371.Colors.textTertiary)
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
         .accessibilityLabel("删除待办")
+        .accessibilityHint("打开编辑或删除操作菜单")
     }
 
     private var subtitle: String {
         let detail = DisplayText.visible(todo.detail)
-        if !detail.isEmpty { return detail }
-        return todo.priorityLevel.label
+        return detail
+    }
+
+    private var metadataLine: some View {
+        HStack(spacing: 6) {
+            Label(todo.priorityLevel.label, systemImage: rowIcon)
+                .foregroundStyle(rowColor)
+            Text("·")
+                .foregroundStyle(V371.Colors.textTertiary)
+            Text(timeText)
+                .foregroundStyle(timeColor)
+            if !subtitle.isEmpty {
+                Text("·")
+                    .foregroundStyle(V371.Colors.textTertiary)
+                Text(subtitle)
+                    .foregroundStyle(V371.Colors.textTertiary)
+                    .lineLimit(1)
+            }
+        }
+        .lineLimit(1)
     }
 
     private var timeText: String {

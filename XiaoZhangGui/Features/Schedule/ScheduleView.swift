@@ -4,7 +4,7 @@ import SwiftUI
 // MARK: - 日历（V3.7.1：Schedule + Calendar 合并）
 //
 // 结构（MD §7）：
-// - 顶部蓝色 S2 masthead：月份标题 + 横向日期 strip，当前日白胶囊
+// - 顶部 editorial 月份标题 + 轻量周日期 strip
 // - 当日事件 GroupSurface：TimedRow（time/title/type-status/trailing 完成圈），allDay 事项为 WorkRow
 // - 月历 Section：月份导航 + 状态点月历 + 当日详情行（整月能力保留，去玻璃卡，保留行 + hairline）
 // - 当日经营摘要（数据口径不变）
@@ -115,55 +115,47 @@ struct ScheduleView: View {
         }
     }
 
-    // MARK: - S2 顶部 masthead（月份标题 + 日期 strip，当前日白胶囊）
+    // MARK: - Editorial 顶部（月标题 + 轻量周日期 strip）
 
     private var monthTitle: String {
         selectedDate.formatted(.dateTime.year().month(.wide).locale(Locale(identifier: "zh_CN")))
     }
 
     private var masthead: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .center) {
-                Text("日历")
-                    .font(V371.Typography.heroTitle)
-                    .foregroundStyle(V371.Colors.heroText)
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .firstTextBaseline) {
                 Text(monthTitle)
-                    .font(V371.Typography.badge)
-                    .foregroundStyle(V371.Colors.heroText)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(.white.opacity(0.22), in: Capsule(style: .continuous))
+                    .font(.system(size: 30, weight: .bold, design: .default))
+                    .foregroundStyle(V371.Colors.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 Spacer(minLength: 8)
                 Button("今天") {
                     Haptic.selection()
                     selectedDate = Date()
                 }
-                .font(V371.Typography.badge)
-                .foregroundStyle(V371.Colors.heroText)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(V371.Colors.blue)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
-                .background(.white.opacity(0.22), in: Capsule(style: .continuous))
+                .background(.thinMaterial, in: Capsule(style: .continuous))
                 .buttonStyle(.plain)
                 .frame(minHeight: 44)
+                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                 .accessibilityLabel("回到今天")
             }
 
-            HStack(spacing: 2) {
-                ForEach(weekDays, id: \.self) { date in
-                    mastheadDayCell(date)
+            GroupSurface {
+                HStack(spacing: 2) {
+                    ForEach(weekDays, id: \.self) { date in
+                        mastheadDayCell(date)
+                    }
                 }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 8)
+                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             }
         }
-        .padding(20)
-        .background(
-            LinearGradient(
-                colors: [V371.Colors.heroTop, V371.Colors.heroBottom],
-                startPoint: .topLeading, endPoint: .bottomTrailing
-            )
-            .clipShape(RoundedRectangle(cornerRadius: V371.Radius.hero, style: .continuous))
-        )
-        .shadow(color: V371.Shadow.hero.color, radius: V371.Shadow.hero.radius,
-                y: V371.Shadow.hero.y)
     }
 
     /// 本周日期（周一~周日）
@@ -184,19 +176,23 @@ struct ScheduleView: View {
         } label: {
             VStack(spacing: 6) {
                 Text(symbols[weekday - 1])
-                    .font(V371.Typography.badge)
-                    .foregroundStyle(V371.Colors.heroText)
+                    .font(.caption.weight(isSelected ? .semibold : .regular))
+                    .foregroundStyle(isSelected ? V371.Colors.blue : V371.Colors.textTertiary)
                 Text("\(day)")
-                    .font(V371.Typography.sectionTitle)
+                    .font(.body)
                     .fontWeight(date.isToday ? .bold : .medium)
-                    .foregroundStyle(isSelected ? V371.Colors.blue : V371.Colors.heroText)
-                    .frame(width: 40, height: 40)
+                    .foregroundStyle(isSelected ? Color.white : V371.Colors.textPrimary)
+                    .frame(width: 38, height: 38)
                     .background(
-                        Capsule(style: .continuous)
-                            .fill(isSelected ? Color.white : Color.clear)
+                        Circle().fill(isSelected ? V371.Colors.blue : Color.clear)
                     )
+                    .overlay {
+                        if date.isToday && !isSelected {
+                            Circle().strokeBorder(V371.Colors.blue, lineWidth: 1.5)
+                        }
+                    }
             }
-            .frame(maxWidth: .infinity, minHeight: 64)
+            .frame(maxWidth: .infinity, minHeight: 62)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

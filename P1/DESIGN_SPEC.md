@@ -56,9 +56,12 @@
 
 ## 截图基线
 
-- 设备：你的小掌柜 V371 iPhone 17。
-- Simulator Runtime：iOS 26.5（23F77）。
+- 主 UI 验收设备：Xcode 设备类型 `iPhone Air`。
+- 当前可用 Simulator Runtime：iOS 26.5（23F77）。iOS 27 Beta Runtime 当前未安装，相关兼容性明确记为未验证。
+- `iPhone 17e` 仅用于窄屏与辅助功能大字号验收，不作为主设计基准。
 - `before/light` 与 `before/dark`：P0 稳定提交 `1cb24d9` 的实际运行截图。
 - `after/batch1`：首页第一批修改后的实际运行截图。
 - `after/batch1/narrow`：iPhone 17e、iOS 26.5、辅助功能超大字号的窄屏验收截图。
+- `before/batch2-air`：第二批修改前的 iPhone Air Light / Dark 基线。
+- `after/batch2-air`：第二批修改后的 iPhone Air Light / Dark 截图及 iPhone 17e 大字号辅助验收。
 - Dark 截图通过 Simulator 系统外观切换并逐张核验，不能以测试进程环境变量代替系统 Color Scheme。
