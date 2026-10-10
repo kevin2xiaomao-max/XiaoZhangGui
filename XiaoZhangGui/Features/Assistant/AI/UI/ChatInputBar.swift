@@ -44,7 +44,7 @@ struct ChatInputBar: View {
             .disabled(!voiceAvailable)
             .accessibilityLabel("语音输入")
 
-            TextField("问小掌柜…（如：今天美团680）", text: $text, axis: .vertical)
+            TextField("问小掌柜…", text: $text, axis: .vertical)
                 .focused($focused)
                 .lineLimit(1...4)
                 .font(.body)

@@ -72,7 +72,7 @@ struct PerformanceView: View {
             }
             .padding(.horizontal, V371.Space.page)
             .padding(.top, V371.Space.page)
-            .padding(.bottom, 112)
+            .padding(.bottom, V371.Space.section)
         }
         .scrollIndicators(.hidden)
         .accessibilityIdentifier(V371AccessibilityID.screenBusiness)

@@ -100,7 +100,7 @@ struct CustomerView: View {
             }
             .padding(.horizontal, V371.Space.page)
             .padding(.top, 8)
-            .padding(.bottom, 112)
+            .padding(.bottom, V371.Space.section)
         }
         .scrollIndicators(.hidden)
         .accessibilityIdentifier(V371AccessibilityID.screenCustomer)
@@ -248,17 +248,11 @@ private struct CustomerWorkRow: View {
             icon: icon,
             iconColor: statusColor,
             title: request.displayTitle,
-            subtitle: request.displaySubtitle,
+            subtitle: "\(timeText) · \(request.displaySubtitle)",
             action: onEdit
         ) {
             HStack(spacing: 8) {
-                VStack(alignment: .trailing, spacing: 4) {
-                    StatusBadge(status.rawValue, color: statusColor)
-                    Text(timeText)
-                        .font(V371.Typography.time)
-                        .foregroundStyle(V371.Colors.textTertiary)
-                        .lineLimit(1)
-                }
+                StatusBadge(status.rawValue, color: statusColor)
                 // P0-4：配送带图时在行内直接显示缩略图（round-trip：列表可见）
                 if request.imageData != nil {
                     ImageThumb(imageData: request.imageData, size: 44)

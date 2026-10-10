@@ -61,7 +61,7 @@ struct ExpiryView: View {
             }
             .padding(.horizontal, V371.Space.page)
             .padding(.top, 8)
-            .padding(.bottom, 112)
+            .padding(.bottom, V371.Space.section)
         }
         .scrollIndicators(.hidden)
         .accessibilityIdentifier(V371AccessibilityID.screenExpiry)
@@ -106,11 +106,11 @@ struct ExpiryView: View {
 
     private var statCard: some View {
         HStack(spacing: 8) {
-            statCell(count: stats.urgentCount, label: "3天内到期", color: V371.Colors.red)
+            statCell(count: stats.urgentCount, label: "0–3天", color: V371.Colors.red)
             statDivider
-            statCell(count: stats.warningCount, label: "7天内到期", color: V371.Colors.orange)
+            statCell(count: stats.warningCount, label: "4–7天", color: V371.Colors.orange)
             statDivider
-            statCell(count: stats.safeCount, label: "30天内到期", color: V371.Colors.blue)
+            statCell(count: stats.safeCount, label: "8–30天", color: V371.Colors.blue)
         }
         .padding(.vertical, 8)
     }

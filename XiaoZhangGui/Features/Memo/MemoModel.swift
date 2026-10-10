@@ -32,7 +32,7 @@ enum MemoSearch {
             .sorted { $0.updatedAt > $1.updatedAt }
     }
 
-    static let emptyText = "暂无记录，点击右下角添加"
+    static let emptyText = "暂无记录，点击右上角新建"
 
     /// 卡片左侧色条（稳定分配：绿 / 橙 / 蓝，基于创建时间）
     static func accentIndex(for memo: Memo) -> Int {

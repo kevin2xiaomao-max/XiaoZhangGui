@@ -165,12 +165,17 @@ struct AIChatView: View {
                 .foregroundStyle(V371.Colors.textSecondary)
             HStack(spacing: 8) {
                 StatusBadge(
-                    model.isRemoteConfigured ? "Key 已保存" : "未配置",
+                    model.isRemoteConfigured ? "Key 已保存" : "本地模式",
                     color: model.isRemoteConfigured ? V371.Colors.green : V371.Colors.gray
                 )
                 if DemoMode.shared.isEnabled {
                     StatusBadge("演示模式", color: V371.Colors.orange)
                 }
+            }
+            if !model.isRemoteConfigured {
+                Text("本地查询与记录可直接使用；联网 AI 需在设置中配置。")
+                    .font(.footnote)
+                    .foregroundStyle(V371.Colors.textSecondary)
             }
         }
     }

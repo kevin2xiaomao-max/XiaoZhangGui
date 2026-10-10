@@ -20,7 +20,8 @@ struct TrendChart: View {
                 )
                 .foregroundStyle(onHero ? V371.Colors.heroText : V371.Colors.blue)
                 .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                .interpolationMethod(.catmullRom)
+                // 逐日实值以折线连接，避免平滑插值在稀疏数据间制造不存在的峰谷。
+                .interpolationMethod(.linear)
             }
             .chartXAxis(showsAxis ? .automatic : .hidden)
             .chartYAxis(showsAxis ? .automatic : .hidden)

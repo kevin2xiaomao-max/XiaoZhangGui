@@ -27,7 +27,8 @@ enum V371 {
 
         static var textPrimary: Color { .primary }
         static var textSecondary: Color { .secondary }
-        static var textTertiary: Color { Color(.tertiaryLabel) }
+        /// 辅助文字仍保持次级层级，但不用 tertiaryLabel，避免 Dark 与高亮背景下对比度过低。
+        static var textTertiary: Color { Color(.secondaryLabel) }
         static var divider: Color { Color(.separator) }
 
         // MARK: S2 Hero 蓝（能量焦点，暗色降亮度）

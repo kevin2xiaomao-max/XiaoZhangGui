@@ -39,7 +39,7 @@ struct MemoView: View {
             }
             .padding(.horizontal, V371.Space.page)
             .padding(.top, 8)
-            .padding(.bottom, 112)
+            .padding(.bottom, V371.Space.section)
         }
         .scrollIndicators(.hidden)
         .accessibilityIdentifier(V371AccessibilityID.screenMemo)

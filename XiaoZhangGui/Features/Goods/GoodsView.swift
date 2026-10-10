@@ -40,7 +40,7 @@ struct GoodsView: View {
             }
             .padding(.horizontal, V371.Space.page)
             .padding(.top, 8)
-            .padding(.bottom, 112)
+            .padding(.bottom, V371.Space.section)
         }
         .scrollIndicators(.hidden)
         .accessibilityIdentifier(V371AccessibilityID.screenGoods)
@@ -137,7 +137,7 @@ struct GoodsView: View {
             statVDivider
             statCell(label: "库存不足", count: GoodsStats.lowStock(allGoods), color: V371.Colors.orange)
             statVDivider
-            statCell(label: "临期", count: GoodsStats.expiringSoon(allGoods), color: V371.Colors.orange)
+            statCell(label: "7天内临期", count: GoodsStats.expiringSoon(allGoods), color: V371.Colors.orange)
             statVDivider
             statCell(label: "总库存", count: GoodsStats.totalStock(allGoods), color: V371.Colors.textSecondary)
         }

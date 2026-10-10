@@ -170,7 +170,7 @@ struct WorkRow<Trailing: View>: View {
                         Text(subtitle)
                             .font(V371.Typography.rowSubtitle)
                             .foregroundStyle(V371.Colors.textTertiary)
-                            .lineLimit(1)
+                            .lineLimit(2)
                     }
                 }
                 Spacer(minLength: 8)

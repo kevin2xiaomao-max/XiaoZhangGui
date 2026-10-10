@@ -96,7 +96,7 @@ struct ScheduleView: View {
             }
             .padding(.horizontal, V371.Space.page)
             .padding(.top, 8)
-            .padding(.bottom, 112)
+            .padding(.bottom, V371.Space.section)
             .animation(V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: reduceMotion)), value: selectedDate)
         }
         .scrollIndicators(.hidden)
