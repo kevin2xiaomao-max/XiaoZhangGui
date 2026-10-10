@@ -4,7 +4,7 @@ on:
   push:
     # main / ios-dev 等现有触发保持不变；V3.7.1 目标分支与 Phase 0 实施分支运行完整 CI。
     # Release 步骤仍另有分支条件，不会因此在其它分支发版。
-    branches: [ios-dev, main, redesign/v3.2.0, feature/v3.5-liquid-glass-leap, feature/v3.4-intelligence-experience, fix/v3.4-build34-real-data-repair, feature/v3.7.1-muse-rebuild, codex/v371-phase0-protection]
+    branches: [ios-dev, main, redesign/v3.2.0, feature/v3.5-liquid-glass-leap, feature/v3.4-intelligence-experience, fix/v3.4-build34-real-data-repair, feature/v3.7.1-muse-rebuild, codex/v371-phase0-protection, feature/v3.7.1-ui-redesign, fix/v371-ui-correction, fix/goods-delete-retry]
   pull_request:
     branches: [feature/v3.7.1-muse-rebuild]
   workflow_dispatch:
