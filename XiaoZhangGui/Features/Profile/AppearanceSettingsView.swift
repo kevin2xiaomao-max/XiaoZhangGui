@@ -76,7 +76,7 @@ struct AppearanceSettingsView: View {
         LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 14) {
             ForEach(AccentTheme.allCases, id: \.rawValue) { theme in
                 ThemePreviewCard(theme: theme, isSelected: themeStore.accentTheme == theme) {
-                    withAnimation(reduceMotion ? .easeOut(duration: 0.12) : .easeInOut(duration: 0.2)) {
+                    withAnimation(V371.Motion.safe(V371.Motion.fast, reduceMotion: reduceMotion)) {
                         themeStore.setAccent(theme)
                     }
                     Haptic.light()

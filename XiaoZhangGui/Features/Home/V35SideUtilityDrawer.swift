@@ -25,7 +25,7 @@ struct V35DrawerContainer: View {
                 drawer(width: width).offset(x: -width + max(0, width + dragOffset)).gesture(closeGesture(width: width))
             }
             .transition(.opacity)
-            .animation(reduceMotion ? .easeOut(duration: 0.16) : .spring(response: 0.34, dampingFraction: 0.88), value: isPresented)
+            .animation(reduceMotion ? .easeOut(duration: 0.16) : V371.Motion.spring, value: isPresented)
         }
         .sheet(isPresented: $showDailyReport) {
             DailyReportSheet(report: .build(performances: performances, todos: todos, customers: customers, expiryItems: expiryItems))

@@ -39,6 +39,7 @@ struct MemoView: View {
             }
             .padding(.horizontal, V371.Space.page)
             .padding(.top, 8)
+            .padding(.bottom, 112)
         }
         .scrollIndicators(.hidden)
         .accessibilityIdentifier(V371AccessibilityID.screenMemo)
@@ -105,7 +106,7 @@ struct MemoView: View {
         .padding(.vertical, 4)
         .frame(minHeight: 52)
         .background(
-            RoundedRectangle(cornerRadius: V371.Radius.group, style: .continuous)
+            RoundedRectangle(cornerRadius: V371.Radius.control, style: .continuous)
                 .fill(V371.Colors.group)
         )
     }

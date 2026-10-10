@@ -51,7 +51,7 @@ struct AIChatView: View {
                         }
                         .padding(.horizontal, V371.Space.page)
                         .padding(.top, 8)
-                        .padding(.bottom, 12)
+                        .padding(.bottom, 24)
                     }
                     .scrollIndicators(.hidden)
                     .scrollDismissesKeyboard(.interactively)
@@ -179,11 +179,14 @@ struct AIChatView: View {
 
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: 14) {
-            EmptyState(
-                icon: "sparkles",
-                title: "我是小掌柜",
-                message: "说句话或点个例子，我先整理成确认卡，你确认后才记录。"
-            )
+            VStack(alignment: .leading, spacing: 6) {
+                Label("我是小掌柜", systemImage: "sparkles")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(V371.Colors.textPrimary)
+                Text("说句话或点个例子，我先整理成确认卡，你确认后才记录。")
+                    .font(.subheadline)
+                    .foregroundStyle(V371.Colors.textSecondary)
+            }
             GroupSurface {
                 VStack(alignment: .leading, spacing: 0) {
                     SectionHeader("试试这样说")

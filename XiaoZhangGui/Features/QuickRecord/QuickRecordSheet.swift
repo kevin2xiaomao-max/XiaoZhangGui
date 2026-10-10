@@ -73,7 +73,7 @@ struct QuickRecordSheet: View {
                 }
                 .padding(.horizontal, V371.Space.page)
                 .padding(.top, 12)
-                .padding(.bottom, 28)
+                .padding(.bottom, 40)
             }
             .scrollIndicators(.hidden)
             .navigationTitle("快速记录")

@@ -68,7 +68,7 @@ struct ProfileView: View {
             }
             .padding(.horizontal, V371.Space.page)
             .padding(.top, 8)
-            .padding(.bottom, 28)
+            .padding(.bottom, 112)
         }
         .scrollIndicators(.hidden)
         .accessibilityIdentifier(V371AccessibilityID.screenProfile)
@@ -136,8 +136,7 @@ struct ProfileView: View {
     // MARK: 店铺信息（个人资料入口）
 
     private var profileHero: some View {
-        GroupSurface {
-            Button {
+        Button {
                 shopDialog = true
             } label: {
                 HStack(spacing: 12) {
@@ -167,7 +166,6 @@ struct ProfileView: View {
             .buttonStyle(.plain)
             .accessibilityLabel("个人资料")
             .accessibilityHint("编辑店铺名称与店主称呼")
-        }
     }
 
     // MARK: 分组
