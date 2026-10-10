@@ -45,11 +45,27 @@ enum CalendarAgenda {
 
     /// 某日是否有事件（用于日期状态点）
     struct EventFlags {
-        var hasRevenue = false   // 绿
-        var hasTodo = false      // 蓝
-        var hasExpiry = false    // 橙
-        var hasCustomer = false  // 灰
-        var hasMemo = false
+        var revenueCount = 0
+        var todoCount = 0
+        var expiryCount = 0
+        var customerCount = 0
+        var memoCount = 0
+
+        var hasRevenue: Bool { revenueCount > 0 }   // 绿
+        var hasTodo: Bool { todoCount > 0 }         // 蓝
+        var hasExpiry: Bool { expiryCount > 0 }     // 橙
+        var hasCustomer: Bool { customerCount > 0 } // 灰
+        var hasMemo: Bool { memoCount > 0 }
+
+        var accessibilitySummary: String {
+            var parts: [String] = []
+            if revenueCount > 0 { parts.append("收支 \(revenueCount) 笔") }
+            if todoCount > 0 { parts.append("待办 \(todoCount) 项") }
+            if expiryCount > 0 { parts.append("临期 \(expiryCount) 项") }
+            if customerCount > 0 { parts.append("配送 \(customerCount) 项") }
+            if memoCount > 0 { parts.append("记录 \(memoCount) 条") }
+            return parts.isEmpty ? "无事项" : parts.joined(separator: "，")
+        }
     }
 
     static func eventFlags(
@@ -62,14 +78,15 @@ enum CalendarAgenda {
         memos: [Memo]
     ) -> EventFlags {
         EventFlags(
-            hasRevenue: performances.contains { $0.date.isSameDay(as: date) } || expenses.contains { $0.date.isSameDay(as: date) },
-            hasTodo: todos.contains { $0.dueDate?.isSameDay(as: date) == true },
-            hasExpiry: expiryItems.contains { $0.status == .pending && $0.expiryDate.isSameDay(as: date) },
-            hasCustomer: customers.contains {
+            revenueCount: performances.filter { $0.date.isSameDay(as: date) }.count
+                + expenses.filter { $0.date.isSameDay(as: date) }.count,
+            todoCount: todos.filter { $0.dueDate?.isSameDay(as: date) == true }.count,
+            expiryCount: expiryItems.filter { $0.status == .pending && $0.expiryDate.isSameDay(as: date) }.count,
+            customerCount: customers.filter {
                 let deliveryDate = CustomerDeliveryStorage.decode($0.customer).deliveryTime ?? $0.createdAt
                 return deliveryDate.isSameDay(as: date)
-            },
-            hasMemo: memos.contains { $0.createdAt.isSameDay(as: date) }
+            }.count,
+            memoCount: memos.filter { $0.createdAt.isSameDay(as: date) }.count
         )
     }
 }

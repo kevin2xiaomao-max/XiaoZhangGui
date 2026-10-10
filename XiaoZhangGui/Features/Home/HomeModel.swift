@@ -1,5 +1,20 @@
 import Foundation
 
+// MARK: - 首页 / 经营共享月度口径
+
+enum MonthlyBusinessMetrics {
+    static func revenue(from performances: [Performance], now: Date = Date()) -> Double {
+        performances
+            .filter { $0.date >= now.startOfMonth && $0.date <= now.endOfDay }
+            .reduce(0) { $0 + $1.amount }
+    }
+
+    @MainActor
+    static func goal(isDemoEnabled: Bool, settingsGoal: Double) -> Double {
+        isDemoEnabled ? DemoCatalog.monthlyGoal : settingsGoal
+    }
+}
+
 // MARK: - 首页派生数据（对齐 Android HomeViewModel 计算逻辑）
 
 struct HomeStats {

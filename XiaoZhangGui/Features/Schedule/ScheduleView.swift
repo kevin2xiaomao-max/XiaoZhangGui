@@ -21,6 +21,7 @@ struct ScheduleView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var selectedDate = Date()
     @State private var currentMonth: Date = Date().startOfMonth
     @State private var expandedExpiry: Set<String> = []
@@ -93,6 +94,7 @@ struct ScheduleView: View {
                 allDaySection
                 monthSection
                 summarySection
+                V371ScrollEndMarker(identifier: V371AccessibilityID.scrollEndCalendar)
             }
             .padding(.horizontal, V371.Space.page)
             .padding(.top, 8)
@@ -140,7 +142,6 @@ struct ScheduleView: View {
             .background(.thinMaterial, in: Capsule(style: .continuous))
             .buttonStyle(.plain)
             .frame(minHeight: 44)
-            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             .accessibilityLabel("回到今天")
         }
     }
@@ -392,9 +393,14 @@ struct ScheduleView: View {
             VStack(spacing: 0) {
                 monthNavigator
                     .padding(.bottom, 4)
-                weekdayHeader
-                monthGrid
-                    .padding(.vertical, 6)
+                if dynamicTypeSize.isAccessibilitySize {
+                    accessibleMonthList
+                        .padding(.vertical, 6)
+                } else {
+                    weekdayHeader
+                    monthGrid
+                        .padding(.vertical, 6)
+                }
                 V371Divider(leading: 0)
                 dayDetail
                     .padding(.bottom, 6)
@@ -479,6 +485,70 @@ struct ScheduleView: View {
                 }
             }
         }
+    }
+
+    /// 辅助功能字号改用纵向日期列表，避免七列网格挤压；日期选择与详情仍复用同一状态。
+    private var accessibleMonthList: some View {
+        LazyVStack(spacing: 0) {
+            ForEach(monthDates(for: currentMonth), id: \.self) { date in
+                let flags = eventFlags(for: date)
+                Button {
+                    withAnimation(V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: reduceMotion))) {
+                        selectedDate = date
+                    }
+                    Haptic.light()
+                } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(date, format: .dateTime.day().weekday(.wide).locale(Locale(identifier: "zh_CN")))
+                                .font(V371.Typography.rowTitle)
+                                .foregroundStyle(V371.Colors.textPrimary)
+                            Text(flags.accessibilitySummary)
+                                .font(V371.Typography.rowSubtitle)
+                                .foregroundStyle(V371.Colors.textSecondary)
+                                .multilineTextAlignment(.leading)
+                        }
+                        Spacer(minLength: 8)
+                        if date.isSameDay(as: selectedDate) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(V371.Colors.blue)
+                                .accessibilityHidden(true)
+                        }
+                    }
+                    .padding(.horizontal, V371.Space.rowPadding)
+                    .padding(.vertical, 12)
+                    .frame(minHeight: 60)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(calendarAccessibilityLabel(date: date, flags: flags))
+                .accessibilityAddTraits(date.isSameDay(as: selectedDate) ? .isSelected : [])
+
+                if date != monthDates(for: currentMonth).last { V371Divider() }
+            }
+        }
+    }
+
+    private func monthDates(for month: Date) -> [Date] {
+        gridDates(for: month).compactMap { $0 }
+    }
+
+    private func eventFlags(for date: Date) -> CalendarAgenda.EventFlags {
+        CalendarAgenda.eventFlags(
+            date: date,
+            todos: todos,
+            performances: performances,
+            expenses: expenses,
+            expiryItems: expiryItems,
+            customers: customers,
+            memos: memos
+        )
+    }
+
+    private func calendarAccessibilityLabel(date: Date, flags: CalendarAgenda.EventFlags) -> String {
+        let dateText = date.formatted(.dateTime.month().day().weekday(.wide).locale(Locale(identifier: "zh_CN")))
+        let todayText = date.isToday ? "，今天" : ""
+        return "\(dateText)\(todayText)，\(flags.accessibilitySummary)"
     }
 
     /// 当月网格日期（首尾补 nil 空位，总格数为 7 的倍数）
@@ -698,8 +768,14 @@ private struct ScheduleCalendarDayCell: View {
             .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(dayNumber)日")
+        .accessibilityLabel(accessibilityLabel)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private var accessibilityLabel: String {
+        let dateText = date.formatted(.dateTime.month().day().weekday(.wide).locale(Locale(identifier: "zh_CN")))
+        let todayText = isToday ? "，今天" : ""
+        return "\(dateText)\(todayText)，\(flags.accessibilitySummary)"
     }
 
     private struct EventDot: View {

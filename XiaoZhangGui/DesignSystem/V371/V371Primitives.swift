@@ -183,7 +183,7 @@ struct WorkRow<Trailing: View>: View {
         }
         .buttonStyle(.plain)
         .disabled(action == nil)
-        .accessibilityLabel(title)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -258,7 +258,21 @@ struct TimedRow<Trailing: View>: View {
         }
         .buttonStyle(.plain)
         .disabled(action == nil)
-        .accessibilityLabel("\(time)，\(title)")
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// UI 测试用于验证滚动内容末端能完整停在原生 Tab Bar 上方。
+/// 仅提供无障碍锚点，不增加额外底部留白。
+struct V371ScrollEndMarker: View {
+    let identifier: String
+
+    var body: some View {
+        Color.clear
+            .frame(height: 1)
+            .accessibilityElement()
+            .accessibilityLabel("页面末尾")
+            .accessibilityIdentifier(identifier)
     }
 }
 

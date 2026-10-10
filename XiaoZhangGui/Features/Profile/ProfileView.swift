@@ -65,6 +65,7 @@ struct ProfileView: View {
                     .foregroundStyle(V371.Colors.textTertiary)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.top, 4)
+                V371ScrollEndMarker(identifier: V371AccessibilityID.scrollEndProfile)
             }
             .padding(.horizontal, V371.Space.page)
             .padding(.top, 8)

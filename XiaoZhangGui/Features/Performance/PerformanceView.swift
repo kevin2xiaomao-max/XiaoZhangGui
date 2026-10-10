@@ -8,6 +8,7 @@ struct PerformanceView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(AppSettings.self) private var settings
+    @Bindable private var demo = DemoMode.shared
     @Query private var performances: [Performance]
     @Query private var expenses: [Expense]
     @Query private var todos: [Todo]
@@ -33,7 +34,7 @@ struct PerformanceView: View {
     }
 
     private var monthRevenue: Double {
-        performances.filter { $0.date >= Date().startOfMonth && $0.date <= Date().endOfDay }.reduce(0) { $0 + $1.amount }
+        MonthlyBusinessMetrics.revenue(from: performances)
     }
 
     private var yearRevenue: Double {
@@ -41,7 +42,9 @@ struct PerformanceView: View {
         return performances.filter { $0.date >= start && $0.date <= Date().endOfDay }.reduce(0) { $0 + $1.amount }
     }
 
-    private var monthGoal: Double { settings.monthGoal }
+    private var monthGoal: Double {
+        MonthlyBusinessMetrics.goal(isDemoEnabled: demo.isEnabled, settingsGoal: settings.monthGoal)
+    }
 
     private var goalProgress: Double {
         monthGoal > 0 ? min(max(monthRevenue / monthGoal, 0), 1) : 0
@@ -69,6 +72,7 @@ struct PerformanceView: View {
                 goalSection
                 sourcesSection
                 recordsSection
+                V371ScrollEndMarker(identifier: V371AccessibilityID.scrollEndBusiness)
             }
             .padding(.horizontal, V371.Space.page)
             .padding(.top, V371.Space.page)

@@ -54,6 +54,7 @@ struct TodoView: View {
                 tabPicker
                 if tab != .records { statsRow }
                 content
+                V371ScrollEndMarker(identifier: V371AccessibilityID.scrollEndTodo)
             }
             .padding(.horizontal, V371.Space.page)
             .padding(.top, 8)

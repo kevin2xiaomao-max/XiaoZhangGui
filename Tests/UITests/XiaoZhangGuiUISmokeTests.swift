@@ -50,6 +50,21 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         XCTAssertTrue(element("screen.home").waitForExistence(timeout: 5))
     }
 
+    func testScrollablePageEndsReachAboveNativeTabBar() {
+        assertScrollEndReachable(identifier: "scrollEnd.home", tab: "首页")
+        assertTab("tab.todo", shows: "screen.todo")
+        assertScrollEndReachable(identifier: "scrollEnd.todo", tab: "待办")
+        assertTab("tab.calendar", shows: "screen.calendar")
+        assertScrollEndReachable(identifier: "scrollEnd.calendar", tab: "日历")
+        assertTab("tab.business", shows: "screen.business")
+        assertScrollEndReachable(identifier: "scrollEnd.business", tab: "经营")
+
+        assertTab("tab.home", shows: "screen.home")
+        tapElement("home.profile")
+        XCTAssertTrue(element("screen.profile").waitForExistence(timeout: 5))
+        assertScrollEndReachable(identifier: "scrollEnd.profile", tab: "首页")
+    }
+
     func testAIUsesHomeEntryAndReturnsFromSheet() {
         openAI()
         XCTAssertTrue(element("sheet.ai").waitForExistence(timeout: 5))
@@ -335,6 +350,21 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         }
         XCTAssertTrue(target.isHittable, "Element is not hittable: \(identifier)")
         target.tap()
+    }
+
+    private func assertScrollEndReachable(identifier: String, tab tabLabel: String) {
+        let marker = element(identifier)
+        XCTAssertTrue(marker.waitForExistence(timeout: 5), "Missing scroll-end marker: \(identifier)")
+        for _ in 0..<12 where !marker.isHittable { app.swipeUp() }
+        XCTAssertTrue(marker.isHittable, "Page end is not reachable: \(identifier)")
+
+        let tab = app.tabBars.buttons[tabLabel]
+        XCTAssertTrue(tab.exists, "Missing native tab: \(tabLabel)")
+        XCTAssertLessThanOrEqual(
+            marker.frame.maxY,
+            tab.frame.minY,
+            "Page end remains behind the native Tab Bar: \(identifier)"
+        )
     }
 
     /// 内层操作按钮嵌套在行级 Button 中时，a11y 会合并为行元素

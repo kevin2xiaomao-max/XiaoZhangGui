@@ -50,4 +50,10 @@ enum V371AccessibilityID {
     static let goodsDelete = "goods.delete"
     static let todoToggle = "todo.toggle"
     static let reliabilityRetry = "reliability.retry"
+
+    static let scrollEndHome = "scrollEnd.home"
+    static let scrollEndTodo = "scrollEnd.todo"
+    static let scrollEndCalendar = "scrollEnd.calendar"
+    static let scrollEndBusiness = "scrollEnd.business"
+    static let scrollEndProfile = "scrollEnd.profile"
 }

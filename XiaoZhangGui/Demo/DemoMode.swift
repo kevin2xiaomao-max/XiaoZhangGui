@@ -35,7 +35,6 @@ final class DemoMode {
 
 @MainActor
 enum DemoCatalog {
-    static let monthlyRevenue = 68_400.0
     static let monthlyGoal = 120_000.0
     private static var boxed: ModelContainer?
 

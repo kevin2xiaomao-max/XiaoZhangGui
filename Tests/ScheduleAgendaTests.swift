@@ -97,6 +97,35 @@ final class ScheduleAgendaTests: XCTestCase {
         }
     }
 
+    func testEventFlagsExposeVoiceOverCountsAndSummary() {
+        let revenue = Performance(amount: 100, note: "收入", date: todayAt(9))
+        let expense = Expense(amount: 20, category: "进货", note: "支出", date: todayAt(10))
+        let todos = [
+            Todo(title: "待办一", dueDate: todayAt(11)),
+            Todo(title: "待办二", dueDate: todayAt(12)),
+        ]
+        let memo = Memo(title: "记录", content: "内容", createdAt: todayAt(8), updatedAt: todayAt(8))
+
+        let flags = CalendarAgenda.eventFlags(
+            date: todayStart,
+            todos: todos,
+            performances: [revenue],
+            expenses: [expense],
+            expiryItems: [],
+            customers: [],
+            memos: [memo]
+        )
+
+        XCTAssertEqual(flags.revenueCount, 2)
+        XCTAssertEqual(flags.todoCount, 2)
+        XCTAssertEqual(flags.memoCount, 1)
+        XCTAssertEqual(flags.accessibilitySummary, "收支 2 笔，待办 2 项，记录 1 条")
+    }
+
+    func testEmptyEventFlagsHaveExplicitVoiceOverSummary() {
+        XCTAssertEqual(CalendarAgenda.EventFlags().accessibilitySummary, "无事项")
+    }
+
     // MARK: 3. 真实钟点 Todo / deliveryTime 定时并排序
 
     func testTimedEventsWithRealClockSorted() {

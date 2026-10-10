@@ -40,4 +40,36 @@ final class DemoCatalogTests: XCTestCase {
     func testDemoModeKeyIsIsolatedFromRepositories() {
         XCTAssertEqual(DemoMode.userDefaultsKey, "xzg_demo_mode_enabled")
     }
+
+    func testMonthlyMetricsUseQueriedRecordsAndModeSpecificGoal() {
+        let calendar = Calendar(identifier: .gregorian)
+        let now = calendar.date(from: DateComponents(year: 2026, month: 10, day: 11, hour: 12))!
+        let thisMonth = Performance(amount: 2_500, note: "本月", date: now)
+        let lastMonthDate = calendar.date(byAdding: .month, value: -1, to: now)!
+        let lastMonth = Performance(amount: 9_999, note: "上月", date: lastMonthDate)
+
+        XCTAssertEqual(
+            MonthlyBusinessMetrics.revenue(from: [thisMonth, lastMonth], now: now),
+            2_500,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            MonthlyBusinessMetrics.goal(isDemoEnabled: true, settingsGoal: 88_000),
+            DemoCatalog.monthlyGoal
+        )
+        XCTAssertEqual(
+            MonthlyBusinessMetrics.goal(isDemoEnabled: false, settingsGoal: 88_000),
+            88_000
+        )
+    }
+
+    func testDemoMonthlyMetricComesFromIsolatedContainer() throws {
+        let now = Calendar.current.date(from: DateComponents(year: 2026, month: 10, day: 11, hour: 20))!
+        let container = DemoCatalog.makeContainer(now: now)
+        let performances = try ModelContext(container).fetch(FetchDescriptor<Performance>())
+        let derived = MonthlyBusinessMetrics.revenue(from: performances, now: now)
+
+        XCTAssertGreaterThan(derived, 0)
+        XCTAssertNotEqual(derived, 68_400, "月营业额必须来自演示容器查询，不能回退到旧固定值")
+    }
 }

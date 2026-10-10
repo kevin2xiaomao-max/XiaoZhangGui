@@ -32,14 +32,11 @@ struct HomeView: View {
     }
 
     private var monthRevenue: Double {
-        if demo.isEnabled { return DemoCatalog.monthlyRevenue }
-        return performances
-            .filter { $0.date >= Date().startOfMonth && $0.date <= Date().endOfDay }
-            .reduce(0) { $0 + $1.amount }
+        MonthlyBusinessMetrics.revenue(from: performances)
     }
 
     private var monthGoal: Double {
-        demo.isEnabled ? DemoCatalog.monthlyGoal : settings.monthGoal
+        MonthlyBusinessMetrics.goal(isDemoEnabled: demo.isEnabled, settingsGoal: settings.monthGoal)
     }
 
     private var handlingItems: [HomeInboxItem] {
@@ -59,6 +56,7 @@ struct HomeView: View {
                 }
                 focusSection
                 nextSection
+                V371ScrollEndMarker(identifier: V371AccessibilityID.scrollEndHome)
             }
             .padding(.horizontal, V371.Space.page)
             .padding(.top, 10)
