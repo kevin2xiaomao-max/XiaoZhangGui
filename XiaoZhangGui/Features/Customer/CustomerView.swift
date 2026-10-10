@@ -44,8 +44,7 @@ struct CustomerView: View {
                     withAnimation(V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: reduceMotion))) {}
                 }
                 if shown.isEmpty {
-                    GroupSurface {
-                        VStack(spacing: 12) {
+                    VStack(spacing: 12) {
                             if requests.isEmpty {
                                 EmptyState(icon: "shippingbox", title: "暂无客户需求", message: "可以先新增一条配送需求")
                                 Button { showNewEditor = true } label: {
@@ -60,9 +59,9 @@ struct CustomerView: View {
                             } else {
                                 EmptyState(icon: "line.3.horizontal.decrease.circle", title: "当前筛选暂无结果", message: "可以切换筛选查看其他需求")
                             }
-                        }
-                        .padding(.vertical, 8)
                     }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
                 } else {
                     ForEach(groupedSections, id: \.status) { section in
                         VStack(alignment: .leading, spacing: 10) {
@@ -101,6 +100,7 @@ struct CustomerView: View {
             }
             .padding(.horizontal, V371.Space.page)
             .padding(.top, 8)
+            .padding(.bottom, 112)
         }
         .scrollIndicators(.hidden)
         .accessibilityIdentifier(V371AccessibilityID.screenCustomer)

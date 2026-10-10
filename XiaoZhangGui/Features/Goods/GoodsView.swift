@@ -40,6 +40,7 @@ struct GoodsView: View {
             }
             .padding(.horizontal, V371.Space.page)
             .padding(.top, 8)
+            .padding(.bottom, 112)
         }
         .scrollIndicators(.hidden)
         .accessibilityIdentifier(V371AccessibilityID.screenGoods)
@@ -103,7 +104,7 @@ struct GoodsView: View {
         .padding(.vertical, 4)
         .frame(minHeight: 52)
         .background(
-            RoundedRectangle(cornerRadius: V371.Radius.group, style: .continuous)
+            RoundedRectangle(cornerRadius: V371.Radius.control, style: .continuous)
                 .fill(V371.Colors.group)
         )
     }
@@ -131,17 +132,16 @@ struct GoodsView: View {
     // MARK: 库存概览
 
     private var statSection: some View {
-        GroupSurface {
-            HStack(spacing: 0) {
-                statCell(label: "全部商品", count: allGoods.count, color: V371.Colors.blue)
-                statVDivider
-                statCell(label: "库存不足", count: GoodsStats.lowStock(allGoods), color: V371.Colors.orange)
-                statVDivider
-                statCell(label: "临期", count: GoodsStats.expiringSoon(allGoods), color: V371.Colors.orange)
-                statVDivider
-                statCell(label: "总库存", count: GoodsStats.totalStock(allGoods), color: V371.Colors.textSecondary)
-            }
+        HStack(spacing: 0) {
+            statCell(label: "全部商品", count: allGoods.count, color: V371.Colors.blue)
+            statVDivider
+            statCell(label: "库存不足", count: GoodsStats.lowStock(allGoods), color: V371.Colors.orange)
+            statVDivider
+            statCell(label: "临期", count: GoodsStats.expiringSoon(allGoods), color: V371.Colors.orange)
+            statVDivider
+            statCell(label: "总库存", count: GoodsStats.totalStock(allGoods), color: V371.Colors.textSecondary)
         }
+        .padding(.vertical, 4)
     }
 
     private var statVDivider: some View {

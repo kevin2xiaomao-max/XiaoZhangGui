@@ -61,6 +61,7 @@ struct ExpiryView: View {
             }
             .padding(.horizontal, V371.Space.page)
             .padding(.top, 8)
+            .padding(.bottom, 112)
         }
         .scrollIndicators(.hidden)
         .accessibilityIdentifier(V371AccessibilityID.screenExpiry)
@@ -104,17 +105,14 @@ struct ExpiryView: View {
     // MARK: 三格统计
 
     private var statCard: some View {
-        GroupSurface {
-            HStack(spacing: 8) {
-                statCell(count: stats.urgentCount, label: "3天内到期", color: V371.Colors.red)
-                statDivider
-                statCell(count: stats.warningCount, label: "7天内到期", color: V371.Colors.orange)
-                statDivider
-                statCell(count: stats.safeCount, label: "30天内到期", color: V371.Colors.blue)
-            }
-            .padding(.horizontal, V371.Space.rowPadding)
-            .padding(.vertical, 14)
+        HStack(spacing: 8) {
+            statCell(count: stats.urgentCount, label: "3天内到期", color: V371.Colors.red)
+            statDivider
+            statCell(count: stats.warningCount, label: "7天内到期", color: V371.Colors.orange)
+            statDivider
+            statCell(count: stats.safeCount, label: "30天内到期", color: V371.Colors.blue)
         }
+        .padding(.vertical, 8)
     }
 
     private var statDivider: some View {
