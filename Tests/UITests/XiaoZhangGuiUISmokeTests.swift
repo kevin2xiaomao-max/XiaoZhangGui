@@ -27,10 +27,15 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
 
     func testAppLaunches() {
         XCTAssertTrue(element("screen.home").waitForExistence(timeout: 10))
-        for identifier in ["tab.home", "tab.todo", "tab.calendar", "tab.business"] {
-            XCTAssertTrue(element(identifier).exists, "Missing main tab: \(identifier)")
+        // P0-A: 原生 TabView 在 iOS 27 不暴露自定义 accessibilityIdentifier，
+        // 使用系统 TabBar 的真实无障碍标签（首页/待办/日历/经营）定位
+        for label in ["首页", "待办", "日历", "经营"] {
+            let tab = app.tabBars.buttons[label]
+            XCTAssertTrue(tab.waitForExistence(timeout: 5), "Missing main tab: \(label)")
         }
-        XCTAssertFalse(element("tab.ai").exists, "AI must remain independent from the four main tabs")
+        // AI 必须独立于四个主 Tab（不在 TabBar 中）
+        XCTAssertFalse(app.tabBars.buttons["小掌柜"].exists, "AI must remain independent from the four main tabs")
+        XCTAssertFalse(app.tabBars.buttons["AI"].exists, "AI must remain independent from the four main tabs")
     }
 
     func testFourMainTabsAndSecondaryBackPath() {
@@ -280,7 +285,19 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
     }
 
     private func assertTab(_ tabIdentifier: String, shows screenIdentifier: String) {
-        let tab = element(tabIdentifier)
+        // P0-A: 映射旧标识符到原生 TabBar 真实标签
+        let labelMap = [
+            "tab.home": "首页",
+            "tab.todo": "待办",
+            "tab.calendar": "日历",
+            "tab.business": "经营"
+        ]
+        let tab: XCUIElement
+        if let label = labelMap[tabIdentifier] {
+            tab = app.tabBars.buttons[label]
+        } else {
+            tab = element(tabIdentifier)
+        }
         XCTAssertTrue(tab.waitForExistence(timeout: 5), "Missing tab \(tabIdentifier)")
         tab.tap()
         XCTAssertTrue(element(screenIdentifier).waitForExistence(timeout: 5), "Missing screen \(screenIdentifier)")
