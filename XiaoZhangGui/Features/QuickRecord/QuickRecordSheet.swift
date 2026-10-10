@@ -414,21 +414,28 @@ final class QuickRecordVoiceRecorder {
         case failed(String)
     }
 
-    private let speech = SpeechService()
+    private let speech: any SpeechServicing
+    private var startGate = SpeechStartGate()
     private(set) var status: Status = .idle
     private(set) var liveTranscript = ""
 
+    init(speech: (any SpeechServicing)? = nil) {
+        self.speech = speech ?? SpeechService()
+    }
+
     /// 识别器无法初始化（部分模拟器）时，只保留键盘输入，不展示错误卡。
-    var canUseSpeech: Bool { SpeechService.canInitializeRecognizer }
+    var canUseSpeech: Bool { speech.isRecognizerInitialized }
     var isListening: Bool { status == .listening }
 
     func start(onFinal: @escaping @MainActor (String) -> Void) {
-        guard status != .listening else { return }
+        guard let sessionID = startGate.begin() else { return }
         liveTranscript = ""
         Task { @MainActor [weak self] in
             guard let self else { return }
             let granted = await self.speech.requestPermissions()
+            guard self.startGate.isCurrent(sessionID) else { return }
             guard granted else {
+                self.startGate.end(sessionID)
                 self.status = .denied
                 return
             }
@@ -441,7 +448,8 @@ final class QuickRecordVoiceRecorder {
                     },
                     finalHandler: { [weak self] final in
                         Task { @MainActor in
-                            guard let self else { return }
+                            guard let self, self.startGate.isCurrent(sessionID) else { return }
+                            self.startGate.end(sessionID)
                             let trimmed = final.trimmingCharacters(in: .whitespacesAndNewlines)
                             if trimmed.isEmpty {
                                 self.status = .empty
@@ -453,12 +461,19 @@ final class QuickRecordVoiceRecorder {
                     },
                     errorHandler: { [weak self] error in
                         Task { @MainActor in
-                            self?.status = .failed(Self.describe(error))
+                            guard let self, self.startGate.isCurrent(sessionID) else { return }
+                            self.startGate.end(sessionID)
+                            self.status = .failed(Self.describe(error))
                         }
                     }
                 )
+                guard self.startGate.isCurrent(sessionID) else {
+                    self.speech.cancel()
+                    return
+                }
                 self.status = .listening
             } catch {
+                self.startGate.end(sessionID)
                 self.status = .failed(Self.describe(error))
             }
         }
@@ -471,6 +486,7 @@ final class QuickRecordVoiceRecorder {
 
     /// 取消 / 关闭时立即释放麦克风
     func cancel() {
+        startGate.end()
         speech.cancel()
         liveTranscript = ""
         if status == .listening {

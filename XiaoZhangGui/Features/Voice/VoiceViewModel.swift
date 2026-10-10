@@ -4,6 +4,7 @@ import Observation
 
 // MARK: - 语音页 ViewModel（View → ViewModel → Repository → SwiftData）
 
+@MainActor
 @Observable
 final class VoiceViewModel {
     private(set) var phase: VoicePhase = .idle
@@ -25,6 +26,7 @@ final class VoiceViewModel {
     }
 
     private let speech = SpeechService()
+    private var startGate = SpeechStartGate()
     private let context: ModelContext
 
     init(context: ModelContext) {
@@ -37,11 +39,14 @@ final class VoiceViewModel {
     func beginListening() {
         // 模拟器可能无法初始化 SFSpeechRecognizer。此时由 UI 隐藏麦克风，这里静默返回。
         guard speech.isRecognizerInitialized else { return }
+        guard let sessionID = startGate.begin() else { return }
         transcript = ""
         draft = nil
         Task { @MainActor in
             let granted = await speech.requestPermissions()
+            guard startGate.isCurrent(sessionID) else { return }
             guard granted else {
+                startGate.end(sessionID)
                 phase = .error("麦克风/语音识别权限被拒绝")
                 return
             }
@@ -49,7 +54,7 @@ final class VoiceViewModel {
                 try speech.start(
                     partialHandler: { [weak self] partial in
                         Task { @MainActor in
-                            guard let self else { return }
+                            guard let self, self.startGate.isCurrent(sessionID) else { return }
                             self.transcript = partial
                             if self.phase == .idle || self.phase == .recognized {
                                 self.phase = .listening
@@ -58,18 +63,26 @@ final class VoiceViewModel {
                     },
                     finalHandler: { [weak self] final in
                         Task { @MainActor in
-                            self?.handleRecognized(final)
+                            guard let self, self.startGate.isCurrent(sessionID) else { return }
+                            self.startGate.end(sessionID)
+                            self.handleRecognized(final)
                         }
                     },
                     errorHandler: { [weak self] error in
                         Task { @MainActor in
-                            guard let self else { return }
+                            guard let self, self.startGate.isCurrent(sessionID) else { return }
+                            self.startGate.end(sessionID)
                             self.phase = .error(SpeechService.mapError(error))
                         }
                     }
                 )
+                guard startGate.isCurrent(sessionID) else {
+                    speech.cancel()
+                    return
+                }
                 phase = .listening
             } catch {
+                startGate.end(sessionID)
                 phase = .error(SpeechService.mapError(error))
             }
         }
@@ -107,6 +120,7 @@ final class VoiceViewModel {
 
     /// 进入手动输入
     func enterTextFallback() {
+        startGate.end()
         speech.cancel()
         phase = .textFallback
     }
@@ -169,6 +183,7 @@ final class VoiceViewModel {
 
     /// 回到初始状态
     func reset() {
+        startGate.end()
         speech.cancel()
         transcript = ""
         draft = nil

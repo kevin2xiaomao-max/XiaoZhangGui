@@ -32,7 +32,7 @@ final class ShortVoiceSession {
     private let speech = SpeechService()
     /// 权限请求可能在用户取消后才返回；用会话 ID 丢弃过期回调，
     /// 防止已关闭的面板再次启动 AVAudioEngine。
-    private var activeSessionID: UUID?
+    private var startGate = SpeechStartGate()
 
     var isAvailable: Bool { speech.isRecognizerInitialized }
     var availabilityHint: String {
@@ -45,14 +45,14 @@ final class ShortVoiceSession {
             phase = .failed("当前设备不可用语音识别，可直接打字")
             return
         }
-        let sessionID = UUID()
-        activeSessionID = sessionID
+        guard let sessionID = startGate.begin() else { return }
         liveTranscript = ""
         Task { @MainActor [weak self] in
             guard let self else { return }
             let granted = await self.speech.requestPermissions()
-            guard self.activeSessionID == sessionID else { return }
+            guard self.startGate.isCurrent(sessionID) else { return }
             guard granted else {
+                self.startGate.end(sessionID)
                 self.phase = .failed("麦克风 / 语音识别权限被拒绝，可在系统设置中开启")
                 return
             }
@@ -60,7 +60,7 @@ final class ShortVoiceSession {
                 try self.speech.start(
                     partialHandler: { [weak self] partial in
                         Task { @MainActor in
-                            guard let self else { return }
+                            guard let self, self.startGate.isCurrent(sessionID) else { return }
                             self.liveTranscript = partial
                             if self.phase == .idle || self.phase == .finalizing {
                                 self.phase = .listening
@@ -69,9 +69,10 @@ final class ShortVoiceSession {
                     },
                     finalHandler: { [weak self] final in
                         Task { @MainActor in
-                            guard let self else { return }
+                            guard let self, self.startGate.isCurrent(sessionID) else { return }
                             let trimmed = final.trimmingCharacters(in: .whitespacesAndNewlines)
                             self.lastRawTranscript = trimmed
+                            self.startGate.end(sessionID)
                             guard !trimmed.isEmpty else {
                                 self.phase = .failed("没有听清，请再试一次；也可以直接打字")
                                 return
@@ -82,7 +83,8 @@ final class ShortVoiceSession {
                     },
                     errorHandler: { [weak self] error in
                         Task { @MainActor in
-                            guard let self else { return }
+                            guard let self, self.startGate.isCurrent(sessionID) else { return }
+                            self.startGate.end(sessionID)
                             // 失败不丢已识别的 partial 原文
                             if self.liveTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
                                 self.lastRawTranscript = self.liveTranscript
@@ -91,8 +93,13 @@ final class ShortVoiceSession {
                         }
                     }
                 )
+                guard self.startGate.isCurrent(sessionID) else {
+                    self.speech.cancel()
+                    return
+                }
                 self.phase = .listening
             } catch {
+                self.startGate.end(sessionID)
                 self.phase = .failed(Self.describe(error))
             }
         }
@@ -105,7 +112,7 @@ final class ShortVoiceSession {
 
     /// 取消本次聆听
     func cancel() {
-        activeSessionID = nil
+        startGate.end()
         speech.cancel()
         liveTranscript = ""
         phase = .idle
@@ -113,7 +120,8 @@ final class ShortVoiceSession {
 
     /// 结束一轮（Agent 已接收 / 用户关闭错误后）
     func finish() {
-        activeSessionID = nil
+        startGate.end()
+        speech.cancel()
         liveTranscript = ""
         phase = .idle
     }
