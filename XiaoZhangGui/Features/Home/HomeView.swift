@@ -52,16 +52,17 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: V371.Space.section) {
                 header
                 heroFlat
-                focusSection
-                nextSection
                 AICommandEntry {
                     withAnimation(V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: reduceMotion))) {
                         showAI = true
                     }
                 }
+                focusSection
+                nextSection
             }
             .padding(.horizontal, V371.Space.page)
-            .padding(.top, 6)
+            .padding(.top, 10)
+            .padding(.bottom, 24)
         }
         .scrollIndicators(.hidden)
         .accessibilityIdentifier(V371AccessibilityID.screenHome)
@@ -69,29 +70,6 @@ struct HomeView: View {
         .alert("操作失败", isPresented: Binding(get: { stateActionError != nil }, set: { if !$0 { stateActionError = nil } })) {
             Button("知道了", role: .cancel) { stateActionError = nil }
         } message: { Text(stateActionError ?? "待办状态未改变，请重试") }
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { showQuickRecord = true } label: {
-                    Image(systemName: "mic.fill")
-                        .font(.system(size: 17, weight: .medium))
-                        .frame(minWidth: 44, minHeight: 44)
-                        .contentShape(Rectangle())
-                }
-                .accessibilityLabel("一句话快速记录")
-                .accessibilityIdentifier(V371AccessibilityID.homeQuickRecord)
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { route = .profile } label: {
-                    Image(systemName: "person.circle.fill")
-                        .font(.system(size: 26))
-                        .foregroundStyle(V371.Colors.textSecondary)
-                        .frame(minWidth: 44, minHeight: 44)
-                        .contentShape(Rectangle())
-                }
-                .accessibilityLabel("个人中心")
-                .accessibilityIdentifier(V371AccessibilityID.homeProfile)
-            }
-        }
         .navigationDestination(item: $route) { destination in
             switch destination {
             case .customer: CustomerView()
@@ -113,20 +91,57 @@ struct HomeView: View {
     // MARK: 顶部：日期 / 问候 / 天气
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
-                Text(Date(), format: .dateTime.month().day().weekday(.wide).locale(Locale(identifier: "zh_CN")))
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(V371.Colors.textSecondary)
-                weatherButton
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 8) {
+                HStack(spacing: 8) {
+                    Text(Date(), format: .dateTime.month().day().weekday(.wide).locale(Locale(identifier: "zh_CN")))
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(V371.Colors.textSecondary)
+                    weatherButton
+                }
+                Spacer(minLength: 12)
+                headerAction(
+                    icon: "mic.fill",
+                    label: "一句话快速记录",
+                    identifier: V371AccessibilityID.homeQuickRecord,
+                    action: { showQuickRecord = true }
+                )
+                headerAction(
+                    icon: "person.crop.circle.fill",
+                    label: "个人中心",
+                    identifier: V371AccessibilityID.homeProfile,
+                    action: { route = .profile }
+                )
             }
             Text("\(greetingPrefix)，\(ownerDisplayName)")
-                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .font(.system(size: 30, weight: .bold, design: .default))
                 .foregroundStyle(V371.Colors.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .accessibilityLabel("\(greetingPrefix)，\(ownerDisplayName)")
         }
+    }
+
+    private func headerAction(
+        icon: String,
+        label: String,
+        identifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(V371.Colors.textPrimary)
+                .frame(width: 44, height: 44)
+                .background(.thinMaterial, in: Circle())
+                .overlay {
+                    Circle().strokeBorder(V371.Colors.divider.opacity(0.35), lineWidth: 0.5)
+                }
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityIdentifier(identifier)
     }
 
     private var greetingPrefix: String {
@@ -164,23 +179,33 @@ struct HomeView: View {
 
     private var heroFlat: some View {
         Button { route = .performance } label: {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text("今日营业额")
-                    .font(V371.Typography.rowSubtitle)
+                    .font(.subheadline.weight(.medium))
                     .foregroundStyle(V371.Colors.textSecondary)
                 Text("¥" + Fmt.groupedAmount(summary.revenue))
-                    .font(V371.Typography.heroNumber)
+                    .font(.system(size: 54, weight: .semibold, design: .rounded).monospacedDigit())
+                    .tracking(-1.5)
                     .foregroundStyle(V371.Colors.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                 if !heroInfoParts.isEmpty {
-                    Text(heroInfoParts.joined(separator: " · "))
-                        .font(V371.Typography.badge)
-                        .foregroundStyle(V371.Colors.textTertiary)
+                    HStack(spacing: 8) {
+                        ForEach(Array(heroInfoParts.enumerated()), id: \.offset) { index, part in
+                            if index > 0 {
+                                Circle()
+                                    .fill(V371.Colors.textTertiary)
+                                    .frame(width: 3, height: 3)
+                            }
+                            Text(part)
+                                .font(.footnote.weight(.medium))
+                                .foregroundStyle(V371.Colors.textSecondary)
+                        }
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 16)
+            .padding(.vertical, 8)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -194,21 +219,34 @@ struct HomeView: View {
 
         var body: some View {
             Button(action: action) {
-                HStack(spacing: 10) {
+                HStack(spacing: 12) {
                     Image(systemName: "sparkles")
-                        .font(.system(size: 16))
+                        .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(V371.Colors.blue)
-                    Text("问小掌柜")
-                        .font(V371.Typography.rowTitle)
-                        .foregroundStyle(V371.Colors.textPrimary)
+                        .frame(width: 38, height: 38)
+                        .background(V371.Colors.tinted(V371.Colors.blue), in: Circle())
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("问小掌柜")
+                            .font(.headline)
+                            .foregroundStyle(V371.Colors.textPrimary)
+                        Text("查经营、找商品，或安排一件事")
+                            .font(.caption)
+                            .foregroundStyle(V371.Colors.textSecondary)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     Spacer()
                     Image(systemName: "chevron.right")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(V371.Colors.textTertiary)
                 }
-                .padding(.horizontal, V371.Space.rowPadding)
-                .padding(.vertical, 14)
-                .background(V371.Colors.group, in: RoundedRectangle(cornerRadius: 14))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 11)
+                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .strokeBorder(V371.Colors.divider.opacity(0.28), lineWidth: 0.5)
+                }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
