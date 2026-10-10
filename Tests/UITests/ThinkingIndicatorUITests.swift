@@ -74,6 +74,11 @@ final class ThinkingIndicatorUITests: XCTestCase {
         XCTAssertTrue(waitForAppearance(typing, timeout: 6), "真实请求进行期间未出现思考指示")
         let appearedAt = Date()
 
+        // VoiceOver：整块合并为一个元素，朗读「小掌柜 + 当前处理文案」。
+        // 元素能在无障碍树中被找到且带中文标签，即证明它可被读屏识别。
+        XCTAssertTrue(typing.label.contains("小掌柜"),
+                      "思考指示应暴露「小掌柜…」无障碍标签，实际为「\(typing.label)」")
+
         // 关键证据：在**请求仍在进行**时抓取真实截图
         XCTAssertTrue(typing.exists, "请求进行中指示应存在")
         captureScreenshot(named: "thinking-during-request")
