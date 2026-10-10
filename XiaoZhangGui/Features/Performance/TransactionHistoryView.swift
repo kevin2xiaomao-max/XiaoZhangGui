@@ -32,7 +32,10 @@ struct TransactionHistoryView: View {
                 }
             }
         }
-        .listStyle(.insetGrouped)
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background(V371.Colors.canvas)
+        .safeAreaPadding(.bottom, 20)
         .accessibilityIdentifier(V371AccessibilityID.screenTransactions)
         .navigationTitle("全部交易")
         .navigationBarTitleDisplayMode(.inline)

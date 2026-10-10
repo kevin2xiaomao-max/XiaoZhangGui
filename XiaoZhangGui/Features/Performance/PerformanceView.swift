@@ -64,9 +64,7 @@ struct PerformanceView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: V371.Space.section) {
-                HeroMetric(title: "本月营业额", value: Fmt.money(monthRevenue)) {
-                    heroInfo
-                }
+                editorialHero
                 .accessibilityLabel(heroAccessibilityLabel)
                 goalSection
                 sourcesSection
@@ -74,6 +72,7 @@ struct PerformanceView: View {
             }
             .padding(.horizontal, V371.Space.page)
             .padding(.top, V371.Space.page)
+            .padding(.bottom, 112)
         }
         .scrollIndicators(.hidden)
         .accessibilityIdentifier(V371AccessibilityID.screenBusiness)
@@ -140,23 +139,40 @@ struct PerformanceView: View {
 
     // MARK: Hero info（目标 / 对比）
 
+    private var editorialHero: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("本月营业额")
+                .font(V371.Typography.heroTitle)
+                .foregroundStyle(V371.Colors.textSecondary)
+            Text(Fmt.money(monthRevenue))
+                .font(V371.Typography.heroNumber)
+                .foregroundStyle(V371.Colors.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.58)
+                .contentTransition(.numericText())
+            heroInfo
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 8)
+    }
+
     private var heroInfo: some View {
         // P0-B：窄屏自适应，主金额独立一行不折断
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text("今日")
                     .font(V371.Typography.rowSubtitle)
-                    .foregroundStyle(V371.Colors.heroTextSecondary)
+                    .foregroundStyle(V371.Colors.textTertiary)
                 Text(Fmt.money(todayRevenue))
                     .font(.system(size: 20, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(V371.Colors.heroText)
+                    .foregroundStyle(V371.Colors.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
                 changeBadge
             }
             if !trend.isEmpty {
                 // 趋势只保留细线（TrendChart 无大面积填充），独立一行
-                TrendChart(points: trend, height: 36, onHero: true)
+                TrendChart(points: trend, height: 36, onHero: false)
                     .frame(height: 36)
             }
         }
@@ -183,14 +199,14 @@ struct PerformanceView: View {
                 Text("\(String(format: "%.1f", abs(change)))% 较昨日")
                     .font(V371.Typography.badge)
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(change >= 0 ? V371.Colors.green : V371.Colors.red)
             .padding(.horizontal, 9)
             .padding(.vertical, 5)
-            .background(Capsule().fill(.white.opacity(0.18)))
+            .background(Capsule().fill(V371.Colors.tinted(change >= 0 ? V371.Colors.green : V371.Colors.red)))
         } else {
             Text("暂无昨日对比")
                 .font(V371.Typography.badge)
-                .foregroundStyle(V371.Colors.heroTextSecondary)
+                .foregroundStyle(V371.Colors.textTertiary)
         }
     }
 
