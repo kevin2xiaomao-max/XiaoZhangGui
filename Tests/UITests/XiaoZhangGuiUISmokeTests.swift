@@ -165,8 +165,9 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         // 内层删除按钮嵌套在行级 Button 中，a11y 合并为行元素：按行尾坐标点击。
         // 删除按钮 44pt 在行尾：dx 按（W-36）/W ≈ 0.905。
         tapTrailingButton("goods.delete", dx: 0.905)
-        XCTAssertTrue(app.sheets.buttons["删除"].waitForExistence(timeout: 5))
-        app.sheets.buttons["删除"].tap()
+        let confirmDelete = app.buttons.matching(identifier: "goods.delete.confirm").firstMatch
+        XCTAssertTrue(confirmDelete.waitForExistence(timeout: 5))
+        confirmDelete.tap()
         XCTAssertTrue(app.alerts["删除失败"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.buttons.matching(identifier: "goods.delete").count, before)
         tapRetry(in: "删除失败")
@@ -179,6 +180,8 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
     }
 
     func testGoodsDeleteCancellationKeepsTarget() {
+        // 与失败/重试用例一样显式重启，确保断言读取的是本用例刚创建的内存种子库。
+        relaunch(failingOnce: "goods.delete")
         assertTab("tab.business", shows: "screen.business")
         tapElement("business.goods")
         XCTAssertTrue(element("screen.goods").waitForExistence(timeout: 5))
@@ -186,8 +189,11 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         XCTAssertGreaterThan(before, 0)
 
         tapTrailingButton("goods.delete", dx: 0.905)
-        XCTAssertTrue(app.sheets.buttons["取消"].waitForExistence(timeout: 5))
-        app.sheets.buttons["取消"].tap()
+        // iOS 26.5 的 confirmationDialog 以可下拉 Sheet 呈现，但 cancel action
+        // 不稳定地缺席于 XCTest 无障碍树；下拉关闭等价于原生取消语义。
+        let confirmationSheet = app.sheets.firstMatch
+        XCTAssertTrue(confirmationSheet.waitForExistence(timeout: 5))
+        confirmationSheet.swipeDown()
 
         XCTAssertEqual(app.buttons.matching(identifier: "goods.delete").count, before)
         XCTAssertFalse(app.alerts["删除失败"].exists)
