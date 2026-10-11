@@ -95,7 +95,7 @@ final class DeepSeekSettingsTests: XCTestCase {
 
     // MARK: 12) Save 才落盘：commit 后 trim + 模型 Picker 值写入
 
-    func testDraftSaveCommitsTrimmedValues() {
+    func testDraftSaveCommitsTrimmedValues() throws {
         let settings = AISettings(defaults: suite)
         let draft = AISettingsDraft(settings: settings)
         draft.primaryBaseURL = "  https://api.deepseek.com  "
@@ -104,7 +104,7 @@ final class DeepSeekSettingsTests: XCTestCase {
         draft.fallbackBaseURL = "  https://fb.example.com/v1 "
         draft.fallbackModel = " fb-model "
 
-        draft.commit(to: settings)
+        try draft.commit(to: settings)
 
         XCTAssertEqual(settings.primaryBaseURL, "https://api.deepseek.com", "保存前必须 trim")
         XCTAssertEqual(settings.resolvedPrimaryModel, "deepseek-v4-pro")

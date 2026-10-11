@@ -110,14 +110,8 @@ final class AISettings {
         didSet { ud.set(fallbackModel, forKey: Keys.fallbackModel) }
     }
 
-    var primaryAPIKey: String {
-        get { AIKeychain.read(Keys.primaryKey) ?? "" }
-        set { AIKeychain.write(newValue, forKey: Keys.primaryKey) }
-    }
-    var fallbackAPIKey: String {
-        get { AIKeychain.read(Keys.fallbackKey) ?? "" }
-        set { AIKeychain.write(newValue, forKey: Keys.fallbackKey) }
-    }
+    var primaryAPIKey: String { AIKeychain.read(Keys.primaryKey) ?? "" }
+    var fallbackAPIKey: String { AIKeychain.read(Keys.fallbackKey) ?? "" }
     var searchProviderSelection: SearchProviderSelection {
         didSet { ud.set(searchProviderSelection.rawValue, forKey: Keys.searchProviderSelection) }
     }
@@ -136,13 +130,25 @@ final class AISettings {
         didSet { ud.set(customSearchFreeFirstEnabled, forKey: Keys.customSearchFreeFirstEnabled) }
     }
 
-    var tavilySearchAPIKey: String {
-        get { AIKeychain.read(Keys.tavilySearchKey) ?? "" }
-        set { AIKeychain.write(newValue, forKey: Keys.tavilySearchKey) }
+    var tavilySearchAPIKey: String { AIKeychain.read(Keys.tavilySearchKey) ?? "" }
+    var customSearchAPIKey: String { AIKeychain.read(Keys.customSearchKey) ?? "" }
+
+    enum APIKeySlot {
+        case primary, fallback, tavilySearch, customSearch
+
+        fileprivate var account: String {
+            switch self {
+            case .primary: return Keys.primaryKey
+            case .fallback: return Keys.fallbackKey
+            case .tavilySearch: return Keys.tavilySearchKey
+            case .customSearch: return Keys.customSearchKey
+            }
+        }
     }
-    var customSearchAPIKey: String {
-        get { AIKeychain.read(Keys.customSearchKey) ?? "" }
-        set { AIKeychain.write(newValue, forKey: Keys.customSearchKey) }
+
+    /// 保持旧版 account 名不变，仅把写入改为可报告失败的 update/add。
+    func setAPIKey(_ value: String, for slot: APIKeySlot) throws {
+        try AIKeychain.save(value, forKey: slot.account)
     }
 
     /// 留空即回退 DeepSeek 官方默认端点
@@ -225,8 +231,13 @@ final class AISettings {
         guard tavilySearchAPIKey.isEmpty,
               let legacy = AIKeychain.read(Keys.legacySearchKey),
               !legacy.isEmpty else { return }
-        tavilySearchAPIKey = legacy
-        AIKeychain.delete(Keys.legacySearchKey)
+        do {
+            try setAPIKey(legacy, for: .tavilySearch)
+            try AIKeychain.remove(Keys.legacySearchKey)
+        } catch {
+            // 新槽位没有确认写入时保留旧条目，下次启动继续迁移。
+            return
+        }
         if searchProviderSelection == .disabled {
             searchProviderSelection = .tavily
         }
@@ -312,7 +323,16 @@ final class AISettingsDraft {
     }
 
     /// 保存：trim 后一次性写入。调用方负责随后发出 .aiProviderConfigChanged。
-    func commit(to settings: AISettings) {
+    func commit(to settings: AISettings) throws {
+        try Self.applyKey(staged: stagedPrimaryKey, clear: clearPrimaryKeyRequested,
+                          slot: .primary, settings: settings)
+        try Self.applyKey(staged: stagedFallbackKey, clear: clearFallbackKeyRequested,
+                          slot: .fallback, settings: settings)
+        try Self.applyKey(staged: stagedTavilySearchKey, clear: clearTavilySearchKeyRequested,
+                          slot: .tavilySearch, settings: settings)
+        try Self.applyKey(staged: stagedCustomSearchKey, clear: clearCustomSearchKeyRequested,
+                          slot: .customSearch, settings: settings)
+
         settings.tier = tier
         settings.primaryBaseURL = primaryBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         settings.primaryModel = primaryModel.rawValue
@@ -325,51 +345,61 @@ final class AISettingsDraft {
         settings.tavilySearchFreeFirstEnabled = tavilySearchFreeFirstEnabled
         settings.customSearchFreeFirstEnabled = customSearchFreeFirstEnabled
 
-        let newPrimaryKey = stagedPrimaryKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !newPrimaryKey.isEmpty {
-            settings.primaryAPIKey = newPrimaryKey
-        } else if clearPrimaryKeyRequested {
-            settings.primaryAPIKey = ""
-        }
+    }
 
-        let newFallbackKey = stagedFallbackKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !newFallbackKey.isEmpty {
-            settings.fallbackAPIKey = newFallbackKey
-        } else if clearFallbackKeyRequested {
-            settings.fallbackAPIKey = ""
-        }
-
-        let newTavilyKey = stagedTavilySearchKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !newTavilyKey.isEmpty {
-            settings.tavilySearchAPIKey = newTavilyKey
-        } else if clearTavilySearchKeyRequested {
-            settings.tavilySearchAPIKey = ""
-        }
-
-        let newCustomKey = stagedCustomSearchKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !newCustomKey.isEmpty {
-            settings.customSearchAPIKey = newCustomKey
-        } else if clearCustomSearchKeyRequested {
-            settings.customSearchAPIKey = ""
+    private static func applyKey(
+        staged: String,
+        clear: Bool,
+        slot: AISettings.APIKeySlot,
+        settings: AISettings
+    ) throws {
+        let value = staged.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !value.isEmpty {
+            try settings.setAPIKey(value, for: slot)
+        } else if clear {
+            try settings.setAPIKey("", for: slot)
         }
     }
 }
 
 // MARK: - Keychain 最小封装（API Key 唯一允许的存放处）
 
+enum AIKeychainError: LocalizedError, Equatable {
+    case unexpectedStatus(operation: String, status: OSStatus)
+
+    var errorDescription: String? {
+        switch self {
+        case let .unexpectedStatus(operation, status):
+            return "\(operation)失败（OSStatus \(status)），请重试。"
+        }
+    }
+}
+
 enum AIKeychain {
-    static func write(_ value: String, forKey key: String) {
+    static func save(_ value: String, forKey key: String) throws {
+        guard !value.isEmpty else {
+            try remove(key)
+            return
+        }
         let data = Data(value.utf8)
         let base: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: key
         ]
-        SecItemDelete(base as CFDictionary)
-        guard !value.isEmpty else { return }
-        var add = base
-        add[kSecValueData as String] = data
-        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-        SecItemAdd(add as CFDictionary, nil)
+        let attributes: [String: Any] = [
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
+        ]
+        let updateStatus = SecItemUpdate(base as CFDictionary, attributes as CFDictionary)
+        if updateStatus == errSecSuccess { return }
+        guard updateStatus == errSecItemNotFound else {
+            throw AIKeychainError.unexpectedStatus(operation: "更新 Keychain", status: updateStatus)
+        }
+        let add = base.merging(attributes) { _, new in new }
+        let addStatus = SecItemAdd(add as CFDictionary, nil)
+        guard addStatus == errSecSuccess else {
+            throw AIKeychainError.unexpectedStatus(operation: "写入 Keychain", status: addStatus)
+        }
     }
 
     static func read(_ key: String) -> String? {
@@ -385,11 +415,14 @@ enum AIKeychain {
         return String(data: data, encoding: .utf8)
     }
 
-    static func delete(_ key: String) {
+    static func remove(_ key: String) throws {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: key
         ]
-        SecItemDelete(query as CFDictionary)
+        let status = SecItemDelete(query as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw AIKeychainError.unexpectedStatus(operation: "删除 Keychain", status: status)
+        }
     }
 }

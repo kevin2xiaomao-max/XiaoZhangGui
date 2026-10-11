@@ -17,6 +17,7 @@ struct AIProviderSettingsSheet: View {
     /// 打开即复制当前设置；不 commit 就绝不落盘
     @State private var draft = AISettingsDraft(settings: .shared)
     @State private var tester = ProviderConnectionTester(initial: .unverified)
+    @State private var saveError: String?
 
     var body: some View {
         NavigationStack {
@@ -45,6 +46,14 @@ struct AIProviderSettingsSheet: View {
             }
             .onAppear {
                 tester.synchronize(hasEffectiveKey: !effectivePrimaryKey.isEmpty)
+            }
+            .alert("保存失败", isPresented: Binding(
+                get: { saveError != nil },
+                set: { if !$0 { saveError = nil } }
+            )) {
+                Button("好", role: .cancel) {}
+            } message: {
+                Text(saveError ?? "")
             }
         }
     }
@@ -420,7 +429,12 @@ struct AIProviderSettingsSheet: View {
     // MARK: 保存（唯一落盘点；取消不触发本方法）
 
     private func save() {
-        draft.commit(to: .shared)
+        do {
+            try draft.commit(to: .shared)
+        } catch {
+            saveError = error.localizedDescription
+            return
+        }
         NotificationCenter.default.post(name: .aiProviderConfigChanged, object: nil)
         dismiss()
     }
