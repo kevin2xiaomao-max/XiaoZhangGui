@@ -244,9 +244,16 @@ private extension UIColor {
 
 /// S0 页面底色。
 struct V371CanvasModifier: ViewModifier {
+    @Environment(ThemeStore.self) private var themeStore
+
     func body(content: Content) -> some View {
-        content
-            .background(V371.Colors.canvas.ignoresSafeArea())
+        if themeStore.wallpaper.isEnabled {
+            content.background {
+                V32WallpaperBackground()
+            }
+        } else {
+            content.background(themeStore.backgroundPalette.pageBG.ignoresSafeArea())
+        }
     }
 }
 

@@ -17,6 +17,7 @@ struct RootView: View {
     @State private var showAI = false
     @State private var showAIVoice = false
     @Environment(\.modelContext) private var modelContext
+    @Environment(ThemeStore.self) private var themeStore
     private let canInitializeSpeechRecognizer = SpeechService.canInitializeRecognizer
 
     var body: some View {
@@ -56,7 +57,7 @@ struct RootView: View {
             }
             .accessibilityIdentifier(V371AccessibilityID.tabBusiness)
         }
-        .tint(V371.Colors.blue)
+        .tint(themeStore.accentPalette.accent)
         .onOpenURL(perform: handleDeepLink)
         .sheet(isPresented: $showQuickRecord) {
             QuickRecordSheet()

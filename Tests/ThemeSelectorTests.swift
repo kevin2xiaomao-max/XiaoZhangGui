@@ -2,6 +2,22 @@ import XCTest
 @testable import XiaoZhangGui
 
 final class ThemeSelectorTests: XCTestCase {
+    func testV371RootConsumesThemeAccentAndPageBackground() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let rootView = try String(
+            contentsOf: root.appendingPathComponent("XiaoZhangGui/App/RootView.swift"),
+            encoding: .utf8
+        )
+        let designSystem = try String(
+            contentsOf: root.appendingPathComponent("XiaoZhangGui/DesignSystem/V371/V371DesignSystem.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(rootView.contains("themeStore.accentPalette.accent"))
+        XCTAssertTrue(designSystem.contains("themeStore.backgroundPalette.pageBG"))
+        XCTAssertTrue(designSystem.contains("V32WallpaperBackground()"))
+    }
+
     func testSelectorExposesAllSixThemes() {
         XCTAssertEqual(AccentTheme.allCases.count, 6)
         XCTAssertTrue(AccentTheme.allCases.contains(.blue))
