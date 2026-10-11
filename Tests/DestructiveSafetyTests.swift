@@ -6,7 +6,8 @@ final class DestructiveSafetyTests: XCTestCase {
         "XiaoZhangGui/Features/Customer/CustomerView.swift",
         "XiaoZhangGui/Features/Expiry/ExpiryView.swift",
         "XiaoZhangGui/Features/Performance/PerformanceView.swift",
-        "XiaoZhangGui/Features/Memo/MemoView.swift"
+        "XiaoZhangGui/Features/Memo/MemoView.swift",
+        "XiaoZhangGui/Features/Goods/GoodsView.swift"
     ]
 
     func testEveryDeletePathUsesNativeConfirmationAndDestructiveRole() throws {
@@ -22,7 +23,7 @@ final class DestructiveSafetyTests: XCTestCase {
 
     func testDeleteErrorsAreNotSilentlyIgnored() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-        for (path, repository) in zip(views, ["TodoRepository", "CustomerRepository", "ExpiryRepository", "PerformanceRepository", "MemoRepository"]) {
+        for (path, repository) in zip(views, ["TodoRepository", "CustomerRepository", "ExpiryRepository", "PerformanceRepository", "MemoRepository", "GoodsRepository"]) {
             let source = try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
             XCTAssertFalse(source.contains("try? \(repository)(context: context).delete"), path)
         }

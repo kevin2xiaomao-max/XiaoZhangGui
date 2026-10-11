@@ -14,6 +14,7 @@ struct GoodsView: View {
     @State private var category = "全部"
     @State private var showNewEditor = false
     @State private var editingGoods: Goods?
+    @State private var pendingDeleteGoods: Goods?
     @State private var failedDeleteGoodsID: PersistentIdentifier?
     @State private var deleteError: String?
     private var isMockPreview: Bool { RuntimeMode.allowsMockData }
@@ -58,6 +59,27 @@ struct GoodsView: View {
         }
         .sheet(item: $editingGoods) { goods in
             GoodsEditorSheet(goods: goods)
+        }
+        .confirmationDialog(
+            "删除商品“\(pendingDeleteGoods?.name ?? "")”？",
+            isPresented: Binding(
+                get: { pendingDeleteGoods != nil },
+                set: { if !$0 { pendingDeleteGoods = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("删除", role: .destructive) {
+                guard let goods = pendingDeleteGoods else { return }
+                pendingDeleteGoods = nil
+                delete(goods)
+            }
+            .accessibilityIdentifier("goods.delete.confirm")
+            Button("取消", role: .cancel) {
+                pendingDeleteGoods = nil
+            }
+            .accessibilityIdentifier("goods.delete.cancel")
+        } message: {
+            Text("删除后无法恢复；库存、价格与临期信息将一并移除。")
         }
         .alert("删除失败", isPresented: Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })) {
             Button("重试") {
@@ -230,7 +252,7 @@ struct GoodsView: View {
                         .foregroundStyle(V371.Colors.textSecondary)
                         .lineLimit(1)
                 }
-                Button { delete(goods) } label: {
+                Button { pendingDeleteGoods = goods } label: {
                     Image(systemName: "trash")
                         .font(.system(size: 15))
                         .foregroundStyle(V371.Colors.textTertiary)

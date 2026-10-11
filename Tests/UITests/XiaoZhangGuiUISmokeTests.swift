@@ -165,6 +165,8 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         // 内层删除按钮嵌套在行级 Button 中，a11y 合并为行元素：按行尾坐标点击。
         // 删除按钮 44pt 在行尾：dx 按（W-36）/W ≈ 0.905。
         tapTrailingButton("goods.delete", dx: 0.905)
+        XCTAssertTrue(app.sheets.buttons["删除"].waitForExistence(timeout: 5))
+        app.sheets.buttons["删除"].tap()
         XCTAssertTrue(app.alerts["删除失败"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.buttons.matching(identifier: "goods.delete").count, before)
         tapRetry(in: "删除失败")
@@ -174,6 +176,21 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         XCTAssertTrue(waitUntil(timeout: 10) {
             self.app.buttons.matching(identifier: "goods.delete").count == before - 1
         })
+    }
+
+    func testGoodsDeleteCancellationKeepsTarget() {
+        assertTab("tab.business", shows: "screen.business")
+        tapElement("business.goods")
+        XCTAssertTrue(element("screen.goods").waitForExistence(timeout: 5))
+        let before = app.buttons.matching(identifier: "goods.delete").count
+        XCTAssertGreaterThan(before, 0)
+
+        tapTrailingButton("goods.delete", dx: 0.905)
+        XCTAssertTrue(app.sheets.buttons["取消"].waitForExistence(timeout: 5))
+        app.sheets.buttons["取消"].tap()
+
+        XCTAssertEqual(app.buttons.matching(identifier: "goods.delete").count, before)
+        XCTAssertFalse(app.alerts["删除失败"].exists)
     }
 
     func testTodoToggleFailureKeepsPendingAndRetryCompletesOnce() {
