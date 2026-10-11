@@ -86,9 +86,9 @@ struct PerformanceView: View {
         .toolbar {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
                 Button { showGoods = true } label: {
-                    Image(systemName: "shippingbox")
+                    Label("商品", systemImage: "shippingbox")
                 }
-                .accessibilityLabel("临时商品")
+                .accessibilityLabel("商品管理")
                 .accessibilityIdentifier(V371AccessibilityID.businessGoods)
 
                 Menu {

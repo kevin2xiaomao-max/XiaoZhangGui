@@ -98,12 +98,7 @@ struct HomeView: View {
                     weatherButton
                 }
                 Spacer(minLength: 12)
-                headerAction(
-                    icon: "mic.fill",
-                    label: "一句话快速记录",
-                    identifier: V371AccessibilityID.homeQuickRecord,
-                    action: { showQuickRecord = true }
-                )
+                quickRecordAction
                 headerAction(
                     icon: "person.crop.circle.fill",
                     label: "个人中心",
@@ -140,6 +135,35 @@ struct HomeView: View {
         .buttonStyle(.plain)
         .accessibilityLabel(label)
         .accessibilityIdentifier(identifier)
+    }
+
+    private var quickRecordAction: some View {
+        Button { showQuickRecord = true } label: {
+            ViewThatFits(in: .horizontal) {
+                Label("记一笔", systemImage: "square.and.pencil")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(V371.Colors.textPrimary)
+                    .padding(.horizontal, 14)
+                    .frame(minHeight: 44)
+                    .background(.thinMaterial, in: Capsule())
+                    .overlay {
+                        Capsule().strokeBorder(V371.Colors.divider.opacity(0.35), lineWidth: 0.5)
+                    }
+
+                Image(systemName: "square.and.pencil")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(V371.Colors.textPrimary)
+                    .frame(width: 44, height: 44)
+                    .background(.thinMaterial, in: Circle())
+                    .overlay {
+                        Circle().strokeBorder(V371.Colors.divider.opacity(0.35), lineWidth: 0.5)
+                    }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("记一笔，支持文字或语音快速记录")
+        .accessibilityIdentifier(V371AccessibilityID.homeQuickRecord)
     }
 
     private var greetingPrefix: String {

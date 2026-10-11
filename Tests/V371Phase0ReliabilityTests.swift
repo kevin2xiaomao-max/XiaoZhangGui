@@ -69,7 +69,9 @@ final class V371Phase0ReliabilityTests: XCTestCase {
 
         XCTAssertTrue(home.contains("V371AccessibilityID.homeAI"))
         XCTAssertTrue(home.contains("V371AccessibilityID.homeQuickRecord"))
+        XCTAssertTrue(home.contains("Label(\"记一笔\", systemImage: \"square.and.pencil\")"))
         XCTAssertTrue(business.contains("V371AccessibilityID.businessGoods"))
+        XCTAssertTrue(business.contains("Label(\"商品\", systemImage: \"shippingbox\")"))
         XCTAssertTrue(business.contains("V371AccessibilityID.businessMemo"))
         XCTAssertTrue(business.contains("V371AccessibilityID.businessDailyReport"))
         XCTAssertTrue(profile.contains("V371AccessibilityID.profilePaymentCodes"))

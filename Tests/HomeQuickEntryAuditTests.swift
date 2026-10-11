@@ -4,7 +4,7 @@ import Foundation
 /// V3.7.1（2026-09-23 重写，原 V3.3 hotfix 审计已按 MD STEP 7 标记过时）：
 /// - V3.7.1 冻结 IA：AI 不再是底部 Tab，首页保留**唯一紧凑入口**
 ///   （AICommandEntry，「✦ 问小掌柜…」），不得内嵌完整 AI 对话 UI；
-/// - 右上角必须保留麦克风「一句话快速记录」入口并继续弹出 QuickRecord；
+/// - 右上角必须保留清晰的「记一笔」入口并继续弹出 QuickRecord；
 /// - 小掌柜短语音面板展示时必须隐藏底部 Tab 栏（Dock）。
 ///
 /// 说明：纯 SwiftUI 视图层级在逻辑测试中不做渲染比对，这里直接审计被测源码
@@ -56,15 +56,15 @@ final class HomeQuickEntryAuditTests: XCTestCase {
         )
     }
 
-    func testHomeHeaderKeepsMicQuickRecordEntry() throws {
+    func testHomeHeaderKeepsDiscoverableQuickRecordEntry() throws {
         let home = try source("XiaoZhangGui/Features/Home/HomeView.swift")
         XCTAssertTrue(
-            home.contains("mic.fill"),
-            "右上角快速记录入口必须使用麦克风图标"
+            home.contains("Label(\"记一笔\", systemImage: \"square.and.pencil\")"),
+            "右上角快速记录入口必须说明是记录操作，不能仅用麦克风暗示仅支持语音"
         )
         XCTAssertTrue(
             home.contains("showQuickRecord = true"),
-            "麦克风必须继续弹出 QuickRecord 半屏面板"
+            "记一笔入口必须继续弹出 QuickRecord 半屏面板"
         )
     }
 
