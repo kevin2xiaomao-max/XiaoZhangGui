@@ -77,7 +77,15 @@ jobs:
       - name: Resolve Swift Packages
         run: |
           set -euo pipefail
-          xcodebuild -resolvePackageDependencies -project XiaoZhangGui.xcodeproj -scheme XiaoZhangGui || true
+          for attempt in 1 2; do
+            if xcodebuild -resolvePackageDependencies -project XiaoZhangGui.xcodeproj -scheme XiaoZhangGui; then
+              exit 0
+            fi
+            echo "Swift Package 解析失败（第 $attempt 次）"
+            [ "$attempt" -eq 1 ] && sleep 20
+          done
+          echo "FAIL: Swift Package 依赖解析两次均失败"
+          exit 1
 
       - name: 选择 iPhone 模拟器
         id: sim
@@ -158,34 +166,10 @@ jobs:
             grep -Eq "Executed $EXPECTED tests, with 0 failures" "$1"
           }
 
-          # 通道 B（降级宿主，碎片化启动并集判定）：xcode-27 RC 降级宿主会反复重启
-          # 测试宿主，全部用例被拆到多次启动执行，永远不会出现单条 “Executed
-          # <EXPECTED> tests” 汇总，但每个测试类套件都有独立的 “Test Suite '<类>'
-          # passed”。判据（同一轮日志内）：
-          #   1. 零用例失败、零套件失败（真实断言失败必现 failed 行，无法被掩盖）；
-          #   2. 已 passed 的类套件去重后数量 >= 源码中的测试文件数；
-          #   3. 本轮所有 started 的类套件都已有对应 passed（中途挂死的套件会缺失）；
-          #   4. 至少存在一次 >=150 条用例的 0-failure 汇总，证明主体用例确实跑过。
+          # 碎片化宿主日志不能证明全部用例在同一轮完整执行，因此不再作为 PASS 通道。
+          # 该函数保留为显式拒绝门禁，防止后续误把「若干套件通过」恢复成全量通过。
           check_round() {
-            local log="$1"
-            grep -Eq "Test Case '[^']+' failed" "$log" && return 1
-            grep -Eq "Test Suite '[^']+' failed" "$log" && return 1
-            local passed started missing agg np
-            passed=$(grep -oE "Test Suite '[^']+' passed" "$log" \
-              | sed -E "s/Test Suite '([^']+)' passed/\1/" \
-              | grep -vE '^(Selected tests|XiaoZhangGuiTests\.xctest|All tests)$' | sort -u)
-            started=$(grep -oE "Test Suite '[^']+' started" "$log" \
-              | sed -E "s/Test Suite '([^']+)' started/\1/" \
-              | grep -vE '^(Selected tests|XiaoZhangGuiTests\.xctest|All tests)$' | sort -u)
-            [ -n "$passed" ] || return 1
-            np=$(printf '%s\n' "$passed" | wc -l | tr -d '[:space:]')
-            [ "$np" -ge "$EXPECTED_SUITES" ] || return 1
-            missing=$(comm -23 <(printf '%s\n' "$started") <(printf '%s\n' "$passed"))
-            [ -z "$missing" ] || return 1
-            agg=$(grep -oE 'Executed [0-9]+ tests, with [0-9]+ failures' "$log" \
-              | awk '{n=$2; f=$5; if (f==0 && n>m) m=n} END{print m+0}')
-            [ "${agg:-0}" -ge 150 ] || return 1
-            return 0
+            return 1
           }
 
           # 不用 -retry-tests-on-failure：它在降级宿主上会产生宿主重启级联，
@@ -269,7 +253,7 @@ jobs:
             local code=$?
             kill "$tailpid" 2>/dev/null || true
             cp "$raw" "$LOG"
-            if log_passes_all "$LOG" || check_round "$LOG"; then return 0; fi
+            if log_passes_all "$LOG"; then return 0; fi
             return $(( code == 0 ? 1 : code ))
           }
 
