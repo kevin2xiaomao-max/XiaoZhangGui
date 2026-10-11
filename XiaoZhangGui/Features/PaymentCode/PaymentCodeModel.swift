@@ -48,11 +48,18 @@ struct PaymentCode: Identifiable, Codable, Equatable {
 enum PaymentCodeError: Error, Equatable {
     /// 图片数据无法解码为 UIImage（空文件 / 损坏 / 非图片格式）
     case invalidImageData
+    /// 收款码列表未能可靠写入本机。
+    case metadataPersistFailed
+}
+
+protocol PaymentCodeMetadataStoring {
+    func load() -> [PaymentCode]
+    func save(_ codes: [PaymentCode]) throws
 }
 
 /// 收款码 metadata 存储：UserDefaults 中的一小段 JSON。
 /// - 注入 UserDefaults（测试用独立 suite），生产使用 .standard
-struct PaymentCodeMetadataStore {
+struct PaymentCodeMetadataStore: PaymentCodeMetadataStoring {
     static let storageKey = "xzg.paymentCodes.metadata.v1"
 
     let defaults: UserDefaults
@@ -74,9 +81,17 @@ struct PaymentCodeMetadataStore {
         }
     }
 
-    func save(_ codes: [PaymentCode]) {
-        guard let data = try? JSONEncoder.iso8601.encode(codes) else { return }
+    func save(_ codes: [PaymentCode]) throws {
+        let data: Data
+        do {
+            data = try JSONEncoder.iso8601.encode(codes)
+        } catch {
+            throw PaymentCodeError.metadataPersistFailed
+        }
         defaults.set(data, forKey: key)
+        guard defaults.data(forKey: key) == data else {
+            throw PaymentCodeError.metadataPersistFailed
+        }
     }
 
     func clear() {

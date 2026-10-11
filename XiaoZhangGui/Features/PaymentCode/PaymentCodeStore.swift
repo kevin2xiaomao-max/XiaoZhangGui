@@ -7,7 +7,7 @@ import Observation
 // 职责：编排轻量 metadata（UserDefaults）与图片文件（Application Support/PaymentCodes/）。
 // 不变量：
 // - metadata 永远不包含图片 Data/base64
-// - 删除：先移除文件再更新 metadata，只删自己指向的文件
+// - 删除：先更新 metadata 再移除文件；写入失败时图片和旧列表均保留
 // - 替换：新文件落盘成功 + metadata 更新后才删除旧文件（失败时旧图原样保留，无孤儿）
 // - 顺序：追加 order 递增；codes 始终按 order 升序
 
@@ -19,10 +19,10 @@ final class PaymentCodeStore {
 
     private(set) var codes: [PaymentCode] = []
 
-    private let metadata: PaymentCodeMetadataStore
+    private let metadata: any PaymentCodeMetadataStoring
     private let images: PaymentCodeImageStore
 
-    init(metadata: PaymentCodeMetadataStore? = nil, images: PaymentCodeImageStore? = nil) {
+    init(metadata: (any PaymentCodeMetadataStoring)? = nil, images: PaymentCodeImageStore? = nil) {
         self.metadata = metadata ?? PaymentCodeMetadataStore()
         self.images = images ?? PaymentCodeImageStore()
         load()
@@ -52,19 +52,32 @@ final class PaymentCodeStore {
                                fileName: fileName,
                                createdAt: Date(),
                                order: (codes.map(\.order).max() ?? -1) + 1)
+        let previous = codes
         codes.append(code)
-        sortAndPersist()
+        do {
+            try sortAndPersist()
+        } catch {
+            codes = previous
+            images.delete(fileName)
+            throw error
+        }
         return code
     }
 
     // MARK: - 重命名
 
-    func rename(id: UUID, to name: String) {
+    func rename(id: UUID, to name: String) throws {
         guard let index = codes.firstIndex(where: { $0.id == id }) else { return }
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        let previousName = codes[index].name
         codes[index].name = trimmed
-        persist()
+        do {
+            try persist()
+        } catch {
+            codes[index].name = previousName
+            throw error
+        }
     }
 
     // MARK: - 替换图片
@@ -80,7 +93,13 @@ final class PaymentCodeStore {
         let newFileName = try images.save(imageData)
         let oldFileName = codes[index].fileName
         codes[index].fileName = newFileName
-        persist()
+        do {
+            try persist()
+        } catch {
+            codes[index].fileName = oldFileName
+            images.delete(newFileName)
+            throw error
+        }
         // 只有此刻旧文件才可清理（metadata 已指向新文件）
         if newFileName != oldFileName {
             images.delete(oldFileName)
@@ -90,25 +109,31 @@ final class PaymentCodeStore {
 
     // MARK: - 删除
 
-    func delete(id: UUID) {
+    func delete(id: UUID) throws {
         guard let index = codes.firstIndex(where: { $0.id == id }) else { return }
+        let previous = codes
         let fileName = codes[index].fileName
-        images.delete(fileName)
         codes.remove(at: index)
-        persist()
+        do {
+            try persist()
+        } catch {
+            codes = previous
+            throw error
+        }
+        images.delete(fileName)
     }
 
     // MARK: - Private
 
-    private func sortAndPersist() {
+    private func sortAndPersist() throws {
         codes.sort { lhs, rhs in
             lhs.order != rhs.order ? lhs.order < rhs.order : lhs.createdAt < rhs.createdAt
         }
-        persist()
+        try persist()
     }
 
-    private func persist() {
-        metadata.save(codes)
+    private func persist() throws {
+        try metadata.save(codes)
     }
 
     private static func resolvedName(_ raw: String, kind: PaymentCodeKind) -> String {

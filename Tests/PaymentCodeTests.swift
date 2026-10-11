@@ -62,7 +62,7 @@ final class PaymentCodeTests: XCTestCase {
                                fileName: "payment-code-\(id.uuidString).png",
                                createdAt: Date(timeIntervalSince1970: 1_700_000_000),
                                order: 3)
-        metadataStore.save([code])
+        try metadataStore.save([code])
 
         let reloaded = try XCTUnwrap(PaymentCodeMetadataStore(defaults: defaults).load().first)
         XCTAssertEqual(reloaded, code)
@@ -109,7 +109,7 @@ final class PaymentCodeTests: XCTestCase {
 
     func testDeleteRemovesMetadataAndImageFile() throws {
         let code = try store.addCode(name: "微信", kind: .wechat, imageData: pngData)
-        store.delete(id: code.id)
+        try store.delete(id: code.id)
 
         XCTAssertTrue(store.codes.isEmpty)
         XCTAssertTrue(metadataStore.load().isEmpty)
@@ -121,7 +121,7 @@ final class PaymentCodeTests: XCTestCase {
         let b = try store.addCode(name: "支付宝", kind: .alipay, imageData: pngData)
         let c = try store.addCode(name: "备用", kind: .custom, imageData: pngData)
 
-        store.delete(id: b.id)
+        try store.delete(id: b.id)
 
         XCTAssertEqual(store.codes.map(\.id), [a.id, c.id])
         XCTAssertNil(imageStore.data(for: b.fileName), "被删码的文件必须删除")
@@ -171,11 +171,56 @@ final class PaymentCodeTests: XCTestCase {
 
     func testRenamePersistsAcrossReload() throws {
         let code = try store.addCode(name: "旧名字", kind: .custom, imageData: pngData)
-        store.rename(id: code.id, to: "  新名字  ")
+        try store.rename(id: code.id, to: "  新名字  ")
 
         let reloaded = PaymentCodeStore(metadata: PaymentCodeMetadataStore(defaults: defaults),
                                         images: imageStore)
         XCTAssertEqual(reloaded.codes.first?.name, "新名字", "名称应 trim 后持久化")
+    }
+
+    func testAddRollbackRemovesNewImageWhenMetadataWriteFails() throws {
+        let failing = FailingPaymentCodeMetadataStore(initial: [])
+        let failingStore = PaymentCodeStore(metadata: failing, images: imageStore)
+
+        XCTAssertThrowsError(try failingStore.addCode(name: "微信", kind: .wechat, imageData: pngData))
+        XCTAssertTrue(failingStore.codes.isEmpty)
+        XCTAssertTrue(try contentsOfTempDir().isEmpty, "metadata 失败不得留下孤儿图片")
+    }
+
+    func testReplaceRollbackKeepsOldImageWhenMetadataWriteFails() throws {
+        let code = try store.addCode(name: "微信", kind: .wechat, imageData: pngData)
+        let failingStore = PaymentCodeStore(
+            metadata: FailingPaymentCodeMetadataStore(initial: [code]),
+            images: imageStore
+        )
+
+        XCTAssertThrowsError(try failingStore.replaceImage(id: code.id, with: pngData))
+        XCTAssertEqual(failingStore.codes.first?.fileName, code.fileName)
+        XCTAssertNotNil(imageStore.data(for: code.fileName), "替换失败必须保留旧图片")
+        XCTAssertEqual(try contentsOfTempDir(), [code.fileName], "替换失败必须清理新图片")
+    }
+
+    func testDeleteRollbackKeepsRecordAndImageWhenMetadataWriteFails() throws {
+        let code = try store.addCode(name: "微信", kind: .wechat, imageData: pngData)
+        let failingStore = PaymentCodeStore(
+            metadata: FailingPaymentCodeMetadataStore(initial: [code]),
+            images: imageStore
+        )
+
+        XCTAssertThrowsError(try failingStore.delete(id: code.id))
+        XCTAssertEqual(failingStore.codes, [code])
+        XCTAssertNotNil(imageStore.data(for: code.fileName), "删除失败必须保留图片")
+    }
+
+    func testRenameRollbackKeepsOldNameWhenMetadataWriteFails() throws {
+        let code = try store.addCode(name: "旧名字", kind: .custom, imageData: pngData)
+        let failingStore = PaymentCodeStore(
+            metadata: FailingPaymentCodeMetadataStore(initial: [code]),
+            images: imageStore
+        )
+
+        XCTAssertThrowsError(try failingStore.rename(id: code.id, to: "新名字"))
+        XCTAssertEqual(failingStore.codes.first?.name, "旧名字")
     }
 
     // MARK: - 亮度
@@ -271,4 +316,14 @@ final class PaymentCodeTests: XCTestCase {
 private final class StubBrightnessController: BrightnessControlling {
     var brightness: CGFloat
     init(_ brightness: CGFloat) { self.brightness = brightness }
+}
+
+private struct FailingPaymentCodeMetadataStore: PaymentCodeMetadataStoring {
+    let initial: [PaymentCode]
+
+    func load() -> [PaymentCode] { initial }
+
+    func save(_ codes: [PaymentCode]) throws {
+        throw PaymentCodeError.metadataPersistFailed
+    }
 }

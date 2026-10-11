@@ -34,6 +34,7 @@ struct PaymentCodeView: View {
     @State private var fullScreenSession: FullScreenSession?
     @State private var editorTarget: EditorTarget?
     @State private var pendingDelete: PaymentCode?
+    @State private var deleteError: String?
 
     var body: some View {
         ScrollView {
@@ -97,14 +98,27 @@ struct PaymentCodeView: View {
         ) {
             Button("删除", role: .destructive) {
                 if let code = pendingDelete {
-                    store.delete(id: code.id)
-                    Haptic.warning()
+                    do {
+                        try store.delete(id: code.id)
+                        Haptic.warning()
+                    } catch {
+                        Haptic.error()
+                        deleteError = "收款码未删除，原图片和记录已保留，请重试。"
+                    }
                 }
                 pendingDelete = nil
             }
             Button("取消", role: .cancel) { pendingDelete = nil }
         } message: {
             Text("将同时删除本机保存的收款码图片，此操作不可撤销。")
+        }
+        .alert("删除失败", isPresented: Binding(
+            get: { deleteError != nil },
+            set: { if !$0 { deleteError = nil } }
+        )) {
+            Button("好", role: .cancel) {}
+        } message: {
+            Text(deleteError ?? "")
         }
     }
 
@@ -434,7 +448,7 @@ private struct PaymentCodeEditorSheet: View {
         do {
             if let code = editingCode {
                 if !trimmed.isEmpty && trimmed != code.name {
-                    PaymentCodeStore.shared.rename(id: code.id, to: trimmed)
+                    try PaymentCodeStore.shared.rename(id: code.id, to: trimmed)
                 }
                 if let data = pickedImageData {
                     try PaymentCodeStore.shared.replaceImage(id: code.id, with: data)
