@@ -39,13 +39,17 @@ import com.xiaozhanggui.app.domain.ai.ToolName
 import com.xiaozhanggui.app.domain.quickrecord.LocalQuickRecordParser
 import com.xiaozhanggui.app.domain.voice.VoiceDraft
 import com.xiaozhanggui.app.domain.voice.VoiceRecordType
+import com.xiaozhanggui.app.data.voice.ShortVoicePhase
+import com.xiaozhanggui.app.ui.screens.ai.AIChatContent
 import com.xiaozhanggui.app.ui.screens.ai.ActionCardView
+import com.xiaozhanggui.app.ui.screens.ai.ShortVoicePanel
 import com.xiaozhanggui.app.ui.screens.customer.CustomerEditorContent
 import com.xiaozhanggui.app.ui.screens.expiry.ExpiryEditorContent
 import com.xiaozhanggui.app.ui.screens.goods.GoodsEditorContent
 import com.xiaozhanggui.app.ui.screens.goods.GoodsEditorMode
 import com.xiaozhanggui.app.ui.screens.performance.MoneyEditorContent
 import com.xiaozhanggui.app.ui.screens.performance.MoneyEditorMode
+import com.xiaozhanggui.app.ui.screens.home.WeatherSheet
 import com.xiaozhanggui.app.ui.screens.quickrecord.QuickRecordSheetVisual
 import com.xiaozhanggui.app.ui.screens.quickrecord.QuickRecordVisualState
 import com.xiaozhanggui.app.ui.screens.todo.MemoEditorContent
@@ -417,6 +421,92 @@ class SheetScreenshotTest : XzgScreenshotTest() {
             onStopVoice = {},
             onCancelVoice = {},
             onSave = {}
+        )
+    }
+
+    // ---------- 天气 Sheet（R10 占位实现：温度 "--°"，明确标注 Phase 5 接入） ----------
+
+    @Test
+    fun weatherSheetLight() = pageLight("Weather") {
+        WeatherSheet(onDismiss = {})
+    }
+
+    @Test
+    fun weatherSheetDark() = pageDark("Weather") {
+        WeatherSheet(onDismiss = {})
+    }
+
+    // ---------- AI Sheet（首页 AICommandEntry → 底部 sheet，内容 = AIChatContent） ----------
+
+    @Test
+    fun aiSheetLight() = sheetLight("AISheet") {
+        AIChatContent(
+            messages = ScreenshotFixtures.aiMessages(),
+            proposals = listOf(ScreenshotFixtures.aiProposal()),
+            isProcessing = false,
+            processingLabel = "",
+            isRemoteConfigured = true,
+            ready = true,
+            inputText = ""
+        )
+    }
+
+    @Test
+    fun aiSheetDark() = sheetDark("AISheet") {
+        AIChatContent(
+            messages = ScreenshotFixtures.aiMessages(),
+            proposals = listOf(ScreenshotFixtures.aiProposal()),
+            isProcessing = false,
+            processingLabel = "",
+            isRemoteConfigured = true,
+            ready = true,
+            inputText = ""
+        )
+    }
+
+    // ---------- AI 短语音面板（R28 / E03：AISheet 内底部覆盖层） ----------
+
+    @Test
+    fun shortVoicePanelLight() = sheetLight("ShortVoicePanel") {
+        ShortVoicePanel(
+            phase = ShortVoicePhase.Listening,
+            liveTranscript = "今天美团外卖680块",
+            onStop = {},
+            onCancel = {},
+            onEditText = {}
+        )
+    }
+
+    @Test
+    fun shortVoicePanelDark() = sheetDark("ShortVoicePanel") {
+        ShortVoicePanel(
+            phase = ShortVoicePhase.Listening,
+            liveTranscript = "今天美团外卖680块",
+            onStop = {},
+            onCancel = {},
+            onEditText = {}
+        )
+    }
+
+    @Test
+    fun shortVoiceFailedLight() = sheetLight("ShortVoiceFailed") {
+        ShortVoicePanel(
+            phase = ShortVoicePhase.Failed("未听清，请重试或手动输入"),
+            liveTranscript = "今天美团",
+            onStop = {},
+            onCancel = {},
+            onEditText = {}
+        )
+    }
+
+    @Test
+    fun shortVoiceFailedDark() = sheetDark("ShortVoiceFailed") {
+        ShortVoicePanel(
+            phase = ShortVoicePhase.Failed("未听清，请重试或手动输入"),
+            liveTranscript = "今天美团",
+            onStop = {},
+            onCancel = {},
+            onEditText = {}
         )
     }
 
