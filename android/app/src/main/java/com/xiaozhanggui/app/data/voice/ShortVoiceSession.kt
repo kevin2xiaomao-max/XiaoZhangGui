@@ -96,6 +96,14 @@ class ShortVoiceSession(private val speech: VoiceSpeechService) {
         speech.stop()
     }
 
+    /**
+     * 永久拒绝（不再询问）：进入失败态，提示去系统设置开启或直接打字。
+     * 调用方保持面板打开展示该失败态（验收文档 §2 验收项 4）。
+     */
+    fun onPermissionPermanentlyDenied() {
+        _phase.value = ShortVoicePhase.Failed("麦克风权限已被永久拒绝，可前往系统设置开启，或直接打字")
+    }
+
     /** 取消本次聆听 */
     fun cancel() {
         speech.cancel()

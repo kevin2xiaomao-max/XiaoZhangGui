@@ -30,7 +30,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xiaozhanggui.app.XzgApplication
 import com.xiaozhanggui.app.data.di.XzgGraph
 import com.xiaozhanggui.app.data.voice.ShortVoiceSession
+import com.xiaozhanggui.app.data.voice.VoicePermissionFlow
+import com.xiaozhanggui.app.data.voice.VoicePermissionOutcome
 import com.xiaozhanggui.app.data.voice.VoiceSpeechService
+import com.xiaozhanggui.app.data.voice.openAppSettings
 
 /**
  * AI Sheet 容器（V3.7.1：AI 不再是 Tab）。
@@ -79,9 +82,13 @@ fun AISheet(
         mutableStateOf(voiceDeepLink && speech.isAvailable)
     }
 
+    // 永久拒绝（不再询问）时为 true：短语音失败态额外展示"前往系统设置"引导
+    var voiceSettingsBlocked by remember { mutableStateOf(false) }
+
     fun finishVoicePanel() {
         session.cancel()
         showVoicePanel = false
+        voiceSettingsBlocked = false
     }
 
     fun onVoiceFinal(transcript: String) {
@@ -95,9 +102,24 @@ fun AISheet(
     ) { granted ->
         if (granted) {
             session.start(onFinal = ::onVoiceFinal)
-        } else {
-            // 拒绝权限 → 关闭面板，回文字输入（不抛错、不重试）
-            finishVoicePanel()
+            return@rememberLauncherForActivityResult
+        }
+        // 拒绝 → 区分临时拒绝 / 永久拒绝（不再询问）两条路径（验收文档 §2 验收项 4）。
+        when (
+            VoicePermissionFlow.decideFromActivity(
+                context as? android.app.Activity,
+                granted,
+            )
+        ) {
+            VoicePermissionOutcome.GRANTED -> session.start(onFinal = ::onVoiceFinal)
+            // 临时拒绝 → 关闭面板，回文字输入（不抛错、不重试）
+            VoicePermissionOutcome.DENIED_TRANSIENT -> finishVoicePanel()
+            // 永久拒绝 → 保持面板打开展示失败态 + 去系统设置引导
+            VoicePermissionOutcome.DENIED_PERMANENT -> {
+                session.onPermissionPermanentlyDenied()
+                voiceSettingsBlocked = true
+                showVoicePanel = true
+            }
         }
     }
 
@@ -126,6 +148,8 @@ fun AISheet(
                 .testTag("ai.sheet")
         ) {
             AIChatScreen(
+                // ASR 不可用时麦克风按钮置灰（红线：不许假装可用），文字输入始终可用
+                voiceAvailable = speech.isAvailable,
                 onVoice = {
                     // ASR 不可用 → 降级文字输入，不拉起面板
                     if (speech.isAvailable) showVoicePanel = true
@@ -160,6 +184,12 @@ fun AISheet(
                     // 填入输入框需 AIChatScreen 交出输入态（AI worker 后续接线）；
                     // 当前关闭面板，失败态已展示保留原文，用户可手动重输。
                     finishVoicePanel()
+                },
+                // 永久拒绝时失败态展示"前往系统设置"引导
+                onOpenSettings = if (voiceSettingsBlocked) {
+                    { context.openAppSettings() }
+                } else {
+                    null
                 },
                 // 面板不忽略底部安全区（宿主约定）
                 modifier = Modifier

@@ -52,6 +52,13 @@ class VoiceSpeechService(private val appContext: Context) {
             Manifest.permission.RECORD_AUDIO,
         ) == PackageManager.PERMISSION_GRANTED
 
+    /**
+     * 具名能力探测（验收文档 §9.2）：返回可用 / 具名失败原因，
+     * 供语音入口降级与诊断提示使用。诊断日志已在探测内部脱敏。
+     */
+    fun probeCapability(): VoiceCapability =
+        VoiceCapabilityProbe.probe(appContext)
+
     private var recognizer: SpeechRecognizer? = null
     private var silenceJob: Job? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)

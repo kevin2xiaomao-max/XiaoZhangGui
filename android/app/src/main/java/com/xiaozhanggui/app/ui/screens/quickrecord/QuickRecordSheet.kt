@@ -47,7 +47,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.xiaozhanggui.app.data.di.XzgGraph
+import com.xiaozhanggui.app.data.voice.VoicePermissionFlow
+import com.xiaozhanggui.app.data.voice.VoicePermissionOutcome
 import com.xiaozhanggui.app.data.voice.VoiceSpeechService
+import com.xiaozhanggui.app.data.voice.openAppSettings
 import com.xiaozhanggui.app.domain.Format
 import com.xiaozhanggui.app.domain.quickrecord.LocalQuickRecordParser
 import com.xiaozhanggui.app.domain.voice.QuickCaptureSemantic
@@ -107,8 +110,21 @@ fun QuickRecordSheetContent(onDismiss: () -> Unit) {
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
-        if (granted) voice.startListening(onFinal = ::applyText)
-        else voice.onPermissionDenied()
+        if (granted) {
+            voice.startListening(onFinal = ::applyText)
+            return@rememberLauncherForActivityResult
+        }
+        // 拒绝 → 区分临时拒绝 / 永久拒绝（不再询问）两条路径（验收文档 §2 验收项 4）。
+        when (
+            VoicePermissionFlow.decideFromActivity(
+                context as? android.app.Activity,
+                granted,
+            )
+        ) {
+            VoicePermissionOutcome.GRANTED -> voice.startListening(onFinal = ::applyText)
+            VoicePermissionOutcome.DENIED_TRANSIENT -> voice.onPermissionDenied()
+            VoicePermissionOutcome.DENIED_PERMANENT -> voice.onPermissionPermanentlyDenied()
+        }
     }
 
     fun hasRecordAudio(): Boolean =
@@ -191,6 +207,8 @@ fun QuickRecordSheetContent(onDismiss: () -> Unit) {
                     else -> null
                 },
                 showControls = voice.isListening,
+                showSettings = voice.showSettingsGuide &&
+                    voice.status == QuickRecordVoiceRecorder.Status.DENIED,
             )
         } else null
 
@@ -215,6 +233,7 @@ fun QuickRecordSheetContent(onDismiss: () -> Unit) {
         onMicClick = { ensureListening() },
         onStopVoice = { voice.stop() },
         onCancelVoice = { voice.cancel() },
+        onOpenSettings = { context.openAppSettings() },
         onSave = ::commit,
     )
 }
@@ -227,6 +246,8 @@ internal data class QuickRecordVoiceCardState(
     val title: String,
     val subtitle: String?,
     val showControls: Boolean,
+    /** 永久拒绝时为 true：卡片内展示"去系统设置"引导按钮。 */
+    val showSettings: Boolean = false,
 )
 
 internal data class QuickRecordVisualState(
@@ -253,6 +274,7 @@ internal fun QuickRecordSheetVisual(
     onMicClick: () -> Unit,
     onStopVoice: () -> Unit,
     onCancelVoice: () -> Unit,
+    onOpenSettings: () -> Unit = {},
     onSave: () -> Unit,
 ) {
     val palettes = LocalXzgPalettes.current
@@ -295,8 +317,10 @@ internal fun QuickRecordSheetVisual(
                 title = card.title,
                 subtitle = card.subtitle,
                 showControls = card.showControls,
+                showSettings = card.showSettings,
                 onStop = onStopVoice,
                 onCancel = onCancelVoice,
+                onOpenSettings = onOpenSettings,
             )
         }
 
@@ -518,17 +542,20 @@ private fun VoiceStatusCard(
     title: String,
     subtitle: String?,
     showControls: Boolean,
+    showSettings: Boolean = false,
     onStop: () -> Unit,
     onCancel: () -> Unit,
+    onOpenSettings: () -> Unit = {},
 ) {
     val palettes = LocalXzgPalettes.current
     V32Card {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
             Surface(
                 shape = CircleShape,
                 color = palettes.accent.accentSoft,
@@ -592,6 +619,21 @@ private fun VoiceStatusCard(
                     }
                 }
             }
+            // 永久拒绝：卡片内给出"去系统设置"引导（验收文档 §2 验收项 4）。
+            if (showSettings) {
+                TextButton(
+                    onClick = onOpenSettings,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 10.dp),
+                ) {
+                    Text(
+                        text = "去系统设置开启麦克风",
+                        style = XzgType.subhead,
+                        color = palettes.accent.accent,
+                    )
+                }
+            }
         }
     }
 }
@@ -599,7 +641,9 @@ private fun VoiceStatusCard(
 private fun QuickRecordVoiceRecorder.statusTitle(): String = when (status) {
     QuickRecordVoiceRecorder.Status.LISTENING ->
         if (liveTranscript.isEmpty()) "正在听…说一件事" else "正在识别"
-    QuickRecordVoiceRecorder.Status.DENIED -> "麦克风 / 语音识别权限未开启，可直接打字"
+    QuickRecordVoiceRecorder.Status.DENIED ->
+        if (showSettingsGuide) "麦克风权限已被永久拒绝，可去系统设置开启或直接打字"
+        else "麦克风 / 语音识别权限未开启，可直接打字"
     QuickRecordVoiceRecorder.Status.EMPTY -> "没有听清，可再说一次或直接打字"
     QuickRecordVoiceRecorder.Status.FAILED -> failureMessage ?: "语音识别失败，可直接打字"
     QuickRecordVoiceRecorder.Status.IDLE -> ""
@@ -632,6 +676,10 @@ class QuickRecordVoiceRecorder(appContext: Context) {
     var failureMessage by mutableStateOf<String?>(null)
         private set
 
+    /** 永久拒绝（不再询问）时为 true：语音卡片额外展示"去系统设置"引导。 */
+    var showSettingsGuide by mutableStateOf(false)
+        private set
+
     /** 识别器无法初始化时只保留键盘输入。对应 iOS canUseSpeech。 */
     val canUseSpeech: Boolean get() = speech.isAvailable
     val isListening: Boolean get() = status == Status.LISTENING
@@ -641,6 +689,7 @@ class QuickRecordVoiceRecorder(appContext: Context) {
         if (status == Status.LISTENING) return
         liveTranscript = ""
         failureMessage = null
+        showSettingsGuide = false
         speech.start(
             onPartial = { liveTranscript = it },
             onFinal = { final ->
@@ -669,6 +718,12 @@ class QuickRecordVoiceRecorder(appContext: Context) {
     /** 权限被拒时由调用方通知，进入 denied 态（可直接打字）。 */
     fun onPermissionDenied() {
         status = Status.DENIED
+    }
+
+    /** 永久拒绝（不再询问）：denied 态 + 引导去系统设置（验收文档 §2 验收项 4）。 */
+    fun onPermissionPermanentlyDenied() {
+        status = Status.DENIED
+        showSettingsGuide = true
     }
 
     /** 手动停止，等待最终结果。 */

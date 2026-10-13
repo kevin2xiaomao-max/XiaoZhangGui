@@ -159,6 +159,8 @@ fun AIChatContent(
     onInputTextChange: (String) -> Unit = {},
     onSend: () -> Unit = {},
     onVoice: () -> Unit = {},
+    /** ASR 可用性：false 时输入栏麦克风按钮置灰（红线：不许假装可用） */
+    voiceAvailable: Boolean = true,
     onRetry: () -> Unit = {},
     onExample: (String) -> Unit = {},
     onProposalConfirm: (ActionProposal) -> Unit = {},
@@ -294,7 +296,7 @@ fun AIChatContent(
             text = inputText,
             onTextChange = onInputTextChange,
             isProcessing = isProcessing || !ready || initError != null,
-            voiceAvailable = true,
+            voiceAvailable = voiceAvailable,
             onSend = onSend,
             onVoice = onVoice,
             modifier = Modifier

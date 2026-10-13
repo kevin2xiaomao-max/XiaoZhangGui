@@ -67,6 +67,7 @@ import com.xiaozhanggui.app.ui.theme.XzgType
  * @param onStop 手动停止并识别
  * @param onCancel 取消语音（关闭面板）
  * @param onEditText 失败后「填入文字」：把保留原文交回输入框
+ * @param onOpenSettings 永久拒绝时「前往系统设置」回调；为 null 时不展示该按钮
  */
 @Composable
 fun ShortVoicePanel(
@@ -75,6 +76,7 @@ fun ShortVoicePanel(
     onStop: () -> Unit,
     onCancel: () -> Unit,
     onEditText: () -> Unit,
+    onOpenSettings: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val palettes = LocalXzgPalettes.current
@@ -95,7 +97,8 @@ fun ShortVoicePanel(
                     message = phase.message,
                     liveTranscript = liveTranscript,
                     onEditText = onEditText,
-                    onCancel = onCancel
+                    onCancel = onCancel,
+                    onOpenSettings = onOpenSettings
                 )
             else ->
                 ShortVoiceListeningContent(
@@ -116,17 +119,9 @@ private fun ShortVoiceListeningContent(
     onCancel: () -> Unit
 ) {
     val palettes = LocalXzgPalettes.current
-    val context = LocalContext.current
-    // Reduce Motion：系统动画缩放为 0（开发者选项/无障碍"移除动画"）时不做脉冲
-    val reduceMotion = remember {
-        runCatching {
-            Settings.Global.getFloat(
-                context.contentResolver,
-                Settings.Global.TRANSITION_ANIMATION_SCALE,
-                1f
-            ) == 0f
-        }.getOrDefault(false)
-    }
+    // Reduce Motion：系统「移除动画」开启时不做脉冲（集中接线：ui.theme.rememberReduceMotion，
+    // 信号源 Settings.Global.ANIMATOR_DURATION_SCALE，响应式监听变化）
+    val reduceMotion = rememberReduceMotion()
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -256,7 +251,8 @@ private fun ShortVoiceFailureContent(
     message: String,
     liveTranscript: String,
     onEditText: () -> Unit,
-    onCancel: () -> Unit
+    onCancel: () -> Unit,
+    onOpenSettings: (() -> Unit)? = null
 ) {
     val palettes = LocalXzgPalettes.current
     Column(
@@ -283,6 +279,26 @@ private fun ShortVoiceFailureContent(
             color = palettes.background.textSecondary,
             textAlign = TextAlign.Center
         )
+        // 永久拒绝：给出"前往系统设置"引导（验收文档 §2 验收项 4）
+        if (onOpenSettings != null) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .clip(CircleShape)
+                    .background(palettes.accent.accent)
+                    .clickable(onClick = onOpenSettings)
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = "前往系统设置开启麦克风",
+                    style = XzgType.subhead.copy(fontWeight = FontWeight.SemiBold),
+                    color = Color.White
+                )
+            }
+        }
         if (liveTranscript.isNotEmpty()) {
             Text(
                 text = "已保留：$liveTranscript",

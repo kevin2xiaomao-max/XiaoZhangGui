@@ -69,7 +69,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xiaozhanggui.app.data.di.XzgGraph
+import com.xiaozhanggui.app.data.voice.VoicePermissionFlow
+import com.xiaozhanggui.app.data.voice.VoicePermissionOutcome
 import com.xiaozhanggui.app.data.voice.VoiceSpeechService
+import com.xiaozhanggui.app.data.voice.openAppSettings
 import com.xiaozhanggui.app.domain.Format
 import com.xiaozhanggui.app.domain.voice.VoiceDraft
 import com.xiaozhanggui.app.domain.voice.VoiceRecordType
@@ -132,7 +135,21 @@ fun VoiceSheetContent(onDismiss: () -> Unit) {
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
-        if (granted) vm.beginListening() else vm.onPermissionDenied()
+        if (granted) {
+            vm.beginListening()
+            return@rememberLauncherForActivityResult
+        }
+        // 拒绝 → 区分临时拒绝 / 永久拒绝（不再询问）两条路径（验收文档 §2 验收项 4）。
+        when (
+            VoicePermissionFlow.decideFromActivity(
+                context as? android.app.Activity,
+                granted,
+            )
+        ) {
+            VoicePermissionOutcome.GRANTED -> vm.beginListening()
+            VoicePermissionOutcome.DENIED_TRANSIENT -> vm.onPermissionDenied()
+            VoicePermissionOutcome.DENIED_PERMANENT -> vm.onPermissionPermanentlyDenied()
+        }
     }
 
     var autoStarted by rememberSaveable { mutableStateOf(false) }
@@ -188,6 +205,7 @@ fun VoiceSheetContent(onDismiss: () -> Unit) {
         onMicClick = ::onMicClick,
         onSubmitManual = ::submitManual,
         onEnterTextFallback = { vm.enterTextFallback() },
+        onOpenSettings = { context.openAppSettings() },
         onSetRecordType = { vm.setRecordType(it) },
         onSave = { vm.save() },
         performHaptic = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) },
@@ -212,6 +230,7 @@ internal fun VoiceSheetVisual(
     onMicClick: () -> Unit,
     onSubmitManual: () -> Unit,
     onEnterTextFallback: () -> Unit,
+    onOpenSettings: () -> Unit = {},
     onSetRecordType: (VoiceRecordType) -> Unit,
     onSave: () -> Unit,
     performHaptic: () -> Unit,
@@ -361,9 +380,18 @@ internal fun VoiceSheetVisual(
                 )
             }
 
-            // 失败保留转写 → "填入文字"（走同一解析链路，不丢话）
+            // 失败保留转写 → "填入文字"（走同一解析链路，不丢话）；
+            // 永久拒绝时额外给出"前往系统设置"引导（验收文档 §2 验收项 4）。
             if (phase is VoicePhase.Error) {
                 Spacer(modifier = Modifier.height(8.dp))
+                if (phase.guideToSettings) {
+                    V32SecondaryButton(
+                        text = "前往系统设置开启麦克风",
+                        onClick = onOpenSettings,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
                 V32SecondaryButton(
                     text = "填入文字",
                     onClick = onEnterTextFallback,

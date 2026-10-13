@@ -8,6 +8,7 @@ import com.xiaozhanggui.app.data.repository.ExpiryRepository
 import com.xiaozhanggui.app.data.repository.MemoRepository
 import com.xiaozhanggui.app.data.repository.PerformanceRepository
 import com.xiaozhanggui.app.data.repository.TodoRepository
+import com.xiaozhanggui.app.data.voice.VoiceCapability
 import com.xiaozhanggui.app.data.voice.VoiceSpeechService
 import com.xiaozhanggui.app.domain.voice.QuickCaptureSemantic
 import com.xiaozhanggui.app.domain.voice.VoiceDraft
@@ -29,7 +30,7 @@ sealed interface VoicePhase {
     data object Parsing : VoicePhase
     data object Preview : VoicePhase
     data object Saving : VoicePhase
-    data class Error(val message: String) : VoicePhase
+    data class Error(val message: String, val guideToSettings: Boolean = false) : VoicePhase
     data object TextFallback : VoicePhase
 
     /** 对应 iOS `VoicePhase.statusText`。 */
@@ -79,9 +80,12 @@ class VoiceViewModel(
     private val _didSave = MutableStateFlow(false)
     val didSave: StateFlow<Boolean> = _didSave.asStateFlow()
 
-    /** 识别器不可用时的提示（对齐 iOS `speechAvailableHint`）。 */
+    /** 识别器不可用时的提示：走具名能力探测，给出具体失败原因（验收文档 §9.2）。 */
     val speechUnavailableHint: String
-        get() = if (speech.isAvailable) "" else VoiceSpeechService.ERROR_NOT_AVAILABLE
+        get() = when (val capability = speech.probeCapability()) {
+            VoiceCapability.Available -> ""
+            is VoiceCapability.Unavailable -> capability.userHint
+        }
 
     val isSpeechAvailable: Boolean
         get() = speech.isAvailable
@@ -152,6 +156,14 @@ class VoiceViewModel(
     /** 权限被拒绝（由调用方的权限申请回调转入）。 */
     fun onPermissionDenied() {
         _phase.value = VoicePhase.Error(VoiceSpeechService.ERROR_PERMISSION_DENIED)
+    }
+
+    /** 永久拒绝（不再询问）：错误态 + 引导去系统设置（验收文档 §2 验收项 4）。 */
+    fun onPermissionPermanentlyDenied() {
+        _phase.value = VoicePhase.Error(
+            message = "麦克风权限已被永久拒绝，请前往系统设置开启后重试",
+            guideToSettings = true,
+        )
     }
 
     /**
