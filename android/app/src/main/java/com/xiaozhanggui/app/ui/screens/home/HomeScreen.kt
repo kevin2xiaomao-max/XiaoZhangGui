@@ -19,8 +19,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.EditNote
 import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.Person
@@ -570,7 +570,7 @@ private fun HomeHeader(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Icon(
-                    Icons.AutoMirrored.Filled.EditNote,
+                    Icons.Filled.EditNote,
                     contentDescription = null,
                     tint = colors.textPrimary,
                     modifier = Modifier.size(16.dp)
