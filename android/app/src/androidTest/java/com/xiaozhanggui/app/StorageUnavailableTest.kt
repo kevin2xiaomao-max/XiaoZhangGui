@@ -1,8 +1,7 @@
 package com.xiaozhanggui.app
 
-import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -45,7 +44,7 @@ class StorageUnavailableTest {
         // 探针异常信息透出（localizedMessage），便于诊断
         rule.onNodeWithText("磁盘已满").assertIsDisplayed()
         // 重试按钮可达、可点击
-        rule.onNodeWithText("重试").assertIsDisplayed().assert(hasClickAction())
+        rule.onNodeWithText("重试").assertIsDisplayed().assertHasClickAction()
 
         rule.onNodeWithText("重试").performClick()
         rule.waitForIdle()
