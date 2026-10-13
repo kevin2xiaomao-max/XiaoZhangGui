@@ -67,6 +67,8 @@ import com.xiaozhanggui.app.ui.theme.XzgType
 @Composable
 fun AIChatScreen(
     onVoice: () -> Unit = {},
+    /** ASR 可用性：false 时输入栏麦克风按钮置灰（红线：不许假装可用） */
+    voiceAvailable: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -105,6 +107,7 @@ fun AIChatScreen(
             input = ""
         },
         onVoice = onVoice,
+        voiceAvailable = voiceAvailable,
         onRetry = { viewModel.retryLastFailed() },
         onExample = { viewModel.send(it) },
         onProposalConfirm = { viewModel.confirm(it.id) },
