@@ -14,16 +14,21 @@ import com.xiaozhanggui.app.MainActivity
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
-import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Rule
 import org.junit.Test
 
 /**
- * 旅程 4：深链接 `xzg://ai` → 小掌柜页（Phase 6 Worker B）。
+ * 旅程 4：深链接 `xzg://ai` → AI Sheet（V3.7.1 Phase 2 导航 worker 重写；
+ * AI 不再是 Tab）。
  *
  * 链路：冷启动 VIEW intent → MainActivity.onCreate(intent) →
- * XzgDeepLink → XzgNavGraph(pendingDeepLink) → 切小掌柜 Tab。
+ * XzgDeepLink（OpenAISheet）→ XzgNavGraph(planColdStart：首页 Tab + AI Sheet 标记）→
+ * LaunchedEffect（setGraph 后）打开 AI Sheet（内容为 AIChatView 对应的 AIChatScreen）。
+ *
+ * `xzg://ai?mode=voice` → 同链路 + AI Sheet 内同步拉起短语音面板；
+ * CI 模拟器（API 30 无 GMS）上 ASR 不可用，按 OPPO 专项红线降级为文字输入、
+ * 不拉起面板，此处仅断言 AI Sheet 打开（面板拉起需真机/GMS 验证）。
  *
  * 实现方式与 manifest 配对检查见 [DeepLinkTodoJourneyTest]（同源修复史）。
  */
@@ -33,7 +38,7 @@ class DeepLinkAiJourneyTest {
     @get:Rule
     val composeTestRule = createEmptyComposeRule()
 
-    private lateinit var scenario: ActivityScenario<MainActivity>
+    private var scenario: ActivityScenario<MainActivity>? = null
 
     companion object {
         @JvmStatic
@@ -43,11 +48,10 @@ class DeepLinkAiJourneyTest {
         }
     }
 
-    @Before
-    fun launchWithDeepLink() {
+    private fun launchWithDeepLink(uri: String) {
         val intent = Intent(
             Intent.ACTION_VIEW,
-            Uri.parse("xzg://ai"),
+            Uri.parse(uri),
             ApplicationProvider.getApplicationContext(),
             MainActivity::class.java
         )
@@ -58,19 +62,41 @@ class DeepLinkAiJourneyTest {
     fun closeScenario() {
         // 手动关闭；若模拟器上关不掉也不让 teardown 掩盖测试本体结果
         try {
-            scenario.close()
+            scenario?.close()
         } catch (e: Exception) {
             // ignore: CI 模拟器上 ActivityScenario.close() 偶发超时
+        } finally {
+            scenario = null
         }
     }
 
     @Test
-    fun deepLinkAi_opensAssistantTab() {
+    fun deepLinkAi_opensAISheet() {
+        launchWithDeepLink("xzg://ai")
         assertDeepLinkResolves("xzg://ai")
+        // AI Sheet 打开：sheet 容器 tag + AI 对话输入栏（AIChatScreen 内容装入 Sheet）
+        composeTestRule.waitUntil(10_000) {
+            composeTestRule.onAllNodesWithTag("ai.sheet")
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithTag("ai.sheet").assertIsDisplayed()
         composeTestRule.waitUntil(10_000) {
             composeTestRule.onAllNodesWithTag("ai.input")
                 .fetchSemanticsNodes().isNotEmpty()
         }
+        composeTestRule.onNodeWithTag("ai.input").assertIsDisplayed()
+    }
+
+    @Test
+    fun deepLinkAiVoice_opensAISheet() {
+        launchWithDeepLink("xzg://ai?mode=voice")
+        assertDeepLinkResolves("xzg://ai?mode=voice")
+        // AI Sheet 打开（无 GMS 模拟器上短语音面板按红线降级不拉起；真机/GMS 再验面板）
+        composeTestRule.waitUntil(10_000) {
+            composeTestRule.onAllNodesWithTag("ai.sheet")
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithTag("ai.sheet").assertIsDisplayed()
         composeTestRule.onNodeWithTag("ai.input").assertIsDisplayed()
     }
 

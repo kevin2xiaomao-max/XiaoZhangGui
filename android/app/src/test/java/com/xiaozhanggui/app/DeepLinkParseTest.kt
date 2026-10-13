@@ -12,9 +12,9 @@ import org.junit.Test
  * 纯 JVM 入口 parse(String)/route(host, mode)——handle 仅做参数转发，
  * 映射逻辑与之一致。
  *
- * 路由表（对应 iOS AppDeepLink.swift）：
- * - xzg://ai（无 query / mode≠voice）→ OpenAssistantTab
- * - xzg://ai?mode=voice → OpenAssistantVoice
+ * 路由表（对应 iOS AppDeepLink.swift + RootView.handleDeepLink）：
+ * - xzg://ai（无 query / mode≠voice）→ OpenAISheet（V3.7.1：AI 不再是 Tab）
+ * - xzg://ai?mode=voice → OpenAISheetVoice（AI Sheet + 短语音面板）
  * - xzg://voice → OpenVoice
  * - xzg://quickrecord / xzg://quick → OpenQuickRecord
  * - xzg://todo → OpenTodoTab（Android 侧扩展，iOS 无此 host）
@@ -23,18 +23,18 @@ import org.junit.Test
 class DeepLinkParseTest {
 
     @Test
-    fun `xzg ai opens assistant tab`() {
-        assertEquals(DeepLinkAction.OpenAssistantTab, XzgDeepLink.parse("xzg://ai"))
+    fun `xzg ai opens ai sheet (no longer a tab)`() {
+        assertEquals(DeepLinkAction.OpenAISheet, XzgDeepLink.parse("xzg://ai"))
     }
 
     @Test
-    fun `xzg ai with non-voice mode opens assistant tab`() {
-        assertEquals(DeepLinkAction.OpenAssistantTab, XzgDeepLink.parse("xzg://ai?mode=text"))
+    fun `xzg ai with non-voice mode opens ai sheet`() {
+        assertEquals(DeepLinkAction.OpenAISheet, XzgDeepLink.parse("xzg://ai?mode=text"))
     }
 
     @Test
-    fun `xzg ai mode voice opens assistant voice`() {
-        assertEquals(DeepLinkAction.OpenAssistantVoice, XzgDeepLink.parse("xzg://ai?mode=voice"))
+    fun `xzg ai mode voice opens ai sheet with voice panel`() {
+        assertEquals(DeepLinkAction.OpenAISheetVoice, XzgDeepLink.parse("xzg://ai?mode=voice"))
     }
 
     @Test
@@ -84,9 +84,9 @@ class DeepLinkParseTest {
         assertEquals(DeepLinkAction.OpenVoice, XzgDeepLink.route("voice"))
         assertEquals(DeepLinkAction.OpenQuickRecord, XzgDeepLink.route("quickrecord"))
         assertEquals(DeepLinkAction.OpenQuickRecord, XzgDeepLink.route("quick"))
-        assertEquals(DeepLinkAction.OpenAssistantTab, XzgDeepLink.route("ai"))
-        assertEquals(DeepLinkAction.OpenAssistantVoice, XzgDeepLink.route("ai", "voice"))
-        assertEquals(DeepLinkAction.OpenAssistantTab, XzgDeepLink.route("ai", "other"))
+        assertEquals(DeepLinkAction.OpenAISheet, XzgDeepLink.route("ai"))
+        assertEquals(DeepLinkAction.OpenAISheetVoice, XzgDeepLink.route("ai", "voice"))
+        assertEquals(DeepLinkAction.OpenAISheet, XzgDeepLink.route("ai", "other"))
         assertEquals(DeepLinkAction.OpenTodoTab, XzgDeepLink.route("todo"))
         assertEquals(DeepLinkAction.Ignore, XzgDeepLink.route(null))
         assertEquals(DeepLinkAction.Ignore, XzgDeepLink.route("unknown"))
@@ -95,14 +95,14 @@ class DeepLinkParseTest {
     // ---------- Phase 1 语义回归 worker 补齐：解析层边界 ----------
 
     @Test
-    fun `ai mode empty string opens assistant tab`() {
-        assertEquals(DeepLinkAction.OpenAssistantTab, XzgDeepLink.parse("xzg://ai?mode="))
+    fun `ai mode empty string opens ai sheet`() {
+        assertEquals(DeepLinkAction.OpenAISheet, XzgDeepLink.parse("xzg://ai?mode="))
     }
 
     @Test
-    fun `ai mode voice with extra query params still opens assistant voice`() {
+    fun `ai mode voice with extra query params still opens ai sheet with voice`() {
         assertEquals(
-            DeepLinkAction.OpenAssistantVoice,
+            DeepLinkAction.OpenAISheetVoice,
             XzgDeepLink.parse("xzg://ai?mode=voice&foo=bar")
         )
     }
@@ -110,7 +110,7 @@ class DeepLinkParseTest {
     @Test
     fun `ai mode matching is case sensitive`() {
         // 当前实现 mode == "voice" 精确匹配；大写 VOICE 走默认分支（锁定行为，非语义变更）
-        assertEquals(DeepLinkAction.OpenAssistantTab, XzgDeepLink.parse("xzg://ai?mode=VOICE"))
+        assertEquals(DeepLinkAction.OpenAISheet, XzgDeepLink.parse("xzg://ai?mode=VOICE"))
     }
 
     @Test

@@ -1,7 +1,6 @@
 package com.xiaozhanggui.app.ui.navigation
 
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
@@ -9,15 +8,14 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -25,12 +23,11 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.xiaozhanggui.app.ui.screens.ai.AIChatScreen
+import com.xiaozhanggui.app.ui.screens.ai.AISheet
 import com.xiaozhanggui.app.ui.screens.customer.CustomerScreen
 import com.xiaozhanggui.app.ui.screens.expiry.ExpiryScreen
 import com.xiaozhanggui.app.ui.screens.goods.GoodsScreen
 import com.xiaozhanggui.app.ui.screens.home.DailyReportSheet
-import com.xiaozhanggui.app.ui.screens.home.HomeDrawer
 import com.xiaozhanggui.app.ui.screens.home.HomeScreen
 import com.xiaozhanggui.app.ui.screens.imp.SaobeiImportSheet
 import com.xiaozhanggui.app.ui.screens.paymentcode.PaymentCodeScreen
@@ -45,19 +42,24 @@ import com.xiaozhanggui.app.ui.screens.todo.TodoScreen
 import com.xiaozhanggui.app.ui.screens.voice.VoiceSheetContent
 import com.xiaozhanggui.app.ui.theme.LocalXzgPalettes
 import com.xiaozhanggui.app.ui.theme.XzgType
-import kotlinx.coroutines.launch
 
 /**
- * 导航壳。对应 iOS `App/RootView.swift` 的 5 Tab TabView。
+ * 导航壳。对应 iOS `App/RootView.swift` 的 4 Tab TabView
+ *（首页/待办/日历/经营；AI 不再是 Tab，「我的」走首页头像）。
  *
- * Phase 3：
- * - 5 Tab 接入真实 Screen：home/todo/profile；schedule/assistant 保留占位
- *   （日程 Phase 3b 实现，小掌柜 AI 对话 Phase 4 实现）。
- * - 抽屉目的地路由：transactions / customer / expiry / goods / memo
- *   （home Tab 由 HomeDrawer 包裹，抽屉的 onNavigate(route)/onOpenSheet(name)
- *   回到此处处理）；另有 performance（经营数据页，由首页营业额 Hero 进入）。
- * - 「工具」路由：paymentcode（由 ProfileScreen 的「收款码」行触发）。
- * - Root 级 Sheet：report（今日经营报告）/ quickrecord / voice / saobei（扫呗导入）。
+ * V3.7.1（Phase 2 导航重构）：
+ * - 4 Tab 接入真实 Screen：home/todo/calendar/business；
+ *   calendar Tab 内容为 ScheduleScreen（即 iOS 日历 Tab 下的 ScheduleView 对应屏），
+ *   完整月历为二级页（路由 "calendar_month"）；
+ *   business Tab 内容为 PerformanceScreen（经营 menu：商品/记录/日报/扫呗，由经营页内部接线）。
+ * - AI = Root 级 Sheet（[AISheet]，内容复用 AIChatScreen）：
+ *   首页 AICommandEntry（onOpenAI）与深链 `xzg://ai[?mode=voice]` 都走此处打开；
+ *   `mode=voice` 时同步拉起短语音面板（ASR 不可用则降级文字输入）。
+ * - Profile 为导航目的地（路由 "profile"）：首页 header 右上角头像（onOpenProfile）
+ *   → navigationDestination；返回键回首页（R05）。
+ * - 首页已无经营快捷抽屉入口（V3.6 HomeDrawer 退役）：抽屉原目的地全部迁至新入口——
+ *   交易记录→经营页「查看全部」；客户/临期→首页「今日重点」行；商品→经营 toolbar；
+ *   备忘→经营 menu「记录」（R13）；日报/速记/扫呗→经营 menu / 首页胶囊 Sheet。
  * - 深链接：MainActivity 把解析出的 [DeepLinkAction] 经 [deepLinkAction] 传入，
  *   此处 remember 暂存为 pending，经 LaunchedEffect 处理后通过 [onDeepLink]
  *   回调通知 MainActivity 已消费。
@@ -77,26 +79,21 @@ fun XzgNavGraph(
 
     var activeSheet by remember { mutableStateOf<RootSheet?>(null) }
 
-    // 深链接冷启动：直接决定 NavHost 的 startDestination，避免
-    // LaunchedEffect 在 NavHost setGraph 之前调用 navigate() 崩溃
-    // （`You must call setGraph() before calling getGraph()`）。
+    // 深链接冷启动：planColdStart 只决定 NavHost 的 startDestination + 待开 Sheet 标记，
+    // 不在 NavHost setGraph 之前调用 navigate()（V3.6 冷启动深链崩溃防回归：
+    // `You must call setGraph() before calling getGraph()`）。
     // remember 锁存初始值：热启动（onNewIntent）的新 deepLinkAction
     // 走下面的 LaunchedEffect 导航，不重置 NavHost。
     val initialDeepLink = remember { deepLinkAction }
-    val startTab = when (initialDeepLink) {
-        DeepLinkAction.OpenTodoTab -> XzgTab.TODO
-        DeepLinkAction.OpenAssistantTab,
-        DeepLinkAction.OpenAssistantVoice -> XzgTab.ASSISTANT
-        else -> XzgTab.HOME
-    }
-    // 冷启动的 Sheet 类深链接（语音/速记）仍需 LaunchedEffect 打开，
-    // Tab 类已由 startDestination 处理。
-    LaunchedEffect(initialDeepLink) {
-        when (initialDeepLink) {
-            DeepLinkAction.OpenVoice -> activeSheet = RootSheet.VOICE
-            DeepLinkAction.OpenQuickRecord -> activeSheet = RootSheet.QUICK_RECORD
-            DeepLinkAction.OpenAssistantVoice -> activeSheet = RootSheet.VOICE
-            else -> {}
+    val coldStart = remember(initialDeepLink) { planColdStart(initialDeepLink) }
+    val startTab = coldStart.startTab
+    // 冷启动的 Sheet 类深链接在 NavHost setGraph 之后经 LaunchedEffect 打开。
+    LaunchedEffect(coldStart) {
+        activeSheet = when {
+            coldStart.openAISheet -> RootSheet.AI(coldStart.aiVoiceDeepLink)
+            coldStart.openVoiceSheet -> RootSheet.VOICE
+            coldStart.openQuickRecordSheet -> RootSheet.QUICK_RECORD
+            else -> activeSheet
         }
         if (initialDeepLink != null && initialDeepLink != DeepLinkAction.Ignore) {
             onDeepLink(initialDeepLink)
@@ -118,13 +115,11 @@ fun XzgNavGraph(
         when (pendingDeepLink) {
             DeepLinkAction.OpenVoice -> activeSheet = RootSheet.VOICE
             DeepLinkAction.OpenQuickRecord -> activeSheet = RootSheet.QUICK_RECORD
-            DeepLinkAction.OpenAssistantTab ->
-                navController.navigateToTab(XzgTab.ASSISTANT)
-            DeepLinkAction.OpenAssistantVoice -> {
-                // 切换到小掌柜 Tab 并打开语音 Sheet（AI 语音面板）
-                navController.navigateToTab(XzgTab.ASSISTANT)
-                activeSheet = RootSheet.VOICE
-            }
+            // iOS 语义：深链到达时若 AI Sheet 已在展示则先关再重开，保证入口可达。
+            // RootSheet.AI 为 data class：voice 标记变化即产生新实例，
+            // AISheet 以 voiceDeepLink 为 key 重建语音面板态，等价重开。
+            DeepLinkAction.OpenAISheet -> activeSheet = RootSheet.AI(voiceDeepLink = false)
+            DeepLinkAction.OpenAISheetVoice -> activeSheet = RootSheet.AI(voiceDeepLink = true)
             DeepLinkAction.OpenTodoTab ->
                 navController.navigateToTab(XzgTab.TODO)
             null, DeepLinkAction.Ignore -> {}
@@ -138,7 +133,8 @@ fun XzgNavGraph(
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
-    // 仅在 5 个 Tab 根路由显示底部栏；抽屉二级页/工具页隐藏（对应 iOS 推入页面隐藏 TabBar）
+    // 仅在 4 个 Tab 根路由显示底部栏；二级页/工具页/Profile 目的地隐藏
+    //（对应 iOS 推入页面隐藏 TabBar）。
     val showBottomBar = XzgTab.values().any { it.route == currentRoute }
 
     Scaffold(
@@ -153,6 +149,7 @@ fun XzgNavGraph(
                         NavigationBarItem(
                             selected = selected,
                             onClick = { navController.navigateToTab(tab) },
+                            modifier = Modifier.testTag(tab.tag),
                             icon = {
                                 Icon(
                                     imageVector = if (selected) tab.selectedIcon else tab.icon,
@@ -171,81 +168,75 @@ fun XzgNavGraph(
             startDestination = startTab.route,
             modifier = Modifier.padding(innerPadding)
         ) {
-            // ---- 5 Tab ----
+            // ---- 4 Tab ----
             composable(XzgTab.HOME.route) {
-                // 左侧经营快捷抽屉：HomeDrawer 包裹 HomeScreen；
-                // 抽屉目的地经 onNavigate/onOpenSheet 回到 shell 处理
-                //（对应 HomeDrawer KDoc 约定的 shell 职责）。
-                val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
-                val scope = rememberCoroutineScope()
-                HomeDrawer(
-                    drawerState = drawerState,
-                    onNavigate = { route ->
-                        navController.navigate(route) { launchSingleTop = true }
+                HomeScreen(
+                    onOpenPerformance = {
+                        // 首页 Hero「今日营业额」可点进经营：切到经营 Tab（对应 iOS heroFlat → 经营）
+                        navController.navigateToTab(XzgTab.BUSINESS)
                     },
-                    onOpenSheet = { name ->
-                        RootSheet.fromKey(name)?.let { activeSheet = it }
-                    }
-                ) {
-                    HomeScreen(
-                        onOpenPerformance = {
-                            navController.navigate("performance") { launchSingleTop = true }
-                        },
-                        onOpenTodoTab = { navController.navigateToTab(XzgTab.TODO) },
-                        onOpenCustomer = {
-                            navController.navigate("customer") { launchSingleTop = true }
-                        },
-                        onOpenExpiry = {
-                            navController.navigate("expiry") { launchSingleTop = true }
-                        },
-                        onOpenMemo = {
-                            navController.navigate("memo") { launchSingleTop = true }
-                        },
-                        onOpenDrawer = { scope.launch { drawerState.open() } },
-                        onOpenQuickRecord = { activeSheet = RootSheet.QUICK_RECORD },
-                        // 天气 Sheet 由 HomeScreen 内部自行展示，此处无需额外动作
-                        onOpenWeather = {},
-                    )
-                }
+                    onOpenTodoTab = { navController.navigateToTab(XzgTab.TODO) },
+                    onOpenCustomer = {
+                        navController.navigate("customer") { launchSingleTop = true }
+                    },
+                    onOpenExpiry = {
+                        navController.navigate("expiry") { launchSingleTop = true }
+                    },
+                    // 首页 header 右上角头像 → navigationDestination 进 Profile（R05）
+                    onOpenProfile = {
+                        navController.navigate("profile") { launchSingleTop = true }
+                    },
+                    // 首页 AICommandEntry → AI Sheet（R09；AI 不再是 Tab）
+                    onOpenAI = { activeSheet = RootSheet.AI() },
+                    onOpenQuickRecord = { activeSheet = RootSheet.QUICK_RECORD },
+                    // 天气 Sheet 由 HomeScreen 内部自行展示，此处无需额外动作
+                    onWeatherClick = {},
+                )
             }
-            composable(XzgTab.SCHEDULE.route) {
+            composable(XzgTab.CALENDAR.route) {
                 ScheduleScreen(
-                    onOpenCalendar = { navController.navigate("calendar") },
+                    onOpenCalendar = { navController.navigate("calendar_month") },
                     onTodoClick = { navController.navigate(XzgTab.TODO.route) { launchSingleTop = true } },
                     onExpiryClick = { navController.navigate("expiry") { launchSingleTop = true } },
                     onCustomerClick = { navController.navigate("customer") { launchSingleTop = true } },
                 )
             }
-            composable(XzgTab.ASSISTANT.route) {
-                AIChatScreen(onVoice = { activeSheet = RootSheet.VOICE })
-            }
             composable(XzgTab.TODO.route) {
                 TodoScreen()
             }
-            composable(XzgTab.PROFILE.route) {
+            composable(XzgTab.BUSINESS.route) {
+                PerformanceScreen(
+                    onOpenTransactions = {
+                        navController.navigate("transactions") { launchSingleTop = true }
+                    },
+                    onOpenSaobei = { activeSheet = RootSheet.SAOBEI },
+                    onOpenGoods = {
+                        navController.navigate("goods") { launchSingleTop = true }
+                    },
+                    onOpenMemo = {
+                        navController.navigate("memo") { launchSingleTop = true }
+                    },
+                    onOpenDailyReport = { activeSheet = RootSheet.REPORT },
+                )
+            }
+            // ---- 首页头像 → Profile（导航目的地，非 Tab；对应 iOS HomeRoute.profile）----
+            // 返回路径：系统返回键回首页（R05）。
+            composable("profile") {
                 ProfileScreen(
                     onOpenPaymentCode = {
                         navController.navigate("paymentcode") { launchSingleTop = true }
                     }
                 )
             }
-            // ---- 抽屉目的地（二级页）----
+            // ---- 二级页 ----
             composable("transactions") {
                 TransactionHistoryScreen(onBack = { navController.popBackStack() })
-            }
-            composable("performance") {
-                PerformanceScreen(
-                    onOpenTransactions = {
-                        navController.navigate("transactions") { launchSingleTop = true }
-                    },
-                    onOpenSaobei = { activeSheet = RootSheet.SAOBEI }
-                )
             }
             composable("customer") { CustomerScreen() }
             composable("expiry") { ExpiryScreen() }
             composable("goods") { GoodsScreen() }
             composable("memo") { MemoScreen() }
-            composable("calendar") { CalendarScreen() }
+            composable("calendar_month") { CalendarScreen() }
             // ---- 工具页 ----
             composable("paymentcode") {
                 PaymentCodeScreen(onBack = { navController.popBackStack() })
@@ -255,31 +246,38 @@ fun XzgNavGraph(
 
     // ---- Root 级全局 Sheet ----
     activeSheet?.let { sheet ->
-        ModalBottomSheet(onDismissRequest = { activeSheet = null }) {
-            when (sheet) {
-                RootSheet.REPORT ->
-                    DailyReportSheet(onDismiss = { activeSheet = null })
-                RootSheet.QUICK_RECORD ->
-                    QuickRecordSheetContent(onDismiss = { activeSheet = null })
-                RootSheet.VOICE ->
-                    VoiceSheetContent(onDismiss = { activeSheet = null })
-                RootSheet.SAOBEI ->
-                    SaobeiImportSheet(onDismiss = { activeSheet = null })
+        if (sheet is RootSheet.AI) {
+            AISheet(
+                voiceDeepLink = sheet.voiceDeepLink,
+                onDismiss = { activeSheet = null }
+            )
+        } else {
+            ModalBottomSheet(onDismissRequest = { activeSheet = null }) {
+                when (sheet) {
+                    RootSheet.REPORT ->
+                        DailyReportSheet(onDismiss = { activeSheet = null })
+                    RootSheet.QUICK_RECORD ->
+                        QuickRecordSheetContent(onDismiss = { activeSheet = null })
+                    RootSheet.VOICE ->
+                        VoiceSheetContent(onDismiss = { activeSheet = null })
+                    RootSheet.SAOBEI ->
+                        SaobeiImportSheet(onDismiss = { activeSheet = null })
+                    is RootSheet.AI -> Unit // 不可达：外层已处理
+                }
             }
         }
     }
 }
 
-/** Root 级 Sheet：report / quickrecord / voice / saobei */
-private enum class RootSheet(val key: String) {
-    REPORT("report"),
-    QUICK_RECORD("quickrecord"),
-    VOICE("voice"),
-    SAOBEI("saobei");
+/** Root 级 Sheet：report / quickrecord / voice / saobei / ai（V3.7.1 新增） */
+private sealed interface RootSheet {
+    data object REPORT : RootSheet
+    data object QUICK_RECORD : RootSheet
+    data object VOICE : RootSheet
+    data object SAOBEI : RootSheet
 
-    companion object {
-        fun fromKey(key: String): RootSheet? = values().find { it.key == key }
-    }
+    /** AI Sheet；voiceDeepLink = true 时同步拉起短语音面板（`xzg://ai?mode=voice`） */
+    data class AI(val voiceDeepLink: Boolean = false) : RootSheet
 }
 
 private fun NavController.navigateToTab(tab: XzgTab) {
