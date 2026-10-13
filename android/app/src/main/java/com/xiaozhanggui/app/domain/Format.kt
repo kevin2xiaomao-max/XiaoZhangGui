@@ -31,9 +31,17 @@ object Format {
     /** 11,500（Hero 大数字） */
     fun groupedInt(v: Double): String = intFormat().format(v)
 
-    /** 整数用 groupedInt，否则 money */
+    /** 1,234.00（千分位 + 2 位小数，不带 ¥；与 iOS Fmt.groupedAmount 小数分支对齐） */
+    fun groupedDecimal(v: Double): String =
+        DecimalFormat("#,##0.00", DecimalFormatSymbols(zh)).format(v)
+
+    /**
+     * 整数用 groupedInt，否则 groupedDecimal；**不带 ¥**，调用方按需加 "¥"。
+     * 对应 iOS `Fmt.groupedAmount`（小数分支用 decimal style moneyFormatter，不带 ¥）。
+     * 旧实现误用带 ¥ 的 money() 导致首页/日历出现 "¥¥"（Phase 3 Worker C 截图抽查发现）。
+     */
     fun groupedAmount(v: Double): String =
-        if (v == kotlin.math.floor(v) && !v.isInfinite()) groupedInt(v) else money(v)
+        if (v == kotlin.math.floor(v) && !v.isInfinite()) groupedInt(v) else groupedDecimal(v)
 
     private fun zdt(millis: Long): ZonedDateTime =
         ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), zone)
