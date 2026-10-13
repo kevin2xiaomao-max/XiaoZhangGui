@@ -11,21 +11,19 @@ import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 import java.util.UUID
 
-/** 收入来源（对应 iOS IncomeSource）：门店 / 美团 / 其他 */
+/**
+ * 收入来源字符串常量（对应 iOS IncomeSource rawValue）：门店 / 美团 / 其他。
+ * 派生逻辑以 `domain.IncomeSource` 枚举为准，此处仅做兼容委托
+ *（`data/ai/RepositoryToolExecutor` 等调用点保持 String 口径不变）。
+ */
 object IncomeSource {
     const val STORE = "门店"
     const val MEITUAN = "美团"
     const val OTHER = "其他"
 
     /** 对应 iOS IncomeSource.from(note:)：note 含"美团"→美团；含"门店"/"到店"→门店；其余→其他 */
-    fun fromNote(note: String): String {
-        val n = note.trim()
-        return when {
-            n.contains("美团") -> MEITUAN
-            n.contains("门店") || n.contains("到店") -> STORE
-            else -> OTHER
-        }
-    }
+    fun fromNote(note: String): String =
+        com.xiaozhanggui.app.domain.IncomeSource.fromNote(note).rawValue
 }
 
 /**

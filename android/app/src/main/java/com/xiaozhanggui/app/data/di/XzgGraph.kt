@@ -6,6 +6,7 @@ import androidx.room.Room
 import com.xiaozhanggui.app.XzgApplication
 import com.xiaozhanggui.app.data.backup.BackupService
 import com.xiaozhanggui.app.data.datastore.XzgSettings
+import com.xiaozhanggui.app.data.db.MIGRATION_1_2
 import com.xiaozhanggui.app.data.db.XzgDatabase
 import com.xiaozhanggui.app.data.demo.DemoCatalog
 import com.xiaozhanggui.app.data.notification.AlarmNotificationScheduler
@@ -107,7 +108,9 @@ object XzgGraph {
                 .build()
                 .also { DemoCatalog.seed(it) }
         } else {
-            Room.databaseBuilder(app, XzgDatabase::class.java, DB_NAME).build()
+            Room.databaseBuilder(app, XzgDatabase::class.java, DB_NAME)
+                .addMigrations(MIGRATION_1_2)
+                .build()
         }
         return Graph(db, app, notificationScheduler)
     }

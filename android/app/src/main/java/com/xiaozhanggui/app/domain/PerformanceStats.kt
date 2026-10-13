@@ -130,15 +130,10 @@ object PerformanceStats2 {
      * ① incomeSource 字段非空且匹配枚举 → 直接用；
      * ② 为空时查 paymentMethod（"美团"/"meituan"→美团；"门店"/"store"→门店）；
      * ③ 仍为空 → from(note:)。
+     * 实现委托给 [IncomeSource.fromPerformance]，保持单一定義。
      */
-    fun resolveIncomeSource(p: PerformanceEntity): String {
-        val field = p.incomeSource.trim()
-        if (field == "门店" || field == "美团" || field == "其他") return field
-        val pm = p.paymentMethod
-        if (pm.contains("美团") || pm.contains("meituan", ignoreCase = true)) return "美团"
-        if (pm.contains("门店") || pm.contains("store", ignoreCase = true)) return "门店"
-        return com.xiaozhanggui.app.data.db.IncomeSource.fromNote(p.note)
-    }
+    fun resolveIncomeSource(p: PerformanceEntity): String =
+        IncomeSource.fromPerformance(p.incomeSource, p.paymentMethod, p.note).rawValue
 
     /** 收支合并按日期倒序（对应 iOS MoneyRecord.merged） */
     fun merged(

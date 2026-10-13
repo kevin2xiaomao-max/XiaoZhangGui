@@ -2,9 +2,9 @@ package com.xiaozhanggui.app.data.repository
 
 import com.xiaozhanggui.app.data.db.ExpenseDao
 import com.xiaozhanggui.app.data.db.ExpenseEntity
-import com.xiaozhanggui.app.data.db.IncomeSource
 import com.xiaozhanggui.app.data.db.PerformanceDao
 import com.xiaozhanggui.app.data.db.PerformanceEntity
+import com.xiaozhanggui.app.domain.IncomeSource
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -40,12 +40,15 @@ class PerformanceRepository(
     fun observeAll(): Flow<List<PerformanceEntity>> = dao.listAll()
     fun observeById(id: String): Flow<PerformanceEntity?> = dao.getById(id)
 
-    /** 手工记录：fingerprint=""、paymentMethod/orderNo/importSource="" */
+    /**
+     * 手工记录：fingerprint=""、paymentMethod/orderNo/importSource=""。
+     * 对应 iOS `PerformanceRepository.add` 的 `incomeSource: IncomeSource = .store` 参数。
+     */
     suspend fun add(
         amount: Double,
         note: String = "",
         date: Long = System.currentTimeMillis(),
-        incomeSource: String = IncomeSource.STORE
+        incomeSource: IncomeSource = IncomeSource.STORE
     ): PerformanceEntity {
         val entity = PerformanceEntity(
             amount = amount,
@@ -55,12 +58,24 @@ class PerformanceRepository(
             paymentMethod = "",
             orderNo = "",
             importSource = "",
-            incomeSource = incomeSource
+            incomeSource = incomeSource.rawValue
         )
         dao.insert(entity)
         refresher.refreshAll()
         return entity
     }
+
+    /**
+     * String 兼容重载：非法/空白值宽容回退门店。
+     * 保留原因：`data/ai/RepositoryToolExecutor` 为冻结调用点（P0-3 不改 AI 目录），
+     * 仍以 String 口径传入。
+     */
+    suspend fun add(
+        amount: Double,
+        note: String = "",
+        date: Long = System.currentTimeMillis(),
+        incomeSource: String
+    ): PerformanceEntity = add(amount, note, date, IncomeSource.fromRaw(incomeSource))
 
     /** 扫呗单行导入 */
     suspend fun addImported(row: SaobeiParsedRow): PerformanceEntity {
@@ -73,7 +88,7 @@ class PerformanceRepository(
             paymentMethod = row.paymentMethod,
             orderNo = row.orderNo,
             importSource = "saobei",
-            incomeSource = IncomeSource.fromNote(row.paymentMethod)
+            incomeSource = IncomeSource.fromNote(row.paymentMethod).rawValue
         )
         dao.insert(entity)
         refresher.refreshAll()
@@ -108,7 +123,7 @@ class PerformanceRepository(
                     paymentMethod = row.paymentMethod,
                     orderNo = row.orderNo,
                     importSource = "saobei",
-                    incomeSource = IncomeSource.fromNote(row.paymentMethod)
+                    incomeSource = IncomeSource.fromNote(row.paymentMethod).rawValue
                 )
             )
             inserted++

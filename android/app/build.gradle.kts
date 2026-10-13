@@ -15,9 +15,9 @@ android {
         applicationId = "com.xiaozhanggui.app"
         minSdk = 26
         targetSdk = 35
-        // 对齐 iOS V3.6 build 36
-        versionCode = 36
-        versionName = "3.6.0"
+        // 对齐 iOS V3.7.1 build 37
+        versionCode = 37
+        versionName = "3.7.1"
 
         // E2E（connectedDebugAndroidTest）必须的 runner（Phase 6 Worker B）
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -121,5 +121,7 @@ dependencies {
     androidTestImplementation(libs.androidx.test.espresso.contrib)
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.uiautomator)
+    // Room Migration 测试（MigrationTestHelper）：P0-2 数据升级回归，跑在 e2e 模拟器 job
+    androidTestImplementation(libs.androidx.room.testing)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }

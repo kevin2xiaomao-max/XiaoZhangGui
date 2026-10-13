@@ -21,12 +21,14 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -40,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -54,6 +57,7 @@ import com.xiaozhanggui.app.domain.Format
 import com.xiaozhanggui.app.domain.GoodsState
 import com.xiaozhanggui.app.domain.goodsStateOf
 import com.xiaozhanggui.app.domain.isExpiringWithin
+import com.xiaozhanggui.app.ui.components.ConfirmDeleteDialog
 import com.xiaozhanggui.app.ui.components.PillTone
 import com.xiaozhanggui.app.ui.components.V32Card
 import com.xiaozhanggui.app.ui.components.V32EmptyState
@@ -97,7 +101,7 @@ private val FILTERS = listOf("全部") + GoodsCategory.ALL
  * - 顶部统计卡：临期（7 天内，expiry >= now）/ 缺货（stock<=minStock）/ 总库存（max(stock,0) 求和）
  * - 搜索 + 分类 Pill（"其他" = 其他或未知分类；搜索名称大小写不敏感、条码区分大小写）
  * - 商品卡：缩略图 / 名称 + 状态胶囊 / 条码 / 库存 / 进价·售价·毛利 / 到期日 / 编辑·删除
- * - 删除无确认、失败静默（与 iOS 一致）
+ * - 删除：先弹确认对话框（"删除后无法恢复"），失败弹"删除失败"提示 + 重试（对应 iOS GoodsView）
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -108,22 +112,89 @@ fun GoodsScreen() {
 
     var editingGoods by remember { mutableStateOf<GoodsEntity?>(null) }
     var showNew by remember { mutableStateOf(false) }
+    // 删除确认 / 失败重试状态（对应 iOS GoodsView pendingDeleteGoods / failedDeleteGoodsID / deleteError）
+    var pendingDelete by remember { mutableStateOf<GoodsEntity?>(null) }
+    var failedDeleteId by remember { mutableStateOf<String?>(null) }
+    var deleteError by remember { mutableStateOf<String?>(null) }
+
+    fun doDelete(target: GoodsEntity) {
+        scope.launch {
+            try {
+                vm.delete(target)
+                failedDeleteId = null
+            } catch (_: Exception) {
+                // 存 ID 而非对象，避免重试时对象失效（对应 iOS failedDeleteGoodsID）
+                failedDeleteId = target.id
+                deleteError = "商品未删除，请重试。"
+            }
+        }
+    }
+
+    fun retryDelete() {
+        val id = failedDeleteId
+        if (id == null) {
+            // 明确显示失败，不允许静默结束（对应 iOS retryDelete）
+            deleteError = "重试失败：未找到待删除的商品，请重新操作。"
+            return
+        }
+        deleteError = null
+        val target = goods.firstOrNull { it.id == id }
+        if (target != null) {
+            doDelete(target)
+        } else {
+            failedDeleteId = null
+            deleteError = "商品数据异常，无法重试删除。"
+        }
+    }
 
     GoodsContent(
         goods = goods,
         onAdd = { showNew = true },
         onEdit = { editingGoods = it },
-        onDelete = { item ->
-            // 与 iOS 一致：删除无确认，失败静默
-            scope.launch {
-                try {
-                    vm.delete(item)
-                } catch (_: Exception) {
-                    // 失败静默（与 iOS 一致）
+        onDelete = { item -> pendingDelete = item }
+    )
+
+    // 删除确认（对应 iOS GoodsView .confirmationDialog）
+    pendingDelete?.let { item ->
+        ConfirmDeleteDialog(
+            title = "删除商品“${item.name}”？",
+            message = "删除后无法恢复；库存、价格与临期信息将一并移除。",
+            onConfirm = {
+                pendingDelete = null
+                doDelete(item)
+            },
+            onDismiss = { pendingDelete = null },
+            confirmTestTag = "goods.delete.confirm",
+            dismissTestTag = "goods.delete.cancel"
+        )
+    }
+
+    // 删除失败显式提示 + 重试（对应 iOS GoodsView .alert("删除失败")）
+    deleteError?.let { message ->
+        AlertDialog(
+            onDismissRequest = { deleteError = null },
+            title = { Text("删除失败", style = XzgType.headline) },
+            text = { Text(message, style = XzgType.body) },
+            confirmButton = {
+                TextButton(
+                    onClick = { retryDelete() },
+                    modifier = Modifier.testTag("reliabilityRetry")
+                ) {
+                    Text("重试", style = XzgType.headline)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        deleteError = null
+                        failedDeleteId = null
+                    }
+                ) {
+                    Text("取消", style = XzgType.headline)
                 }
             }
-        }
-    )
+        )
+    }
 
     if (showNew) {
         GoodsEditorSheet(

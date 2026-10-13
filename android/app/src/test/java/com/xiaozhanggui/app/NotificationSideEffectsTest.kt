@@ -243,6 +243,27 @@ class NotificationSideEffectsTest {
     }
 
     @Test
+    fun `advanceStatus from delivering to done neither cancels nor reschedules`() = runTest {
+        // delivering 不重排；进入 done 不排通知（对应 iOS advanceStatus）
+        val req = customerRepo.add(customer = "张三", content = "送两箱水")
+        val delivering = customerRepo.advanceStatus(req)
+        assertEquals(CustomerStatus.DELIVERING, delivering.status)
+        scheduler.calls.clear()
+        val done = customerRepo.advanceStatus(delivering)
+        assertEquals(CustomerStatus.DONE, done.status)
+        assertEquals(emptyList<String>(), scheduler.namesFor(req.notificationId))
+    }
+
+    @Test
+    fun `update customer request always reschedules`() = runTest {
+        // update 统一重排（pending 与非 pending 都走 rescheduleCustomer，由调度器内部决定是否排期）
+        val req = customerRepo.add(customer = "张三", content = "送两箱水")
+        scheduler.calls.clear()
+        customerRepo.update(req.copy(content = "送三箱水"))
+        assertEquals(listOf("rescheduleCustomer"), scheduler.namesFor(req.notificationId))
+    }
+
+    @Test
     fun `delete customer request cancels notifications`() = runTest {
         val req = customerRepo.add(customer = "张三", content = "送两箱水")
         scheduler.calls.clear()

@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- AI 真实 Provider 联网必需（对应 iOS AI 主 Provider DeepSeek；Phase 0 审计缺失项，P0-1 必补） -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <!-- 语音记一笔：麦克风 + 语音识别（对应 iOS NSMicrophoneUsageDescription / NSSpeechRecognitionUsageDescription） -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- 天气定位：仅粗略定位，对应 iOS kCLLocationAccuracyKilometer -->
