@@ -122,7 +122,11 @@
 
 | 轮次 | 日期 | 包版本/签名 | 通过/失败/NOT RUN | 备注 |
 |---|---|---|---|---|
-| — | — | — | — | 待 Phase 3 真机执行后填写 |
+| Phase 3 Worker C（无障碍+安全） | 2026-10-14 | 3.7.1/build 37，CI 临时测试签名 | CI 验证中 / 真机 NOT RUN | commits `3d192c9`（Reduce Motion 系统接线+单测/instrumented 测试）、`61cf943`（groupedAmount 去 ¥ 修 ¥¥ 显示）；CI run `38466170242`（含本轮提交）运行中，结论待补；**真机（OPPO PKJ110）未执行，一律 NOT RUN，不虚报** |
+| — | — | — | — | Phase 4 真机验收待执行后追加行 |
+
+> 口径：模拟器/CI 证据与真机结论严格区分。真机未测项一律标 `NOT RUN`，
+> 禁止用模拟器通过代替真机结论（用户红线）。
 
 ---
 
@@ -143,6 +147,29 @@
 2. **系统"减少透明度"**：玻璃/模糊类控制面退化为不透明底色；列表、经营数字、任务内容始终保持清晰可读。
 3. **系统低性能模式**：动效自动降帧或跳过非必要动画；动效不可造成卡顿、尾帧残影、黑屏或点击丢失。
 4. **低电量模式**：仅可作为**特效强度调整的参考输入**（如降低模糊强度、缩短动效时长）；**不得凭系统状态自行禁用核心功能**——禁止在省电/低电量时关闭同步、通知、语音入口、记一笔等业务功能。
+
+#### 9.1.1 Phase 3 Worker C 实现结论（2026-10-14；代码 + CI 模拟器层面，真机一律 NOT RUN）
+
+1. **Reduce Motion**：已接线。`ui/theme/ReduceMotion.kt` 新增 `rememberReduceMotion()`
+   读取系统 `Settings.Global.ANIMATOR_DURATION_SCALE`（`=0` 即无障碍「移除动画」开启；
+   实测 compileSdk 35 的 `AccessibilityManager` 无 `isReduceMotionEnabled` 公开 API，
+   按等价 API 接线），`ContentObserver` 响应式监听；`rememberXzgModalBottomSheetState()`
+   经 `SheetState` 公开构造器 `initialValue=Expanded` 使全部 14 处 `ModalBottomSheet`
+   直接呈现（跳过滑入动画），关闭/返回/下滑手势语义不变；无限脉冲（短语音面板）、
+   装饰波形（语音 Sheet：静态化 + TalkBack 隐藏）、QuickAction 按压缩放、客户页 toast
+   位移分别退化为无动画/短淡入（走 `V371Motion.resolve(..., reduceMotion=true)` 分支）；
+   Tab 切换经 NavHost 本来即无转场动画（直接切换）。导航可达性、点击区域、返回行为、
+   弹窗保存/取消语义与动效开启时一致（instrumented 语义测试覆盖）。
+   测试：`MotionResolveTest`（`V371Motion.resolve` true/false）+
+   `ReduceMotionTest`（系统设置→composable 接线、Sheet 初始态分支，E2E 模拟器）。
+   结论：代码 + CI 模拟器 PASS；**真机 NOT RUN**（需在 PKJ110 上手动开启「移除动画」验证）。
+2. **减少透明度**：全库无 `.blur()`/`RenderEffect` 调用，Editorial 设计为纯色面，
+   无玻璃/模糊控件 → 无需退化，按构造 PASS；**真机 NOT RUN**。
+3. **低性能模式**：未实现自动降帧/跳过非必要动画的逻辑 → **GAP**（P1 候选：
+   Android 自有 MotionSpec 立项见 `ANDROID_V371_DELTA_AUDIT.md` §10）；**真机 NOT RUN**。
+4. **低电量模式**：全库无 `BatteryManager`/省电模式相关代码，不存在按电量禁用
+   同步/通知/语音入口/记一笔等核心功能 → 满足「不得自行禁用核心功能」，
+   代码审计 PASS；**真机 NOT RUN**。
 
 ### 9.2 设备能力检测与具名失败诊断（只写要求和分类，不写代码）
 

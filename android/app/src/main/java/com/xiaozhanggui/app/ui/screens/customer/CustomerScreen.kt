@@ -149,8 +149,6 @@ fun CustomerScreen() {
     var deletingRequest by remember { mutableStateOf<CustomerRequestEntity?>(null) }
     var deleteFailed by remember { mutableStateOf(false) }
     var showDoneToast by remember { mutableStateOf(false) }
-    // Reduce Motion：toast 退化为短淡入（无位移）；导航/点击/语义不变
-    val reduceMotion = rememberReduceMotion()
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
 
@@ -233,6 +231,8 @@ fun CustomerContent(
 ) {
     val palettes = LocalXzgPalettes.current
     var filter by remember { mutableStateOf(CustomerFilter.ALL) }
+    // Reduce Motion：toast 退化为短淡入（无位移）；导航/点击/语义不变
+    val reduceMotion = rememberReduceMotion()
 
     val shown = remember(requests, filter) {
         val list = filter.status?.let { s -> requests.filter { it.status == s } } ?: requests

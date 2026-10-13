@@ -97,6 +97,7 @@ fun rememberXzgModalBottomSheetState(
             skipPartiallyExpanded = skipPartiallyExpanded,
             confirmValueChange = { true },
             density = density,
+            skipHiddenState = false,
         )
     ) {
         SheetState(
