@@ -122,7 +122,7 @@
 
 | 轮次 | 日期 | 包版本/签名 | 通过/失败/NOT RUN | 备注 |
 |---|---|---|---|---|
-| Phase 3 Worker C（无障碍+安全） | 2026-10-14 | 3.7.1/build 37，CI 临时测试签名 | CI 验证中 / 真机 NOT RUN | commits `3d192c9`（Reduce Motion 系统接线+单测/instrumented 测试）、`61cf943`（groupedAmount 去 ¥ 修 ¥¥ 显示）；CI run `38466170242`（含本轮提交）运行中，结论待补；**真机（OPPO PKJ110）未执行，一律 NOT RUN，不虚报** |
+| Phase 3 Worker C（无障碍+安全） | 2026-10-14 | 3.7.1/build 37，CI 临时测试签名 | CI 全绿 ✅ / 真机 NOT RUN | commits `3d192c9`（Reduce Motion 系统接线+单测/instrumented 测试）、`61cf943`（groupedAmount 去 ¥ 修 ¥¥ 显示）、`1b39826`（CI 编译修+本文档）、`f077785`（A11y 语义断言修正）；CI run `38471825698` 三 job 全绿（assembleDebug/test/lint + E2E 模拟器 + release）；**真机（OPPO PKJ110）未执行，一律 NOT RUN，不虚报** |
 | — | — | — | — | Phase 4 真机验收待执行后追加行 |
 
 > 口径：模拟器/CI 证据与真机结论严格区分。真机未测项一律标 `NOT RUN`，
@@ -163,6 +163,9 @@
    测试：`MotionResolveTest`（`V371Motion.resolve` true/false）+
    `ReduceMotionTest`（系统设置→composable 接线、Sheet 初始态分支，E2E 模拟器）。
    结论：代码 + CI 模拟器 PASS；**真机 NOT RUN**（需在 PKJ110 上手动开启「移除动画」验证）。
+   附带发现（`A11ySemanticsTest` instrumented 验证）：M3 `NavigationBarItem` 合并语义节点
+   实际为 `Text='首页' + Role=Tab + OnClick`（Icon 上的 contentDescription 未合并上来），
+   TalkBack 朗读文本标签无障碍；生产代码不做改动，测试按真实语义断言。
 2. **减少透明度**：全库无 `.blur()`/`RenderEffect` 调用，Editorial 设计为纯色面，
    无玻璃/模糊控件 → 无需退化，按构造 PASS；**真机 NOT RUN**。
 3. **低性能模式**：未实现自动降帧/跳过非必要动画的逻辑 → **GAP**（P1 候选：
