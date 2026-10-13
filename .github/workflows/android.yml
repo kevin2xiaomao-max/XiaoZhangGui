@@ -162,8 +162,12 @@ jobs:
     defaults:
       run:
         working-directory: android
-    # 与 build/e2e 并行：release 产物只做 CI 临时测试签名，
-    # 绝不使用任何正式发布签名，keystore 现场生成、绝不提交。
+    # 签名策略（稳定证书优先，随机测试证书回退）：
+    # - 仓库 Secrets 中配置了 XZG_RELEASE_KEYSTORE → 解码为稳定证书，
+    #   用于正式更新包（同一证书，保证后续版本可覆盖升级）；
+    # - 未配置 Secrets（fork / PR / 外部贡献者）→ 回退为现场生成的
+    #   随机测试 keystore，仅保证构建链路可跑，绝不用于正式发布。
+    # 注意：密钥与密码一律经 GitHub Secrets 注入，绝不写进 workflow 文件。
     steps:
       - name: 检出源码
         uses: actions/checkout@v4
@@ -184,36 +188,59 @@ jobs:
           restore-keys: |
             gradle-${{ runner.os }}-
 
-      - name: 生成 CI 临时测试签名 keystore
-        id: testkey
-        # 注意：JDK 17 keytool 默认生成 PKCS12 keystore，不支持 store/key 双密码
-        #（会报 "Different store and key passwords not supported" 并忽略 -keypass），
-        # 因此只生成一个密码，store 与 key 共用。
+      # 准备 release 签名：
+      # - 有稳定证书 Secrets（XZG_RELEASE_KEYSTORE 非空）→ base64 解码到
+      #   $RUNNER_TEMP/xzg-release.jks，用 XZG_RELEASE_KEYSTORE_PASSWORD /
+      #   XZG_KEY_ALIAS / XZG_KEY_PASSWORD 签名（正式更新包用）；
+      # - 无 Secrets → 回退：现场生成随机测试 keystore（仅保构建链路可跑）。
+      # 注意：JDK keytool 生成的 PKCS12 keystore 不支持 store/key 双密码
+      #（会报 "Different store and key passwords not supported" 并忽略 -keypass），
+      # 因此两路都只维护一个密码，store 与 key 共用。
+      - name: 准备 release 签名（稳定证书 / 随机测试证书）
+        id: keystore
         run: |
           set -euo pipefail
-          KS_PASS="$(openssl rand -hex 16)"
-          echo "::add-mask::$KS_PASS"
-          keytool -genkeypair -keystore /tmp/xzg-ci-test.jks \
-            -storepass "$KS_PASS" -alias xzgtest \
-            -keyalg RSA -keysize 2048 -validity 1 \
-            -dname "CN=XiaoZhangGui CI Test, OU=Test, O=XiaoZhangGui, C=CN" \
-            -noprompt
-          echo "ks_pass=$KS_PASS" >> "$GITHUB_OUTPUT"
+          if [ -n "${{ secrets.XZG_RELEASE_KEYSTORE }}" ]; then
+            echo "::notice::使用仓库 Secrets 中的稳定 release 证书签名"
+            echo "${{ secrets.XZG_RELEASE_KEYSTORE }}" | base64 -d > "$RUNNER_TEMP/xzg-release.jks"
+            echo "ks_file=$RUNNER_TEMP/xzg-release.jks" >> "$GITHUB_OUTPUT"
+            echo "ks_alias=${{ secrets.XZG_KEY_ALIAS }}" >> "$GITHUB_OUTPUT"
+            echo "ks_pass=${{ secrets.XZG_RELEASE_KEYSTORE_PASSWORD }}" >> "$GITHUB_OUTPUT"
+            echo "key_pass=${{ secrets.XZG_KEY_PASSWORD }}" >> "$GITHUB_OUTPUT"
+            echo "signing_mode=stable" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::未配置稳定 release 证书 Secrets，回退为 CI 随机测试签名（仅用于无 secret 环境）"
+            KS_PASS="$(openssl rand -hex 16)"
+            echo "::add-mask::$KS_PASS"
+            keytool -genkeypair -keystore /tmp/xzg-ci-test.jks \
+              -storepass "$KS_PASS" -alias xzgtest \
+              -keyalg RSA -keysize 2048 -validity 1 \
+              -dname "CN=XiaoZhangGui CI Test, OU=Test, O=XiaoZhangGui, C=CN" \
+              -noprompt
+            echo "ks_file=/tmp/xzg-ci-test.jks" >> "$GITHUB_OUTPUT"
+            echo "ks_alias=xzgtest" >> "$GITHUB_OUTPUT"
+            echo "ks_pass=$KS_PASS" >> "$GITHUB_OUTPUT"
+            echo "key_pass=$KS_PASS" >> "$GITHUB_OUTPUT"
+            echo "signing_mode=ephemeral" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: assembleRelease + bundleRelease
         env:
-          XZG_RELEASE_KEYSTORE_FILE: /tmp/xzg-ci-test.jks
-          XZG_RELEASE_KEYSTORE_PASSWORD: ${{ steps.testkey.outputs.ks_pass }}
-          XZG_RELEASE_KEY_ALIAS: xzgtest
-          XZG_RELEASE_KEY_PASSWORD: ${{ steps.testkey.outputs.ks_pass }}
+          XZG_RELEASE_KEYSTORE_FILE: ${{ steps.keystore.outputs.ks_file }}
+          XZG_RELEASE_KEYSTORE_PASSWORD: ${{ steps.keystore.outputs.ks_pass }}
+          XZG_RELEASE_KEY_ALIAS: ${{ steps.keystore.outputs.ks_alias }}
+          XZG_RELEASE_KEY_PASSWORD: ${{ steps.keystore.outputs.key_pass }}
         run: ./gradlew assembleRelease bundleRelease --stacktrace
 
-      - name: 验证 release 产物（badging）
+      - name: 验证 release 产物（badging / 签名证书）
         run: |
           set -euo pipefail
+          echo "signing_mode=${{ steps.keystore.outputs.signing_mode }}"
           AAPT="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/aapt"
           echo "AAPT=$AAPT"
           "$AAPT" dump badging app/build/outputs/apk/release/app-release.apk | grep -E "^package:|^application:"
+          APKSIGNER="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/apksigner"
+          "$APKSIGNER" verify --print-certs app/build/outputs/apk/release/app-release.apk | grep -E "Verified using|certificate SHA-256"
           unzip -l app/build/outputs/bundle/release/app-release.aab | head -20
 
       - name: 上传 Release APK
