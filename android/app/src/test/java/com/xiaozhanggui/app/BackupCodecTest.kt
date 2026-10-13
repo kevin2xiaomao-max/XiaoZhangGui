@@ -245,4 +245,89 @@ class BackupCodecTest {
         assertEquals(0, decoded.totalCount())
         assertNull(decoded.todos.firstOrNull())
     }
+
+    // ---------- Phase 1 语义回归 worker 补齐 ----------
+
+    @Test
+    fun `envelope version equals FORMAT_VERSION 2`() {
+        assertEquals(2, BackupService.FORMAT_VERSION)
+        val text = BackupCodec.encode(sampleData(), exportedAt = 9_999L)
+        val root = json.parseToJsonElement(text).jsonObject
+        assertEquals(BackupService.FORMAT_VERSION, root["version"]!!.jsonPrimitive.int)
+    }
+
+    @Test
+    fun `dates survive roundtrip as epoch millis not seconds`() = runTest {
+        val now = 1_700_000_000_000L // 2023-11-14，毫秒量级
+        val decoded = BackupCodec.decode(BackupCodec.encode(sampleData(now), now))
+        // 毫秒量级断言：误写成秒会差 1000 倍
+        assertTrue(decoded.performances[0].date >= 1_000_000_000_000L)
+        assertEquals(now, decoded.performances[0].date)
+        assertEquals(now + 3600_000, decoded.todos.first { it.title == "进货" }.dueDate)
+        assertEquals(now + 10L * 24 * 3600 * 1000, decoded.expiryItems[0].expiryDate)
+        assertEquals(now - 1000, decoded.todos.first { it.title == "已办事项" }.completedAt)
+    }
+
+    @Test
+    fun `exportedAt is epoch millis`() {
+        val text = BackupCodec.encode(sampleData(), exportedAt = 1_700_000_111_111L)
+        val root = json.parseToJsonElement(text).jsonObject
+        val exportedAt = root["exportedAt"]!!.jsonPrimitive.long
+        assertTrue(exportedAt >= 1_000_000_000_000L)
+        assertEquals(1_700_000_111_111L, exportedAt)
+    }
+
+    @Test
+    fun `image base64 roundtrips for every image-capable entity`() = runTest {
+        val data = BackupCodec.BackupData(
+            todos = listOf(TodoEntity(title = "t", imagePath = "img/t.jpg")),
+            memos = listOf(MemoEntity(title = "m", imagePath = "img/m.jpg")),
+            expiryItems = listOf(ExpiryItemEntity(name = "x", imagePath = "img/x.jpg")),
+            customers = listOf(
+                CustomerRequestEntity(customer = "c", imagePath = "img/c.jpg")
+            )
+        )
+        val encoded = BackupCodec.encode(data, 1000L, imageBase64Of = { path ->
+            "B64:$path"
+        })
+        assertTrue(encoded.contains("B64:img/t.jpg"))
+        assertTrue(encoded.contains("B64:img/m.jpg"))
+        assertTrue(encoded.contains("B64:img/x.jpg"))
+        assertTrue(encoded.contains("B64:img/c.jpg"))
+        val decoded = BackupCodec.decode(encoded, writeImage = { base64 ->
+            base64?.removePrefix("B64:")
+        })
+        assertEquals("img/t.jpg", decoded.todos[0].imagePath)
+        assertEquals("img/m.jpg", decoded.memos[0].imagePath)
+        assertEquals("img/x.jpg", decoded.expiryItems[0].imagePath)
+        assertEquals("img/c.jpg", decoded.customers[0].imagePath)
+    }
+
+    @Test
+    fun `image hook failure degrades to null path without crashing decode`() = runTest {
+        // 编解码层从不自己解 base64：writeImage 抛错/返回 null 都只影响 imagePath
+        val text = """
+            {"app":"xiao-zhang-gui","version":2,"exportedAt":5555,"records":[
+              {"type":"memo","title":"t","content":"c","imageBase64":"!!!not-base64!!!","createdAt":1,"updatedAt":1}
+            ]}
+        """.trimIndent()
+        val decoded = BackupCodec.decode(text, writeImage = { null })
+        assertEquals(1, decoded.memos.size)
+        assertNull(decoded.memos[0].imagePath)
+    }
+
+    @Test
+    fun `incomeSource survives roundtrip verbatim`() = runTest {
+        val data = sampleData().copy(
+            performances = listOf(
+                PerformanceEntity(
+                    amount = 10.0, note = "美团", date = 1000L,
+                    fingerprint = "fp", paymentMethod = "美团",
+                    orderNo = "", importSource = "saobei", incomeSource = "美团"
+                )
+            )
+        )
+        val decoded = BackupCodec.decode(BackupCodec.encode(data, 1000L))
+        assertEquals("美团", decoded.performances[0].incomeSource)
+    }
 }

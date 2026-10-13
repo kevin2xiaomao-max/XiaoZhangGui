@@ -16,6 +16,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.DayOfWeek
+import java.time.LocalDate
 
 /**
  * GATE C 数据语义回归测试。
@@ -121,5 +123,67 @@ class DataSemanticsTest {
         val entity = repo.add("标题", "内容")
         assertEquals("标题", entity.title)
         assertEquals("内容", entity.content)
+    }
+
+    // ---------- DELTA §4.1：日历周起始语义（对照 iOS ScheduleView.swift） ----------
+
+    /**
+     * 日程周条周一起始。
+     * 生产实现：ScheduleScreen.kt `ScheduleWeekStrip` 用 `selectedDate.with(DayOfWeek.MONDAY)`，
+     * 符号列 `WEEK_SYMBOLS_MON = [一,二,三,四,五,六,日]`。
+     * iOS：ScheduleView.swift `calendar.firstWeekday = 2`（周一起始）。
+     */
+    @Test
+    fun `schedule week strip starts on monday like iOS firstWeekday=2`() {
+        fun weekDaysOf(selected: LocalDate): List<LocalDate> {
+            val weekStart = selected.with(DayOfWeek.MONDAY)
+            return (0..6).map { weekStart.plusDays(it.toLong()) }
+        }
+        val symbols = listOf("一", "二", "三", "四", "五", "六", "日")
+
+        // 2026-10-14（周三）→ 周一 10-12 … 周日 10-18
+        val midWeek = weekDaysOf(LocalDate.of(2026, 10, 14))
+        assertEquals(LocalDate.of(2026, 10, 12), midWeek.first())
+        assertEquals(LocalDate.of(2026, 10, 18), midWeek.last())
+        assertTrue(midWeek.contains(LocalDate.of(2026, 10, 14)))
+        assertEquals(symbols, midWeek.map { symbols[it.dayOfWeek.value - 1] })
+
+        // 跨月：2026-11-01（周日）→ 周一 10-26 起
+        val sunday = weekDaysOf(LocalDate.of(2026, 11, 1))
+        assertEquals(LocalDate.of(2026, 10, 26), sunday.first())
+        assertEquals(LocalDate.of(2026, 11, 1), sunday.last())
+
+        // 周一本身：周条从当天起
+        val monday = weekDaysOf(LocalDate.of(2026, 10, 12))
+        assertEquals(LocalDate.of(2026, 10, 12), monday.first())
+    }
+
+    /**
+     * 月历网格周日起始。
+     * 生产实现：CalendarScreen.kt `CalendarMonthGrid` 用
+     * `leadingBlanks = monthDate.withDayOfMonth(1).dayOfWeek.value % 7`（周日=0，首列周日）。
+     * iOS：ScheduleView.swift `monthCalendar.firstWeekday = 1`（周日起始），
+     * `cells[firstWeekday + day - 1] = date`（firstWeekday = component(.weekday) - 1，周日=0）。
+     */
+    @Test
+    fun `calendar month grid starts on sunday like iOS firstWeekday=1`() {
+        fun leadingBlanks(year: Int, month: Int): Int =
+            LocalDate.of(year, month, 1).dayOfWeek.value % 7
+
+        // 2026-10-01 是周四 → 前补 4 格（日/一/二/三列），1 号落在第 5 列
+        assertEquals(4, leadingBlanks(2026, 10))
+        // 2026-11-01 是周日 → 不补，1 号即首列（周日列）
+        assertEquals(0, leadingBlanks(2026, 11))
+        // 2026-08-01 是周六 → 补 6 格
+        assertEquals(6, leadingBlanks(2026, 8))
+
+        // 首列恒为周日：补位后第 leadingBlanks 个格子是 1 号
+        for ((y, m) in listOf(2026 to 10, 2026 to 11, 2026 to 8, 2026 to 2)) {
+            val first = LocalDate.of(y, m, 1)
+            val blanks = leadingBlanks(y, m)
+            // 1 号所在列 = blanks；该列往前 blanks 格即周日列
+            val sundayOfFirstRow = first.minusDays(blanks.toLong())
+            assertEquals("[$y-$m]", DayOfWeek.SUNDAY, sundayOfFirstRow.dayOfWeek)
+        }
     }
 }

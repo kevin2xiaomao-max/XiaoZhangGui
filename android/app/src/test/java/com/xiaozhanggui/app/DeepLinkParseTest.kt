@@ -91,4 +91,38 @@ class DeepLinkParseTest {
         assertEquals(DeepLinkAction.Ignore, XzgDeepLink.route(null))
         assertEquals(DeepLinkAction.Ignore, XzgDeepLink.route("unknown"))
     }
+
+    // ---------- Phase 1 语义回归 worker 补齐：解析层边界 ----------
+
+    @Test
+    fun `ai mode empty string opens assistant tab`() {
+        assertEquals(DeepLinkAction.OpenAssistantTab, XzgDeepLink.parse("xzg://ai?mode="))
+    }
+
+    @Test
+    fun `ai mode voice with extra query params still opens assistant voice`() {
+        assertEquals(
+            DeepLinkAction.OpenAssistantVoice,
+            XzgDeepLink.parse("xzg://ai?mode=voice&foo=bar")
+        )
+    }
+
+    @Test
+    fun `ai mode matching is case sensitive`() {
+        // 当前实现 mode == "voice" 精确匹配；大写 VOICE 走默认分支（锁定行为，非语义变更）
+        assertEquals(DeepLinkAction.OpenAssistantTab, XzgDeepLink.parse("xzg://ai?mode=VOICE"))
+    }
+
+    @Test
+    fun `quick hosts ignore query params`() {
+        assertEquals(DeepLinkAction.OpenQuickRecord, XzgDeepLink.parse("xzg://quickrecord?x=1"))
+        assertEquals(DeepLinkAction.OpenQuickRecord, XzgDeepLink.parse("xzg://quick?x=1"))
+        assertEquals(DeepLinkAction.OpenVoice, XzgDeepLink.parse("xzg://voice?x=1"))
+    }
+
+    @Test
+    fun `unknown host with query is still ignored`() {
+        assertEquals(DeepLinkAction.Ignore, XzgDeepLink.parse("xzg://unknown?mode=voice"))
+        assertEquals(DeepLinkAction.Ignore, XzgDeepLink.parse("xzg://settings?tab=ai"))
+    }
 }
