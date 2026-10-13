@@ -1,8 +1,9 @@
 package com.xiaozhanggui.app
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.test.espresso.Espresso
@@ -68,7 +69,7 @@ class FourTabNavContractTest {
         rule.waitForIdle()
 
         // Sheet 消失；首页仍在，状态不丢
-        rule.onNodeWithTag("ai.sheet").assertDoesNotExist()
+        rule.onAllNodesWithTag("ai.sheet").assertCountEquals(0)
         rule.onNodeWithTag(V371TestTags.SCREEN_HOME).assertIsDisplayed()
         rule.onNodeWithTag(V371TestTags.HERO_REVENUE).assertIsDisplayed()
         rule.onNodeWithTag(V371TestTags.HOME_AI).assertIsDisplayed()
