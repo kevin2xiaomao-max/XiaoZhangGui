@@ -2,7 +2,7 @@
 
 > 版本：**3.7.1 / build 37**（versionCode 37）
 > 基线：iOS `integration/v371-grok-thinking-fixes @ d238ff0`（3.7.1 / build 37，只读审计）
-> 状态：框架版——构建信息待签名 worker 回填（见 §6）。
+> 构建：**稳定签名 release 构建完成**（CI 38477155074 三 job 全绿）。
 
 ---
 
@@ -11,11 +11,11 @@
 - 版本号：3.7.1
 - Build：37（versionCode 37）
 - 分支：`android/v3.7.1-oppo-port`
-- <!-- 待签名 worker 回填 --> GitHub SHA：
-- <!-- 待签名 worker 回填 --> CI run URL：
-- <!-- 待签名 worker 回填 --> APK 下载地址：
-- <!-- 待签名 worker 回填 --> APK SHA-256：
-- <!-- 待签名 worker 回填 --> 签名证书指纹（SHA-256）：
+- GitHub SHA：`18fef2a`（ci(android/v3.7.1): release 优先使用稳定签名证书）
+- CI run URL：https://github.com/kevin2xiaomao-max/XiaoZhangGui/actions/runs/38477155074
+- APK 下载地址：https://github.com/kevin2xiaomao-max/XiaoZhangGui/actions/runs/38477155074/artifacts/11855146075（`xiaozhanggui-android-release-apk`，需登录 GitHub 下载）
+- APK SHA-256：`f7ce3102bed013f8d75fb8808b41b274e6a62b5b1586319796182a3728a1183f`
+- 签名证书指纹（SHA-256）：`45:71:3D:B5:DC:BB:87:F3:07:5C:07:4D:16:1E:96:7D:51:64:95:1A:DB:A3:8E:58:C1:08:48:B4:58:C4:46:15`
 
 ---
 
@@ -80,19 +80,19 @@ V3.7.1 起取消五 Tab，改为**四 Tab**结构（与 iOS V3.7.1 对齐）：
 
 ---
 
-## 6. 构建与签名（待签名 worker 回填）
+## 6. 构建与签名
 
-<!-- 待签名 worker 回填：以下各项由 Phase 4 签名 worker 在正式签名构建完成后填写 -->
-
-- 最终提交 SHA：
-- CI run（含 assembleRelease）URL：
-- release APK 下载地址：
-- release AAB 下载地址（如有）：
-- APK SHA-256：
-- AAB SHA-256（如有）：
-- 签名证书 SHA-256 指纹：
-- 签名证书有效期：
-- 口径确认：持久可复用正式证书 / 密钥不上仓库 / CI 临时测试签名已明确标注
+- 最终提交 SHA：`18fef2a`
+- CI run（含 assembleRelease）URL：https://github.com/kevin2xiaomao-max/XiaoZhangGui/actions/runs/38477155074（build / e2e / release 三 job 全绿）
+- release APK 下载地址：https://github.com/kevin2xiaomao-max/XiaoZhangGui/actions/runs/38477155074/artifacts/11855146075（`xiaozhanggui-android-release-apk`，13,726,033 字节）
+- release AAB 下载地址：https://github.com/kevin2xiaomao-max/XiaoZhangGui/actions/runs/38477155074/artifacts/11854606971（`xiaozhanggui-android-release-aab`，13,358,223 字节）
+- APK SHA-256：`f7ce3102bed013f8d75fb8808b41b274e6a62b5b1586319796182a3728a1183f`
+- AAB SHA-256：`b6d0901bf1523505186cd0b9a82b63ac6eeb89ef1f072bcbe1d8854fd9feb5c2`
+- 签名证书 SHA-256 指纹：`45:71:3D:B5:DC:BB:87:F3:07:5C:07:4D:16:1E:96:7D:51:64:95:1A:DB:A3:8E:58:C1:08:48:B4:58:C4:46:15`
+- 签名证书有效期：2026-10-13 → 2051-10-13（25 年，RSA 2048，alias `xzg-v371-release`）
+- 包信息（aapt dump badging）：`package: name='com.xiaozhanggui.app' versionCode='37' versionName='3.7.1'`，label='你的小掌柜'
+- apksigner：`Verifies`，v2 scheme，证书指纹与 keystore 逐字节一致
+- 口径确认：✅ 持久可复用正式证书（一次生成，GitHub Secrets 注入） / ✅ 密钥不上仓库（keystore 存仓库外 `~/workspace/xzg-signing/`） / ✅ CI 临时测试签名仅用于无 secret 环境（回退逻辑已明确标注）
 
 ## 7. 升级说明
 
