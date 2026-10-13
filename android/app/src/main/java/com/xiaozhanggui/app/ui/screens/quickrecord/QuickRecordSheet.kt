@@ -637,6 +637,7 @@ private fun VoiceStatusCard(
         }
     }
 }
+}
 
 private fun QuickRecordVoiceRecorder.statusTitle(): String = when (status) {
     QuickRecordVoiceRecorder.Status.LISTENING ->
