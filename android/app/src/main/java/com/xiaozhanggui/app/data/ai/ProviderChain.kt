@@ -3,10 +3,11 @@ package com.xiaozhanggui.app.data.ai
 /**
  * Provider 链（主链路 + 备用链路）。对应 iOS `AI/Providers/ProviderChain.swift`。
  *
- * 失败隔离策略：
- * - NOT_CONFIGURED / NETWORK / TIMEOUT / SERVER_ERROR → 尝试备用链路（只跳 1 次）；
- * - UNAUTHORIZED（401/403）→ Key 错了，换链路没用，直接返回失败；
- * - CANCELLED → 不换链。
+ * 失败隔离策略（1:1 iOS `allowsFailover` 白名单）：
+ * - NETWORK / TIMEOUT / 429 / 5xx → 尝试备用链路，**只跳 1 次**（不链式轮询）；
+ * - UNAUTHORIZED（401/403）/ CLIENT_ERROR（其他 4xx）/ PARSE_ERROR / CANCELLED → 直接返回失败，不换链；
+ * - primary 为 null（未配置）→ 直接返回 NOT_CONFIGURED 失败，不尝试 fallback（fail-closed）；
+ * - 非 ProviderException 的异常 → 直接上抛，不换链。
  */
 class ProviderChain(
     val primary: AIProvider?,

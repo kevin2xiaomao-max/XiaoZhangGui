@@ -56,6 +56,22 @@ class OpenAiCompatProvider(
             appendLine("6. 隐私：完整手机号等敏感信息不要完整展示，回答中做脱敏处理。")
         }.trimEnd()
 
+        /**
+         * HTTP 状态码 → 失败分类（1:1 iOS `.http` 的 allowsFailover 语义）：
+         * - 401/403 → UNAUTHORIZED（不换链）；
+         * - 408 → TIMEOUT（可换链）；
+         * - 429 → RATE_LIMITED（可换链）；
+         * - 5xx → SERVER_ERROR（可换链）；
+         * - 其他 4xx（400/404/413 等）→ CLIENT_ERROR（不换链，纯函数可单测）。
+         */
+        fun httpFailureKind(code: Int): ProviderFailureKind = when (code) {
+            401, 403 -> ProviderFailureKind.UNAUTHORIZED
+            408 -> ProviderFailureKind.TIMEOUT
+            429 -> ProviderFailureKind.RATE_LIMITED
+            in 500..599 -> ProviderFailureKind.SERVER_ERROR
+            else -> ProviderFailureKind.CLIENT_ERROR
+        }
+
         private val defaultClient: OkHttpClient by lazy {
             OkHttpClient.Builder()
                 .connectTimeout(20, TimeUnit.SECONDS)
@@ -135,12 +151,7 @@ class OpenAiCompatProvider(
         return response.use {
             val raw = it.body?.string().orEmpty()
             if (!it.isSuccessful) {
-                val kind = when (it.code) {
-                    401, 403 -> ProviderFailureKind.UNAUTHORIZED
-                    408 -> ProviderFailureKind.TIMEOUT
-                    in 500..599 -> ProviderFailureKind.SERVER_ERROR
-                    else -> ProviderFailureKind.SERVER_ERROR
-                }
+                val kind = httpFailureKind(it.code)
                 throw ProviderException(
                     ProviderFailure(
                         kind = kind,

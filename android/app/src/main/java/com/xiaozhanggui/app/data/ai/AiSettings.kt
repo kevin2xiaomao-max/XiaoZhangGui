@@ -1,13 +1,12 @@
 package com.xiaozhanggui.app.data.ai
 
 import android.content.Context
-import android.content.SharedPreferences
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -91,7 +90,16 @@ object AiDefaults {
     const val TAVILY_SEARCH_BASE_URL = "https://api.tavily.com/search"
 }
 
-class AiSettings(private val context: Context) {
+class AiSettings internal constructor(
+    private val dataStore: DataStore<Preferences>,
+    private val secrets: ApiKeyStore
+) {
+
+    /** 生产入口：DataStore（非敏感）+ EncryptedSharedPreferences（Keystore，只存密钥）。 */
+    constructor(context: Context) : this(
+        context.aiDataStore,
+        EncryptedApiKeyStore(context.applicationContext)
+    )
 
     private object Keys {
         // iOS 键名逐字 1:1（AISettings.swift Keys）
@@ -109,29 +117,14 @@ class AiSettings(private val context: Context) {
         val CUSTOM_SEARCH_FREE_FIRST_ENABLED = booleanPreferencesKey("ai_search_custom_free_first_enabled")
     }
 
-    // Keychain 对应键（EncryptedSharedPreferences 的 key）
-    private object SecretKeys {
+    // Keychain 对应键（EncryptedSharedPreferences 的 key；internal 供测试断言槽位名稳定）
+    internal object SecretKeys {
         const val PRIMARY = "ai.primary.apiKey"
         const val FALLBACK = "ai.fallback.apiKey"
         const val TAVILY_SEARCH = "ai.search.tavily.apiKey"
         const val CUSTOM_SEARCH = "ai.search.customJSON.apiKey"
         const val LEGACY_SEARCH = "ai.search.apiKey"
     }
-
-    private val securePrefs: SharedPreferences by lazy {
-        val masterKey = MasterKey.Builder(context, MasterKey.DEFAULT_MASTER_KEY_ALIAS)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
-        EncryptedSharedPreferences.create(
-            context,
-            "ai_secrets",
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-        )
-    }
-
-    private val dataStore get() = context.aiDataStore
 
     // MARK: - 读取（Flow）
 
@@ -173,25 +166,38 @@ class AiSettings(private val context: Context) {
     // MARK: - API Key（只进 EncryptedSharedPreferences，绝不回显完整值）
 
     var primaryAPIKey: String
-        get() = securePrefs.getString(SecretKeys.PRIMARY, "") ?: ""
+        get() = secrets.get(SecretKeys.PRIMARY)
         set(value) = putSecret(SecretKeys.PRIMARY, value)
 
     var fallbackAPIKey: String
-        get() = securePrefs.getString(SecretKeys.FALLBACK, "") ?: ""
+        get() = secrets.get(SecretKeys.FALLBACK)
         set(value) = putSecret(SecretKeys.FALLBACK, value)
 
     var tavilySearchAPIKey: String
-        get() = securePrefs.getString(SecretKeys.TAVILY_SEARCH, "") ?: ""
+        get() = secrets.get(SecretKeys.TAVILY_SEARCH)
         set(value) = putSecret(SecretKeys.TAVILY_SEARCH, value)
 
     var customSearchAPIKey: String
-        get() = securePrefs.getString(SecretKeys.CUSTOM_SEARCH, "") ?: ""
+        get() = secrets.get(SecretKeys.CUSTOM_SEARCH)
         set(value) = putSecret(SecretKeys.CUSTOM_SEARCH, value)
 
     private fun putSecret(key: String, value: String) {
-        val editor = securePrefs.edit()
-        if (value.isEmpty()) editor.remove(key) else editor.putString(key, value)
-        editor.apply()
+        if (value.isEmpty()) secrets.remove(key) else secrets.put(key, value)
+    }
+
+    /** 旧版搜索 Key 迁移（1:1 iOS `migrateLegacySearchCredentialIfNeeded`）： */
+    suspend fun migrateLegacySearchCredentialIfNeeded() {
+        if (tavilySearchAPIKey.isNotEmpty()) return
+        val legacy = secrets.get(SecretKeys.LEGACY_SEARCH)
+        if (legacy.isEmpty()) return
+        // 新槽位没有确认写入时保留旧条目，下次启动继续迁移（不丢 Key）
+        secrets.put(SecretKeys.TAVILY_SEARCH, legacy)
+        if (secrets.get(SecretKeys.TAVILY_SEARCH) == legacy) {
+            secrets.remove(SecretKeys.LEGACY_SEARCH)
+        }
+        if (searchProviderSelection.first() == SearchProviderSelection.DISABLED) {
+            setSearchProviderSelection(SearchProviderSelection.TAVILY)
+        }
     }
 
     // MARK: - 解析与配置判定（与 iOS 逻辑一致）

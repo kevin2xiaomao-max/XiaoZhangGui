@@ -21,7 +21,8 @@ import java.io.File
  * - AI 侧持久化（pending-actions / execution-journal）落在 `<filesDir>/AI/`；
  * - Provider 链按 AiSettings 构建：未配置时 primary 为 null（fail-closed，
  *   AgentCore 本地 CREATE 照常、worldChat 明确告知）；
- * - Release 红线：绝不装配 Mock Provider。
+ * - Release 红线：绝不装配 Mock Provider；
+ * - fail-closed：存储目录不可用 / 装配异常直接抛 [AiInitException]，不静默降级。
  */
 data class AiDependencies(
     val agentCore: AgentCore,
@@ -31,9 +32,34 @@ data class AiDependencies(
     val connectionTester: ProviderConnectionTester = ProviderConnectionTester()
 )
 
+/**
+ * AI 装配失败（fail-closed）：AI 本地存储不可用等初始化失败时直接抛错，
+ * 调用方（ViewModel）必须显式呈现给用户，**不许静默降级、不许假装成功**。
+ * 对应 iOS `AgentEnvironment.makeLive` 的 fail-closed 语义。
+ */
+class AiInitException(message: String, cause: Throwable? = null) : Exception(message, cause)
+
 object AiAssembly {
 
-    fun aiDir(context: Context): File = File(context.filesDir, "AI").apply { mkdirs() }
+    /**
+     * AI 本地存储目录（`<filesDir>/AI`）。
+     * fail-closed：目录不可写 / 创建失败时直接抛 [AiInitException]，
+     * R29 Storage 不可用态必须显式呈现。
+     */
+    fun requireAiDir(context: Context): File = requireWritableDir(File(context.filesDir, "AI"))
+
+    /**
+     * 纯函数：目录可用性断言（fail-closed，可单测）。
+     * 目录不存在则创建；不可写 / 创建失败抛 [AiInitException]。
+     */
+    internal fun requireWritableDir(dir: File): File {
+        val ready = runCatching { dir.isDirectory || dir.mkdirs() }.getOrDefault(false) &&
+            runCatching { dir.canWrite() }.getOrDefault(false)
+        if (!ready) {
+            throw AiInitException("AI 本地存储目录不可用：${dir.absolutePath}。请检查存储空间与应用存储权限。")
+        }
+        return dir
+    }
 
     /**
      * 构建完整 AI 依赖。suspend：AiSettings 的读取是 DataStore Flow。
@@ -50,8 +76,9 @@ object AiAssembly {
     ): AiDependencies {
         val settings = AiSettings(context)
         settings.migrateLegacyConfigIfNeeded()
+        settings.migrateLegacySearchCredentialIfNeeded()
 
-        val dir = aiDir(context)
+        val dir = requireAiDir(context)
         val pendingStore = FilePendingActionStore(dir)
         val journal = FileExecutionJournal(dir)
         val conversation = InMemoryConversationStore()

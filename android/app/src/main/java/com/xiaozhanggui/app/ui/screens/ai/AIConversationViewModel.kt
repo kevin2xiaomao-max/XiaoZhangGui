@@ -29,6 +29,13 @@ class AIConversationViewModel(application: Application) : AndroidViewModel(appli
     private val _ready = MutableStateFlow(false)
     val ready: StateFlow<Boolean> = _ready.asStateFlow()
 
+    /**
+     * AI 初始化失败信息（R29 Storage 不可用态 / 装配失败的显式呈现，fail-closed）。
+     * 非空时 UI 必须显示错误态，**不许停留在无限加载、不许假装成功**。
+     */
+    private val _initError = MutableStateFlow<String?>(null)
+    val initError: StateFlow<String?> = _initError.asStateFlow()
+
     private val _messages = MutableStateFlow<List<AiUiMessage>>(emptyList())
     val messages: StateFlow<List<AiUiMessage>> = _messages.asStateFlow()
 
@@ -49,19 +56,24 @@ class AIConversationViewModel(application: Application) : AndroidViewModel(appli
 
     init {
         viewModelScope.launch {
-            val built = AiAssembly.build(
-                context = getApplication(),
-                moneyRepository = XzgGraph.performanceRepository,
-                todoRepository = XzgGraph.todoRepository,
-                memoRepository = XzgGraph.memoRepository,
-                customerRepository = XzgGraph.customerRepository,
-                expiryRepository = XzgGraph.expiryRepository,
-                goodsRepository = XzgGraph.goodsRepository
-            )
-            deps = built
-            _isRemoteConfigured.value = built.settings.isPrimaryKeySaved
-            refresh()
-            _ready.value = true
+            try {
+                val built = AiAssembly.build(
+                    context = getApplication(),
+                    moneyRepository = XzgGraph.performanceRepository,
+                    todoRepository = XzgGraph.todoRepository,
+                    memoRepository = XzgGraph.memoRepository,
+                    customerRepository = XzgGraph.customerRepository,
+                    expiryRepository = XzgGraph.expiryRepository,
+                    goodsRepository = XzgGraph.goodsRepository
+                )
+                deps = built
+                _isRemoteConfigured.value = built.settings.isPrimaryKeySaved
+                refresh()
+                _ready.value = true
+            } catch (e: Exception) {
+                // fail-closed：装配失败显式呈现，不停留在无限加载
+                _initError.value = e.message ?: "AI 初始化失败，请重试"
+            }
         }
     }
 

@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -83,6 +84,7 @@ fun AIChatScreen(
     val isProcessing by viewModel.isProcessing.collectAsState()
     val processingLabel by viewModel.processingLabel.collectAsState()
     val isRemoteConfigured by viewModel.isRemoteConfigured.collectAsState()
+    val initError by viewModel.initError.collectAsState()
 
     var input by remember { mutableStateOf("") }
     var showSettings by remember { mutableStateOf(false) }
@@ -95,6 +97,7 @@ fun AIChatScreen(
         processingLabel = processingLabel,
         isRemoteConfigured = isRemoteConfigured,
         ready = ready,
+        initError = initError,
         inputText = input,
         onInputTextChange = { input = it },
         onSend = {
@@ -150,6 +153,8 @@ fun AIChatContent(
     processingLabel: String,
     isRemoteConfigured: Boolean,
     ready: Boolean,
+    /** R29：AI 初始化失败的显式错误态（非空时显示错误，不停留无限加载） */
+    initError: String? = null,
     inputText: String,
     onInputTextChange: (String) -> Unit = {},
     onSend: () -> Unit = {},
@@ -227,7 +232,40 @@ fun AIChatContent(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            if (messages.isEmpty() && proposals.isEmpty() && !isProcessing) {
+            if (initError != null) {
+                // R29 Storage 不可用态：初始化失败显式呈现，不假成功、不停留无限加载
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.ErrorOutline,
+                            contentDescription = null,
+                            tint = palettes.fixed.danger,
+                            modifier = Modifier.size(40.dp)
+                        )
+                        Text(
+                            text = "AI 初始化失败",
+                            style = XzgType.headline,
+                            color = palettes.background.textPrimary
+                        )
+                        Text(
+                            text = initError,
+                            style = XzgType.body,
+                            color = palettes.background.textSecondary
+                        )
+                        Text(
+                            text = "本地记账、配送、备忘、待办功能不受影响，可继续使用。",
+                            style = XzgType.subhead,
+                            color = palettes.background.textSecondary
+                        )
+                    }
+                }
+            } else if (messages.isEmpty() && proposals.isEmpty() && !isProcessing) {
                 item { EmptyState(onExample = onExample) }
             } else {
                 items(messages, key = { it.id }) { message ->
@@ -255,7 +293,7 @@ fun AIChatContent(
         ChatInputBar(
             text = inputText,
             onTextChange = onInputTextChange,
-            isProcessing = isProcessing || !ready,
+            isProcessing = isProcessing || !ready || initError != null,
             voiceAvailable = true,
             onSend = onSend,
             onVoice = onVoice,
