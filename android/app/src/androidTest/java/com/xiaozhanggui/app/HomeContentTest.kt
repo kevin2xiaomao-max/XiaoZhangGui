@@ -1,7 +1,9 @@
 package com.xiaozhanggui.app
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -96,7 +98,9 @@ class HomeContentTest {
     fun home_focusSection_hasThreeRows() {
         launchHome()
         rule.onNodeWithText("今日重点").assertExists()
-        rule.onNodeWithText("客户配送").assertExists()
+        // 「客户配送」文案出现两处：「今日重点」行标题 + 「接下来」事项副标题
+        //（onNodeWithText 为子串匹配，精确单节点断言会误报；此处按实际渲染断言 2 处）
+        rule.onAllNodesWithText("客户配送").assertCountEquals(2)
         rule.onNodeWithText("今日待办").assertExists()
         rule.onNodeWithText("临期退货").assertExists()
         rule.onNodeWithText("有 1 单配送中").assertExists()
@@ -104,7 +108,8 @@ class HomeContentTest {
         rule.onNodeWithText("1 件 3 天内临期").assertExists()
         rule.onNodeWithText("2 单").assertExists()
         rule.onNodeWithText("3 项").assertExists()
-        rule.onNodeWithText("1 件").assertExists()
+        // 「1 件」为「1 件 3 天内临期」的子串：副标题 + 徽章各一处
+        rule.onAllNodesWithText("1 件").assertCountEquals(2)
     }
 
     @Test

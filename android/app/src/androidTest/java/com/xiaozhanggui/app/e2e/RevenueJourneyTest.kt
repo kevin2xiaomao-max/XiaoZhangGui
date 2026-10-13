@@ -62,12 +62,13 @@ class RevenueJourneyTest {
             rule.onNodeWithTag("home.heroRevenue").assertIsDisplayed()
             rule.onNodeWithTag("home.heroRevenue").performClick()
 
-            // 经营页右上菜单 → 记收入
+            // 经营页右上菜单 → 记收入（V3.7.1：经营 Tab 顶栏菜单 contentDescription 为「记一笔」，
+            // 旧「经营数据操作」已随 V3.6 顶栏一并退役）
             rule.waitUntil(10_000) {
-                rule.onAllNodesWithContentDescription("经营数据操作")
+                rule.onAllNodesWithContentDescription("记一笔")
                     .fetchSemanticsNodes().isNotEmpty()
             }
-            rule.onNodeWithContentDescription("经营数据操作").performClick()
+            rule.onNodeWithContentDescription("记一笔").performClick()
             rule.onNodeWithText("记收入").performClick()
 
             // 记一笔收入 Sheet：金额 + 备注 → 保存
