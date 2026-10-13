@@ -7,7 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.xiaozhanggui.app.data.ai.AiAssembly
 import com.xiaozhanggui.app.data.ai.AiInitException
-import com.xiaozhanggui.app.data.ai.AiProvider
+import com.xiaozhanggui.app.data.ai.AIProvider
 import com.xiaozhanggui.app.data.ai.AiSettings
 import com.xiaozhanggui.app.data.ai.ApiKeyStore
 import com.xiaozhanggui.app.data.ai.ConnectionTestState
@@ -59,7 +59,7 @@ class AiPhase1ArchitectureTest {
         override fun remove(key: String) { map.remove(key) }
     }
 
-    class FakeProvider(var result: Result<ProviderTurn>) : AiProvider {
+    class FakeProvider(var result: Result<ProviderTurn>) : AIProvider {
         override val displayName = "fake"
         var calls = 0
         var lastMessages: List<ProviderMessage>? = null
