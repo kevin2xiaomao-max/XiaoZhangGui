@@ -108,8 +108,9 @@ class HomeContentTest {
         rule.onNodeWithText("1 件 3 天内临期").assertExists()
         rule.onNodeWithText("2 单").assertExists()
         rule.onNodeWithText("3 项").assertExists()
-        // 「1 件」为「1 件 3 天内临期」的子串：副标题 + 徽章各一处
-        rule.onAllNodesWithText("1 件").assertCountEquals(2)
+        // 可点击 WorkRow 会合并子语义（无障碍视为单个按钮）：合并树中
+        // 「1 件」只出现在临期退货行这 1 个合并节点内
+        rule.onNodeWithText("1 件").assertExists()
     }
 
     @Test
