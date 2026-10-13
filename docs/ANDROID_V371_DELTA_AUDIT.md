@@ -88,7 +88,7 @@ Voice / QuickRecord 双解析器**与 V3.6 一致，无需改动**（复用）�
 
 - V3.7.1 已知的 schema 变更候选：`Performance.incomeSource` 新增字段；通知标识统一 `notificationID`（如需落库）。
 - 任何 Entity 字段增删改必须编写 Room `Migration`（版本号递增），并配套 **Migration 测试**（`MigrationTestHelper`，验证旧库 → 新库数据不丢、默认值正确）。
-- 变更冻结 7 Entity 语义（V3.6 结论延续）：todos / memos / customer_requests / performances / expiry_items / goods / payment_codes 的业务语义不变，只做加法。
+- 变更冻结 7 Entity 语义（V3.6 结论延续）：todos / memos / customer_requests / performances / expiry_items / goods / expenses 的业务语义不变，只做加法。（勘误：payment_codes 走 DataStore 非 Room，Room 7 表为上述；Phase 1 测试 worker 核实。）
 
 ### 5.3 数据升级回归测试（Phase 1 已落实）
 
