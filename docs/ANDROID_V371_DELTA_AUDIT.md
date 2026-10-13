@@ -150,3 +150,58 @@ Room 打开时 `validateMigration` 自校验 SQL 正确性）：
 ## 8. 死代码忽略清单（不移植）
 
 `V35SideUtilityDrawer` / `V35DrawerDestination`、`MemoCard`（iOS 侧）、TodoView 私有 `RecordEditorSheet`、`HomeRoute.memo` 死分支、设计系统版零调用 `AICommandEntry` / `QuickActionRow` / `FloatingTabDock`（按首页实际私有变体实现）。
+
+---
+
+## 9. SleepDown-derived candidate ideas（P0 文档归档，不影响移植进度）
+
+> **许可证红线**：SleepDown 的 `LICENSE.md` 是自定义"署名非商业、源码可见 1.1"许可，**不是**宽松开源许可（研究报告 §4）。本节仅归档可学习的**交互原则 / 运动参数 / 架构思路**；**禁止直接复制** SleepDown 的 Kotlin / 着色器 / 资源 / 界面代码。如未来确需复用，必须先梳理第三方许可并独立实现。
+
+- **已具备**（小掌柜已有，无需做）：
+  - AI 五工具 + 确认卡（Pending Action）/ 写库门禁 / 幂等日志：`AgentCore` → Pending Action → 确认 → `RepositoryToolExecutor` → Repository → 幂等日志（Delta §7 可复用模块；**禁止重写已验收的业务执行链**）。
+  - Compose + Room + DataStore 架构底座；通知调度（`NotificationSideEffectsTest`）；语音降级路径。
+- **建议下一期（P1）**（首个 APK 交付后评估；只立项不实现）：
+  - Android 自有 MotionSpec / MotionPolicy（本节 §10 立项）。
+  - 非线性模糊强度滑杆映射（研究报告 §1 发现 3；仅当小掌柜已有壁纸 / 玻璃强度设置需优化时借鉴）。
+  - 材质性能分级思路（研究报告 §1 发现 5）。
+- **不可直接搬用**（架构不匹配）：
+  - `OplusSeamlessBackend` 跨 Activity 转场 vs 小掌柜单 Activity NavHost（研究报告 §2）。
+  - SleepDown 课程表复杂计划 vs 小掌柜店铺业务工具（研究报告 §3 P2 AI 审计）。
+- **真机待验证**（PKJ110 + 当前 ColorOS 17 固件未验证前一律 `NOT VERIFIED`）：
+  - Oplus 私有转场能力；端侧 ASR 可用性；精确闹钟行为。
+
+---
+
+## 10. P1 立项：Android 自有 MotionSpec / MotionPolicy（只立项，不实现）
+
+- **范围**：首个 V3.7.1 真实 APK 交付后评估。**本期只立项，不写任何生产/动画代码**。
+- 建立 Android 自有的 `MotionSpec` / `MotionPolicy`（名称可自行决定），与页面路由对应：
+  - 每条适用路由记录 `transitionKind`（原生 / 淡入 / 共享锚点）、`performanceFallback`（低端设备降级路径）和测试状态（NOT RUN / PASS / FAIL）。
+  - **不是把 29 条 iOS 路由变成 29 个 Android Activity**（单 Activity NavHost 架构不变）。
+- 硬约束（研究报告 §3 P1）：
+  - 简单状态变动统一 Motion Token 与动效时长；复杂长列表整体移动，避免逐行加 blur / graphicsLayer；
+  - 动效**不得**改变导航可达性、点击区域、返回行为或弹窗保存/取消的语义；
+  - 支持系统 Reduce Motion（退化为直接显示/淡入）；
+  - 拖拽删除可参考自适应触发阈值（按屏宽计算），但不改变 iOS 既定删除确认、安全规则和数据事务——**不得为动画引入误删**。
+- **优先三条真实路径**：首页 → AI Sheet、首页 → 快速记一笔、经营 → 编辑表单。
+- 验收：逐项 PASS / FAIL / NOT RUN；帧率与视觉连续性以真机实测为准，模拟器通过不替代真机。
+
+---
+
+## 11. P2 立项：隔离原型（只立项，不实现）
+
+### 11.1 动效与 OPPO 私有转场隔离原型
+
+- **范围**：独立实验；**未通过验证不得合入 V3.7.1 稳定版**。
+- 液滴 Morph：胶囊 / 按钮 → 菜单的连续变形，参考 SleepDown `HomeDropletMotion` 动作分层（收缩 → 位移 → 纵横伸展 → 内容显现 → 回归锚点）；260/300ms 参考参数仅作初始标尺，需真机测帧率与视觉连续性。
+- 玻璃效果：**仅限** AI 输入、底部浮层、选择器等控制面；列表、经营数字和任务内容保持清晰，**禁止全屏雾化或卡片墙**。
+- OPPO 私有转场 PoC：独立、可禁用；先用具名失败诊断（`runtimeClassMissing` / `requiredApiMissing` / `unsupportedVersion` / `sourceNotReady` / `unsupportedWindowMode`）探测运行时类、所需方法、版本、窗口模式和真实锚点；失败立即回退 Compose 标准路径；**不引入隐藏 API 绕过或 root 强依赖**；无真机视频/日志不记为支持。
+- 回退开关：若试验造成卡顿、动画尾帧残影、黑屏或点击丢失，**立即回退**到稳定转场，主 App 不受影响。
+
+### 11.2 AI 对比审计（只立项，先出审计报告，不开新功能）
+
+- 对照 SleepDown `DAY_AGENT_RUNTIME` 的阶段划分：事实读取 → 工具调用 → 参数/权限校验 → 操作计划/确认卡 → Repository 写入 → 回读验证；对照小掌柜既有链（`AgentCore` → Pending Action → 确认 → `RepositoryToolExecutor` → Repository → 幂等日志）。
+- 逐项标注：`ALREADY EXISTS`（已具备：AI 五工具 / 写库确认门禁 / 幂等日志 / 确认卡）/ `GAP`（缺口，需评估：错误可诊断性、重复调用幂等、上下文缓存有效性、失败不丢消息、多轮修正、云端无 Key / 无法联网的本地能力）/ `FUTURE CANDIDATE`（下一期候选）。
+- **铁律：暂时禁止重写已验收的业务执行链**（`AgentCore` → Pending Action → 确认 → `RepositoryToolExecutor` → Repository → 幂等日志）；禁止擅自扩展 CRUD 权限、批量删除或重写 AI 运行时（研究报告 §3 P2）。
+- SleepDown 课程表课程编辑的复杂计划**不能照搬**成店铺业务工具；相关计划结构需另做业务审查。
+- 许可证红线适用（本节 §9 开头）：独立实现审计，**禁止直接复制** SleepDown 代码；审计报告先行，功能实现后置。

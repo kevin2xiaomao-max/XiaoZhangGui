@@ -74,3 +74,25 @@ iOS 路由清单 R01–R29 全部页面文件存在于基线源码（注意审�
 - AI 相关路由（R09 / R27 / R28 / E03）统一验收点：**AI 不占独立 Tab**，入口恒为「首页 AICommandEntry → AI Sheet」，返回恒为「关闭 Sheet 回到当前页」。
 - Widget / LiveActivity / App Intents（E04–E07）按平台差异单独验收，不计入 R01–R29 通过率。
 - 测试状态不许虚报：未运行 = NOT RUN；测试名只写已存在的真实测试文件，缺失一律标「待补 + 阶段」。
+
+---
+
+## 4. SleepDown-derived candidate ideas（P0 文档归档，不影响移植进度）
+
+> **许可证红线**：SleepDown 的 `LICENSE.md` 是自定义"署名非商业、源码可见 1.1"许可，**不是**宽松开源许可（研究报告 §4）。本节仅归档可学习的**交互原则 / 运动参数 / 架构思路**；**禁止直接复制** SleepDown 的 Kotlin / 着色器 / 资源 / 界面代码。如未来确需复用，必须先梳理第三方许可并独立实现。
+
+- **已具备**（小掌柜已有，无需做）：
+  - AI 五工具 + 确认卡（Pending Action）/ 写库门禁 / 幂等日志：`AgentCore` → Pending Action → 确认 → `RepositoryToolExecutor` → Repository → 幂等日志。**禁止重写已验收的业务执行链**。
+  - Compose + Room + DataStore 架构底座。
+  - 通知调度（`NotificationSideEffectsTest`）。
+  - 语音降级路径（ASR 不可用时文字回退；验收见 OPPO 验收文档 §2）。
+- **建议下一期（P1）**（首个 APK 交付后评估）：
+  - Android 自有 MotionSpec / MotionPolicy 与路由级 `transitionKind`（原生 / 淡入 / 共享锚点）、`performanceFallback`；立项见 `ANDROID_V371_DELTA_AUDIT.md` §10。
+  - 非线性模糊强度滑杆映射（研究报告 §1 发现 3；仅当小掌柜已有壁纸 / 玻璃强度设置需优化时借鉴）。
+  - 材质性能分级思路（质感 / 性能 / 超级性能，减少模糊 / 折射 / GPU 负担；研究报告 §1 发现 5）。
+- **不可直接搬用**（架构不匹配）：
+  - `OplusSeamlessBackend` 跨 Activity 转场 vs 小掌柜单 Activity NavHost：不能作为现有 Compose 路由的直接替换件（研究报告 §2）。
+  - SleepDown 课程表复杂计划 vs 小掌柜店铺业务工具：`DAY_AGENT_RUNTIME` 的课程编辑计划不能照搬成店铺业务工具（研究报告 §3 P2 AI 审计）。
+- **真机待验证**（PKJ110 + 当前 ColorOS 17 固件未验证前一律 `NOT VERIFIED`）：
+  - Oplus 私有转场能力（研究报告 §1 纠偏 4：不能因 SleepDown 在 ColorOS 上实现过就认定 PKJ110 支持）。
+  - 端侧 ASR 可用性、精确闹钟等能力探测（诊断分类见 OPPO 验收文档 §9.2）。
