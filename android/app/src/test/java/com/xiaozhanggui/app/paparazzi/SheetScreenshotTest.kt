@@ -49,7 +49,6 @@ import com.xiaozhanggui.app.ui.screens.goods.GoodsEditorContent
 import com.xiaozhanggui.app.ui.screens.goods.GoodsEditorMode
 import com.xiaozhanggui.app.ui.screens.performance.MoneyEditorContent
 import com.xiaozhanggui.app.ui.screens.performance.MoneyEditorMode
-import com.xiaozhanggui.app.ui.screens.home.WeatherSheet
 import com.xiaozhanggui.app.ui.screens.quickrecord.QuickRecordSheetVisual
 import com.xiaozhanggui.app.ui.screens.quickrecord.QuickRecordVisualState
 import com.xiaozhanggui.app.ui.screens.todo.MemoEditorContent
@@ -422,18 +421,6 @@ class SheetScreenshotTest : XzgScreenshotTest() {
             onCancelVoice = {},
             onSave = {}
         )
-    }
-
-    // ---------- 天气 Sheet（R10 占位实现：温度 "--°"，明确标注 Phase 5 接入） ----------
-
-    @Test
-    fun weatherSheetLight() = pageLight("Weather") {
-        WeatherSheet(onDismiss = {})
-    }
-
-    @Test
-    fun weatherSheetDark() = pageDark("Weather") {
-        WeatherSheet(onDismiss = {})
     }
 
     // ---------- AI Sheet（首页 AICommandEntry → 底部 sheet，内容 = AIChatContent） ----------
