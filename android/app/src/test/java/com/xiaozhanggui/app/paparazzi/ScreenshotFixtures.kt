@@ -25,6 +25,7 @@ import com.xiaozhanggui.app.domain.ai.ToolName
 import com.xiaozhanggui.app.ui.screens.home.HomeInboxUiItem
 import com.xiaozhanggui.app.ui.screens.home.HomeUiState
 import com.xiaozhanggui.app.ui.screens.home.InboxRoute
+import com.xiaozhanggui.app.ui.screens.home.InboxTone
 import com.xiaozhanggui.app.ui.screens.schedule.ScheduleAllDay
 import com.xiaozhanggui.app.ui.screens.schedule.ScheduleDay
 import com.xiaozhanggui.app.ui.screens.schedule.ScheduleEvent
@@ -253,47 +254,45 @@ internal object ScreenshotFixtures {
     }
 
     fun homeState(now: Long = System.currentTimeMillis()): HomeUiState {
-        val todos = todos(now)
-        val memos = memos(now)
         return HomeUiState(
-            greeting = "晚上好",
-            ownerName = "老板",
+            greeting = "晚上好，老板",
             dateLabel = "10月2日 星期五",
             todayRevenue = 1288.5,
             changePercent = 15.2,
-            trend = listOf(900.0, 1100.0, 760.0, 1340.0, 980.0, 1120.0, 1288.5),
             monthRevenue = 35600.0,
             monthGoal = 120000.0,
             todoCount = 3,
             customerCount = 2,
             expiryCount = 2,
-            todoInsight = "有 1 项已逾期，优先处理",
-            customerInsight = "2 单待配送，最早今晚 18:00",
-            expiryInsight = "2 件临期，鲜牛奶剩 3 天",
+            todoSubtitle = "2 项今天到期",
+            deliverySubtitle = "有 1 单配送中",
+            expirySubtitle = "1 件 3 天内临期",
             inboxItems = listOf(
                 HomeInboxUiItem(
                     id = "todo-1",
                     title = "给 302 房送两箱怡宝",
                     subtitle = "待办 · 10:30",
                     time = "10:30",
-                    route = InboxRoute.TODO
+                    route = InboxRoute.TODO,
+                    tone = InboxTone.URGENT
                 ),
                 HomeInboxUiItem(
                     id = "cr-1",
                     title = "302 房张先生",
                     subtitle = "配送 · 今晚 18:00",
                     time = "18:00",
-                    route = InboxRoute.CUSTOMER
+                    route = InboxRoute.CUSTOMER,
+                    tone = InboxTone.ACCENT
                 ),
                 HomeInboxUiItem(
                     id = "ex-1",
                     title = "鲜牛奶 250ml",
                     subtitle = "临期 · 剩 3 天",
                     time = "3天",
-                    route = InboxRoute.EXPIRY
+                    route = InboxRoute.EXPIRY,
+                    tone = InboxTone.WARNING
                 )
-            ),
-            recentMemos = memos.take(2)
+            )
         )
     }
 

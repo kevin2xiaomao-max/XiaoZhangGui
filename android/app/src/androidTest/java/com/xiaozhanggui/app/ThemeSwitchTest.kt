@@ -14,7 +14,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * 主题切换渲染测试（Phase 6 Worker A）：
+ * 主题切换渲染测试（V3.7.1）：
  * 同一份首页内容在 Light / Dark 下渲染均不崩溃。
  */
 @RunWith(AndroidJUnit4::class)
@@ -28,8 +28,7 @@ class ThemeSwitchTest {
             XzgTheme(themeMode = themeMode) {
                 HomeContent(
                     state = HomeUiState(
-                        greeting = "晚上好",
-                        ownerName = "王老板",
+                        greeting = "晚上好，王老板",
                         dateLabel = "10月2日 星期五",
                         todayRevenue = 888.88
                     ),
@@ -37,12 +36,10 @@ class ThemeSwitchTest {
                     onOpenTodoTab = {},
                     onOpenCustomer = {},
                     onOpenExpiry = {},
-                    onOpenMemo = {},
-                    onOpenDrawer = {},
+                    onOpenProfile = {},
+                    onOpenAI = {},
                     onOpenQuickRecord = {},
-                    onToggleTodo = {},
-                    onWeatherClick = {},
-                    animateEntrance = false
+                    onWeatherClick = {}
                 )
             }
         }
@@ -54,7 +51,7 @@ class ThemeSwitchTest {
         launchHome(ThemeMode.LIGHT)
         rule.onNodeWithTag("home.heroRevenue").assertIsDisplayed()
         rule.onNodeWithText("今日营业额").assertExists()
-        rule.onNodeWithText("王老板").assertExists()
+        rule.onNodeWithText("晚上好，王老板").assertExists()
     }
 
     @Test
@@ -62,6 +59,6 @@ class ThemeSwitchTest {
         launchHome(ThemeMode.DARK)
         rule.onNodeWithTag("home.heroRevenue").assertIsDisplayed()
         rule.onNodeWithText("今日营业额").assertExists()
-        rule.onNodeWithText("王老板").assertExists()
+        rule.onNodeWithText("晚上好，王老板").assertExists()
     }
 }

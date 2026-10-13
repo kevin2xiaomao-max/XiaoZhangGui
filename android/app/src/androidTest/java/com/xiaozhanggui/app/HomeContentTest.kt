@@ -5,21 +5,21 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.xiaozhanggui.app.data.db.MemoEntity
 import com.xiaozhanggui.app.ui.screens.home.HomeContent
 import com.xiaozhanggui.app.ui.screens.home.HomeInboxUiItem
 import com.xiaozhanggui.app.ui.screens.home.HomeUiState
 import com.xiaozhanggui.app.ui.screens.home.InboxRoute
+import com.xiaozhanggui.app.ui.screens.home.InboxTone
 import com.xiaozhanggui.app.ui.theme.XzgTheme
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * 首页内容测试（Phase 6 Worker A）。
+ * 首页内容测试（V3.7.1 Editorial 结构）。
  *
  * 直接测纯渲染 [HomeContent]（假 HomeUiState，不经过 XzgGraph / 数据库）：
- * Hero 今日营业额、今日事项、备忘节点存在。
+ * Hero 今日营业额、「今日重点」三行、「接下来」。
  */
 @RunWith(AndroidJUnit4::class)
 class HomeContentTest {
@@ -28,23 +28,27 @@ class HomeContentTest {
     val rule = createComposeRule()
 
     private fun fakeState() = HomeUiState(
-        greeting = "晚上好",
-        ownerName = "王老板",
+        greeting = "晚上好，王老板",
         dateLabel = "10月2日 星期五",
         todayRevenue = 1234.5,
+        changePercent = 12.5,
         monthRevenue = 20000.0,
         monthGoal = 50000.0,
+        todoCount = 3,
+        customerCount = 2,
+        expiryCount = 1,
+        todoSubtitle = "1 项今天到期",
+        deliverySubtitle = "有 1 单配送中",
+        expirySubtitle = "1 件 3 天内临期",
         inboxItems = listOf(
             HomeInboxUiItem(
                 id = "todo-1",
                 title = "给张三送两箱可乐",
                 subtitle = "客户配送",
                 time = "今天 18:00",
-                route = InboxRoute.CUSTOMER
+                route = InboxRoute.CUSTOMER,
+                tone = InboxTone.ACCENT
             )
-        ),
-        recentMemos = listOf(
-            MemoEntity(title = "记得进货", content = "可乐快没了")
         )
     )
 
@@ -57,13 +61,10 @@ class HomeContentTest {
                     onOpenTodoTab = {},
                     onOpenCustomer = {},
                     onOpenExpiry = {},
-                    onOpenMemo = {},
-                    onOpenDrawer = {},
+                    onOpenProfile = {},
+                    onOpenAI = {},
                     onOpenQuickRecord = {},
-                    onToggleTodo = {},
-                    onWeatherClick = {},
-                    // 关掉入场动画：动画初态透明会导致 assertIsDisplayed 抖动
-                    animateEntrance = false
+                    onWeatherClick = {}
                 )
             }
         }
@@ -73,32 +74,52 @@ class HomeContentTest {
     @Test
     fun home_hero_revenueSection_exists() {
         launchHome()
-        // Hero 节点（testTag home.heroRevenue 为 Phase 3 预埋）
+        // Hero 节点（testTag home.heroRevenue 为 V3.6 预埋，V3.7.1 保留兼容）
         rule.onNodeWithTag("home.heroRevenue").assertIsDisplayed()
         rule.onNodeWithText("今日营业额").assertExists()
+        rule.onNodeWithText("较昨日 +12.5%").assertExists()
+        rule.onNodeWithText("月目标 40%").assertExists()
     }
 
     @Test
-    fun home_todaySection_exists() {
+    fun home_header_showsGreetingAndEntries() {
         launchHome()
-        rule.onNodeWithTag("home.todaySection").assertExists()
-        rule.onNodeWithText("今日事项").assertExists()
+        rule.onNodeWithText("晚上好，王老板").assertExists()
+        rule.onNodeWithText("10月2日 星期五").assertExists()
+        rule.onNodeWithText("记一笔").assertExists()
+        rule.onNodeWithText("问小掌柜").assertExists()
+        rule.onNodeWithTag("home.profile").assertExists()
+        rule.onNodeWithTag("home.ai").assertExists()
+    }
+
+    @Test
+    fun home_focusSection_hasThreeRows() {
+        launchHome()
+        rule.onNodeWithText("今日重点").assertExists()
+        rule.onNodeWithText("客户配送").assertExists()
+        rule.onNodeWithText("今日待办").assertExists()
+        rule.onNodeWithText("临期退货").assertExists()
+        rule.onNodeWithText("有 1 单配送中").assertExists()
+        rule.onNodeWithText("1 项今天到期").assertExists()
+        rule.onNodeWithText("1 件 3 天内临期").assertExists()
+        rule.onNodeWithText("2 单").assertExists()
+        rule.onNodeWithText("3 项").assertExists()
+        rule.onNodeWithText("1 件").assertExists()
+    }
+
+    @Test
+    fun home_nextSection_showsInboxItems() {
+        launchHome()
+        rule.onNodeWithText("接下来").assertExists()
         rule.onNodeWithText("给张三送两箱可乐").assertExists()
     }
 
     @Test
-    fun home_memoSection_exists() {
-        launchHome()
-        rule.onNodeWithTag("home.memoSection").assertExists()
-        rule.onNodeWithText("最近备忘").assertExists()
-        rule.onNodeWithText("记得进货").assertExists()
-    }
-
-    @Test
-    fun home_emptyInbox_showsEmptyHint() {
-        launchHome(fakeState().copy(inboxItems = emptyList(), recentMemos = emptyList()))
-        // 无事项 / 无备忘时各区块仍渲染（空态文案），页面不崩溃
+    fun home_emptyInbox_showsEmptyState() {
+        launchHome(fakeState().copy(inboxItems = emptyList()))
+        // 「接下来」无事项时显示 EmptyState，页面不崩溃
         rule.onNodeWithTag("home.heroRevenue").assertIsDisplayed()
-        rule.onNodeWithText("今天暂无待处理事项").assertExists()
+        rule.onNodeWithText("今天暂无安排").assertExists()
+        rule.onNodeWithText("待办、配送与临期事项会出现在这里").assertExists()
     }
 }
