@@ -53,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -328,6 +329,7 @@ fun PerformanceContent(
     }
 
     Scaffold(
+        modifier = Modifier.testTag("performance.screen"),
         topBar = {
             TopAppBar(
                 title = { Text("经营数据", style = XzgType.headline, color = palettes.background.textPrimary) },
