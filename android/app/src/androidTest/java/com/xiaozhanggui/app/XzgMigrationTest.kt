@@ -1,18 +1,24 @@
 package com.xiaozhanggui.app
 
+import android.content.Context
+import android.database.sqlite.SQLiteDatabase
+import android.database.sqlite.SQLiteOpenHelper
 import androidx.room.Room
-import androidx.room.testing.MigrationTestHelper
+import androidx.room.util.TableInfo
 import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import com.xiaozhanggui.app.data.db.MIGRATION_1_2
 import com.xiaozhanggui.app.data.db.XzgDatabase
+import com.xiaozhanggui.app.migration.V1Schema
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
-import org.junit.Rule
+import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.File
 
 /**
  * Room 1 → 2 数据升级回归测试（P0-2 门禁，对应 DELTA §5.3）。
@@ -28,167 +34,159 @@ import org.junit.runner.RunWith
  *   旧行默认 `""`，数据零丢失。
  *
  * 断言：7 表行数零丢失、`incomeSource` 默认值/原值正确、关键字段抽查、
- * Room 2.6.1 schema 校验通过（`runMigrationsAndValidate`）、升级后 App
+ * 迁移后表结构与 v2 实体定义逐列一致（类型/NOT NULL/主键）、升级后 App
  * 可用 Room 正常打开并读出实体。
+ *
+ * 实现方式说明：最初版本使用 `MigrationTestHelper`，但它在
+ * `createDatabase()` / `runMigrationsAndValidate()` 时强制读取导出的
+ * schema JSON（`assets/<db类名>/1.json`、`2.json`），而本工程
+ * `XzgDatabase(exportSchema = false)` 从不导出，导致
+ * `FileNotFoundException: .../XzgDatabase/1.json`（CI run 38442903681
+ * 两处 FAILED 的根因，与迁移逻辑本身无关）。因此改用原生
+ * `SQLiteOpenHelper` 手工构造 v1 旧库（建表 SQL 复用 [V1Schema]，与
+ * `DataUpgradeRegressionTest` 同一 CI 已验证模式），由 Room 自身执行
+ * `MIGRATION_1_2`；schema 校验改用 `TableInfo.read()` 逐列比对，
+ * 等价于 `runMigrationsAndValidate` 的表结构校验。
  *
  * 注：`payment_codes`（收款码）走 DataStore 非 Room，无表结构，不在本测试内。
  */
 @RunWith(AndroidJUnit4::class)
 class XzgMigrationTest {
 
-    @get:Rule
-    val helper = MigrationTestHelper(
-        InstrumentationRegistry.getInstrumentation(),
-        XzgDatabase::class.java
-    )
+    private lateinit var context: Context
 
-    // ---------- v1 DDL（与 Room 2.6.1 生成一致：列顺序 = 实体字段声明顺序） ----------
+    @Before
+    fun setup() {
+        context = ApplicationProvider.getApplicationContext()
+    }
 
-    private val createTodosV1 =
-        "CREATE TABLE IF NOT EXISTS `todos` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, " +
-            "`detail` TEXT NOT NULL, `dueDate` INTEGER, `priority` INTEGER NOT NULL, " +
-            "`imagePath` TEXT, `isCompleted` INTEGER NOT NULL, `completedAt` INTEGER, " +
-            "`createdAt` INTEGER NOT NULL, `notificationId` TEXT NOT NULL, PRIMARY KEY(`id`))"
+    /** version=1 的旧库 Helper：只建表、不升级（user_version 由构造参数置 1）。 */
+    private class V1Helper(
+        context: Context,
+        path: String,
+        private val withIncomeSource: Boolean
+    ) : SQLiteOpenHelper(context, path, null, 1) {
+        override fun onCreate(db: SQLiteDatabase) {
+            for (sql in V1Schema.createAllTables(withIncomeSource)) db.execSQL(sql)
+        }
 
-    private val createExpiryV1 =
-        "CREATE TABLE IF NOT EXISTS `expiry_items` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, " +
-            "`category` TEXT NOT NULL, `quantity` INTEGER NOT NULL, `productionDate` INTEGER, " +
-            "`expiryDate` INTEGER NOT NULL, `remindDaysBefore` INTEGER NOT NULL, `note` TEXT NOT NULL, " +
-            "`imagePath` TEXT, `createdAt` INTEGER NOT NULL, `returnStatus` TEXT NOT NULL, " +
-            "`returnedAt` INTEGER, `notificationId` TEXT NOT NULL, PRIMARY KEY(`id`))"
-
-    private val createCustomersV1 =
-        "CREATE TABLE IF NOT EXISTS `customer_requests` (`id` TEXT NOT NULL, `customer` TEXT NOT NULL, " +
-            "`roomOrAddress` TEXT NOT NULL, `phone` TEXT NOT NULL, `content` TEXT NOT NULL, " +
-            "`status` TEXT NOT NULL, `imagePath` TEXT, `createdAt` INTEGER NOT NULL, " +
-            "`updatedAt` INTEGER NOT NULL, `notificationId` TEXT NOT NULL, PRIMARY KEY(`id`))"
-
-    private val createGoodsV1 =
-        "CREATE TABLE IF NOT EXISTS `goods` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, " +
-            "`category` TEXT NOT NULL, `barcode` TEXT NOT NULL, `stock` INTEGER NOT NULL, " +
-            "`minStock` INTEGER NOT NULL, `purchasePrice` REAL NOT NULL, `salePrice` REAL NOT NULL, " +
-            "`productionDate` INTEGER, `shelfLifeDays` INTEGER NOT NULL, `expiryDate` INTEGER, " +
-            "`note` TEXT NOT NULL, `imagePath` TEXT, `createdAt` INTEGER NOT NULL, " +
-            "`updatedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))"
-
-    private val createMemosV1 =
-        "CREATE TABLE IF NOT EXISTS `memos` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, " +
-            "`content` TEXT NOT NULL, `imagePath` TEXT, `createdAt` INTEGER NOT NULL, " +
-            "`updatedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))"
-
-    private val createPerformancesV1WithIncomeSource =
-        "CREATE TABLE IF NOT EXISTS `performances` (`id` TEXT NOT NULL, `amount` REAL NOT NULL, " +
-            "`note` TEXT NOT NULL, `date` INTEGER NOT NULL, `fingerprint` TEXT NOT NULL, " +
-            "`paymentMethod` TEXT NOT NULL, `orderNo` TEXT NOT NULL, `importSource` TEXT NOT NULL, " +
-            "`incomeSource` TEXT NOT NULL, PRIMARY KEY(`id`))"
-
-    private val createPerformancesV1WithoutIncomeSource =
-        "CREATE TABLE IF NOT EXISTS `performances` (`id` TEXT NOT NULL, `amount` REAL NOT NULL, " +
-            "`note` TEXT NOT NULL, `date` INTEGER NOT NULL, `fingerprint` TEXT NOT NULL, " +
-            "`paymentMethod` TEXT NOT NULL, `orderNo` TEXT NOT NULL, `importSource` TEXT NOT NULL, " +
-            "PRIMARY KEY(`id`))"
-
-    private val createExpensesV1 =
-        "CREATE TABLE IF NOT EXISTS `expenses` (`id` TEXT NOT NULL, `amount` REAL NOT NULL, " +
-            "`category` TEXT NOT NULL, `note` TEXT NOT NULL, `date` INTEGER NOT NULL, " +
-            "`createdAt` INTEGER NOT NULL, PRIMARY KEY(`id`))"
+        override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+    }
 
     /** 场景 A：真实 V3.6 设备 v1 库（performances 已含 incomeSource 列） */
     @Test
     fun migrate1To2_withIncomeSourceAlreadyPresent_preservesAllData() {
-        val dbName = "xzg-migration-a.db"
-        helper.createDatabase(dbName, 1).apply {
-            createV1Schema(withIncomeSource = true)
-            insertV1Rows(withIncomeSource = true)
-            close()
+        val file = seedV1Database("xzg-migration-a.db", withIncomeSource = true)
+        try {
+            val roomDb = openAndMigrate(file)
+            try {
+                assertEquals(2, roomDb.openHelper.readableDatabase.version)
+                val db = roomDb.openHelper.writableDatabase
+                assertAllTablesIntact(db)
+                // 等价于 runMigrationsAndValidate 的 schema 校验：no-op 后仍是合法 v2
+                assertV2Schema(db)
+                // 原值保留：扫呗导入行 incomeSource=美团，手工旧行 incomeSource=""
+                assertEquals("美团", db.stringValue("SELECT incomeSource FROM performances WHERE id = 'p-1'"))
+                assertEquals("", db.stringValue("SELECT incomeSource FROM performances WHERE id = 'p-2'"))
+            } finally {
+                roomDb.close()
+            }
+            assertRoomCanOpenAndRead(file, expectedMeituan = "美团", expectedManual = "")
+        } finally {
+            deleteDbFiles("xzg-migration-a.db")
         }
-
-        helper.runMigrationsAndValidate(dbName, 2, true, MIGRATION_1_2).apply {
-            assertAllTablesIntact(this)
-            // 原值保留：扫呗导入行 incomeSource=美团，手工旧行 incomeSource=""
-            assertEquals("美团", stringValue("SELECT incomeSource FROM performances WHERE id = 'p-1'"))
-            assertEquals("", stringValue("SELECT incomeSource FROM performances WHERE id = 'p-2'"))
-            close()
-        }
-
-        assertRoomCanOpenAndRead(dbName, expectedMeituan = "美团", expectedManual = "")
     }
 
     /** 场景 B：v1 库缺 incomeSource 列 → 迁移补列，旧行默认 "" */
     @Test
     fun migrate1To2_withoutIncomeSourceColumn_addsColumnWithEmptyDefault() {
-        val dbName = "xzg-migration-b.db"
-        helper.createDatabase(dbName, 1).apply {
-            createV1Schema(withIncomeSource = false)
-            insertV1Rows(withIncomeSource = false)
-            close()
+        val file = seedV1Database("xzg-migration-b.db", withIncomeSource = false)
+        try {
+            val roomDb = openAndMigrate(file)
+            try {
+                assertEquals(2, roomDb.openHelper.readableDatabase.version)
+                val db = roomDb.openHelper.writableDatabase
+                assertAllTablesIntact(db)
+                // ADD COLUMN 后的表结构必须与 v2 实体定义逐列一致
+                assertV2Schema(db)
+                assertEquals("", db.stringValue("SELECT incomeSource FROM performances WHERE id = 'p-1'"))
+                assertEquals("", db.stringValue("SELECT incomeSource FROM performances WHERE id = 'p-2'"))
+            } finally {
+                roomDb.close()
+            }
+            assertRoomCanOpenAndRead(file, expectedMeituan = "", expectedManual = "")
+        } finally {
+            deleteDbFiles("xzg-migration-b.db")
         }
-
-        helper.runMigrationsAndValidate(dbName, 2, true, MIGRATION_1_2).apply {
-            assertAllTablesIntact(this)
-            assertEquals("", stringValue("SELECT incomeSource FROM performances WHERE id = 'p-1'"))
-            assertEquals("", stringValue("SELECT incomeSource FROM performances WHERE id = 'p-2'"))
-            close()
-        }
-
-        assertRoomCanOpenAndRead(dbName, expectedMeituan = "", expectedManual = "")
     }
 
-    // ---------- 建表 / 造数 ----------
+    // ---------- 建库 / 造数 ----------
 
-    private fun SupportSQLiteDatabase.createV1Schema(withIncomeSource: Boolean) {
-        execSQL(createTodosV1)
-        execSQL(createExpiryV1)
-        execSQL(createCustomersV1)
-        execSQL(createGoodsV1)
-        execSQL(createMemosV1)
-        execSQL(
-            if (withIncomeSource) createPerformancesV1WithIncomeSource
-            else createPerformancesV1WithoutIncomeSource
-        )
-        execSQL(createExpensesV1)
+    /** 用原生 SQLiteOpenHelper 构造 v1 旧库并写入 7 表代表性数据，返回库文件。 */
+    private fun seedV1Database(fileName: String, withIncomeSource: Boolean): File {
+        deleteDbFiles(fileName)
+        val file = File(context.cacheDir, fileName)
+        val helper = V1Helper(context, file.absolutePath, withIncomeSource)
+        try {
+            insertV1Rows(helper.writableDatabase, withIncomeSource)
+        } finally {
+            helper.close()
+        }
+        return file
     }
 
-    private fun SupportSQLiteDatabase.insertV1Rows(withIncomeSource: Boolean) {
-        execSQL(
+    /** 由 Room 自身打开旧库并执行 MIGRATION_1_2（即 App 覆盖安装时的真实路径）。 */
+    private fun openAndMigrate(file: File): XzgDatabase =
+        Room.databaseBuilder(context, XzgDatabase::class.java, file.absolutePath)
+            .addMigrations(MIGRATION_1_2)
+            .build()
+
+    private fun deleteDbFiles(fileName: String) {
+        File(context.cacheDir, fileName).delete()
+        File(context.cacheDir, "$fileName-wal").delete()
+        File(context.cacheDir, "$fileName-shm").delete()
+    }
+
+    private fun insertV1Rows(db: SQLiteDatabase, withIncomeSource: Boolean) {
+        db.execSQL(
             "INSERT INTO todos VALUES ('todo-1', '进货牛奶', '2箱', 1700000000000, 2, NULL, 0, NULL, " +
                 "1699000000000, 'nid-todo-1')"
         )
-        execSQL(
+        db.execSQL(
             "INSERT INTO expiry_items VALUES ('exp-1', '鲜奶', '饮料', 5, NULL, 1701000000000, 7, " +
                 "'临期', NULL, 1699000000000, '待处理', NULL, 'nid-exp-1')"
         )
-        execSQL(
+        db.execSQL(
             "INSERT INTO customer_requests VALUES ('cus-1', 'xzg-delivery-v1:e30=', '3楼', " +
                 "'13800000000', '送两箱水', '待处理', NULL, 1699000000000, 1699000000000, 'nid-cus-1')"
         )
-        execSQL(
+        db.execSQL(
             "INSERT INTO goods VALUES ('g-1', '可乐', '饮料', '6901234567890', 10, 5, 2.5, 3.5, " +
                 "NULL, 365, 1735000000000, '', NULL, 1699000000000, 1699000000000)"
         )
-        execSQL(
+        db.execSQL(
             "INSERT INTO memos VALUES ('m-1', '备忘标题', '备忘内容', NULL, 1699000000000, 1699000000000)"
         )
         if (withIncomeSource) {
-            execSQL(
+            db.execSQL(
                 "INSERT INTO performances VALUES ('p-1', 128.5, '扫呗 · 美团', 1700000000000, " +
                     "'abc123', '美团', 'ORDER001', 'saobei', '美团')"
             )
-            execSQL(
+            db.execSQL(
                 "INSERT INTO performances VALUES ('p-2', 200.0, '散客', 1699900000000, " +
                     "'', '', '', '', '')"
             )
         } else {
-            execSQL(
+            db.execSQL(
                 "INSERT INTO performances VALUES ('p-1', 128.5, '扫呗 · 美团', 1700000000000, " +
                     "'abc123', '美团', 'ORDER001', 'saobei')"
             )
-            execSQL(
+            db.execSQL(
                 "INSERT INTO performances VALUES ('p-2', 200.0, '散客', 1699900000000, " +
                     "'', '', '', '')"
             )
         }
-        execSQL(
+        db.execSQL(
             "INSERT INTO expenses VALUES ('e-1', 50.0, '进货', '牛奶', 1700000000000, 1699000000000)"
         )
     }
@@ -236,14 +234,126 @@ class XzgMigrationTest {
         assertEquals("待处理", db.stringValue("SELECT returnStatus FROM expiry_items WHERE id = 'exp-1'"))
     }
 
+    /** 期望列定义（逐字对应 7 个 Entity 的字段声明顺序与类型映射）。 */
+    private data class ExpectedColumn(
+        val name: String,
+        val type: String,
+        val notNull: Boolean,
+        val pkPosition: Int
+    )
+
+    private val v2Schema: Map<String, List<ExpectedColumn>> = mapOf(
+        "todos" to listOf(
+            ExpectedColumn("id", "TEXT", true, 1),
+            ExpectedColumn("title", "TEXT", true, 0),
+            ExpectedColumn("detail", "TEXT", true, 0),
+            ExpectedColumn("dueDate", "INTEGER", false, 0),
+            ExpectedColumn("priority", "INTEGER", true, 0),
+            ExpectedColumn("imagePath", "TEXT", false, 0),
+            ExpectedColumn("isCompleted", "INTEGER", true, 0),
+            ExpectedColumn("completedAt", "INTEGER", false, 0),
+            ExpectedColumn("createdAt", "INTEGER", true, 0),
+            ExpectedColumn("notificationId", "TEXT", true, 0)
+        ),
+        "expiry_items" to listOf(
+            ExpectedColumn("id", "TEXT", true, 1),
+            ExpectedColumn("name", "TEXT", true, 0),
+            ExpectedColumn("category", "TEXT", true, 0),
+            ExpectedColumn("quantity", "INTEGER", true, 0),
+            ExpectedColumn("productionDate", "INTEGER", false, 0),
+            ExpectedColumn("expiryDate", "INTEGER", true, 0),
+            ExpectedColumn("remindDaysBefore", "INTEGER", true, 0),
+            ExpectedColumn("note", "TEXT", true, 0),
+            ExpectedColumn("imagePath", "TEXT", false, 0),
+            ExpectedColumn("createdAt", "INTEGER", true, 0),
+            ExpectedColumn("returnStatus", "TEXT", true, 0),
+            ExpectedColumn("returnedAt", "INTEGER", false, 0),
+            ExpectedColumn("notificationId", "TEXT", true, 0)
+        ),
+        "customer_requests" to listOf(
+            ExpectedColumn("id", "TEXT", true, 1),
+            ExpectedColumn("customer", "TEXT", true, 0),
+            ExpectedColumn("roomOrAddress", "TEXT", true, 0),
+            ExpectedColumn("phone", "TEXT", true, 0),
+            ExpectedColumn("content", "TEXT", true, 0),
+            ExpectedColumn("status", "TEXT", true, 0),
+            ExpectedColumn("imagePath", "TEXT", false, 0),
+            ExpectedColumn("createdAt", "INTEGER", true, 0),
+            ExpectedColumn("updatedAt", "INTEGER", true, 0),
+            ExpectedColumn("notificationId", "TEXT", true, 0)
+        ),
+        "goods" to listOf(
+            ExpectedColumn("id", "TEXT", true, 1),
+            ExpectedColumn("name", "TEXT", true, 0),
+            ExpectedColumn("category", "TEXT", true, 0),
+            ExpectedColumn("barcode", "TEXT", true, 0),
+            ExpectedColumn("stock", "INTEGER", true, 0),
+            ExpectedColumn("minStock", "INTEGER", true, 0),
+            ExpectedColumn("purchasePrice", "REAL", true, 0),
+            ExpectedColumn("salePrice", "REAL", true, 0),
+            ExpectedColumn("productionDate", "INTEGER", false, 0),
+            ExpectedColumn("shelfLifeDays", "INTEGER", true, 0),
+            ExpectedColumn("expiryDate", "INTEGER", false, 0),
+            ExpectedColumn("note", "TEXT", true, 0),
+            ExpectedColumn("imagePath", "TEXT", false, 0),
+            ExpectedColumn("createdAt", "INTEGER", true, 0),
+            ExpectedColumn("updatedAt", "INTEGER", true, 0)
+        ),
+        "memos" to listOf(
+            ExpectedColumn("id", "TEXT", true, 1),
+            ExpectedColumn("title", "TEXT", true, 0),
+            ExpectedColumn("content", "TEXT", true, 0),
+            ExpectedColumn("imagePath", "TEXT", false, 0),
+            ExpectedColumn("createdAt", "INTEGER", true, 0),
+            ExpectedColumn("updatedAt", "INTEGER", true, 0)
+        ),
+        "performances" to listOf(
+            ExpectedColumn("id", "TEXT", true, 1),
+            ExpectedColumn("amount", "REAL", true, 0),
+            ExpectedColumn("note", "TEXT", true, 0),
+            ExpectedColumn("date", "INTEGER", true, 0),
+            ExpectedColumn("fingerprint", "TEXT", true, 0),
+            ExpectedColumn("paymentMethod", "TEXT", true, 0),
+            ExpectedColumn("orderNo", "TEXT", true, 0),
+            ExpectedColumn("importSource", "TEXT", true, 0),
+            ExpectedColumn("incomeSource", "TEXT", true, 0)
+        ),
+        "expenses" to listOf(
+            ExpectedColumn("id", "TEXT", true, 1),
+            ExpectedColumn("amount", "REAL", true, 0),
+            ExpectedColumn("category", "TEXT", true, 0),
+            ExpectedColumn("note", "TEXT", true, 0),
+            ExpectedColumn("date", "INTEGER", true, 0),
+            ExpectedColumn("createdAt", "INTEGER", true, 0)
+        )
+    )
+
+    /**
+     * 迁移后 7 表结构与 v2 实体定义逐列一致（列名/类型/NOT NULL/主键位置）。
+     * 等价于 `MigrationTestHelper.runMigrationsAndValidate(..., validateDroppedTables = true)`
+     * 的表结构校验，但不依赖导出的 schema JSON。
+     */
+    private fun assertV2Schema(db: SupportSQLiteDatabase) {
+        for ((table, expected) in v2Schema) {
+            val actual = TableInfo.read(db, table).columns
+            assertEquals("[$table] 列数", expected.size, actual.size)
+            for (c in expected) {
+                assertTrue("[$table] 缺列 ${c.name}", actual.containsKey(c.name))
+                val a = actual.getValue(c.name)
+                assertEquals("[${table}.${c.name}] type", c.type, a.type)
+                assertEquals("[${table}.${c.name}] notNull", c.notNull, a.notNull)
+                assertEquals("[${table}.${c.name}] pk", c.pkPosition, a.primaryKeyPosition)
+            }
+        }
+    }
+
     /** 升级后 App 可用 Room 正常打开并读出实体（端到端） */
     private fun assertRoomCanOpenAndRead(
-        dbName: String,
+        file: File,
         expectedMeituan: String,
         expectedManual: String
     ) {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val roomDb = Room.databaseBuilder(context, XzgDatabase::class.java, dbName)
+        val roomDb = Room.databaseBuilder(context, XzgDatabase::class.java, file.absolutePath)
             .addMigrations(MIGRATION_1_2)
             .build()
         try {
