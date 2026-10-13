@@ -1,13 +1,12 @@
 package com.xiaozhanggui.app.ui.screens.ai
 
-import android.content.Context
-import android.os.Build
-import android.view.accessibility.AccessibilityManager
+import android.provider.Settings
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -118,9 +117,15 @@ private fun ShortVoiceListeningContent(
 ) {
     val palettes = LocalXzgPalettes.current
     val context = LocalContext.current
+    // Reduce Motion：系统动画缩放为 0（开发者选项/无障碍"移除动画"）时不做脉冲
     val reduceMotion = remember {
-        val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as? AccessibilityManager
-        Build.VERSION.SDK_INT >= 34 && am?.isReducedMotion == true
+        runCatching {
+            Settings.Global.getFloat(
+                context.contentResolver,
+                Settings.Global.TRANSITION_ANIMATION_SCALE,
+                1f
+            ) == 0f
+        }.getOrDefault(false)
     }
 
     Column(
@@ -147,7 +152,7 @@ private fun ShortVoiceListeningContent(
                     initialValue = 0.94f,
                     targetValue = 1.12f,
                     animationSpec = infiniteRepeatable(
-                        animation = spring(dampingRatio = 0.6f, stiffness = 120f),
+                        animation = tween(durationMillis = 900, easing = FastOutSlowInEasing),
                         repeatMode = RepeatMode.Reverse
                     ),
                     label = "pulseScale"
@@ -156,7 +161,7 @@ private fun ShortVoiceListeningContent(
                     initialValue = 1f,
                     targetValue = 0.55f,
                     animationSpec = infiniteRepeatable(
-                        animation = spring(dampingRatio = 0.6f, stiffness = 120f),
+                        animation = tween(durationMillis = 900, easing = FastOutSlowInEasing),
                         repeatMode = RepeatMode.Reverse
                     ),
                     label = "pulseAlpha"
