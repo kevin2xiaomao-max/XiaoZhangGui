@@ -90,13 +90,27 @@ Voice / QuickRecord 双解析器**与 V3.6 一致，无需改动**（复用）�
 - 任何 Entity 字段增删改必须编写 Room `Migration`（版本号递增），并配套 **Migration 测试**（`MigrationTestHelper`，验证旧库 → 新库数据不丢、默认值正确）。
 - 变更冻结 7 Entity 语义（V3.6 结论延续）：todos / memos / customer_requests / performances / expiry_items / goods / payment_codes 的业务语义不变，只做加法。
 
-### 5.3 数据升级回归测试（待补 Phase 1）
+### 5.3 数据升级回归测试（Phase 1 已落实）
 
-规划一个专门的回归测试（测试名待补，Phase 1 落实）：
-- 构造一个 **V3.6 旧版本数据库文件**（7 表有代表性数据：含扫呗导入记录、待办、客户、临期、备忘、商品、收款码），
-- 用新 App（V3.7.1 schema + Migration 链）打开，
-- 断言：7 表数据**零丢失**；`incomeSource` 默认值/回退派生正确；通知可重建；备份 round-trip 一致。
-- 该测试在 CI 的 `build` job 中运行，是 Phase 1 的门禁项。
+回归测试：`android/app/src/androidTest/java/com/xiaozhanggui/app/migration/DataUpgradeRegressionTest.kt`
+（fixture：同目录 `V1Schema.kt`，手写 v1 建表 SQL，逐字对应 Room 2.6.1 生成格式；
+Room 打开时 `validateMigration` 自校验 SQL 正确性）：
+
+- 用 `SQLiteOpenHelper`（version=1）手工构造 **V3.6 旧版本数据库文件**
+  （7 表代表性数据：performances 2 条含扫呗导入记录、todos 2 条、
+  customer_requests 1 条、expiry_items 1 条、goods 1 条、memos 1 条、expenses 1 条；
+  注：收款码在 DataStore 不在 Room，不在 7 表内），
+- 用新 App（V3.7.1 schema + `MIGRATION_1_2`）`Room.databaseBuilder(...).addMigrations(...)` 打开，
+- 断言：7 表数据**零丢失**（行数 + 关键字段，含扫呗 fingerprint）；
+  `incomeSource`：列已存在→值保留（真实 V3.6 设备路径），缺列→`ADD COLUMN` 默认 `""`
+  且 `IncomeSource.fromPerformance` 回退派生正确；
+  通知可重建：todo/expiry/customer 的 notificationId 跨升级保持有效 UUID v4；
+  备份 round-trip：升级后库导出→解码记录数一致；
+  版本号升至 2；全程无 destructive migration（数据存在即证明）。
+- 双场景：`upgrade_v1_with_incomeSource_column_keeps_all_data` /
+  `upgrade_v1_missing_incomeSource_column_gets_default_and_derivation`。
+- 该测试在 CI 的 `e2e` job（`connectedDebugAndroidTest`，真 SQLite）中运行，
+  是 Phase 1 的门禁项。
 
 ### 5.4 其他破坏性风险
 
