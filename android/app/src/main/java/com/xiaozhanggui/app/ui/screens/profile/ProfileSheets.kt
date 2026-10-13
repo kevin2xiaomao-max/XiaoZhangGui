@@ -82,6 +82,7 @@ import kotlinx.coroutines.withContext
  * - WallpaperSheet：相册选图存 filesDir + 效果三档 + 遮罩三档 + 删除（简化版：
  *   效果/遮罩只存选择，不做真实图片处理）
  * - ReminderSheet：待办提醒 / 临期退货提醒两个 Toggle
+ * - VoiceSettingsSheet：识别语言（普通话/粤语）+ 测试语音（打开原始语音 Sheet）
  * - AboutSheet：图标 + 版本 + 更新说明 + "V3.5 新变化"按钮 → ReleaseNotesSheet
  * - InfoSheet：隐私说明纯文本
  */
@@ -94,6 +95,7 @@ sealed interface ProfileSheet {
     data object Appearance : ProfileSheet
     data object Background : ProfileSheet
     data object Wallpaper : ProfileSheet
+    data object Voice : ProfileSheet
     data object Reminder : ProfileSheet
     data object About : ProfileSheet
     data object Privacy : ProfileSheet
@@ -637,6 +639,47 @@ fun WallpaperSheet(
             style = XzgType.caption,
             color = palettes.background.textQuaternary,
             textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+// ---------- 语音输入设置 ----------
+
+/**
+ * 语音输入设置 Sheet。对应 iOS `ProfileView.VoiceSettingsSheet`（R24）：
+ * 识别语言三段选择（普通话/粤语，落 DataStore `voice_language`）+ 系统识别说明 +
+ * 「测试语音」→ 原始语音 Sheet（R25，由调用方经 [onTestVoice] 打开）。
+ */
+@Composable
+fun VoiceSettingsSheet(
+    onDismiss: () -> Unit,
+    onTestVoice: () -> Unit,
+) {
+    val palettes = LocalXzgPalettes.current
+    val settings = remember { XzgGraph.settings }
+    val scope = rememberCoroutineScope()
+    val voiceLanguage by settings.voiceLanguage.collectAsStateWithLifecycle(initialValue = "普通话")
+
+    SheetColumn {
+        SheetHeader(title = "语音输入设置", onClose = onDismiss)
+        Text(text = "识别语言", style = XzgType.caption, color = palettes.background.textTertiary)
+        SegmentedOptions(
+            options = listOf("普通话", "粤语"),
+            selected = voiceLanguage,
+            label = { it },
+            onSelect = { lang ->
+                scope.launch { settings.setVoiceLanguage(lang) }
+            }
+        )
+        Text(
+            text = "语音识别由系统提供，录音仅用于实时识别，不会保存音频。",
+            style = XzgType.caption,
+            color = palettes.background.textTertiary
+        )
+        V32SecondaryButton(
+            text = "测试语音",
+            onClick = onTestVoice,
             modifier = Modifier.fillMaxWidth()
         )
     }

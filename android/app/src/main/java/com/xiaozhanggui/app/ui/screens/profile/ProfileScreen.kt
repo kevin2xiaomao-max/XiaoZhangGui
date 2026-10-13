@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.QrCode
@@ -76,6 +77,7 @@ import com.xiaozhanggui.app.data.datastore.ThemeMode
 import com.xiaozhanggui.app.data.di.XzgGraph
 import com.xiaozhanggui.app.domain.Format
 import com.xiaozhanggui.app.ui.components.ConfirmDeleteDialog
+import com.xiaozhanggui.app.ui.screens.voice.VoiceSheetContent
 import com.xiaozhanggui.app.ui.theme.LocalXzgPalettes
 import com.xiaozhanggui.app.ui.theme.XzgDimens
 import com.xiaozhanggui.app.ui.theme.XzgType
@@ -116,10 +118,13 @@ fun ProfileScreen(
     val backgroundTheme by settings.backgroundTheme.collectAsStateWithLifecycle(initialValue = BackgroundTheme.WARM_CREAM)
     val wallpaperRaw by settings.wallpaperJson.collectAsStateWithLifecycle(initialValue = "")
     val wallpaperEnabled = remember(wallpaperRaw) { WallpaperConfig.decode(wallpaperRaw).isEnabled }
+    val voiceLanguage by settings.voiceLanguage.collectAsStateWithLifecycle(initialValue = "普通话")
 
     var sheet by remember { mutableStateOf<ProfileSheet?>(null) }
     var showReleaseNotes by remember { mutableStateOf(false) }
     var showClearCache by remember { mutableStateOf(false) }
+    // R25 原始语音测试：Profile → 语音输入 → 测试语音 → 原始语音 Sheet（VoiceSheetContent）
+    var showVoiceTest by remember { mutableStateOf(false) }
 
     val versionName = remember {
         try {
@@ -174,6 +179,7 @@ fun ProfileScreen(
             accentLabel = accentTheme.displayName(),
             backgroundLabel = backgroundTheme.displayName(),
             wallpaperEnabled = wallpaperEnabled,
+            voiceLanguage = voiceLanguage,
             reminderEnabled = todoReminder || expiryReminder,
             demoMode = demoMode,
             versionName = versionName,
@@ -182,6 +188,7 @@ fun ProfileScreen(
             onAppearance = { sheet = ProfileSheet.Appearance },
             onBackground = { sheet = ProfileSheet.Background },
             onWallpaper = { sheet = ProfileSheet.Wallpaper },
+            onVoiceSettings = { sheet = ProfileSheet.Voice },
             onGoal = { sheet = ProfileSheet.Goal },
             onReminder = { sheet = ProfileSheet.Reminder },
             // 演示模式：切换 DataStore 开关 → 按模式重建数据库（内存库+种子 / 磁盘真实库）
@@ -241,6 +248,13 @@ fun ProfileScreen(
                     onDismiss = { sheet = null },
                     onToast = { toast.show(it) }
                 )
+                ProfileSheet.Voice -> VoiceSettingsSheet(
+                    onDismiss = { sheet = null },
+                    onTestVoice = {
+                        sheet = null
+                        showVoiceTest = true
+                    }
+                )
                 ProfileSheet.Reminder -> ReminderSheet(onDismiss = { sheet = null })
                 ProfileSheet.About -> AboutSheet(
                     version = versionName,
@@ -259,6 +273,12 @@ fun ProfileScreen(
                 build = buildNumber,
                 onDismiss = { showReleaseNotes = false }
             )
+        }
+    }
+    // R25：原始语音测试（Profile → 语音输入 → 测试语音），复用原始语音 Sheet
+    if (showVoiceTest) {
+        ModalBottomSheet(onDismissRequest = { showVoiceTest = false }) {
+            VoiceSheetContent(onDismiss = { showVoiceTest = false })
         }
     }
     if (showClearCache) {
@@ -288,6 +308,7 @@ fun ProfileContent(
     accentLabel: String,
     backgroundLabel: String,
     wallpaperEnabled: Boolean,
+    voiceLanguage: String = "普通话",
     reminderEnabled: Boolean,
     demoMode: Boolean,
     versionName: String,
@@ -296,6 +317,7 @@ fun ProfileContent(
     onAppearance: () -> Unit = {},
     onBackground: () -> Unit = {},
     onWallpaper: () -> Unit = {},
+    onVoiceSettings: () -> Unit = {},
     onGoal: () -> Unit = {},
     onReminder: () -> Unit = {},
     onDemoChange: (Boolean) -> Unit = {},
@@ -378,6 +400,14 @@ fun ProfileContent(
                         title = "壁纸",
                         value = if (wallpaperEnabled) "已设置" else "未设置",
                         onClick = onWallpaper
+                    )
+                    SettingsDivider()
+                    ProfileRow(
+                        icon = Icons.Filled.Mic,
+                        tone = palettes.accent.accent,
+                        title = "语音输入",
+                        value = voiceLanguage,
+                        onClick = onVoiceSettings
                     )
                 }
             }

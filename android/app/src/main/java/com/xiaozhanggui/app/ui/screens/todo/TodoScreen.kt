@@ -13,10 +13,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -53,10 +49,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.xiaozhanggui.app.data.db.MemoEntity
 import com.xiaozhanggui.app.data.db.TodoEntity
 import com.xiaozhanggui.app.data.di.XzgGraph
-import com.xiaozhanggui.app.data.repository.MemoRepository
 import com.xiaozhanggui.app.data.repository.TodoRepository
 import com.xiaozhanggui.app.domain.DateExt
 import com.xiaozhanggui.app.domain.DisplayLogic
@@ -82,30 +76,27 @@ import kotlinx.coroutines.launch
  */
 data class ScreenError(val title: String, val message: String)
 
-/** 待办 5 个 tab，对应 iOS TodoModel.TodoFilter。emptyText 逐字对应 iOS TodoFilter.emptyText。 */
+/** 待办 4 个 tab，对应 iOS TodoModel.TodoFilter。emptyText 逐字对应 iOS TodoFilter.emptyText。
+ * V3.7.1：备忘入口迁至经营 Tab menu →「记录」（R13），此处不再保留备忘 segment。 */
 enum class TodoTab(val label: String, val emptyText: String) {
     TODAY("今天", "今天没有待办，去休息一下吧"),
     TOMORROW("明天", "明天暂无待办"),
     OVERDUE("逾期", "没有逾期事项，真棒"),
-    DONE("已完成", "还没有已完成的任务"),
-    MEMO("备忘", "暂无备忘")
+    DONE("已完成", "还没有已完成的任务")
 }
 
 /** 优先级文案，对应 iOS TodoPriority.label。 */
 private val priorityLabels = listOf("低优先级", "中优先级", "高优先级")
 
 /**
- * 待办页 ViewModel。对应 iOS TodoView 的 @State 数据 + TodoRepository/MemoRepository 调用。
+ * 待办页 ViewModel。对应 iOS TodoView 的 @State 数据 + TodoRepository 调用。
+ * V3.7.1：备忘改走经营 Tab「记录」独立页（R13），本 ViewModel 不再持有备忘数据。
  */
 class TodoViewModel(
-    private val todoRepo: TodoRepository,
-    private val memoRepo: MemoRepository
+    private val todoRepo: TodoRepository
 ) : ViewModel() {
 
     val todos: StateFlow<List<TodoEntity>> = todoRepo.observeAll()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val memos: StateFlow<List<MemoEntity>> = memoRepo.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /**
@@ -169,35 +160,12 @@ class TodoViewModel(
         }
     }
 
-    suspend fun saveMemo(
-        title: String,
-        content: String,
-        imagePath: String?,
-        editing: MemoEntity?
-    ) {
-        if (editing == null) {
-            memoRepo.add(title = title, content = content, imagePath = imagePath)
-        } else {
-            memoRepo.update(editing.copy(title = title, content = content, imagePath = imagePath))
-        }
-    }
-
     fun deleteTodo(todo: TodoEntity) {
         viewModelScope.launch {
             try {
                 todoRepo.delete(todo)
             } catch (e: Exception) {
                 _error.value = ScreenError("删除失败", "待办未删除，请重试。")
-            }
-        }
-    }
-
-    fun deleteMemo(memo: MemoEntity) {
-        viewModelScope.launch {
-            try {
-                memoRepo.delete(memo)
-            } catch (e: Exception) {
-                _error.value = ScreenError("删除失败", "备忘未删除，请重试。")
             }
         }
     }
@@ -209,7 +177,6 @@ class TodoViewModel(
  * - 明天：未完成 且 dueDate 落在明天起止内；dueDate 升序
  * - 逾期：未完成 且 dueDate 非空 且早于今天 0 点；dueDate 升序
  * - 已完成：isCompleted；按 (completedAt ?: createdAt) 倒序
- * - 备忘：返回空（内容独立渲染 Memo）
  */
 private fun filterTodos(todos: List<TodoEntity>, tab: TodoTab): List<TodoEntity> {
     val now = System.currentTimeMillis()
@@ -229,7 +196,6 @@ private fun filterTodos(todos: List<TodoEntity>, tab: TodoTab): List<TodoEntity>
         TodoTab.DONE -> todos
             .filter { it.isCompleted }
             .sortedByDescending { it.completedAt ?: it.createdAt }
-        TodoTab.MEMO -> emptyList()
     }
 }
 
@@ -252,33 +218,28 @@ private fun groupTodos(todos: List<TodoEntity>): List<Pair<String, List<TodoEnti
 /**
  * 待办页。对应 iOS TodoView（导航标题"待办"）。
  *
- * 结构：V32SegmentedPicker（5 tab）+ statsCard（备忘 tab 隐藏）+
- * 分组列表（上午/下午/晚上/待安排）或 备忘 tab 的 Memo 两列 grid。
- * 右上 + 按钮：备忘 tab 打开 MemoEditorSheet，否则打开 TodoEditorSheet。
+ * 结构：V32SegmentedPicker（4 tab）+ statsCard + 分组列表（上午/下午/晚上/待安排）。
+ * 右上 + 按钮打开 TodoEditorSheet。
+ * V3.7.1：备忘入口迁至经营 Tab menu →「记录」（R13），本页不再含备忘。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TodoScreen() {
     val haptic = LocalHapticFeedback.current
     val vm: TodoViewModel = viewModel(
-        factory = XzgGraph.vmFactory { TodoViewModel(XzgGraph.todoRepository, XzgGraph.memoRepository) }
+        factory = XzgGraph.vmFactory { TodoViewModel(XzgGraph.todoRepository) }
     )
 
     val todos by vm.todos.collectAsStateWithLifecycle()
-    val memos by vm.memos.collectAsStateWithLifecycle()
     val togglingIds by vm.togglingIds.collectAsStateWithLifecycle()
     val error by vm.error.collectAsStateWithLifecycle()
 
     var showTodoEditor by remember { mutableStateOf(false) }
     var editingTodo by remember { mutableStateOf<TodoEntity?>(null) }
     var deletingTodo by remember { mutableStateOf<TodoEntity?>(null) }
-    var showMemoEditor by remember { mutableStateOf(false) }
-    var editingMemo by remember { mutableStateOf<MemoEntity?>(null) }
-    var deletingMemo by remember { mutableStateOf<MemoEntity?>(null) }
 
     TodoContent(
         todos = todos,
-        memos = memos,
         togglingIds = togglingIds,
         onToggleTodo = { todo ->
             val completing = !todo.isCompleted
@@ -296,15 +257,6 @@ fun TodoScreen() {
         onAddTodo = {
             editingTodo = null
             showTodoEditor = true
-        },
-        onEditMemo = {
-            editingMemo = it
-            showMemoEditor = true
-        },
-        onDeleteMemo = { deletingMemo = it },
-        onAddMemo = {
-            editingMemo = null
-            showMemoEditor = true
         }
     )
 
@@ -320,18 +272,6 @@ fun TodoScreen() {
             }
         )
     }
-    if (showMemoEditor) {
-        MemoEditorSheet(
-            memo = editingMemo,
-            onDismiss = {
-                showMemoEditor = false
-                editingMemo = null
-            },
-            onSave = { title, content, imagePath ->
-                vm.saveMemo(title, content, imagePath, editingMemo)
-            }
-        )
-    }
     if (deletingTodo != null) {
         ConfirmDeleteDialog(
             title = "删除这条待办？",
@@ -343,46 +283,30 @@ fun TodoScreen() {
             }
         )
     }
-    if (deletingMemo != null) {
-        ConfirmDeleteDialog(
-            title = "删除这条备忘？",
-            onDismiss = { deletingMemo = null },
-            onConfirm = {
-                val target = deletingMemo
-                deletingMemo = null
-                if (target != null) vm.deleteMemo(target)
-            }
-        )
-    }
     error?.let { ScreenErrorDialog(error = it, onDismiss = vm::clearError) }
 }
 
 /**
  * 待办页纯渲染内容（Paparazzi 截图入口）。
  * tab 为内部状态（截图默认「今天」），编辑 Sheet / 删除确认 / 错误弹窗保留在 [TodoScreen]。
+ * V3.7.1：备忘入口迁至经营 Tab menu →「记录」（R13），不再接收备忘数据。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TodoContent(
     todos: List<TodoEntity>,
-    memos: List<MemoEntity>,
     initialTab: TodoTab = TodoTab.TODAY,
     togglingIds: Set<String> = emptySet(),
     onToggleTodo: (TodoEntity) -> Unit = {},
     onEditTodo: (TodoEntity) -> Unit = {},
     onDeleteTodo: (TodoEntity) -> Unit = {},
-    onAddTodo: () -> Unit = {},
-    onEditMemo: (MemoEntity) -> Unit = {},
-    onDeleteMemo: (MemoEntity) -> Unit = {},
-    onAddMemo: () -> Unit = {}
+    onAddTodo: () -> Unit = {}
 ) {
     val palettes = LocalXzgPalettes.current
     var tab by remember { mutableStateOf(initialTab) }
 
     val visibleTodos = remember(todos, tab) { filterTodos(todos, tab) }
-    val groups = remember(visibleTodos, tab) {
-        if (tab == TodoTab.MEMO) emptyList() else groupTodos(visibleTodos)
-    }
+    val groups = remember(visibleTodos) { groupTodos(visibleTodos) }
     val todayCount = remember(todos) { filterTodos(todos, TodoTab.TODAY).size }
     val doneCount = remember(todos) { filterTodos(todos, TodoTab.DONE).size }
     val overdueCount = remember(todos) { filterTodos(todos, TodoTab.OVERDUE).size }
@@ -400,12 +324,10 @@ fun TodoContent(
                     )
                 },
                 actions = {
-                    IconButton(onClick = {
-                        if (tab == TodoTab.MEMO) onAddMemo() else onAddTodo()
-                    }) {
+                    IconButton(onClick = { onAddTodo() }) {
                         Icon(
                             imageVector = Icons.Filled.Add,
-                            contentDescription = if (tab == TodoTab.MEMO) "新增备忘" else "新增待办",
+                            contentDescription = "新增待办",
                             tint = palettes.background.textPrimary
                         )
                     }
@@ -432,95 +354,57 @@ fun TodoContent(
             )
             Spacer(Modifier.height(12.dp))
 
-            if (tab == TodoTab.MEMO) {
-                if (memos.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        V32EmptyState(
-                            icon = Icons.Filled.CheckCircle,
-                            title = TodoTab.MEMO.emptyText
-                        )
-                    }
-                } else {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth(),
-                        contentPadding = PaddingValues(
-                            start = XzgDimens.pageMargin,
-                            end = XzgDimens.pageMargin,
-                            bottom = 24.dp
-                        ),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(memos, key = { it.id }) { memo ->
-                            MemoCard(
-                                memo = memo,
-                                onClick = { onEditMemo(memo) },
-                                onDeleteClick = { onDeleteMemo(memo) }
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentPadding = PaddingValues(
+                    start = XzgDimens.pageMargin,
+                    end = XzgDimens.pageMargin,
+                    bottom = 24.dp
+                )
+            ) {
+                item(key = "stats") {
+                    TodoStatsCard(
+                        todayCount = todayCount,
+                        doneCount = doneCount,
+                        overdueCount = overdueCount
+                    )
+                    Spacer(Modifier.height(12.dp))
+                }
+                if (visibleTodos.isEmpty()) {
+                    item(key = "empty") {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 48.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            V32EmptyState(
+                                icon = Icons.Filled.CheckCircle,
+                                title = tab.emptyText
                             )
                         }
                     }
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    contentPadding = PaddingValues(
-                        start = XzgDimens.pageMargin,
-                        end = XzgDimens.pageMargin,
-                        bottom = 24.dp
-                    )
-                ) {
-                    item(key = "stats") {
-                        TodoStatsCard(
-                            todayCount = todayCount,
-                            doneCount = doneCount,
-                            overdueCount = overdueCount
-                        )
-                        Spacer(Modifier.height(12.dp))
-                    }
-                    if (visibleTodos.isEmpty()) {
-                        item(key = "empty") {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 48.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                V32EmptyState(
-                                    icon = Icons.Filled.CheckCircle,
-                                    title = tab.emptyText
-                                )
-                            }
+                } else {
+                    groups.forEach { (groupTitle, groupTodos) ->
+                        item(key = "header-$groupTitle") {
+                            V32SectionHeader(
+                                title = groupTitle,
+                                modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
+                            )
                         }
-                    } else {
-                        groups.forEach { (groupTitle, groupTodos) ->
-                            item(key = "header-$groupTitle") {
-                                V32SectionHeader(
-                                    title = groupTitle,
-                                    modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
-                                )
-                            }
-                            itemsIndexed(groupTodos, key = { _, t -> t.id }) { index, todo ->
-                                TodoListRow(
-                                    todo = todo,
-                                    timeAmber = tab == TodoTab.OVERDUE,
-                                    toggleEnabled = !togglingIds.contains(todo.id),
-                                    onToggle = { onToggleTodo(todo) },
-                                    onEdit = { onEditTodo(todo) },
-                                    onDelete = { onDeleteTodo(todo) }
-                                )
-                                if (index < groupTodos.lastIndex) {
-                                    HorizontalDivider(color = palettes.background.divider)
-                                }
+                        itemsIndexed(groupTodos, key = { _, t -> t.id }) { index, todo ->
+                            TodoListRow(
+                                todo = todo,
+                                timeAmber = tab == TodoTab.OVERDUE,
+                                toggleEnabled = !togglingIds.contains(todo.id),
+                                onToggle = { onToggleTodo(todo) },
+                                onEdit = { onEditTodo(todo) },
+                                onDelete = { onDeleteTodo(todo) }
+                            )
+                            if (index < groupTodos.lastIndex) {
+                                HorizontalDivider(color = palettes.background.divider)
                             }
                         }
                     }

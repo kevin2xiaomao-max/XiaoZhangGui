@@ -46,9 +46,37 @@ object XzgGraph {
 
     private lateinit var appRef: XzgApplication
 
-    /** Application 启动时调用，保存 application 引用。 */
+    /**
+     * R29 存储可用性探针。对应 iOS `XiaoZhangGuiApp` 的 container 初始化失败态：
+     * 主动触碰数据库（建库 + 打开文件），失败只记录在 [storageError] 不抛，
+     * 由 [com.xiaozhanggui.app.MainActivity] 呈现错误态，绝不伪装成正常 App（fail-closed）。
+     */
+    @Volatile
+    var storageError: Throwable? = null
+        private set
+
+    /** Application 启动时调用，保存 application 引用并执行存储可用性探针。 */
     fun init(app: XzgApplication) {
         appRef = app
+        storageError = runCatching {
+            current().database.openHelper.writableDatabase
+        }.exceptionOrNull()
+    }
+
+    /**
+     * 重新执行存储探针（错误态「重试」用）：丢弃旧 Graph 后重建并触碰数据库；
+     * 成功则清掉 [storageError]，失败则更新为新的异常。返回本次探针结果（null = 成功）。
+     */
+    fun recheckStorage(): Throwable? {
+        val err = runCatching {
+            synchronized(this) {
+                runCatching { graph?.close() }
+                graph = null
+            }
+            current().database.openHelper.writableDatabase
+        }.exceptionOrNull()
+        storageError = err
+        return err
     }
 
     private val app: XzgApplication

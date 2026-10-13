@@ -21,8 +21,11 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Inbox
+import androidx.compose.material.icons.filled.Inventory
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.NorthEast
 import androidx.compose.material.icons.filled.QrCode
@@ -50,6 +53,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -185,12 +190,18 @@ private fun startOfYear(nowMillis: Long): Long {
  *
  * @param onOpenTransactions "查看全部" → 交易记录页
  * @param onOpenSaobei 工具栏「扫呗导入」
+ * @param onOpenGoods 工具栏「商品」按钮 → 商品管理页（R11）
+ * @param onOpenMemo 经营 menu →「记录」→ 备忘页 navigationDestination（R13）
+ * @param onOpenDailyReport 经营 menu →「今日经营日报」→ 日报 sheet（R15）
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PerformanceScreen(
     onOpenTransactions: () -> Unit = {},
-    onOpenSaobei: () -> Unit = {}
+    onOpenSaobei: () -> Unit = {},
+    onOpenGoods: () -> Unit = {},
+    onOpenMemo: () -> Unit = {},
+    onOpenDailyReport: () -> Unit = {}
 ) {
     val vm: PerformanceViewModel = viewModel(factory = remember { performanceViewModelFactory() })
     val performances by vm.performances.collectAsStateWithLifecycle(initialValue = emptyList())
@@ -208,6 +219,9 @@ fun PerformanceScreen(
         expenses = expenses,
         onOpenTransactions = onOpenTransactions,
         onOpenSaobei = onOpenSaobei,
+        onOpenGoods = onOpenGoods,
+        onOpenMemo = onOpenMemo,
+        onOpenDailyReport = onOpenDailyReport,
         onAddIncome = { newMode = MoneyEditorMode.NEW_INCOME },
         onAddExpense = { newMode = MoneyEditorMode.NEW_EXPENSE },
         onEdit = { item ->
@@ -276,6 +290,9 @@ fun PerformanceContent(
     expenses: List<ExpenseEntity>,
     onOpenTransactions: () -> Unit = {},
     onOpenSaobei: () -> Unit = {},
+    onOpenGoods: () -> Unit = {},
+    onOpenMemo: () -> Unit = {},
+    onOpenDailyReport: () -> Unit = {},
     onAddIncome: () -> Unit = {},
     onAddExpense: () -> Unit = {},
     onEdit: (PerformanceRowItem) -> Unit = {},
@@ -315,11 +332,18 @@ fun PerformanceContent(
             TopAppBar(
                 title = { Text("经营数据", style = XzgType.headline, color = palettes.background.textPrimary) },
                 actions = {
+                    IconButton(onClick = onOpenGoods) {
+                        Icon(
+                            imageVector = Icons.Filled.Inventory,
+                            contentDescription = "商品管理",
+                            tint = palettes.background.textPrimary
+                        )
+                    }
                     Box {
                         IconButton(onClick = { menuExpanded = true }) {
                             Icon(
                                 imageVector = Icons.Filled.Add,
-                                contentDescription = "经营数据操作",
+                                contentDescription = "记一笔",
                                 tint = palettes.background.textPrimary
                             )
                         }
@@ -344,6 +368,27 @@ fun PerformanceContent(
                                     )
                                 },
                                 onClick = { menuExpanded = false; onOpenSaobei() }
+                            )
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = { Text("记录") },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Filled.EditNote,
+                                        contentDescription = null
+                                    )
+                                },
+                                onClick = { menuExpanded = false; onOpenMemo() }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("今日经营日报") },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Filled.Description,
+                                        contentDescription = null
+                                    )
+                                },
+                                onClick = { menuExpanded = false; onOpenDailyReport() }
                             )
                         }
                     }
@@ -678,6 +723,7 @@ private fun RecordsSection(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 10.dp)
+                    .semantics { contentDescription = "查看全部交易" }
             ) {
                 Icon(
                     imageVector = Icons.Filled.List,

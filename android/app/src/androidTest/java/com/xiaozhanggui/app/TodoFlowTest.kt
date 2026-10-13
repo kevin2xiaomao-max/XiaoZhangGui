@@ -22,7 +22,6 @@ import androidx.test.espresso.Espresso
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.xiaozhanggui.app.data.db.TodoEntity
-import com.xiaozhanggui.app.data.repository.MemoRepository
 import com.xiaozhanggui.app.data.repository.TodoRepository
 import com.xiaozhanggui.app.ui.components.ConfirmDeleteDialog
 import com.xiaozhanggui.app.ui.screens.todo.TodoContent
@@ -56,8 +55,7 @@ class TodoFlowTest {
     fun setup() {
         dao = FakeTodoDao()
         vm = TodoViewModel(
-            TodoRepository(dao, FakeNotifications),
-            MemoRepository(FakeMemoDao())
+            TodoRepository(dao, FakeNotifications)
         )
     }
 
@@ -65,13 +63,11 @@ class TodoFlowTest {
     @Composable
     private fun TodoTestHarness(viewModel: TodoViewModel) {
         val todos by viewModel.todos.collectAsStateWithLifecycle()
-        val memos by viewModel.memos.collectAsStateWithLifecycle()
         var showEditor by remember { mutableStateOf(false) }
         var deleting by remember { mutableStateOf<TodoEntity?>(null) }
 
         TodoContent(
             todos = todos,
-            memos = memos,
             togglingIds = emptySet(),
             onToggleTodo = { viewModel.toggleComplete(it) },
             onDeleteTodo = { deleting = it },

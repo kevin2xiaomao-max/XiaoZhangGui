@@ -8,10 +8,13 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import com.xiaozhanggui.app.data.di.XzgGraph
 import com.xiaozhanggui.app.ui.navigation.DeepLinkAction
 import com.xiaozhanggui.app.ui.navigation.XzgDeepLink
 import com.xiaozhanggui.app.ui.navigation.XzgNavGraph
+import com.xiaozhanggui.app.ui.screens.StorageUnavailableScreen
 import com.xiaozhanggui.app.ui.theme.XzgTheme
 
 /**
@@ -36,10 +39,22 @@ class MainActivity : ComponentActivity() {
             ?.takeIf { it != DeepLinkAction.Ignore }
         setContent {
             XzgTheme {
-                XzgNavGraph(
-                    deepLinkAction = pendingDeepLink,
-                    onDeepLink = { pendingDeepLink = null }
-                )
+                // R29：存储初始化失败（XzgGraph.storageError）→ 自动呈现错误态，
+                // fail-closed，不伪装成正常 App；恢复后回到正常导航。
+                var storageFailed by remember { mutableStateOf(XzgGraph.storageError != null) }
+                if (storageFailed) {
+                    StorageUnavailableScreen(
+                        error = XzgGraph.storageError,
+                        onRetry = {
+                            storageFailed = XzgGraph.recheckStorage() != null
+                        }
+                    )
+                } else {
+                    XzgNavGraph(
+                        deepLinkAction = pendingDeepLink,
+                        onDeepLink = { pendingDeepLink = null }
+                    )
+                }
             }
         }
     }
