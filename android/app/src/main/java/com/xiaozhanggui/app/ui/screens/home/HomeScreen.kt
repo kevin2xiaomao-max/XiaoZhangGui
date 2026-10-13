@@ -387,9 +387,15 @@ fun HomeScreen(
     onOpenAI: () -> Unit = {},
     onOpenQuickRecord: () -> Unit,
     onWeatherClick: () -> Unit,
-    @Deprecated("V3.7.1 首页已无备忘入口（备忘迁至经营 Tab），导航 worker 重写 XzgNavGraph 时移除")
+    /**
+     * V3.6 遗留参数：V3.7.1 首页已无备忘入口（备忘迁至经营 Tab）。
+     * 导航 worker 重写 XzgNavGraph 时移除。
+     */
     onOpenMemo: () -> Unit = {},
-    @Deprecated("V3.7.1 首页已无抽屉入口，导航 worker 重写 XzgNavGraph 时移除")
+    /**
+     * V3.6 遗留参数：V3.7.1 首页已无抽屉入口。
+     * 导航 worker 重写 XzgNavGraph 时移除。
+     */
     onOpenDrawer: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = viewModel(factory = XzgGraph.vmFactory { HomeViewModel() })

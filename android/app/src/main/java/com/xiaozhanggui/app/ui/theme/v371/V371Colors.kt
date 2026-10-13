@@ -1,6 +1,5 @@
 package com.xiaozhanggui.app.ui.theme.v371
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -100,17 +99,12 @@ val LocalV371Colors = staticCompositionLocalOf { v371LightColors() }
  * V371 主题包装：按当前 Light/Dark 提供 [LocalV371Colors]。
  *
  * Light/Dark 跟随 [LocalXzgPalettes] 的 isDark（XzgTheme 的三档主题模式），
- * 保证 Paparazzi 强制 LIGHT/DARK 截图正确；未被 XzgTheme 包裹时回退跟随系统。
+ * 保证 Paparazzi 强制 LIGHT/DARK 截图正确。
+ * 必须在 XzgTheme 内使用（否则沿用 LocalXzgPalettes 的 fail-fast 报错）。
  */
 @Composable
 fun V371Theme(dark: Boolean? = null, content: @Composable () -> Unit) {
-    val isDark = dark ?: run {
-        try {
-            LocalXzgPalettes.current.isDark
-        } catch (_: IllegalStateException) {
-            isSystemInDarkTheme()
-        }
-    }
+    val isDark = dark ?: LocalXzgPalettes.current.isDark
     CompositionLocalProvider(
         LocalV371Colors provides if (isDark) v371DarkColors() else v371LightColors()
     ) {
