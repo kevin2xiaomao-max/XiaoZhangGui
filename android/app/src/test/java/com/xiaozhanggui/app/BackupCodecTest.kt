@@ -330,4 +330,27 @@ class BackupCodecTest {
         val decoded = BackupCodec.decode(BackupCodec.encode(data, 1000L))
         assertEquals("美团", decoded.performances[0].incomeSource)
     }
+
+    @Test
+    fun `special chars emoji and newlines survive roundtrip`() = runTest {
+        // 跨端兼容关注点：iOS JSONSerialization 与 kotlinx.serialization 的转义差异
+        // 不得丢字符（emoji / 引号 / 反斜杠 / 换行 / 制表符）
+        val data = sampleData().copy(
+            todos = listOf(
+                TodoEntity(
+                    title = "进货📦 \"加急\"",
+                    detail = "牛奶20箱\n第二行\t制表\\反斜杠",
+                    priority = 1
+                )
+            ),
+            memos = listOf(
+                MemoEntity(title = "emoji 🎉", content = "引号\"换行\n尾")
+            )
+        )
+        val decoded = BackupCodec.decode(BackupCodec.encode(data, 1000L))
+        assertEquals("进货📦 \"加急\"", decoded.todos[0].title)
+        assertEquals("牛奶20箱\n第二行\t制表\\反斜杠", decoded.todos[0].detail)
+        assertEquals("emoji 🎉", decoded.memos[0].title)
+        assertEquals("引号\"换行\n尾", decoded.memos[0].content)
+    }
 }

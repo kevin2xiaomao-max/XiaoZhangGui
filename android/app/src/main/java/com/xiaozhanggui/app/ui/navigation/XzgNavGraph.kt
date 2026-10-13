@@ -41,6 +41,7 @@ import com.xiaozhanggui.app.ui.screens.todo.MemoScreen
 import com.xiaozhanggui.app.ui.screens.todo.TodoScreen
 import com.xiaozhanggui.app.ui.screens.voice.VoiceSheetContent
 import com.xiaozhanggui.app.ui.theme.LocalXzgPalettes
+import com.xiaozhanggui.app.ui.theme.rememberXzgModalBottomSheetState
 import com.xiaozhanggui.app.ui.theme.XzgType
 
 /**
@@ -252,19 +253,32 @@ fun XzgNavGraph(
                 onDismiss = { activeSheet = null }
             )
         } else {
-            ModalBottomSheet(onDismissRequest = { activeSheet = null }) {
-                when (sheet) {
-                    RootSheet.REPORT ->
-                        DailyReportSheet(onDismiss = { activeSheet = null })
-                    RootSheet.QUICK_RECORD ->
-                        QuickRecordSheetContent(onDismiss = { activeSheet = null })
-                    RootSheet.VOICE ->
-                        VoiceSheetContent(onDismiss = { activeSheet = null })
-                    RootSheet.SAOBEI ->
-                        SaobeiImportSheet(onDismiss = { activeSheet = null })
-                    is RootSheet.AI -> Unit // 不可达：外层已处理
-                }
-            }
+            RootModalSheet(sheet = sheet, onDismiss = { activeSheet = null })
+        }
+    }
+}
+
+/**
+ * Root 级通用 Sheet 宿主（report / quickrecord / voice / saobei）。
+ * Reduce Motion 时 Sheet 直接呈现（见 [rememberXzgModalBottomSheetState]）。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RootModalSheet(sheet: RootSheet, onDismiss: () -> Unit) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberXzgModalBottomSheetState()
+    ) {
+        when (sheet) {
+            RootSheet.REPORT ->
+                DailyReportSheet(onDismiss = onDismiss)
+            RootSheet.QUICK_RECORD ->
+                QuickRecordSheetContent(onDismiss = onDismiss)
+            RootSheet.VOICE ->
+                VoiceSheetContent(onDismiss = onDismiss)
+            RootSheet.SAOBEI ->
+                SaobeiImportSheet(onDismiss = onDismiss)
+            is RootSheet.AI -> Unit // 不可达：外层已处理
         }
     }
 }

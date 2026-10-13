@@ -61,6 +61,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -80,7 +81,9 @@ import com.xiaozhanggui.app.ui.components.V32PrimaryButton
 import com.xiaozhanggui.app.ui.components.V32SecondaryButton
 import com.xiaozhanggui.app.ui.components.V32SegmentedPicker
 import com.xiaozhanggui.app.ui.theme.LocalXzgPalettes
+import com.xiaozhanggui.app.ui.theme.XzgPalettes
 import com.xiaozhanggui.app.ui.theme.XzgType
+import com.xiaozhanggui.app.ui.theme.rememberReduceMotion
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.max
@@ -323,7 +326,7 @@ internal fun VoiceSheetVisual(
                                 .padding(10.dp),
                         )
                     }
-                    else -> CompactVoiceWaveform()
+                    else -> CompactVoiceWaveform(reduceMotion = rememberReduceMotion())
                 }
             }
 
@@ -542,14 +545,25 @@ private fun VoiceFieldRow(label: String, value: String, icon: ImageVector) {
 
 /**
  * 紧凑波形（对齐 iOS CompactVoiceWaveform）：
- * 15 个 Capsule 的装饰性动画，accessibilityHidden，非麦克风音量驱动。
+ * 15 个 Capsule 的装饰性动画，TalkBack 隐藏，非麦克风音量驱动。
+ *
+ * Reduce Motion 开启时渲染静态条形（不做无限循环动画）。
  */
 @Composable
-private fun CompactVoiceWaveform(modifier: Modifier = Modifier) {
+private fun CompactVoiceWaveform(
+    modifier: Modifier = Modifier,
+    reduceMotion: Boolean = false,
+) {
     val palettes = LocalXzgPalettes.current
+    // 装饰性波形对 TalkBack 无意义：从语义树隐藏（与文档注释一致）
+    val semanticsModifier = modifier.clearAndSetSemantics { }
+    if (reduceMotion) {
+        StaticVoiceWaveform(modifier = semanticsModifier)
+        return
+    }
     val transition = rememberInfiniteTransition(label = "voiceWave")
     Row(
-        modifier = modifier,
+        modifier = semanticsModifier,
         horizontalArrangement = Arrangement.spacedBy(3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -567,16 +581,38 @@ private fun CompactVoiceWaveform(modifier: Modifier = Modifier) {
                 ),
                 label = "bar$index",
             )
-            val centerDist = abs(index - 7)
-            val factor = max(0.4f, 1f - centerDist * 0.08f)
-            val height = max(4f, animated * factor)
-            Box(
-                modifier = Modifier
-                    .width(2.5.dp)
-                    .height(height.dp)
-                    .clip(CircleShape)
-                    .background(palettes.accent.accent.copy(alpha = 0.7f)),
-            )
+            VoiceWaveBar(heightDp = max(4f, animated * waveFactor(index)), palettes = palettes)
         }
     }
+}
+
+/** Reduce Motion 下的静态波形：固定中等高度条形，无动画。 */
+@Composable
+private fun StaticVoiceWaveform(modifier: Modifier = Modifier) {
+    val palettes = LocalXzgPalettes.current
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        for (index in 0 until 15) {
+            VoiceWaveBar(heightDp = 11f * waveFactor(index), palettes = palettes)
+        }
+    }
+}
+
+private fun waveFactor(index: Int): Float {
+    val centerDist = abs(index - 7)
+    return max(0.4f, 1f - centerDist * 0.08f)
+}
+
+@Composable
+private fun VoiceWaveBar(heightDp: Float, palettes: XzgPalettes) {
+    Box(
+        modifier = Modifier
+            .width(2.5.dp)
+            .height(heightDp.dp)
+            .clip(CircleShape)
+            .background(palettes.accent.accent.copy(alpha = 0.7f)),
+    )
 }

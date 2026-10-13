@@ -1,6 +1,7 @@
 package com.xiaozhanggui.app.ui.screens.paymentcode
 
 import android.graphics.Bitmap
+import com.xiaozhanggui.app.ui.theme.rememberXzgModalBottomSheetState
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -181,7 +182,10 @@ fun PaymentCodeScreen(
     }
 
     if (showEditor) {
-        ModalBottomSheet(onDismissRequest = { showEditor = false }) {
+        ModalBottomSheet(
+            onDismissRequest = { showEditor = false },
+            sheetState = rememberXzgModalBottomSheetState()
+        ) {
             PaymentCodeEditorSheet(
                 code = editorTarget,
                 onDismiss = { showEditor = false },

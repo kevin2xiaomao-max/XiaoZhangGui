@@ -1,7 +1,9 @@
 package com.xiaozhanggui.app.ui.screens.expiry
 
 import androidx.compose.foundation.clickable
+import com.xiaozhanggui.app.ui.theme.rememberXzgModalBottomSheetState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -29,7 +31,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -75,7 +76,7 @@ fun ExpiryEditorSheet(
 ) {
     val palettes = LocalXzgPalettes.current
     val repo = XzgGraph.expiryRepository
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = rememberXzgModalBottomSheetState()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -184,6 +185,7 @@ internal fun ExpiryEditorContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .imePadding()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = XzgDimens.pageMargin)
     ) {

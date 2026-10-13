@@ -1,7 +1,9 @@
 package com.xiaozhanggui.app.ui.screens.customer
 
 import androidx.compose.foundation.clickable
+import com.xiaozhanggui.app.ui.theme.rememberXzgModalBottomSheetState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,7 +27,6 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -74,7 +75,7 @@ fun CustomerEditorSheet(
 ) {
     val palettes = LocalXzgPalettes.current
     val repo = XzgGraph.customerRepository
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = rememberXzgModalBottomSheetState()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -194,6 +195,7 @@ internal fun CustomerEditorContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .imePadding()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = XzgDimens.pageMargin)
     ) {

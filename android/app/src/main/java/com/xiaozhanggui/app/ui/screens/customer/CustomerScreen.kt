@@ -3,6 +3,7 @@ package com.xiaozhanggui.app.ui.screens.customer
 import android.graphics.BitmapFactory
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -90,7 +91,9 @@ import com.xiaozhanggui.app.ui.components.V32SegmentedPicker
 import com.xiaozhanggui.app.ui.components.V32StatusPill
 import com.xiaozhanggui.app.ui.theme.LocalXzgPalettes
 import com.xiaozhanggui.app.ui.theme.XzgDimens
+import com.xiaozhanggui.app.ui.theme.XzgMotion
 import com.xiaozhanggui.app.ui.theme.XzgType
+import com.xiaozhanggui.app.ui.theme.rememberReduceMotion
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -146,6 +149,8 @@ fun CustomerScreen() {
     var deletingRequest by remember { mutableStateOf<CustomerRequestEntity?>(null) }
     var deleteFailed by remember { mutableStateOf(false) }
     var showDoneToast by remember { mutableStateOf(false) }
+    // Reduce Motion：toast 退化为短淡入（无位移）；导航/点击/语义不变
+    val reduceMotion = rememberReduceMotion()
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
 
@@ -324,7 +329,8 @@ fun CustomerContent(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = XzgDimens.bottomPad + 12.dp),
-            enter = fadeIn() + slideInVertically { it },
+            enter = if (reduceMotion) fadeIn(animationSpec = tween(XzgMotion.REDUCED_FADE_MS))
+            else fadeIn() + slideInVertically { it },
             exit = fadeOut()
         ) {
             Text(

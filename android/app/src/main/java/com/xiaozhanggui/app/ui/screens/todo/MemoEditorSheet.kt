@@ -1,6 +1,7 @@
 package com.xiaozhanggui.app.ui.screens.todo
 
 import androidx.compose.foundation.layout.Column
+import com.xiaozhanggui.app.ui.theme.rememberXzgModalBottomSheetState
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -44,6 +45,7 @@ fun MemoEditorSheet(
     val palettes = LocalXzgPalettes.current
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        sheetState = rememberXzgModalBottomSheetState(),
         shape = RoundedCornerShape(XzgDimens.sheet),
         containerColor = palettes.background.pageBG
     ) {

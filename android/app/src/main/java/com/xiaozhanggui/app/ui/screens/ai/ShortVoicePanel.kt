@@ -1,6 +1,5 @@
 package com.xiaozhanggui.app.ui.screens.ai
 
-import android.provider.Settings
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -40,7 +39,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -49,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import com.xiaozhanggui.app.data.voice.ShortVoicePhase
 import com.xiaozhanggui.app.domain.voice.QuickCaptureSemantic
 import com.xiaozhanggui.app.ui.theme.LocalXzgPalettes
+import com.xiaozhanggui.app.ui.theme.rememberReduceMotion
 import com.xiaozhanggui.app.ui.theme.XzgType
 
 /**

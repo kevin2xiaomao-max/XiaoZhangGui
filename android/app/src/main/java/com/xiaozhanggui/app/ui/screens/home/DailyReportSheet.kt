@@ -1,6 +1,7 @@
 package com.xiaozhanggui.app.ui.screens.home
 
 import android.content.Intent
+import com.xiaozhanggui.app.ui.theme.rememberXzgModalBottomSheetState
 import android.view.HapticFeedbackConstants
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -172,6 +173,7 @@ val clipboard = LocalClipboardManager.current
 val view = LocalView.current
 
 ModalBottomSheet(
+sheetState = rememberXzgModalBottomSheetState(),
 onDismissRequest = onDismiss,
 containerColor = bg.pageBG,
 shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)

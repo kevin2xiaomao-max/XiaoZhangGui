@@ -1,6 +1,7 @@
 package com.xiaozhanggui.app.ui.screens.profile
 
 import android.content.ContentValues
+import com.xiaozhanggui.app.ui.theme.rememberXzgModalBottomSheetState
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -230,44 +231,27 @@ fun ProfileScreen(
 
     // ---- Sheets ----
     sheet?.let { current ->
-        ModalBottomSheet(onDismissRequest = { sheet = null }) {
-            when (current) {
-                ProfileSheet.Shop -> ShopEditSheet(
-                    initialShop = shopName,
-                    initialOwner = ownerName,
-                    onDismiss = { sheet = null }
-                )
-                ProfileSheet.Goal -> GoalEditSheet(
-                    initialGoal = monthGoal,
-                    onDismiss = { sheet = null }
-                )
-                ProfileSheet.Theme -> ThemeChoiceSheet(onDismiss = { sheet = null })
-                ProfileSheet.Appearance -> AppearanceSheet(onDismiss = { sheet = null })
-                ProfileSheet.Background -> BackgroundSheet(onDismiss = { sheet = null })
-                ProfileSheet.Wallpaper -> WallpaperSheet(
-                    onDismiss = { sheet = null },
-                    onToast = { toast.show(it) }
-                )
-                ProfileSheet.Voice -> VoiceSettingsSheet(
-                    onDismiss = { sheet = null },
-                    onTestVoice = {
-                        sheet = null
-                        showVoiceTest = true
-                    }
-                )
-                ProfileSheet.Reminder -> ReminderSheet(onDismiss = { sheet = null })
-                ProfileSheet.About -> AboutSheet(
-                    version = versionName,
-                    build = buildNumber,
-                    onOpenReleaseNotes = { showReleaseNotes = true },
-                    onDismiss = { sheet = null }
-                )
-                ProfileSheet.Privacy -> InfoSheet(onDismiss = { sheet = null })
-            }
-        }
+        ProfileSheetHost(
+            current = current,
+            shopName = shopName,
+            ownerName = ownerName,
+            monthGoal = monthGoal,
+            versionName = versionName,
+            buildNumber = buildNumber,
+            onDismiss = { sheet = null },
+            onTestVoice = {
+                sheet = null
+                showVoiceTest = true
+            },
+            onOpenReleaseNotes = { showReleaseNotes = true },
+            onToast = { toast.show(it) },
+        )
     }
     if (showReleaseNotes) {
-        ModalBottomSheet(onDismissRequest = { showReleaseNotes = false }) {
+        ModalBottomSheet(
+            onDismissRequest = { showReleaseNotes = false },
+            sheetState = rememberXzgModalBottomSheetState()
+        ) {
             ReleaseNotesSheet(
                 version = versionName,
                 build = buildNumber,
@@ -277,7 +261,10 @@ fun ProfileScreen(
     }
     // R25：原始语音测试（Profile → 语音输入 → 测试语音），复用原始语音 Sheet
     if (showVoiceTest) {
-        ModalBottomSheet(onDismissRequest = { showVoiceTest = false }) {
+        ModalBottomSheet(
+            onDismissRequest = { showVoiceTest = false },
+            sheetState = rememberXzgModalBottomSheetState()
+        ) {
             VoiceSheetContent(onDismiss = { showVoiceTest = false })
         }
     }
@@ -291,6 +278,62 @@ fun ProfileScreen(
             },
             onDismiss = { showClearCache = false }
         )
+    }
+}
+
+/**
+ * 我的页 Sheet 宿主（Phase 3 Worker C 从 `sheet?.let` 抽出：
+ * `let` 的 lambda 不是 @Composable 上下文，Reduce Motion 感知的
+ * [rememberXzgModalBottomSheetState] 必须在真正的 composable 里调用）。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ProfileSheetHost(
+    current: ProfileSheet,
+    shopName: String,
+    ownerName: String,
+    monthGoal: Double,
+    versionName: String,
+    buildNumber: String,
+    onDismiss: () -> Unit,
+    onTestVoice: () -> Unit,
+    onOpenReleaseNotes: () -> Unit,
+    onToast: (String) -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberXzgModalBottomSheetState()
+    ) {
+        when (current) {
+            ProfileSheet.Shop -> ShopEditSheet(
+                initialShop = shopName,
+                initialOwner = ownerName,
+                onDismiss = onDismiss
+            )
+            ProfileSheet.Goal -> GoalEditSheet(
+                initialGoal = monthGoal,
+                onDismiss = onDismiss
+            )
+            ProfileSheet.Theme -> ThemeChoiceSheet(onDismiss = onDismiss)
+            ProfileSheet.Appearance -> AppearanceSheet(onDismiss = onDismiss)
+            ProfileSheet.Background -> BackgroundSheet(onDismiss = onDismiss)
+            ProfileSheet.Wallpaper -> WallpaperSheet(
+                onDismiss = onDismiss,
+                onToast = onToast
+            )
+            ProfileSheet.Voice -> VoiceSettingsSheet(
+                onDismiss = onDismiss,
+                onTestVoice = onTestVoice
+            )
+            ProfileSheet.Reminder -> ReminderSheet(onDismiss = onDismiss)
+            ProfileSheet.About -> AboutSheet(
+                version = versionName,
+                build = buildNumber,
+                onOpenReleaseNotes = onOpenReleaseNotes,
+                onDismiss = onDismiss
+            )
+            ProfileSheet.Privacy -> InfoSheet(onDismiss = onDismiss)
+        }
     }
 }
 

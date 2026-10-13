@@ -24,6 +24,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.xiaozhanggui.app.ui.theme.LocalXzgPalettes
@@ -95,7 +97,9 @@ fun ChatInputBar(
                 textStyle = XzgType.body.copy(color = palettes.background.textPrimary),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                 keyboardActions = KeyboardActions(onSend = { if (canSend) onSend() }),
-                modifier = Modifier.testTag("ai.input")
+                modifier = Modifier
+                    .testTag("ai.input")
+                    .semantics { contentDescription = "问小掌柜，输入问题或记账" }
             )
         }
 

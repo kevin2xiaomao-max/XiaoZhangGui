@@ -1,6 +1,7 @@
 package com.xiaozhanggui.app.ui.screens.imp
 
 import android.content.ContentResolver
+import com.xiaozhanggui.app.ui.theme.rememberXzgModalBottomSheetState
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -23,7 +24,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -65,7 +65,7 @@ fun SaobeiImportSheet(onDismiss: () -> Unit) {
     val palettes = LocalXzgPalettes.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = rememberXzgModalBottomSheetState()
 
     var parseResult by remember { mutableStateOf<SaobeiParseResult?>(null) }
     var errorText by remember { mutableStateOf<String?>(null) }

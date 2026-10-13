@@ -1,6 +1,7 @@
 package com.xiaozhanggui.app.ui.screens.todo
 
 import android.app.DatePickerDialog
+import com.xiaozhanggui.app.ui.theme.rememberXzgModalBottomSheetState
 import android.app.TimePickerDialog
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -183,6 +184,7 @@ fun TodoEditorSheet(
     val palettes = LocalXzgPalettes.current
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        sheetState = rememberXzgModalBottomSheetState(),
         shape = RoundedCornerShape(XzgDimens.sheet),
         containerColor = palettes.background.pageBG
     ) {

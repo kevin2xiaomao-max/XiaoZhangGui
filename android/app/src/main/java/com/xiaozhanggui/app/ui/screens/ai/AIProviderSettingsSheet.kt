@@ -1,8 +1,10 @@
 package com.xiaozhanggui.app.ui.screens.ai
 
 import androidx.compose.foundation.background
+import com.xiaozhanggui.app.ui.theme.rememberXzgModalBottomSheetState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,7 +23,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -74,7 +75,7 @@ fun AIProviderSettingsSheet(
     val context = LocalContext.current
     val palettes = LocalXzgPalettes.current
     val scope = rememberCoroutineScope()
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = rememberXzgModalBottomSheetState()
 
     val settings = remember { AiSettings(context.applicationContext) }
     var draft by remember { mutableStateOf<AiSettingsDraft?>(null) }
@@ -118,6 +119,7 @@ fun AIProviderSettingsSheet(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {

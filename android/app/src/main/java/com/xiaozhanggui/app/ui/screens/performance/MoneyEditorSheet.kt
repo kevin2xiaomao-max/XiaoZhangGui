@@ -1,7 +1,9 @@
 package com.xiaozhanggui.app.ui.screens.performance
 
 import androidx.compose.foundation.background
+import com.xiaozhanggui.app.ui.theme.rememberXzgModalBottomSheetState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -27,7 +29,6 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -92,7 +93,7 @@ fun MoneyEditorSheet(
     onDismiss: () -> Unit
 ) {
     val palettes = LocalXzgPalettes.current
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = rememberXzgModalBottomSheetState()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -235,6 +236,7 @@ internal fun MoneyEditorContent(
     Column(
         modifier = Modifier
             .verticalScroll(rememberScrollState())
+            .imePadding()
             .padding(horizontal = XzgDimens.pageMargin)
             .padding(top = 14.dp, bottom = XzgDimens.bottomPad),
         verticalArrangement = Arrangement.spacedBy(18.dp)

@@ -1,6 +1,7 @@
 package com.xiaozhanggui.app.ui.screens.home
 
 import androidx.compose.foundation.layout.Arrangement
+import com.xiaozhanggui.app.ui.theme.rememberXzgModalBottomSheetState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -41,6 +42,7 @@ fun WeatherSheet(onDismiss: () -> Unit) {
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        sheetState = rememberXzgModalBottomSheetState(),
         containerColor = bg.pageBG,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
     ) {

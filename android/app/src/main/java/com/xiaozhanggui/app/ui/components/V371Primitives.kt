@@ -45,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.xiaozhanggui.app.ui.theme.rememberReduceMotion
 import com.xiaozhanggui.app.ui.theme.v371.LocalV371Colors
 import com.xiaozhanggui.app.ui.theme.v371.V371Haptic
 import com.xiaozhanggui.app.ui.theme.v371.V371Motion
@@ -371,12 +372,14 @@ fun QuickAction(item: QuickActionItem, modifier: Modifier = Modifier) {
     val haptic = LocalHapticFeedback.current
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
+    // Reduce Motion：按压缩放退化为无缩放（保留点击反馈与语义）
+    val reduceMotion = rememberReduceMotion()
     Column(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 44.dp)
             .graphicsLayer {
-                val s = if (pressed) V371Motion.PRESS_SCALE else 1f
+                val s = if (pressed && !reduceMotion) V371Motion.PRESS_SCALE else 1f
                 scaleX = s
                 scaleY = s
             }

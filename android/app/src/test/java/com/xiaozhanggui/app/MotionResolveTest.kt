@@ -4,6 +4,7 @@ import com.xiaozhanggui.app.ui.theme.MotionSurface
 import com.xiaozhanggui.app.ui.theme.ResolvedMotion
 import com.xiaozhanggui.app.ui.theme.XzgMotion
 import com.xiaozhanggui.app.ui.theme.resolveMotion
+import com.xiaozhanggui.app.ui.theme.v371.V371Motion
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -35,5 +36,21 @@ class MotionResolveTest {
         assertEquals(ResolvedMotion.QUICK, resolveMotion(MotionSurface.FADE, true))
         assertEquals(ResolvedMotion.QUICK, resolveMotion(MotionSurface.SPRING, true))
         assertEquals(ResolvedMotion.NONE, resolveMotion(MotionSurface.NUMERIC, true))
+    }
+
+    @Test
+    fun `V371Motion resolve mirrors resolveMotion without reduce motion`() {
+        // Phase 3：V371Motion.resolve(..., reduceMotion=false) 必须与底层一致
+        assertEquals(ResolvedMotion.QUICK, V371Motion.resolve(MotionSurface.FADE, false))
+        assertEquals(ResolvedMotion.SOFT_SPRING, V371Motion.resolve(MotionSurface.SPRING, false))
+        assertEquals(ResolvedMotion.STANDARD, V371Motion.resolve(MotionSurface.NUMERIC, false))
+    }
+
+    @Test
+    fun `V371Motion resolve mirrors resolveMotion with reduce motion`() {
+        // Phase 3：V371Motion.resolve(..., reduceMotion=true) 退化分支
+        assertEquals(ResolvedMotion.QUICK, V371Motion.resolve(MotionSurface.FADE, true))
+        assertEquals(ResolvedMotion.QUICK, V371Motion.resolve(MotionSurface.SPRING, true))
+        assertEquals(ResolvedMotion.NONE, V371Motion.resolve(MotionSurface.NUMERIC, true))
     }
 }
