@@ -1,8 +1,6 @@
 package com.xiaozhanggui.app.data.notification
 
 import android.app.AlarmManager
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -34,6 +32,11 @@ import com.xiaozhanggui.app.domain.DateExt
  * - POST_NOTIFICATIONS 运行时权限由调用方（UI 层）在触发前申请；此处发送前检查 enabled。
  * - 精确闹钟：API 31+ 检查 canScheduleExactAlarms()；无权限时降级为非精确闹钟，
  *   并通过 [ExactAlarmStatus] 暴露状态，UI 必须明确显示（不得假装成功）。
+ * - 精确闹钟权限口径（Phase 3 Worker B 合规审计结论）：
+ *   `USE_EXACT_ALARM` 仅限闹钟/日历类核心功能应用，本 App 为店铺记账工具，
+ *   精确闹钟只是提醒增强，不合规 → 已从 Manifest 移除；
+ *   只保留 `SCHEDULE_EXACT_ALARM`（用户可授权/可撤销的特殊权限），
+ *   降级链 canScheduleExactAlarms()=false → 非精确闹钟 完整可用。
  * - 无 GMS 不依赖任何 Google 服务；纯 AlarmManager + BroadcastReceiver。
  */
 interface NotificationScheduler {
@@ -62,6 +65,11 @@ class AlarmNotificationScheduler(
     interface NotificationSettings {
         fun todoReminderEnabled(): Boolean
         fun expiryReminderEnabled(): Boolean
+    }
+
+    init {
+        // 三类通知渠道（待办/临期/跟进）创建 + 遗留单渠道清理，幂等
+        NotificationChannels.ensureChannels(context)
     }
 
     override fun canScheduleExactAlarms(): Boolean {
@@ -175,17 +183,9 @@ class XzgAlarmReceiver : BroadcastReceiver() {
             return // 无通知权限则静默丢弃（GATE B：不得 crash）
         }
 
-        val channelId = "xzg_reminders"
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val mgr = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            if (mgr.getNotificationChannel(channelId) == null) {
-                mgr.createNotificationChannel(
-                    NotificationChannel(
-                        channelId, "提醒", NotificationManager.IMPORTANCE_DEFAULT
-                    )
-                )
-            }
-        }
+        val channelId = NotificationChannels.channelIdForTag(tag)
+        // 兜底：接收器可能在渠道创建前被系统唤起，幂等补建
+        NotificationChannels.ensureChannels(context)
 
         val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(android.R.drawable.ic_dialog_info)

@@ -76,6 +76,8 @@ class XzgSettings(private val dataStore: DataStore<Preferences>) {
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val TODO_REMINDER = booleanPreferencesKey("todo_reminder")
         val EXPIRY_REMINDER = booleanPreferencesKey("expiry_reminder")
+        // 通知权限：Android 13+ 首次使用提醒功能时申请（只问一次，拒绝后走降级说明）
+        val NOTIFICATION_PERMISSION_ASKED = booleanPreferencesKey("notification_permission_asked")
         val VOICE_LANGUAGE = stringPreferencesKey("voice_language")
         val AVATAR_EMOJI = stringPreferencesKey("avatar_emoji")
         val AVATAR_IMAGE_DATA = byteArrayPreferencesKey("avatar_image_data")
@@ -128,6 +130,9 @@ class XzgSettings(private val dataStore: DataStore<Preferences>) {
     suspend fun setThemeMode(v: ThemeMode) = edit { it[Keys.THEME_MODE] = v.raw }
     suspend fun setTodoReminderEnabled(v: Boolean) = edit { it[Keys.TODO_REMINDER] = v }
     suspend fun setExpiryReminderEnabled(v: Boolean) = edit { it[Keys.EXPIRY_REMINDER] = v }
+    val notificationPermissionAsked: Flow<Boolean> =
+        dataStore.data.map { it[Keys.NOTIFICATION_PERMISSION_ASKED] ?: false }
+    suspend fun setNotificationPermissionAsked() = edit { it[Keys.NOTIFICATION_PERMISSION_ASKED] = true }
     suspend fun setVoiceLanguage(v: String) = edit { it[Keys.VOICE_LANGUAGE] = v }
     suspend fun setAvatarEmoji(v: String) = edit { it[Keys.AVATAR_EMOJI] = v }
     suspend fun setAvatarImageData(v: ByteArray?) = edit {

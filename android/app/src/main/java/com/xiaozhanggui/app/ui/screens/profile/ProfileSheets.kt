@@ -1,8 +1,12 @@
 package com.xiaozhanggui.app.ui.screens.profile
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.os.Build
+import androidx.core.content.ContextCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -38,6 +42,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,6 +55,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -59,6 +65,7 @@ import com.xiaozhanggui.app.data.datastore.BackgroundTheme
 import com.xiaozhanggui.app.data.datastore.ThemeMode
 import com.xiaozhanggui.app.data.di.XzgGraph
 import com.xiaozhanggui.app.ui.components.V32Card
+import com.xiaozhanggui.app.ui.notifications.ReminderCapability
 import com.xiaozhanggui.app.ui.components.V32PrimaryButton
 import com.xiaozhanggui.app.ui.components.V32SecondaryButton
 import com.xiaozhanggui.app.ui.theme.LocalXzgPalettes
@@ -68,6 +75,7 @@ import com.xiaozhanggui.app.ui.theme.accentPalette
 import com.xiaozhanggui.app.ui.theme.backgroundPalette
 import java.io.File
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -712,10 +720,45 @@ private fun ToggleRow(
 
 @Composable
 fun ReminderSheet(onDismiss: () -> Unit) {
+    val context = LocalContext.current
     val settings = remember { XzgGraph.settings }
     val scope = rememberCoroutineScope()
+    val palettes = LocalXzgPalettes.current
     val todoReminder by settings.todoReminderEnabled.collectAsStateWithLifecycle(initialValue = true)
     val expiryReminder by settings.expiryReminderEnabled.collectAsStateWithLifecycle(initialValue = true)
+
+    // 提醒能力状态（Phase 3 Worker B：降级必须明示，精确状态不得误报）
+    var capability by remember { mutableStateOf(ReminderCapability(true, true)) }
+    fun refreshCapability() {
+        val granted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(
+                context, Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+        val exact = XzgGraph.notificationScheduler.canScheduleExactAlarms()
+        capability = ReminderCapability(granted, exact)
+    }
+    LaunchedEffect(Unit) { refreshCapability() }
+
+    // Android 13+：首次打开提醒开关时申请通知权限；拒绝后只显示降级说明，不阻塞主流程
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { refreshCapability() }
+
+    fun onToggle(checked: Boolean, set: suspend (Boolean) -> Unit) {
+        scope.launch {
+            set(checked)
+            if (checked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                val granted = ContextCompat.checkSelfPermission(
+                    context, Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+                if (!granted && !settings.notificationPermissionAsked.first()) {
+                    settings.setNotificationPermissionAsked()
+                    permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
+            refreshCapability()
+        }
+    }
 
     SheetColumn {
         SheetHeader(title = "提醒设置", onClose = onDismiss)
@@ -723,14 +766,50 @@ fun ReminderSheet(onDismiss: () -> Unit) {
             title = "待办提醒",
             description = "到期前提醒你处理待办事项",
             checked = todoReminder,
-            onCheckedChange = { scope.launch { settings.setTodoReminderEnabled(it) } }
+            onCheckedChange = { onToggle(it, settings::setTodoReminderEnabled) }
         )
         ToggleRow(
             title = "临期退货提醒",
             description = "商品临近过期或可退货时提醒",
             checked = expiryReminder,
-            onCheckedChange = { scope.launch { settings.setExpiryReminderEnabled(it) } }
+            onCheckedChange = { onToggle(it, settings::setExpiryReminderEnabled) }
         )
+        val lines = capability.degradationLines()
+        if (lines.isNotEmpty()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .testTag("reminder.status.degradation")
+            ) {
+                lines.forEach { line ->
+                    Text(
+                        text = line,
+                        style = XzgType.caption,
+                        color = palettes.background.textTertiary
+                    )
+                }
+            }
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .testTag("reminder.status.exactness"),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "提醒精度",
+                style = XzgType.caption,
+                color = palettes.background.textTertiary,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = capability.exactnessLine(),
+                style = XzgType.caption,
+                color = palettes.background.textSecondary
+            )
+        }
     }
 }
 

@@ -10,9 +10,11 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <!-- 本地通知（Android 13+ 运行时权限） -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- 精确闹钟：待办/临期提醒（Android 12+ 特殊权限，可被用户撤销，需降级处理） -->
+    <!-- 精确闹钟：待办/临期提醒（Android 12+ 特殊权限，可被用户撤销，需降级处理）。
+         Phase 3 Worker B 合规审计：USE_EXACT_ALARM 仅限闹钟/日历类核心功能应用，
+         本 App 为店铺记账工具（精确闹钟只是提醒增强）不合规，已移除；
+         仅保留 SCHEDULE_EXACT_ALARM，无授权时降级为非精确闹钟。 -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
-    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <!-- 重启后恢复通知调度 -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- 前台服务：持续性通知（Live Activity 等价） -->
