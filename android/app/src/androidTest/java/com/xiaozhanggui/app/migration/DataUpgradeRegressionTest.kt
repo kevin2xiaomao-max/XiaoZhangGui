@@ -300,9 +300,14 @@ class DataUpgradeRegressionTest {
         )
         val decoded = BackupCodec.decode(BackupCodec.encode(data, now))
         assertEquals(expectedTotal, decoded.totalCount())
+        // 注意：备份不持久化 id/notificationId（BackupCodec 设计），只比业务字段
         assertEquals(
-            data.performances.map { it.id to it.fingerprint },
-            decoded.performances.map { it.id to it.fingerprint }
+            data.performances.map { it.amount to it.fingerprint }.toSet(),
+            decoded.performances.map { it.amount to it.fingerprint }.toSet()
+        )
+        assertEquals(
+            data.todos.map { it.title }.toSet(),
+            decoded.todos.map { it.title }.toSet()
         )
     }
 }
