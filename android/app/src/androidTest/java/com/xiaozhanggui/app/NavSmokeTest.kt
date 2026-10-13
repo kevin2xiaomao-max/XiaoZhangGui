@@ -66,9 +66,9 @@ class NavSmokeTest {
         rule.onNodeWithContentDescription(XzgTab.TODO.label, useUnmergedTree = true).performClick()
         rule.onNodeWithTag("todo.screen").assertExists()
 
-        // 经营：屏内「经营数据」文案有多处（顶栏 + 内容区标题），用顶栏「商品管理」按钮精确定位（LazyColumn 尾部的「查看全部」可能未构图）
+        // 经营：屏内「经营数据」文案有多处（顶栏 + 内容区标题），用 performance.screen 根 tag 定位
         rule.onNodeWithContentDescription(XzgTab.BUSINESS.label, useUnmergedTree = true).performClick()
-        rule.onNodeWithContentDescription("商品管理").assertExists()
+        rule.onNodeWithTag("performance.screen").assertExists()
 
         // AI 不再是 Tab：底部栏无「小掌柜」Tab（首页 AICommandEntry 的 contentDescription 为"问小掌柜，AI 助手"，
         // 此处精确匹配 Tab label「小掌柜」）
@@ -113,7 +113,7 @@ class NavSmokeTest {
     fun businessTab_menuDestinations_navigateWithoutCrash() {
         launchGraph()
         rule.onNodeWithContentDescription(XzgTab.BUSINESS.label, useUnmergedTree = true).performClick()
-        rule.onNodeWithContentDescription("商品管理").assertExists()
+        rule.onNodeWithTag("performance.screen").assertExists()
 
         // 扫呗导入（经营 menu → sheet）
         openBusinessMenuAndClick("扫呗导入")
@@ -140,7 +140,7 @@ class NavSmokeTest {
         // 由上述已验证的导航模式保证。
 
         // 回到经营 Tab 确认底部栏仍可点
-        rule.onNodeWithContentDescription("商品管理").assertExists()
+        rule.onNodeWithTag("performance.screen").assertExists()
     }
 
     /** 经营页右上角 menu（contentDescription "记一笔"）→ 等菜单项可见 → 点击。 */
