@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -22,15 +23,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
@@ -45,11 +47,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -64,14 +69,14 @@ import com.xiaozhanggui.app.domain.DateExt
 import com.xiaozhanggui.app.domain.DisplayLogic
 import com.xiaozhanggui.app.domain.Format
 import com.xiaozhanggui.app.ui.components.BubbleTone
-import com.xiaozhanggui.app.ui.components.V32Card
-import com.xiaozhanggui.app.ui.components.V32Checkbox
-import com.xiaozhanggui.app.ui.components.V32EmptyState
-import com.xiaozhanggui.app.ui.components.V32IconBubble
-import com.xiaozhanggui.app.ui.components.V32SectionHeader
-import com.xiaozhanggui.app.ui.theme.LocalXzgPalettes
-import com.xiaozhanggui.app.ui.theme.XzgDimens
-import com.xiaozhanggui.app.ui.theme.XzgType
+import com.xiaozhanggui.app.ui.components.EmptyState
+import com.xiaozhanggui.app.ui.components.GroupSurface
+import com.xiaozhanggui.app.ui.components.SectionHeader
+import com.xiaozhanggui.app.ui.components.V371Divider
+import com.xiaozhanggui.app.ui.theme.v371.LocalV371Colors
+import com.xiaozhanggui.app.ui.theme.v371.V371Space
+import com.xiaozhanggui.app.ui.theme.v371.V371Theme
+import com.xiaozhanggui.app.ui.theme.v371.V371Type
 import java.time.DayOfWeek
 import com.xiaozhanggui.app.ui.components.XzgAlertDialog
 import com.xiaozhanggui.app.ui.components.XzgMotionSpecs
@@ -99,7 +104,6 @@ fun ScheduleScreen(
     onCustomerClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val palettes = LocalXzgPalettes.current
     val haptic = LocalHapticFeedback.current
     val vm: ScheduleViewModel = viewModel(
         factory = XzgGraph.vmFactory {
@@ -119,6 +123,7 @@ fun ScheduleScreen(
     val togglingIds by vm.togglingIds.collectAsStateWithLifecycle()
     val error by vm.error.collectAsStateWithLifecycle()
 
+    V371Theme {
     ScheduleContent(
         selectedDayMillis = selectedDay,
         day = day,
@@ -145,28 +150,30 @@ fun ScheduleScreen(
     )
 
     error?.let {
+        val colors = LocalV371Colors.current
         XzgAlertDialog(
             spec = XzgMotionSpecs.DIALOG_SCHEDULE_ERROR,
             onDismissRequest = vm::clearError,
             title = {
                 Text(
                     text = it.title,
-                    style = XzgType.headline,
-                    color = palettes.background.textPrimary
+                    style = V371Type.sectionTitle,
+                    color = colors.textPrimary
                 )
             },
             text = {
                 Text(
                     text = it.message,
-                    style = XzgType.body,
-                    color = palettes.background.textSecondary
+                    style = V371Type.rowTitle,
+                    color = colors.textSecondary
                 )
             },
             confirmButton = {
-                TextButton(onClick = vm::clearError) { Text("知道了") }
+                TextButton(onClick = vm::clearError) { Text("知道了", color = colors.blue) }
             },
-            containerColor = palettes.background.card
+            containerColor = colors.group
         )
+    }
     }
 }
 
@@ -190,54 +197,55 @@ fun ScheduleContent(
     onExpiryClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val palettes = LocalXzgPalettes.current
+    V371Theme {
+        val colors = LocalV371Colors.current
 
-    Scaffold(
-        modifier = modifier,
-        containerColor = palettes.background.pageBG,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Text(
-                        text = "日程",
-                        style = XzgType.headline,
-                        color = palettes.background.textPrimary
-                    )
-                },
-                actions = {
-                    TextButton(onClick = onSelectToday) {
+        Scaffold(
+            modifier = modifier,
+            containerColor = colors.canvas,
+            topBar = {
+                CenterAlignedTopAppBar(
+                    title = {
                         Text(
-                            text = "今天",
-                            style = XzgType.subhead,
-                            color = palettes.background.textSecondary
+                            text = "日程",
+                            style = V371Type.sectionTitle,
+                            color = colors.textPrimary
                         )
-                    }
-                    IconButton(onClick = onOpenCalendar) {
-                        Icon(
-                            imageVector = Icons.Filled.CalendarMonth,
-                            contentDescription = "完整月历",
-                            tint = palettes.background.textSecondary
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = palettes.background.pageBG
+                    },
+                    actions = {
+                        TextButton(onClick = onSelectToday) {
+                            Text(
+                                text = "今天",
+                                style = V371Type.rowSubtitle.copy(fontWeight = FontWeight.SemiBold),
+                                color = colors.blue
+                            )
+                        }
+                        IconButton(onClick = onOpenCalendar) {
+                            Icon(
+                                imageVector = Icons.Filled.CalendarMonth,
+                                contentDescription = "完整月历",
+                                tint = colors.textSecondary
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                        containerColor = colors.canvas
+                    )
                 )
-            )
-        }
-    ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-            contentPadding = PaddingValues(
-                start = XzgDimens.pageMargin,
-                end = XzgDimens.pageMargin,
-                top = 8.dp,
-                bottom = 32.dp
-            ),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
-        ) {
+            }
+        ) { padding ->
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentPadding = PaddingValues(
+                    start = V371Space.page,
+                    end = V371Space.page,
+                    top = 8.dp,
+                    bottom = 24.dp
+                ),
+                verticalArrangement = Arrangement.spacedBy(V371Space.section)
+            ) {
             item(key = "weekStrip") {
                 ScheduleWeekStrip(
                     selectedDay = selectedDayMillis,
@@ -268,6 +276,7 @@ fun ScheduleContent(
                 ScheduleSummarySection(day = day)
             }
         }
+        }
     }
 }
 
@@ -278,7 +287,7 @@ private fun ScheduleWeekStrip(
     onSelectDay: (Long) -> Unit,
     onShiftWeek: (Int) -> Unit
 ) {
-    val palettes = LocalXzgPalettes.current
+    val colors = LocalV371Colors.current
     val selectedDate = localDateOf(selectedDay)
     val weekStart = selectedDate.with(DayOfWeek.MONDAY)
     val days = (0..6).map { weekStart.plusDays(it.toLong()) }
@@ -289,8 +298,8 @@ private fun ScheduleWeekStrip(
                 text = java.time.format.DateTimeFormatter
                     .ofPattern("yyyy年M月", java.util.Locale.CHINA)
                     .format(selectedDate),
-                style = XzgType.headline,
-                color = palettes.background.textPrimary
+                style = V371Type.sectionTitle,
+                color = colors.textPrimary
             )
             Spacer(Modifier.weight(1f))
             WeekArrowButton(
@@ -328,19 +337,18 @@ private fun WeekArrowButton(
     description: String,
     onClick: () -> Unit
 ) {
-    val palettes = LocalXzgPalettes.current
+    val colors = LocalV371Colors.current
     IconButton(
         onClick = onClick,
         modifier = Modifier
             .size(30.dp)
             .clip(CircleShape)
-            .background(palettes.background.card)
-            .border(1.dp, palettes.background.cardOutline, CircleShape)
+            .background(colors.groupSecondary)
     ) {
         Icon(
             imageVector = icon,
             contentDescription = description,
-            tint = palettes.background.textSecondary,
+            tint = colors.textSecondary,
             modifier = Modifier.size(16.dp)
         )
     }
@@ -356,13 +364,13 @@ private fun ScheduleWeekDayCell(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val palettes = LocalXzgPalettes.current
+    val colors = LocalV371Colors.current
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(13.dp))
             .background(
-                if (isSelected) palettes.accent.selectedTint
-                else palettes.background.pageBG
+                if (isSelected) colors.tinted(colors.blue)
+                else Color.Transparent
             )
             .clickable(onClick = onClick)
             .padding(vertical = 9.dp),
@@ -371,20 +379,20 @@ private fun ScheduleWeekDayCell(
     ) {
         Text(
             text = symbol,
-            style = XzgType.caption,
+            style = V371Type.rowSubtitle,
             color = when {
-                isSelected -> palettes.background.textPrimary
-                isToday -> palettes.accent.accent
-                else -> palettes.background.textSecondary
+                isSelected -> colors.textPrimary
+                isToday -> colors.blue
+                else -> colors.textSecondary
             }
         )
         Text(
             text = dayOfMonth.toString(),
-            style = XzgType.headline,
+            style = V371Type.sectionTitle,
             color = when {
-                isSelected -> palettes.background.textPrimary
-                isToday -> palettes.accent.accent
-                else -> palettes.background.textSecondary
+                isSelected -> colors.textPrimary
+                isToday -> colors.blue
+                else -> colors.textSecondary
             }
         )
         // 预留 4dp 高度：今日小圆点显隐不引起格子高度抖动
@@ -397,24 +405,27 @@ private fun ScheduleWeekDayCell(
                     modifier = Modifier
                         .size(4.dp)
                         .clip(CircleShape)
-                        .background(palettes.accent.accent)
+                        .background(colors.blue)
                 )
             }
         }
     }
 }
 
-/** 时间轴「时间」section：左侧 HH:mm + 卡片。对应 iOS timelineSection。 */
+/** 时间轴「时间」section：SectionHeader + GroupSurface + TimedRow 形态。对应 iOS timelineSection。 */
 @Composable
 private fun ScheduleTimelineSection(
     events: List<ScheduleEvent>,
     onTodoClick: (String) -> Unit,
     onCustomerClick: (String) -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        V32SectionHeader(title = "时间")
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            events.forEach { event ->
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SectionHeader(title = "时间")
+        GroupSurface {
+            events.forEachIndexed { index, event ->
+                if (index > 0) {
+                    V371Divider()
+                }
                 ScheduleTimelineRow(
                     event = event,
                     onTodoClick = onTodoClick,
@@ -425,13 +436,24 @@ private fun ScheduleTimelineSection(
     }
 }
 
+/**
+ * 时间轴 Todo 行图标/语气选择（P0-1）。
+ * 完成=填充 CheckCircle + BRAND（V371 绿），未完成=空心 Circle + INFO（V371 蓝），
+ * 对应 iOS `ScheduleView` 的 `checkmark.circle.fill`+green / `circle`+blue；
+ * tone 由 [ScheduleIconBubble] 落到 V371 色板（BRAND→colors.green、INFO→colors.blue）。
+ * 纯函数，回归单测见 `ScheduleTimelineIconTest`（JUnit，CI 硬门禁）。
+ */
+internal fun timelineTodoIconTone(isCompleted: Boolean): Pair<ImageVector, BubbleTone> =
+    if (isCompleted) Icons.Filled.CheckCircle to BubbleTone.BRAND
+    else Icons.Outlined.Circle to BubbleTone.INFO
+
 @Composable
 private fun ScheduleTimelineRow(
     event: ScheduleEvent,
     onTodoClick: (String) -> Unit,
     onCustomerClick: (String) -> Unit
 ) {
-    val palettes = LocalXzgPalettes.current
+    val colors = LocalV371Colors.current
     val done = when (event) {
         is ScheduleEvent.Todo -> event.todo.isCompleted
         is ScheduleEvent.Delivery -> event.request.status == CustomerStatus.DONE
@@ -442,19 +464,23 @@ private fun ScheduleTimelineRow(
     ) {
         Text(
             text = Format.time(event.date),
-            style = XzgType.subhead,
-            color = palettes.background.textTertiary,
+            style = V371Type.time,
+            color = colors.textTertiary,
             modifier = Modifier.width(48.dp)
         )
         val (icon, tone, title, subtitle) = when (event) {
-            is ScheduleEvent.Todo -> Quad(
-                Icons.Filled.CheckCircle, BubbleTone.BRAND,
-                DisplayLogic.visible(event.todo.title, "待办事项"),
-                DisplayLogic.visible(
-                    event.todo.detail,
-                    listOf("低优先级", "中优先级", "高优先级")[event.todo.priority.coerceIn(0, 2)]
+            is ScheduleEvent.Todo -> {
+                // P0-1：图标/语气跟随完成态，见 timelineTodoIconTone。
+                val (todoIcon, todoTone) = timelineTodoIconTone(done)
+                Quad(
+                    todoIcon, todoTone,
+                    DisplayLogic.visible(event.todo.title, "待办事项"),
+                    DisplayLogic.visible(
+                        event.todo.detail,
+                        listOf("低优先级", "中优先级", "高优先级")[event.todo.priority.coerceIn(0, 2)]
+                    )
                 )
-            )
+            }
             is ScheduleEvent.Delivery -> Quad(
                 if (done) Icons.Filled.CheckCircle else Icons.Filled.LocalShipping,
                 if (done) BubbleTone.NEUTRAL else BubbleTone.BRAND,
@@ -465,7 +491,6 @@ private fun ScheduleTimelineRow(
         Row(
             modifier = Modifier
                 .weight(1f)
-                .clip(RoundedCornerShape(12.dp))
                 .clickable(
                     onClick = {
                         when (event) {
@@ -474,17 +499,17 @@ private fun ScheduleTimelineRow(
                         }
                     }
                 )
-                .padding(vertical = 8.dp),
+                .padding(horizontal = V371Space.rowPadding, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            V32IconBubble(icon = icon, tone = tone, size = 38.dp)
+            ScheduleIconBubble(icon = icon, tone = tone, size = 36.dp)
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    style = XzgType.title,
-                    color = if (done) palettes.background.textTertiary
-                    else palettes.background.textPrimary,
+                    style = V371Type.rowTitle,
+                    color = if (done) colors.textTertiary
+                    else colors.textPrimary,
                     textDecoration = if (done) TextDecoration.LineThrough else null,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
@@ -493,8 +518,8 @@ private fun ScheduleTimelineRow(
                     Spacer(Modifier.height(3.dp))
                     Text(
                         text = subtitle,
-                        style = XzgType.caption,
-                        color = palettes.background.textTertiary,
+                        style = V371Type.rowSubtitle,
+                        color = colors.textTertiary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -504,11 +529,47 @@ private fun ScheduleTimelineRow(
                 Icon(
                     imageVector = Icons.Filled.ChevronRight,
                     contentDescription = null,
-                    tint = palettes.background.textQuaternary,
-                    modifier = Modifier.size(16.dp)
+                    tint = colors.textTertiary,
+                    modifier = Modifier.size(12.dp)
                 )
             }
         }
+    }
+}
+
+/**
+ * V371 图标圆（对应 iOS WorkRow 图标圆）：36dp 圆 + 13% tint 底 + 语气色图标。
+ * tone→V371 色映射沿用既有语义（BRAND≈绿 / INFO≈蓝 / AMBER=橙 / DANGER=红 / NEUTRAL=灰），
+ * 仅渲染层向 V371 对齐，不改图标选择逻辑（P0-1 归属验收 Worker A）。
+ */
+@Composable
+private fun ScheduleIconBubble(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    tone: BubbleTone,
+    size: Dp,
+    modifier: Modifier = Modifier
+) {
+    val colors = LocalV371Colors.current
+    val tint = when (tone) {
+        BubbleTone.BRAND -> colors.green
+        BubbleTone.INFO -> colors.blue
+        BubbleTone.AMBER -> colors.orange
+        BubbleTone.DANGER -> colors.red
+        BubbleTone.NEUTRAL -> colors.gray
+    }
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(colors.tinted(tint)),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(16.dp)
+        )
     }
 }
 
@@ -524,20 +585,20 @@ private fun ScheduleAllDaySection(
     onCustomerClick: (String) -> Unit,
     onExpiryClick: (String) -> Unit
 ) {
-    val palettes = LocalXzgPalettes.current
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        V32SectionHeader(title = "全天事项") {
+    val colors = LocalV371Colors.current
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SectionHeader(title = "全天事项") {
             if (!day.allDay.isEmpty) {
                 Text(
                     text = "${day.allDay.count} 项",
-                    style = XzgType.subhead,
-                    color = palettes.background.textTertiary
+                    style = V371Type.rowSubtitle,
+                    color = colors.textTertiary
                 )
             }
         }
         if (day.isEmpty) {
-            V32Card {
-                V32EmptyState(
+            GroupSurface {
+                EmptyState(
                     icon = Icons.Filled.WbSunny,
                     title = "该日期暂无事项",
                     message = "这一天还没有安排"
@@ -570,19 +631,11 @@ private fun ScheduleAllDaySection(
             day.allDay.memos.forEach { memo ->
                 rows += { ScheduleMemoRow(memo = memo) }
             }
-            // 全天行需要顶边对齐（V32Card 自带内边距会错位），此处按 V32Card 视觉自建无内边距卡片
-            val cardShape = RoundedCornerShape(XzgDimens.card)
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(cardShape)
-                    .background(palettes.background.card)
-                    .border(1.dp, palettes.background.cardOutline, cardShape)
-            ) {
+            GroupSurface {
                 rows.forEachIndexed { index, row ->
                     row()
                     if (index < rows.lastIndex) {
-                        AllDayDivider()
+                        V371Divider()
                     }
                 }
             }
@@ -590,15 +643,7 @@ private fun ScheduleAllDaySection(
     }
 }
 
-@Composable
-private fun AllDayDivider() {
-    HorizontalDivider(
-        color = LocalXzgPalettes.current.background.divider,
-        modifier = Modifier.padding(start = 58.dp)
-    )
-}
-
-/** 全天待办行：V32Checkbox 直接切换完成；整行点击进待办。对应 iOS allDayTodoRow。 */
+/** 全天待办行：完成圈直接切换完成；整行点击进待办。对应 iOS allDayTodoRow。 */
 @Composable
 private fun ScheduleAllDayTodoRow(
     todo: TodoEntity,
@@ -606,17 +651,17 @@ private fun ScheduleAllDayTodoRow(
     onToggle: () -> Unit,
     onClick: () -> Unit
 ) {
-    val palettes = LocalXzgPalettes.current
+    val colors = LocalV371Colors.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp)
-            .height(54.dp),
+            .padding(horizontal = V371Space.rowPadding, vertical = 10.dp)
+            .heightIn(min = 44.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        V32Checkbox(
+        ScheduleToggleCircle(
             checked = todo.isCompleted,
-            // V32Checkbox 无 enabled 参数：300ms 防抖窗口内的点击在回调里直接忽略
+            // 300ms 防抖窗口内的点击在回调里直接忽略（原 V32Checkbox 语义）
             onCheckedChange = { if (toggleEnabled) onToggle() }
         )
         Column(
@@ -627,9 +672,9 @@ private fun ScheduleAllDayTodoRow(
         ) {
             Text(
                 text = DisplayLogic.visible(todo.title, "待办事项"),
-                style = XzgType.title,
-                color = if (todo.isCompleted) palettes.background.textTertiary
-                else palettes.background.textPrimary,
+                style = V371Type.rowTitle,
+                color = if (todo.isCompleted) colors.textTertiary
+                else colors.textPrimary,
                 textDecoration = if (todo.isCompleted) TextDecoration.LineThrough else null,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
@@ -637,10 +682,44 @@ private fun ScheduleAllDayTodoRow(
             if (todo.priority == 2 && !todo.isCompleted) {
                 Text(
                     text = "高优先级",
-                    style = XzgType.caption,
-                    color = palettes.fixed.amber
+                    style = V371Type.rowSubtitle,
+                    color = colors.orange
                 )
             }
+        }
+    }
+}
+
+/**
+ * V371 完成圈（对应 iOS `allDayTodoRow` 的 WorkRow 图标）：
+ * 完成 = 绿实心圆 + 白对勾；未完成 = 蓝描边圆。
+ */
+@Composable
+private fun ScheduleToggleCircle(
+    checked: Boolean,
+    onCheckedChange: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = LocalV371Colors.current
+    Box(
+        modifier = modifier
+            .size(26.dp)
+            .clip(CircleShape)
+            .background(if (checked) colors.green else Color.Transparent)
+            .then(
+                if (checked) Modifier
+                else Modifier.border(1.6.dp, colors.blue.copy(alpha = 0.8f), CircleShape)
+            )
+            .clickable(onClick = onCheckedChange),
+        contentAlignment = Alignment.Center
+    ) {
+        if (checked) {
+            Icon(
+                imageVector = Icons.Filled.Check,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(13.dp)
+            )
         }
     }
 }
@@ -651,28 +730,28 @@ private fun ScheduleDeliveryRow(
     request: CustomerRequestEntity,
     onClick: () -> Unit
 ) {
-    val palettes = LocalXzgPalettes.current
+    val colors = LocalV371Colors.current
     val done = request.status == CustomerStatus.DONE
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp)
-            .height(54.dp),
+            .padding(horizontal = V371Space.rowPadding, vertical = 10.dp)
+            .heightIn(min = 44.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        V32IconBubble(
+        ScheduleIconBubble(
             icon = if (done) Icons.Filled.CheckCircle else Icons.Filled.LocalShipping,
             tone = if (done) BubbleTone.NEUTRAL else BubbleTone.BRAND,
-            size = 34.dp
+            size = 36.dp
         )
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = customerDisplayName(request),
-                style = XzgType.title,
-                color = if (done) palettes.background.textTertiary
-                else palettes.background.textPrimary,
+                style = V371Type.rowTitle,
+                color = if (done) colors.textTertiary
+                else colors.textPrimary,
                 textDecoration = if (done) TextDecoration.LineThrough else null,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
@@ -682,8 +761,8 @@ private fun ScheduleDeliveryRow(
                 Spacer(Modifier.height(3.dp))
                 Text(
                     text = subtitle,
-                    style = XzgType.caption,
-                    color = palettes.background.textTertiary,
+                    style = V371Type.rowSubtitle,
+                    color = colors.textTertiary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -692,8 +771,8 @@ private fun ScheduleDeliveryRow(
         Icon(
             imageVector = Icons.Filled.ChevronRight,
             contentDescription = null,
-            tint = palettes.background.textQuaternary,
-            modifier = Modifier.size(16.dp)
+            tint = colors.textTertiary,
+            modifier = Modifier.size(12.dp)
         )
     }
 }
@@ -708,7 +787,7 @@ private fun ScheduleExpiryRow(
     dayMillis: Long,
     onClick: () -> Unit
 ) {
-    val palettes = LocalXzgPalettes.current
+    val colors = LocalV371Colors.current
     var expanded by remember(item.id) { mutableStateOf(false) }
     val days = DateExt.daysBetween(
         DateExt.startOfDay(dayMillis),
@@ -727,28 +806,28 @@ private fun ScheduleExpiryRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp)
-                .height(54.dp),
+                .padding(horizontal = V371Space.rowPadding, vertical = 10.dp)
+                .heightIn(min = 44.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            V32IconBubble(
+            ScheduleIconBubble(
                 icon = Icons.Filled.HourglassEmpty,
                 tone = BubbleTone.AMBER,
-                size = 34.dp
+                size = 36.dp
             )
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "${DisplayLogic.visible(item.name, "临期商品")} × ${item.quantity}",
-                    style = XzgType.title,
-                    color = palettes.background.textPrimary,
+                    style = V371Type.rowTitle,
+                    color = colors.textPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = hint,
-                    style = XzgType.caption,
-                    color = palettes.fixed.amber
+                    style = V371Type.rowSubtitle,
+                    color = colors.orange
                 )
             }
             IconButton(
@@ -758,21 +837,25 @@ private fun ScheduleExpiryRow(
                 Icon(
                     imageVector = Icons.Filled.ChevronRight,
                     contentDescription = if (expanded) "收起备注" else "展开备注",
-                    tint = palettes.background.textQuaternary,
-                    modifier = Modifier.size(16.dp)
+                    tint = colors.textTertiary,
+                    modifier = Modifier.size(12.dp)
                 )
             }
         }
         if (expanded && item.note.trim().isNotEmpty()) {
             Text(
                 text = DisplayLogic.visible(item.note, "退货备注"),
-                style = XzgType.subhead,
-                color = palettes.background.textSecondary,
+                style = V371Type.rowSubtitle,
+                color = colors.textSecondary,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(palettes.background.cardInset)
+                    .padding(
+                        start = V371Space.rowPadding,
+                        end = V371Space.rowPadding,
+                        bottom = 12.dp
+                    )
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(colors.groupSecondary)
                     .padding(12.dp)
             )
         }
@@ -782,24 +865,25 @@ private fun ScheduleExpiryRow(
 /** 全天备忘行：展示用（备忘编辑入口在待办页备忘 tab）。 */
 @Composable
 private fun ScheduleMemoRow(memo: MemoEntity) {
-    val palettes = LocalXzgPalettes.current
+    val colors = LocalV371Colors.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(horizontal = V371Space.rowPadding, vertical = 10.dp)
+            .heightIn(min = 44.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        V32IconBubble(
+        ScheduleIconBubble(
             icon = Icons.Filled.Description,
             tone = BubbleTone.NEUTRAL,
-            size = 34.dp
+            size = 36.dp
         )
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = DisplayLogic.visible(memo.title, "备忘"),
-                style = XzgType.title,
-                color = palettes.background.textPrimary,
+                style = V371Type.rowTitle,
+                color = colors.textPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -807,8 +891,8 @@ private fun ScheduleMemoRow(memo: MemoEntity) {
                 Spacer(Modifier.height(3.dp))
                 Text(
                     text = memo.content.trim(),
-                    style = XzgType.caption,
-                    color = palettes.background.textTertiary,
+                    style = V371Type.rowSubtitle,
+                    color = colors.textTertiary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -820,12 +904,14 @@ private fun ScheduleMemoRow(memo: MemoEntity) {
 /** 「当日经营」摘要：收入/支出/净额三格（流水只聚合，不逐笔列）。对应 iOS summarySection。 */
 @Composable
 private fun ScheduleSummarySection(day: ScheduleDay) {
-    val palettes = LocalXzgPalettes.current
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        V32SectionHeader(title = "当日经营")
-        V32Card {
+    val colors = LocalV371Colors.current
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SectionHeader(title = "当日经营")
+        GroupSurface {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 ScheduleMetricCell(
@@ -835,9 +921,9 @@ private fun ScheduleSummarySection(day: ScheduleDay) {
                 )
                 Box(
                     modifier = Modifier
-                        .width(1.dp)
+                        .width(0.5.dp)
                         .height(34.dp)
-                        .background(palettes.background.divider)
+                        .background(colors.divider)
                 )
                 ScheduleMetricCell(
                     label = "当日支出",
@@ -846,9 +932,9 @@ private fun ScheduleSummarySection(day: ScheduleDay) {
                 )
                 Box(
                     modifier = Modifier
-                        .width(1.dp)
+                        .width(0.5.dp)
                         .height(34.dp)
-                        .background(palettes.background.divider)
+                        .background(colors.divider)
                 )
                 ScheduleMetricCell(
                     label = "净额",
@@ -862,7 +948,7 @@ private fun ScheduleSummarySection(day: ScheduleDay) {
 
 @Composable
 private fun ScheduleMetricCell(label: String, value: String, modifier: Modifier = Modifier) {
-    val palettes = LocalXzgPalettes.current
+    val colors = LocalV371Colors.current
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -870,13 +956,13 @@ private fun ScheduleMetricCell(label: String, value: String, modifier: Modifier 
     ) {
         Text(
             text = label,
-            style = XzgType.caption,
-            color = palettes.background.textTertiary
+            style = V371Type.rowSubtitle,
+            color = colors.textTertiary
         )
         Text(
             text = value,
-            style = XzgType.headline.copy(fontWeight = FontWeight.SemiBold),
-            color = palettes.background.textPrimary,
+            style = V371Type.rowTitle.copy(fontFeatureSettings = "tnum"),
+            color = colors.textPrimary,
             textAlign = TextAlign.Center,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis

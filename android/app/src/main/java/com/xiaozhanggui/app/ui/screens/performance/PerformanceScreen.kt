@@ -1,11 +1,13 @@
 package com.xiaozhanggui.app.ui.screens.performance
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -24,12 +26,13 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.EditNote
-import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.Inventory
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.NorthEast
 import androidx.compose.material.icons.filled.QrCode
+import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.SouthWest
+import androidx.compose.material.icons.filled.Store
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -49,12 +52,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
@@ -72,15 +77,18 @@ import com.xiaozhanggui.app.domain.DisplayLogic
 import com.xiaozhanggui.app.domain.Format
 import com.xiaozhanggui.app.domain.TransactionSearchable
 import com.xiaozhanggui.app.domain.PerformanceStats2
-import com.xiaozhanggui.app.ui.components.BubbleTone
 import com.xiaozhanggui.app.ui.components.ConfirmDeleteDialog
+import com.xiaozhanggui.app.ui.components.EmptyState
+import com.xiaozhanggui.app.ui.components.GroupSurface
+import com.xiaozhanggui.app.ui.components.SectionHeader
 import com.xiaozhanggui.app.ui.components.Sparkline
-import com.xiaozhanggui.app.ui.components.V32IconBubble
-import com.xiaozhanggui.app.ui.components.V32PrimaryButton
-import com.xiaozhanggui.app.ui.components.v32PressFeedback
-import com.xiaozhanggui.app.ui.theme.LocalXzgPalettes
-import com.xiaozhanggui.app.ui.theme.XzgDimens
-import com.xiaozhanggui.app.ui.theme.XzgType
+import com.xiaozhanggui.app.ui.components.V371Chevron
+import com.xiaozhanggui.app.ui.components.V371Divider
+import com.xiaozhanggui.app.ui.components.WorkRow
+import com.xiaozhanggui.app.ui.theme.v371.LocalV371Colors
+import com.xiaozhanggui.app.ui.theme.v371.V371Space
+import com.xiaozhanggui.app.ui.theme.v371.V371Theme
+import com.xiaozhanggui.app.ui.theme.v371.V371Type
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -196,6 +204,23 @@ private fun startOfYear(nowMillis: Long): Long {
  * @param onOpenMemo 经营 menu →「记录」→ 备忘页 navigationDestination（R13）
  * @param onOpenDailyReport 经营 menu →「今日经营日报」→ 日报 sheet（R15）
  */
+
+/**
+ * 经营数据页。对应 iOS `PerformanceView`（导航标题"经营数据"）。
+ *
+ * V371 视觉（Editorial 平面结构）：
+ * - editorialHero：平面「本月营业额」+ ¥ 大数字 + 今日/较昨日/趋势（无蓝色大卡片；
+ *   S2 蓝渐变仅天气详情 sheet 用，经营页禁用）
+ * - 月目标：GroupSurface + 进度条 + 本年累计
+ * - 收入来源：SectionHeader + GroupSurface + WorkRow
+ * - 交易流水：SectionHeader + GroupSurface + 行 +「查看全部」行链
+ *
+ * @param onOpenTransactions "查看全部" → 交易记录页
+ * @param onOpenSaobei 工具栏「扫呗导入」
+ * @param onOpenGoods 工具栏「商品」按钮 → 商品管理页（R11）
+ * @param onOpenMemo 经营 menu →「记录」→ 备忘页 navigationDestination（R13）
+ * @param onOpenDailyReport 经营 menu →「今日经营日报」→ 日报 sheet（R15）
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PerformanceScreen(
@@ -208,6 +233,7 @@ fun PerformanceScreen(
     val vm: PerformanceViewModel = viewModel(factory = remember { performanceViewModelFactory() })
     val performances by vm.performances.collectAsStateWithLifecycle(initialValue = emptyList())
     val expenses by vm.expenses.collectAsStateWithLifecycle(initialValue = emptyList())
+    val monthGoal by XzgGraph.settings.monthGoal.collectAsStateWithLifecycle(initialValue = 0.0)
     val scope = rememberCoroutineScope()
 
     var newMode by remember { mutableStateOf<MoneyEditorMode?>(null) }
@@ -216,69 +242,75 @@ fun PerformanceScreen(
     var deletingItem by remember { mutableStateOf<PerformanceRowItem?>(null) }
     var deleteError by remember { mutableStateOf<String?>(null) }
 
-    PerformanceContent(
-        performances = performances,
-        expenses = expenses,
-        onOpenTransactions = onOpenTransactions,
-        onOpenSaobei = onOpenSaobei,
-        onOpenGoods = onOpenGoods,
-        onOpenMemo = onOpenMemo,
-        onOpenDailyReport = onOpenDailyReport,
-        onAddIncome = { newMode = MoneyEditorMode.NEW_INCOME },
-        onAddExpense = { newMode = MoneyEditorMode.NEW_EXPENSE },
-        onEdit = { item ->
-            if (item.performance != null) editingPerformance = item.performance
-            else if (item.expense != null) editingExpense = item.expense
-        },
-        onDelete = { deletingItem = it }
-    )
+    V371Theme {
+        val colors = LocalV371Colors.current
 
-    newMode?.let { mode ->
-        MoneyEditorSheet(mode = mode, onDismiss = { newMode = null })
-    }
-    editingPerformance?.let { p ->
-        MoneyEditorSheet(
-            mode = MoneyEditorMode.EDIT_PERFORMANCE,
-            performance = p,
-            onDismiss = { editingPerformance = null }
-        )
-    }
-    editingExpense?.let { e ->
-        MoneyEditorSheet(
-            mode = MoneyEditorMode.EDIT_EXPENSE,
-            expense = e,
-            onDismiss = { editingExpense = null }
-        )
-    }
-    deletingItem?.let { item ->
-        ConfirmDeleteDialog(
-            title = "删除这条经营记录？",
-            onConfirm = {
-                deletingItem = null
-                scope.launch {
-                    try {
-                        val p = item.performance
-                        val e = item.expense
-                        if (p != null) vm.deletePerformance(p)
-                        else if (e != null) vm.deleteExpense(e)
-                    } catch (_: Exception) {
-                        deleteError = "经营记录未删除，请重试。"
-                    }
-                }
+        PerformanceContent(
+            performances = performances,
+            expenses = expenses,
+            monthGoal = monthGoal,
+            onOpenTransactions = onOpenTransactions,
+            onOpenSaobei = onOpenSaobei,
+            onOpenGoods = onOpenGoods,
+            onOpenMemo = onOpenMemo,
+            onOpenDailyReport = onOpenDailyReport,
+            onAddIncome = { newMode = MoneyEditorMode.NEW_INCOME },
+            onAddExpense = { newMode = MoneyEditorMode.NEW_EXPENSE },
+            onEdit = { item ->
+                if (item.performance != null) editingPerformance = item.performance
+                else if (item.expense != null) editingExpense = item.expense
             },
-            onDismiss = { deletingItem = null }
+            onDelete = { deletingItem = it }
         )
-    }
-    deleteError?.let { message ->
-        XzgAlertDialog(
-            spec = XzgMotionSpecs.DIALOG_PERFORMANCE_DELETE_ERROR,
-            onDismissRequest = { deleteError = null },
-            title = { Text("删除失败", style = XzgType.headline) },
-            text = { Text(message, style = XzgType.body) },
-            confirmButton = {
-                TextButton(onClick = { deleteError = null }) { Text("知道了") }
-            }
-        )
+
+        newMode?.let { mode ->
+            MoneyEditorSheet(mode = mode, onDismiss = { newMode = null })
+        }
+        editingPerformance?.let { p ->
+            MoneyEditorSheet(
+                mode = MoneyEditorMode.EDIT_PERFORMANCE,
+                performance = p,
+                onDismiss = { editingPerformance = null }
+            )
+        }
+        editingExpense?.let { e ->
+            MoneyEditorSheet(
+                mode = MoneyEditorMode.EDIT_EXPENSE,
+                expense = e,
+                onDismiss = { editingExpense = null }
+            )
+        }
+        deletingItem?.let { item ->
+            ConfirmDeleteDialog(
+                title = "删除这条经营记录？",
+                onConfirm = {
+                    deletingItem = null
+                    scope.launch {
+                        try {
+                            val p = item.performance
+                            val e = item.expense
+                            if (p != null) vm.deletePerformance(p)
+                            else if (e != null) vm.deleteExpense(e)
+                        } catch (_: Exception) {
+                            deleteError = "经营记录未删除，请重试。"
+                        }
+                    }
+                },
+                onDismiss = { deletingItem = null }
+            )
+        }
+        deleteError?.let { message ->
+            XzgAlertDialog(
+                spec = XzgMotionSpecs.DIALOG_PERFORMANCE_DELETE_ERROR,
+                onDismissRequest = { deleteError = null },
+                title = { Text("删除失败", style = V371Type.sectionTitle, color = colors.textPrimary) },
+                text = { Text(message, style = V371Type.rowTitle, color = colors.textSecondary) },
+                confirmButton = {
+                    TextButton(onClick = { deleteError = null }) { Text("知道了", color = colors.blue) }
+                },
+                containerColor = colors.group
+            )
+        }
     }
 }
 
@@ -291,6 +323,7 @@ fun PerformanceScreen(
 fun PerformanceContent(
     performances: List<PerformanceEntity>,
     expenses: List<ExpenseEntity>,
+    monthGoal: Double = 0.0,
     onOpenTransactions: () -> Unit = {},
     onOpenSaobei: () -> Unit = {},
     onOpenGoods: () -> Unit = {},
@@ -301,57 +334,67 @@ fun PerformanceContent(
     onEdit: (PerformanceRowItem) -> Unit = {},
     onDelete: (PerformanceRowItem) -> Unit = {}
 ) {
-    val palettes = LocalXzgPalettes.current
-    var menuExpanded by remember { mutableStateOf(false) }
+    V371Theme {
+        val colors = LocalV371Colors.current
+        var menuExpanded by remember { mutableStateOf(false) }
 
-    val now = System.currentTimeMillis()
-    val todayStart = DateExt.startOfDay(now)
-    val todayRevenue = performances.filter { DateExt.isToday(it.date) }.sumOf { it.amount }
-    val yesterdayRevenue =
-        performances.filter { DateExt.isSameDay(it.date, todayStart - 24 * 3600 * 1000L) }.sumOf { it.amount }
-    val monthRevenue = performances
-        .filter { it.date in DateExt.startOfMonth(now)..DateExt.endOfDay(now) }
-        .sumOf { it.amount }
-    val yearRevenue = performances
-        .filter { it.date in startOfYear(now)..DateExt.endOfDay(now) }
-        .sumOf { it.amount }
-    // changePercent = (今-昨)/昨*100；昨日为 0 → null（显示"暂无昨日对比"）
-    val changePercent: Double? =
-        if (yesterdayRevenue > 0) (todayRevenue - yesterdayRevenue) / yesterdayRevenue * 100 else null
-    val trend = remember(performances, now) {
-        PerformanceStats2.last7Days(performances, now).map { it.amount }
-    }
-    val records = remember(performances, expenses, now) {
-        val start = todayStart - 30L * 24 * 3600 * 1000
-        val end = DateExt.endOfDay(now)
-        (performances.filter { it.date in start..end }.map(::toRowItem) +
-                expenses.filter { it.date in start..end }.map(::toExpenseRowItem))
-            .sortedByDescending { it.date }
-            .take(12)
-    }
+        val now = System.currentTimeMillis()
+        val todayStart = DateExt.startOfDay(now)
+        val todayRevenue = performances.filter { DateExt.isToday(it.date) }.sumOf { it.amount }
+        val yesterdayRevenue =
+            performances.filter { DateExt.isSameDay(it.date, todayStart - 24 * 3600 * 1000L) }.sumOf { it.amount }
+        val monthRevenue = performances
+            .filter { it.date in DateExt.startOfMonth(now)..DateExt.endOfDay(now) }
+            .sumOf { it.amount }
+        val yearRevenue = performances
+            .filter { it.date in startOfYear(now)..DateExt.endOfDay(now) }
+            .sumOf { it.amount }
+        // changePercent = (今-昨)/昨*100；昨日为 0 → null（显示"暂无昨日对比"）
+        val changePercent: Double? =
+            if (yesterdayRevenue > 0) (todayRevenue - yesterdayRevenue) / yesterdayRevenue * 100 else null
+        val goalProgress: Double =
+            if (monthGoal > 0) (monthRevenue / monthGoal).coerceIn(0.0, 1.0) else 0.0
+        val trend = remember(performances, now) {
+            PerformanceStats2.last7Days(performances, now).map { it.amount }
+        }
+        val records = remember(performances, expenses, now) {
+            val start = todayStart - 30L * 24 * 3600 * 1000
+            val end = DateExt.endOfDay(now)
+            (performances.filter { it.date in start..end }.map(::toRowItem) +
+                    expenses.filter { it.date in start..end }.map(::toExpenseRowItem))
+                .sortedByDescending { it.date }
+                .take(12)
+        }
 
-    Scaffold(
-        modifier = Modifier.testTag("performance.screen"),
-        topBar = {
-            TopAppBar(
-                title = { Text("经营数据", style = XzgType.headline, color = palettes.background.textPrimary) },
-                actions = {
-                    IconButton(onClick = onOpenGoods) {
-                        Icon(
-                            imageVector = Icons.Filled.Inventory,
-                            contentDescription = "商品管理",
-                            tint = palettes.background.textPrimary
+        Scaffold(
+            // E2E 依赖 "performance.screen"（NavSmokeTest），保持不动
+            modifier = Modifier.testTag("performance.screen"),
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Text(
+                            "经营数据",
+                            style = V371Type.sectionTitle,
+                            color = colors.textPrimary
                         )
-                    }
-                    Box {
-                        IconButton(onClick = { menuExpanded = true }) {
+                    },
+                    actions = {
+                        IconButton(onClick = onOpenGoods) {
                             Icon(
-                                imageVector = Icons.Filled.Add,
-                                contentDescription = "记一笔",
-                                tint = palettes.background.textPrimary
+                                imageVector = Icons.Filled.Inventory,
+                                contentDescription = "商品管理",
+                                tint = colors.textPrimary
                             )
                         }
-                        XzgDropdownMenu(
+                        Box {
+                            IconButton(onClick = { menuExpanded = true }) {
+                                Icon(
+                                    imageVector = Icons.Filled.Add,
+                                    contentDescription = "记一笔",
+                                    tint = colors.textPrimary
+                                )
+                            }
+                            XzgDropdownMenu(
                             spec = XzgMotionSpecs.MENU_EXPAND_RECORD,
                             expanded = menuExpanded,
                             onDismissRequest = { menuExpanded = false }
@@ -395,133 +438,140 @@ fun PerformanceContent(
                                 },
                                 onClick = { menuExpanded = false; onOpenDailyReport() }
                             )
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = palettes.background.pageBG
+                        }                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = colors.canvas
+                    )
                 )
-            )
-        },
-        containerColor = palettes.background.pageBG
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = XzgDimens.pageMargin)
-                .padding(top = 16.dp, bottom = XzgDimens.bottomPad),
-            verticalArrangement = Arrangement.spacedBy(30.dp)
-        ) {
-            HeroCard(
-                monthRevenue = monthRevenue,
-                todayRevenue = todayRevenue,
-                changePercent = changePercent,
-                trend = trend
-            )
-            KeyMetrics(yesterdayRevenue = yesterdayRevenue, yearRevenue = yearRevenue)
-            IncomeSources(performances = performances, now = now)
-            RecordsSection(
-                records = records,
-                onAddIncome = onAddIncome,
-                onEdit = onEdit,
-                onDelete = onDelete,
-                onOpenTransactions = onOpenTransactions
-            )
+            },
+            containerColor = colors.canvas
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .padding(innerPadding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = V371Space.page)
+                    .padding(top = V371Space.page, bottom = V371Space.section),
+                verticalArrangement = Arrangement.spacedBy(V371Space.section)
+            ) {
+                EditorialHero(
+                    monthRevenue = monthRevenue,
+                    todayRevenue = todayRevenue,
+                    changePercent = changePercent,
+                    trend = trend
+                )
+                GoalSection(
+                    monthRevenue = monthRevenue,
+                    monthGoal = monthGoal,
+                    goalProgress = goalProgress,
+                    yearRevenue = yearRevenue
+                )
+                IncomeSources(performances = performances, now = now)
+                RecordsSection(
+                    records = records,
+                    onAddIncome = onAddIncome,
+                    onEdit = onEdit,
+                    onDelete = onDelete,
+                    onOpenTransactions = onOpenTransactions
+                )
+            }
         }
     }
 }
 
+/**
+ * 平面 Editorial Hero（对应 iOS `PerformanceView.editorialHero`）：
+ * 「本月营业额」+ 大数字 + 今日/较昨日/趋势行。无蓝色大卡片。
+ */
 @Composable
-private fun HeroCard(
+private fun EditorialHero(
     monthRevenue: Double,
     todayRevenue: Double,
     changePercent: Double?,
     trend: List<Double>
 ) {
-    val palettes = LocalXzgPalettes.current
-    val fixed = palettes.fixed
-    Box(
+    val colors = LocalV371Colors.current
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(palettes.accent.heroStart, palettes.accent.heroEnd),
-                    start = Offset.Zero,
-                    end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
-                )
-            )
-            .padding(horizontal = 22.dp, vertical = 24.dp)
+            .padding(vertical = 8.dp)
+            .semantics {
+                contentDescription = buildString {
+                    append("本月营业额 ${Format.money(monthRevenue)}")
+                    append("，今日 ${Format.money(todayRevenue)}")
+                    if (changePercent != null) {
+                        val direction = if (changePercent >= 0) "上涨" else "下降"
+                        append("，较昨日$direction ${"%.1f".format(abs(changePercent))}%")
+                    }
+                }
+            },
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-            Row(verticalAlignment = Alignment.Bottom) {
+        Text(
+            "本月营业额",
+            style = V371Type.heroTitle,
+            color = colors.textSecondary
+        )
+        Text(
+            Format.money(monthRevenue),
+            style = V371Type.heroNumber,
+            color = colors.textPrimary,
+            maxLines = 1
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Text(
-                    text = "本月营业额",
-                    style = XzgType.body.copy(fontWeight = FontWeight.Medium),
-                    color = fixed.textOnHeroSecondary
+                    "今日",
+                    style = V371Type.rowSubtitle,
+                    color = colors.textTertiary
                 )
-                Spacer(Modifier.weight(1f))
                 Text(
-                    text = "经营数据",
-                    style = XzgType.caption.copy(fontWeight = FontWeight.Medium),
-                    color = fixed.textOnHeroSecondary
+                    Format.money(todayRevenue),
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFeatureSettings = "tnum",
+                    color = colors.textPrimary,
+                    maxLines = 1
                 )
-            }
-            Text(
-                text = Format.money(monthRevenue),
-                style = XzgType.heroMoney.copy(fontSize = 46.sp),
-                color = fixed.textOnHero,
-                maxLines = 1
-            )
-            Row(verticalAlignment = Alignment.Bottom) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = "今日",
-                        style = XzgType.caption,
-                        color = fixed.textOnHeroSecondary
-                    )
-                    Text(
-                        text = Format.money(todayRevenue),
-                        style = XzgType.title.copy(fontFeatureSettings = "tnum"),
-                        color = fixed.textOnHero
-                    )
-                }
-                Spacer(Modifier.width(16.dp))
                 ChangeBadge(changePercent = changePercent)
-                Spacer(Modifier.weight(1f))
-                if (trend.any { it > 0 }) {
-                    Sparkline(
-                        values = trend,
-                        modifier = Modifier
-                            .width(120.dp)
-                            .height(52.dp),
-                        color = fixed.brandOnHero
-                    )
-                }
+            }
+            if (trend.any { it > 0 }) {
+                Sparkline(
+                    values = trend,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(36.dp),
+                    color = colors.blue
+                )
             }
         }
     }
 }
 
+/** 较昨日涨跌 badge（对应 iOS `PerformanceView.changeBadge`）。 */
 @Composable
 private fun ChangeBadge(changePercent: Double?) {
-    val fixed = LocalXzgPalettes.current.fixed
+    val colors = LocalV371Colors.current
     if (changePercent == null) {
         Text(
             text = "暂无昨日对比",
-            style = XzgType.pill,
-            color = fixed.textOnHeroSecondary
+            style = V371Type.badge,
+            color = colors.textTertiary
         )
     } else {
         val up = changePercent >= 0
-        val tint = if (up) fixed.brandOnHero else fixed.amberOnHero
+        val tint = if (up) colors.green else colors.red
         Row(
             modifier = Modifier
                 .clip(CircleShape)
-                .background(tint.copy(alpha = 0.16f))
+                .background(colors.tinted(tint))
                 .padding(horizontal = 9.dp, vertical = 5.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Icon(
                 imageVector = if (up) Icons.Filled.ArrowUpward else Icons.Filled.ArrowDownward,
@@ -529,81 +579,102 @@ private fun ChangeBadge(changePercent: Double?) {
                 tint = tint,
                 modifier = Modifier.size(10.dp)
             )
-            Spacer(Modifier.width(4.dp))
             Text(
-                text = String.format(Locale.CHINA, "%.1f%% 较昨日", abs(changePercent)),
-                style = XzgType.pill,
+                text = "${"%.1f".format(abs(changePercent))}% 较昨日",
+                style = V371Type.badge,
                 color = tint
             )
         }
     }
 }
 
+/**
+ * 月目标（对应 iOS `PerformanceView.goalSection`）：
+ * SectionHeader + GroupSurface（本月/目标/进度条 + hairline + 本年累计）。
+ */
 @Composable
-private fun KeyMetrics(yesterdayRevenue: Double, yearRevenue: Double) {
-    val palettes = LocalXzgPalettes.current
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(
-            text = "关键指标",
-            style = XzgType.caption.copy(fontWeight = FontWeight.Medium),
-            color = palettes.background.textTertiary
-        )
-        Column {
-            HorizontalDivider(color = palettes.background.divider)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 12.dp)
+private fun GoalSection(
+    monthRevenue: Double,
+    monthGoal: Double,
+    goalProgress: Double,
+    yearRevenue: Double
+) {
+    val colors = LocalV371Colors.current
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SectionHeader("月目标")
+        GroupSurface {
+            Column(
+                modifier = Modifier.padding(V371Space.rowPadding),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                MetricCell(
-                    label = "昨日",
-                    value = Format.money(yesterdayRevenue),
-                    modifier = Modifier.weight(1f)
-                )
-                Box(
-                    modifier = Modifier
-                        .width(1.dp)
-                        .height(36.dp)
-                        .background(palettes.background.divider)
-                        .align(Alignment.CenterVertically)
-                )
-                MetricCell(
-                    label = "本年",
-                    value = Format.money(yearRevenue),
-                    modifier = Modifier.weight(1f)
-                )
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        Format.money(monthRevenue),
+                        style = V371Type.rowTitle.copy(fontFeatureSettings = "tnum"),
+                        color = colors.textPrimary
+                    )
+                    if (monthGoal > 0) {
+                        Text(
+                            "/ 目标 ${Format.money(monthGoal)}",
+                            style = V371Type.rowSubtitle,
+                            color = colors.textTertiary
+                        )
+                    }
+                    Spacer(Modifier.weight(1f))
+                    if (monthGoal > 0) {
+                        Text(
+                            "${(goalProgress * 100).roundToInt()}%",
+                            style = V371Type.badge.copy(fontFeatureSettings = "tnum"),
+                            color = colors.blue
+                        )
+                    }
+                }
+                if (monthGoal > 0) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(CircleShape)
+                            .background(colors.groupSecondary)
+                            .semantics {
+                                contentDescription = "月目标完成 ${(goalProgress * 100).roundToInt()}%"
+                            }
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(goalProgress.toFloat())
+                                .height(6.dp)
+                                .clip(CircleShape)
+                                .background(colors.blue)
+                        )
+                    }
+                }
+                V371Divider(leading = 0.dp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "本年累计",
+                        style = V371Type.rowSubtitle,
+                        color = colors.textTertiary
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        Format.money(yearRevenue),
+                        style = V371Type.rowTitle.copy(fontFeatureSettings = "tnum"),
+                        color = colors.textPrimary
+                    )
+                }
             }
-            HorizontalDivider(color = palettes.background.divider)
         }
     }
 }
 
-@Composable
-private fun MetricCell(label: String, value: String, modifier: Modifier = Modifier) {
-    val palettes = LocalXzgPalettes.current
-    Column(
-        modifier = modifier.padding(start = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        Text(
-            text = label,
-            style = XzgType.caption,
-            color = palettes.background.textTertiary
-        )
-        Text(
-            text = value,
-            style = XzgType.subhead.copy(
-                fontWeight = FontWeight.SemiBold,
-                fontFeatureSettings = "tnum"
-            ),
-            color = palettes.background.textSecondary
-        )
-    }
-}
-
+/**
+ * 收入来源（对应 iOS `PerformanceView.sourcesSection`）：
+ * SectionHeader + GroupSurface + WorkRow（门店=蓝/美团=橙/其他=灰）。
+ */
 @Composable
 private fun IncomeSources(performances: List<PerformanceEntity>, now: Long) {
-    val palettes = LocalXzgPalettes.current
+    val colors = LocalV371Colors.current
     val monthPerformances = remember(performances, now) {
         performances.filter { it.date in DateExt.startOfMonth(now)..DateExt.endOfDay(now) }
     }
@@ -614,63 +685,52 @@ private fun IncomeSources(performances: List<PerformanceEntity>, now: Long) {
         listOf("门店" to summary.store, "美团" to summary.meituan, "其他" to summary.other)
             .filter { it.second > 0 }
     }
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(
-            text = "收入来源",
-            style = XzgType.caption.copy(fontWeight = FontWeight.Medium),
-            color = palettes.background.textTertiary
-        )
-        Column {
-            HorizontalDivider(color = palettes.background.divider)
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SectionHeader("收入来源")
+        GroupSurface {
             if (items.isEmpty()) {
                 Text(
                     text = "本月暂无收入",
-                    style = XzgType.subhead,
-                    color = palettes.background.textTertiary,
-                    modifier = Modifier.padding(vertical = 12.dp)
+                    style = V371Type.rowSubtitle,
+                    color = colors.textTertiary,
+                    modifier = Modifier.padding(
+                        horizontal = V371Space.rowPadding,
+                        vertical = 14.dp
+                    )
                 )
             } else {
                 items.forEachIndexed { index, (name, amount) ->
                     if (index > 0) {
-                        HorizontalDivider(
-                            color = palettes.background.divider,
-                            modifier = Modifier.padding(start = 12.dp)
-                        )
+                        V371Divider()
                     }
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 13.dp),
-                        verticalAlignment = Alignment.Bottom
+                    val (icon, iconColor) = when (name) {
+                        "门店" -> Icons.Filled.Store to colors.blue
+                        "美团" -> Icons.Filled.ShoppingBag to colors.orange
+                        else -> Icons.Filled.MoreHoriz to colors.gray
+                    }
+                    WorkRow(
+                        icon = icon,
+                        iconColor = iconColor,
+                        title = name,
+                        subtitle = "占 ${(summary.ratio(amount) * 100).roundToInt()}%"
                     ) {
                         Text(
-                            text = name,
-                            style = XzgType.body.copy(fontWeight = FontWeight.Medium),
-                            color = palettes.background.textPrimary
-                        )
-                        Spacer(Modifier.weight(1f))
-                        Text(
-                            text = Format.money(amount),
-                            style = XzgType.subhead.copy(
-                                fontWeight = FontWeight.SemiBold,
-                                fontFeatureSettings = "tnum"
-                            ),
-                            color = palettes.accent.chartAccent
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = "${(summary.ratio(amount) * 100).roundToInt()}%",
-                            style = XzgType.caption.copy(fontFeatureSettings = "tnum"),
-                            color = palettes.background.textTertiary
+                            Format.money(amount),
+                            style = V371Type.rowTitle.copy(fontFeatureSettings = "tnum"),
+                            color = colors.textPrimary,
+                            maxLines = 1
                         )
                     }
                 }
             }
-            HorizontalDivider(color = palettes.background.divider)
         }
     }
 }
 
+/**
+ * 交易流水（对应 iOS `PerformanceView.recordsSection`）：
+ * SectionHeader + GroupSurface（行 + hairline +「查看全部」行链）。
+ */
 @Composable
 private fun RecordsSection(
     records: List<PerformanceRowItem>,
@@ -679,42 +739,43 @@ private fun RecordsSection(
     onDelete: (PerformanceRowItem) -> Unit,
     onOpenTransactions: () -> Unit
 ) {
-    val palettes = LocalXzgPalettes.current
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(
-            text = "交易流水",
-            style = XzgType.caption.copy(fontWeight = FontWeight.Medium),
-            color = palettes.background.textTertiary
-        )
-        if (records.isEmpty()) {
-            Column(
-                modifier = Modifier.padding(vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Filled.Inbox,
-                        contentDescription = null,
-                        tint = palettes.background.textTertiary,
-                        modifier = Modifier.size(16.dp)
+    val colors = LocalV371Colors.current
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SectionHeader("交易流水")
+        GroupSurface {
+            if (records.isEmpty()) {
+                Column(
+                    modifier = Modifier.padding(V371Space.rowPadding),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    EmptyState(
+                        icon = Icons.Filled.QrCode,
+                        title = "暂无交易记录",
+                        message = "记录第一笔交易开始统计"
                     )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = "暂无交易记录",
-                        style = XzgType.body,
-                        color = palettes.background.textTertiary
-                    )
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "记一笔",
+                            style = V371Type.rowTitle,
+                            color = Color.White,
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .background(colors.blue)
+                                .clickable(
+                                    role = Role.Button,
+                                    onClick = onAddIncome
+                                )
+                                .padding(horizontal = 20.dp, vertical = 12.dp)
+                        )
+                    }
                 }
-                V32PrimaryButton(text = "记一笔", onClick = onAddIncome)
-            }
-        } else {
-            Column {
+            } else {
                 records.forEachIndexed { index, record ->
                     if (index > 0) {
-                        HorizontalDivider(
-                            color = palettes.background.divider,
-                            modifier = Modifier.padding(start = 48.dp)
-                        )
+                        V371Divider()
                     }
                     PerformanceRecordRow(
                         item = record,
@@ -722,87 +783,111 @@ private fun RecordsSection(
                         onDelete = { onDelete(record) }
                     )
                 }
-            }
-            TextButton(
-                onClick = onOpenTransactions,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 10.dp)
-                    .semantics { contentDescription = "查看全部交易" }
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.List,
-                    contentDescription = null,
-                    tint = palettes.accent.accent,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    text = "查看全部",
-                    style = XzgType.subhead,
-                    color = palettes.accent.accent
-                )
+                V371Divider(leading = 0.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            role = Role.Button,
+                            onClick = onOpenTransactions
+                        )
+                        .padding(
+                            horizontal = V371Space.rowPadding,
+                            vertical = 12.dp
+                        )
+                        .heightIn(min = 28.dp)
+                        .semantics { contentDescription = "查看全部交易" },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "查看全部",
+                        style = V371Type.rowTitle,
+                        color = colors.blue
+                    )
+                    Spacer(Modifier.weight(1f))
+                    V371Chevron()
+                }
             }
         }
     }
 }
 
+/**
+ * 交易行（对应 iOS `PerformanceRecordRow`）：
+ * 36dp 图标圆 + 标题/副标题 + 金额（收入蓝 / 支出红）+ 删除。
+ */
 @Composable
 private fun PerformanceRecordRow(
     item: PerformanceRowItem,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
-    val palettes = LocalXzgPalettes.current
-    val (icon, tone) = when {
-        item.source == "扫呗" -> Icons.Filled.QrCode to BubbleTone.NEUTRAL
-        item.isIncome -> Icons.Filled.SouthWest to BubbleTone.BRAND
-        else -> Icons.Filled.NorthEast to BubbleTone.DANGER
+    val colors = LocalV371Colors.current
+    val (icon, iconColor): Pair<ImageVector, androidx.compose.ui.graphics.Color> = when {
+        item.source == "扫呗" -> Icons.Filled.QrCode to colors.gray
+        item.isIncome -> Icons.Filled.SouthWest to colors.blue
+        else -> Icons.Filled.NorthEast to colors.red
     }
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 14.dp)
-            .heightIn(min = 64.dp),
+            .padding(horizontal = V371Space.rowPadding, vertical = 10.dp)
+            .heightIn(min = 44.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        V32IconBubble(icon = icon, tone = tone, size = 34.dp)
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(colors.tinted(iconColor)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = iconColor,
+                modifier = Modifier.size(16.dp)
+            )
+        }
         Spacer(Modifier.width(12.dp))
         Column(
             modifier = Modifier
                 .weight(1f)
-                .v32PressFeedback(onClick = onEdit),
+                .clickable(onClick = onEdit),
             verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
             Text(
                 text = item.title,
-                style = XzgType.title,
-                color = palettes.background.textPrimary,
-                maxLines = 1
+                style = V371Type.rowTitle,
+                color = colors.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = if (item.source.isEmpty()) Format.shortDateTime(item.date)
                 else "${item.source} · ${Format.shortDateTime(item.date)}",
-                style = XzgType.caption,
-                color = palettes.background.textTertiary,
-                maxLines = 1
+                style = V371Type.rowSubtitle,
+                color = colors.textTertiary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
         Text(
             text = (if (item.isIncome) "+" else "-") + Format.money(abs(item.amount)),
-            style = XzgType.title.copy(fontFeatureSettings = "tnum"),
-            color = if (item.isIncome) palettes.accent.accent else palettes.fixed.danger,
-            maxLines = 1
+            style = V371Type.rowTitle.copy(fontFeatureSettings = "tnum"),
+            color = if (item.isIncome) colors.blue else colors.red,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
         Spacer(Modifier.width(8.dp))
         IconButton(
             onClick = onDelete,
-            modifier = Modifier.size(30.dp)
+            modifier = Modifier.size(32.dp)
         ) {
             Icon(
                 imageVector = Icons.Filled.Delete,
                 contentDescription = "删除记录",
-                tint = palettes.background.textQuaternary,
+                tint = colors.textTertiary,
                 modifier = Modifier.size(14.dp)
             )
         }
