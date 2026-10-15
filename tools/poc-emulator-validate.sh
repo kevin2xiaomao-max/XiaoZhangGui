@@ -117,9 +117,18 @@ wait_device() {
 
 check_anim_scales() { # 期望值, 段名
   local expect="$1" section="$2"
+  # 先显式归一化：全新模拟器上这三个值可能为 null（= 系统默认 1.0），
+  # 直接读会误判 FAIL；显式 put 后再校验，保证确定性。
+  adbw settings put global window_animation_scale 1 >/dev/null 2>&1 || true
+  adbw settings put global transition_animation_scale 1 >/dev/null 2>&1 || true
+  # animator_duration_scale 由调用方决定（preflight 期望 1，Reduce Motion 段期望 0），这里只读
   local w="$(adbw settings get global window_animation_scale 2>/dev/null | tr -d '\r')"
   local t="$(adbw settings get global transition_animation_scale 2>/dev/null | tr -d '\r')"
   local a="$(adbw settings get global animator_duration_scale 2>/dev/null | tr -d '\r')"
+  # null/空 = 系统默认（行为等价 1.0）；"1.0"→"1"、"0.0"→"0" 归一化，避免全新设备误判
+  [[ -z "$a" || "$a" == "null" ]] && a="1.0"
+  [[ "$a" == "1.0" ]] && a="1"
+  [[ "$a" == "0.0" ]] && a="0"
   echo "动画 scale: window=$w transition=$t animator=$a（期望 $expect）"
   rec "$section" "window_animation_scale" "$w"
   rec "$section" "transition_animation_scale" "$t"
@@ -159,14 +168,19 @@ launch_poc() { # <name> <query>  → 深链启动，返回 0/1（intent 是否�
   out="$(adb shell am start -a android.intent.action.VIEW -d "$uri" "$PKG" 2>&1 | tr -d '\r')"
   echo "am start: $uri → $(echo "$out" | tr '\n' ' ' | cut -c1-160)"
   rec "deeplink" "last_uri" "$uri"
-  # 验证 intent data 确实投递到 MainActivity（页面渲染以截图为准人工确认）
-  sleep 1
-  if adbw dumpsys activity activities 2>/dev/null | tr -d '\r' | grep -q "dat=xzg://poc/${name}"; then
-    echo "intent 投递确认: dat=xzg://poc/${name}"
-    rec "deeplink" "intent_delivered_${name}" "true"
-    return 0
-  fi
-  echo "警告: 未在 dumpsys 中找到 dat=xzg://poc/${name}（可能深链未实现或 activity 未前台）"
+  # 验证 intent data 确实投递到 MainActivity（页面渲染以截图为准人工确认）。
+  # 冷启动在 swiftshader 模拟器上较慢：轮询 dumpsys 最多 20s，而非单次 sleep 1s 检查。
+  local tries=0
+  while (( tries < 10 )); do
+    sleep 2
+    tries=$((tries + 1))
+    if adbw dumpsys activity activities 2>/dev/null | tr -d '\r' | grep -q "dat=xzg://poc/${name}"; then
+      echo "intent 投递确认: dat=xzg://poc/${name}（第 ${tries} 次轮询）"
+      rec "deeplink" "intent_delivered_${name}" "true"
+      return 0
+    fi
+  done
+  echo "警告: 20s 内未在 dumpsys 中找到 dat=xzg://poc/${name}（可能深链未实现或 activity 未前台）"
   rec "deeplink" "intent_delivered_${name}" "false"
   return 1
 }
