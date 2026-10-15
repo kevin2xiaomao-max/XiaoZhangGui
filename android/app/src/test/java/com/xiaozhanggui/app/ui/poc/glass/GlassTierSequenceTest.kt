@@ -130,7 +130,7 @@ class GlassTierSequenceTest {
         assertEquals(MotionDowngradeReasons.FRAME_RATE, r.downgradeReason)
 
         assertEquals(2, seen.size)
-        assertEquals(GlassDowngradeReasons.FRAME_RATE, seen[0].reason)
-        assertEquals(GlassDowngradeReasons.FRAME_RATE, seen[1].reason)
+        assertEquals(MotionDowngradeReasons.FRAME_RATE, seen[0].reason)
+        assertEquals(MotionDowngradeReasons.FRAME_RATE, seen[1].reason)
     }
 }
