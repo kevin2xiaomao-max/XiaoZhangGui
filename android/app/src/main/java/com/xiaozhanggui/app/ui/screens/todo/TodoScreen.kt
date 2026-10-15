@@ -527,9 +527,11 @@ private fun TodoStatCell(value: Int, label: String, tint: Color, modifier: Modif
     ) {
         Text(
             text = value.toString(),
-            fontSize = 24.sp,
-            fontWeight = FontWeight.SemiBold,
-            fontFeatureSettings = "tnum",
+            style = V371Type.rowTitle.copy(
+                fontSize = 24.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFeatureSettings = "tnum"
+            ),
             color = if (value > 0) tint else colors.textPrimary
         )
         Text(
