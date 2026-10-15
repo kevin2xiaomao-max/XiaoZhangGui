@@ -68,9 +68,10 @@ struct V38QuickMenuView: View {
                     }
                 }
             }
-            .accessibilityIdentifier("v38.motion.quick.expanded")
-            // 收起按钮放在玻璃容器之外（overlay）：iOS 26 下 glassEffect 内容内的
-            // 嵌套按钮会从无障碍树消失，顶层 Button + 直接 identifier 则可被找到。
+            // 注意：这里故意不给容器挂 accessibilityIdentifier——实测（CI run 38820261271
+            // 无障碍树转储）：identifier 挂在容器上会覆盖其内部按钮的 identifier，
+            // 导致三个行按钮在 AX 树中全部显示为容器的 id。行按钮各自的 identifier
+            // 必须直接生效，展开态改由收起按钮的存在性判定。
             .overlay(alignment: .topTrailing) {
                 Button {
                     setExpanded(false)

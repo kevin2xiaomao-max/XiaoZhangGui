@@ -75,7 +75,7 @@ final class V38CaptureInteractionUITests: XCTestCase {
 
         // 选择后菜单收起并回到原入口；演示选择仅展示，不执行保存。
         XCTAssertTrue(waitForElement("v38.motion.quick.expand"), "Quick entry did not return after selection")
-        XCTAssertTrue(waitForDisappearance("v38.motion.quick.expanded"), "Ghost quick panel after selection")
+        XCTAssertTrue(waitForDisappearance("v38.motion.quick.collapse"), "Ghost quick panel after selection")
         XCTAssertTrue(waitForElement("v38.motion.demo.selection"), "Demo selection echo missing")
         let selection = element("v38.motion.demo.selection")
         XCTAssertTrue(selection.label.contains("记收入"), "Unexpected selection label: \(selection.label)")
@@ -90,7 +90,7 @@ final class V38CaptureInteractionUITests: XCTestCase {
             waitForHittable(element("v38.motion.quick.expand")),
             "Quick entry button must be tappable after collapse"
         )
-        XCTAssertTrue(waitForDisappearance("v38.motion.quick.expanded"), "Ghost quick panel after collapse")
+        XCTAssertTrue(waitForDisappearance("v38.motion.quick.collapse"), "Ghost quick panel after collapse")
     }
 
     // MARK: - 互斥：展开其一即收起另一
@@ -158,7 +158,7 @@ final class V38CaptureInteractionUITests: XCTestCase {
             element("v38.motion.quick.collapse").tap()
 
             XCTAssertTrue(
-                waitForDisappearance("v38.motion.quick.expanded"),
+                waitForDisappearance("v38.motion.quick.collapse"),
                 "cycle \(i): ghost expanded quick panel"
             )
         }
@@ -168,27 +168,6 @@ final class V38CaptureInteractionUITests: XCTestCase {
             "Quick entry must stay tappable after 20 rapid cycles"
         )
         captureScreenshot(named: "v38-capture-quick-after-20-cycles")
-    }
-
-    // MARK: - 诊断：转储菜单展开后的无障碍树（定位行按钮 identifier 缺失根因）
-
-    /// 临时诊断用例：展开快捷菜单后，列出所有 Button 的 identifier，
-    /// 并对比多种查询方式对 v38.motion.quick.income 的可见性。
-    /// 输出写入 test.log，供离线分析。
-    func testDiagnosticDumpMenuAccessibilityTree() {
-        tapHittable("v38.motion.quick.expand")
-        XCTAssertTrue(waitForElement("v38.motion.quick.collapse"), "expand failed")
-
-        print("[V38Capture][diag] === all buttons in AX tree ===")
-        for button in app.buttons.allElementsBoundByIndex {
-            print("[V38Capture][diag] button id=\(button.identifier) label=\(button.label) hittable=\(button.isHittable)")
-        }
-        print("[V38Capture][diag] === query probes for quick.income ===")
-        print("[V38Capture][diag] app.buttons[\"v38.motion.quick.income\"].exists = \(app.buttons["v38.motion.quick.income"].exists)")
-        print("[V38Capture][diag] descendants(.any)[income].exists = \(element("v38.motion.quick.income").exists)")
-        print("[V38Capture][diag] descendants(.button)[income].exists = \(app.descendants(matching: .button).matching(identifier: "v38.motion.quick.income").firstMatch.exists)")
-        print("[V38Capture][diag] quick.expanded exists = \(element("v38.motion.quick.expanded").exists)")
-        print("[V38Capture][diag] === end ===")
     }
 
     // MARK: - Helpers
