@@ -189,11 +189,6 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         XCTAssertGreaterThan(before, 0)
 
         tapTrailingButton("goods.delete", dx: 0.905)
-        // iOS 27 诊断：confirmationDialog 的取消按钮在无障碍树中的实际形态未知。
-        // 转储对话框内所有按钮与"取消"相关元素，根据实际结构点按取消。
-        let dialog = app.sheets.firstMatch
-        XCTAssertTrue(dialog.waitForExistence(timeout: 5), "确认删除弹窗未出现")
-
         // iOS 27：confirmationDialog 以居中浮层呈现（实测约 240x172 居中），
         // "取消"按钮（role: .cancel）未暴露于无障碍树（树中仅见"删除"按钮）。
         // 点按对话框外部的遮罩区域关闭——等价于用户取消删除，不触发写库。
