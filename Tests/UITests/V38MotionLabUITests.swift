@@ -50,15 +50,19 @@ final class V38MotionLabUITests: XCTestCase {
     func testQuickMenuExpandSelectTriggersRealTransition() {
         launchMotionLab()
         XCTAssertTrue(element("v38.motion.quick.expand").waitForExistence(timeout: 10))
-        XCTAssertFalse(element("v38.motion.quick.expanded").exists)
+        XCTAssertFalse(element("v38.motion.quick.income").exists)
 
         element("v38.motion.quick.expand").tap()
+        // 展开态由行按钮的可达性证明：iOS 26 下 identifier 若挂在带
+        // matchedGeometryEffect 的容器上，会吞掉内部按钮的无障碍节点，
+        // 故容器本身不再挂 identifier（见 V38MotionLabView 注释）。
         XCTAssertTrue(
-            element("v38.motion.quick.expanded").waitForExistence(timeout: 15),
+            element("v38.motion.quick.income").waitForExistence(timeout: 15),
             "Quick menu expand did not trigger a real transition"
         )
         sleep(2)
 
+        dumpButtonIdentifiers("before-income-tap")
         element("v38.motion.quick.income").tap()
         XCTAssertTrue(
             element("v38.motion.demo.selection").waitForExistence(timeout: 15),
@@ -86,7 +90,7 @@ final class V38MotionLabUITests: XCTestCase {
     func testReduceTransparencySmoke() {
         launchMotionLab(extraArgs: ["--v38-reduce-transparency"])
         element("v38.motion.quick.expand").tap()
-        XCTAssertTrue(element("v38.motion.quick.expanded").waitForExistence(timeout: 15))
+        XCTAssertTrue(element("v38.motion.quick.income").waitForExistence(timeout: 15))
         attachScreenshot(named: "v38-reduce-transparency")
     }
 
@@ -100,11 +104,18 @@ final class V38MotionLabUITests: XCTestCase {
         tapVisible("v38.motion.ai.collapse")
         XCTAssertTrue(element("v38.motion.ai.expand").waitForExistence(timeout: 15))
         tapVisible("v38.motion.quick.expand")
-        XCTAssertTrue(element("v38.motion.quick.expanded").waitForExistence(timeout: 15))
+        XCTAssertTrue(element("v38.motion.quick.income").waitForExistence(timeout: 15))
         attachScreenshot(named: "v38-large-text-axxxl")
     }
 
     // MARK: - Helpers
+
+    /// 诊断：把当前 App 无障碍树里所有 button 的 identifier 打印到日志，
+    /// 用于定位"按钮可见但 XCTest 找不到"类问题。
+    private func dumpButtonIdentifiers(_ label: String) {
+        let ids = app.buttons.allElementsBoundByIndex.map(\.identifier).filter { !$0.isEmpty }
+        print("QA-AXDUMP[\(label)] buttons=\(ids)")
+    }
 
     /// 超大字号下入口可能被挤到首屏外：先断言存在，不可点则滚一屏再点。
     private func tapVisible(_ identifier: String, file: StaticString = #file, line: UInt = #line) {

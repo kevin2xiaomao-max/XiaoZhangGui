@@ -138,14 +138,14 @@ struct V38MotionLabView: View {
 
     @ViewBuilder private var quickControl: some View {
         if quickExpanded {
-            // 注意：iOS 26 下，identifier 挂在 matchedGeometryEffect / transition
-            // 子树内部的按钮不会暴露到无障碍树（B 线 CI run 38795019084 /
-            // 38801281147 / 38807418888 三轮实证，本分支 run 38800283136 /
-            // 38811803218 复现：收起按钮与菜单行按钮均不可被 XCTest 找到，
-            // 而 overlay / 顶层按钮可被找到）。
+            // 注意：iOS 26 下，identifier 若挂在带 matchedGeometryEffect /
+            // transition 的容器上，该容器内部的按钮不会暴露到无障碍树
+            //（B 线 CI run 38795019084 / 38801281147 / 38807418888 三轮实证，
+            // 本分支 run 38800283136 / 38811803218 复现；overlay / 顶层按钮可达）。
             // 因此用 ZStack 分层：玻璃背景层单独承载 morph（液滴形变保留），
             // 内容层（行按钮）在 morph 与 transition 之外，只做普通布局，
-            // 保证无障碍树可达；视觉上玻璃面板仍做液滴形变。
+            // 且容器本身不挂 identifier，保证无障碍树可达；
+            // 视觉上玻璃面板仍做液滴形变。
             ZStack {
                 V38MotionLabGlassBackground(radius: 26)
                     .matchedGeometryEffect(id: "quick-button", in: quickGeometry)
@@ -168,8 +168,10 @@ struct V38MotionLabView: View {
                     quickAction("写备忘", icon: "note.text", key: "memo")
                 }
             }
-            .accessibilityIdentifier("v38.motion.quick.expanded")
-            // 收起按钮放在玻璃之外（overlay），原因同 AI 胶囊。
+            // E·QA：容器上不挂 accessibilityIdentifier——iOS 26 下，
+            // 带 identifier 且参与 morph/transition 的容器会吞掉内部按钮的
+            // 无障碍节点（B 线三轮 + 本分支两轮 CI 实证）；展开态改由行按钮的
+            // 存在性断言（见测试）。
             .overlay(alignment: .topTrailing) {
                 Button { changeQuick(false) } label: {
                     Image(systemName: "xmark")
