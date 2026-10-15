@@ -3,6 +3,9 @@
 > 分支 `android/v3.8-sleepdown-coloros` · V3.8 Phase 2
 > 设计依据：`ANDROID_V38_DESIGN_SYSTEM.md`、`ANDROID_V38_ROADMAP.md` §2–§3
 >
+> **CI**：run `38781324628` SUCCESS（build/test/lint + E2E + release 三 job 全绿），
+> HEAD `e45c2ed`。63 张 Paparazzi 截图（14 PoC + 49 生产页），生产页代码零改动。
+>
 > 本文档为总报告：四个 PoC 均已交付；真机/模拟器实测项标 NOT RUN。
 
 ## 1. PoC 达标情况表
