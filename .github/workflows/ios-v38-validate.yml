@@ -75,10 +75,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # QUARANTINE (2026-10-16, user-approved): exactly ONE pre-existing test is
+          # skipped here — XiaoZhangGuiUISmokeTests/testGoodsDeleteCancellationKeepsTarget.
+          # It fails on the untouched d238ff0 baseline under Xcode 27 (test was written
+          # against iOS 26.5 confirmationDialog-as-sheet behavior). It still runs every
+          # round in the separate `quarantine` job below. Do NOT extend this skip list
+          # without a new user decision; any other new failure fails this job (no
+          # continue-on-error anywhere in this job).
           xcodebuild test -project XiaoZhangGui.xcodeproj -scheme XiaoZhangGui \
             -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
             -derivedDataPath "$RUNNER_TEMP/xzg-ios-v38-derived" \
             -resultBundlePath "$RUNNER_TEMP/xzg-ios-v38-test.xcresult" \
+            -skip-testing:XiaoZhangGuiUITests/XiaoZhangGuiUISmokeTests/testGoodsDeleteCancellationKeepsTarget \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             >artifacts/test.log 2>&1 || { tail -n 160 artifacts/test.log; exit 1; }
       # E·QA: record the MotionLab demo while UI tests drive REAL expand/collapse
@@ -169,6 +177,79 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: xzg-ios-v38-ci-${{ github.sha }}
+          path: artifacts/
+          if-no-files-found: warn
+
+  quarantine:
+    # Quarantined pre-existing failure, tracked separately (user-approved 2026-10-16).
+    # Runs the quarantined test EVERY round, saves its own xcresult/log/screenshots.
+    # This job NEVER blocks `validate` (no `needs:` link) and NEVER gates merges;
+    # its failure is reported as "Quarantine known failure", never as main-CI PASS.
+    # When the test passes consecutively per the exit criterion, the quarantine is
+    # removed and the test returns to the main gate.
+    name: Quarantined test (known baseline failure)
+    runs-on: xcode-27
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Print commit and Xcode environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD
+          git branch --show-current
+          xcodebuild -version
+      - name: Generate Xcode project
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v xcodegen >/dev/null; then brew install xcodegen; fi
+          xcodegen generate
+      - name: Resolve Swift packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -resolvePackageDependencies -project XiaoZhangGui.xcodeproj -scheme XiaoZhangGui
+      - name: Select an available simulator
+        id: sim
+        shell: bash
+        run: |
+          set -euo pipefail
+          NAME=""
+          for cand in "iPhone 17" "iPhone 17 Pro" "iPhone 16" "iPhone 16 Pro"; do
+            if xcrun simctl list devices available | grep -F "$cand (" >/dev/null; then NAME="$cand"; break; fi
+          done
+          if [ -z "$NAME" ]; then
+            echo 'No configured iPhone simulator found' >&2
+            exit 3
+          fi
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+      - name: Run quarantined test only
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          xcodebuild test -project XiaoZhangGui.xcodeproj -scheme XiaoZhangGui \
+            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+            -derivedDataPath "$RUNNER_TEMP/xzg-ios-v38-quarantine" \
+            -resultBundlePath "$RUNNER_TEMP/xzg-ios-v38-quarantine.xcresult" \
+            -only-testing:XiaoZhangGuiUITests/XiaoZhangGuiUISmokeTests/testGoodsDeleteCancellationKeepsTarget \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            >artifacts/quarantine-test.log 2>&1 || { tail -n 160 artifacts/quarantine-test.log; exit 1; }
+      - name: Save quarantine result bundle
+        if: always()
+        shell: bash
+        run: |
+          if [ -d "$RUNNER_TEMP/xzg-ios-v38-quarantine.xcresult" ]; then
+            (cd "$RUNNER_TEMP" && zip -qry "$GITHUB_WORKSPACE/artifacts/V38-Quarantine-Test.xcresult.zip" xzg-ios-v38-quarantine.xcresult)
+          fi
+      - name: Upload quarantine artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xzg-ios-v38-quarantine-${{ github.sha }}
           path: artifacts/
           if-no-files-found: warn
 # IMPORTANT: No signed IPA, no unsigned IPA, no GitHub Release in this isolated validation workflow.
