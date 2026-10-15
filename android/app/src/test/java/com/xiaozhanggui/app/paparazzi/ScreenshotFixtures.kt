@@ -313,6 +313,30 @@ internal object ScreenshotFixtures {
         )
     }
 
+    /**
+     * P0-1 回归：同一时间轴同时含「已完成」与「未完成」Todo。
+     * - todo-icon-undone：未完成，dueDate 今天 10:30（真实钟点 → timed）
+     * - todo-icon-done：已完成（completedAt 今天 13:00），dueDate 今天 14:00（真实钟点 → timed）
+     * 修复前两者都渲染为填充 CheckCircle + BRAND；修复后已完成=填充 CheckCircle + BRAND（绿系）、
+     * 未完成=空心 Circle + INFO（蓝系），像素必不同 → golden 可捕捉回归。
+     */
+    fun scheduleDayMixedTodoIcons(now: Long = System.currentTimeMillis()): ScheduleDay {
+        val t0 = todayStart(now)
+        val undone = todos(now).first().copy(id = "todo-icon-undone")
+        val done = todos(now)[3].copy(
+            id = "todo-icon-done",
+            dueDate = t0 + 14 * 3600 * 1000L,
+            completedAt = t0 + 13 * 3600 * 1000L
+        )
+        return ScheduleDay(
+            dateMillis = t0,
+            timedEvents = listOf(ScheduleEvent.Todo(undone), ScheduleEvent.Todo(done)),
+            allDay = ScheduleAllDay(),
+            revenue = 1288.5,
+            expense = 520.0
+        )
+    }
+
     fun calendarDayData(now: Long = System.currentTimeMillis()): CalendarDayData {
         return CalendarDayData(
             todos = todos(now).take(2),
