@@ -43,32 +43,3 @@ enum V38CapabilityGate {
         }
     }
 }
-
-/// 材质三档的 SwiftUI 应用辅助（Debug-only，不被生产 View 引用）。
-///
-/// 调用端先 `V38CapabilityGate.resolve(...)` 得到 `MaterialTier`，再用此扩展渲染。
-/// iOS 26+ 分支用 `#available` 包裹；Deployment Target 保持 iOS 18.0。
-extension View {
-    @ViewBuilder
-    func v38MotionMaterial(
-        _ tier: V38CapabilityGate.MaterialTier,
-        in shape: some Shape
-    ) -> some View {
-        switch tier {
-        case .opaque:
-            self.background(Color(uiColor: .secondarySystemBackground), in: shape)
-                .overlay(shape.strokeBorder(Color.secondary.opacity(0.16), lineWidth: 1))
-        case .ultraThin:
-            self.background(.ultraThinMaterial, in: shape)
-                .overlay(shape.strokeBorder(Color.secondary.opacity(0.12), lineWidth: 1))
-        case .glass:
-            if #available(iOS 26.0, *) {
-                self.glassEffect(.regular, in: shape)
-            } else {
-                // 理论上不可达（.glass 只在 glassEffectAvailable 时产生），防御性回退。
-                self.background(.ultraThinMaterial, in: shape)
-                    .overlay(shape.strokeBorder(Color.secondary.opacity(0.12), lineWidth: 1))
-            }
-        }
-    }
-}
