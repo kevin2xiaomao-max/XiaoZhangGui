@@ -189,19 +189,41 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         XCTAssertGreaterThan(before, 0)
 
         tapTrailingButton("goods.delete", dx: 0.905)
-        // iOS 27：confirmationDialog 以 Sheet 呈现但 visible frame 为空，
-        // 不再支持下滑关闭（原 iOS 26.5 假设失效）；"取消"按钮的
-        // accessibilityIdentifier 未暴露于无障碍树。改为按 label 在全应用
-        // 查找"取消"按钮并点按——语义即"用户取消删除"，不触发写库。
-        // 若 label 也找不到，点按弹窗外部遮罩关闭（等价于取消）。
+        // iOS 27 诊断：confirmationDialog 的取消按钮在无障碍树中的实际形态未知。
+        // 转储对话框内所有按钮与"取消"相关元素，根据实际结构点按取消。
         let dialog = app.sheets.firstMatch
         XCTAssertTrue(dialog.waitForExistence(timeout: 5), "确认删除弹窗未出现")
-        let cancelButton = app.buttons["取消"]
-        if cancelButton.waitForExistence(timeout: 5) {
-            cancelButton.tap()
-        } else {
-            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15)).tap()
+
+        print("=== DIALOG BUTTONS DUMP ===")
+        let dialogButtons = dialog.buttons.allElementsBoundByIndex
+        print("dialog.buttons count = \(dialogButtons.count)")
+        for (i, btn) in dialogButtons.enumerated() {
+            print("BTN[\(i)] label='\(btn.label)' id='\(btn.identifier)' hittable=\(btn.isHittable)")
         }
+        print("=== APP-WIDE '取消' (any type) ===")
+        let cancelAny = app.descendants(matching: .any)["取消"]
+        print("cancelAny.exists = \(cancelAny.exists)")
+        print("=== DIALOG DESCENDANTS (any) with '取消' label ===")
+        let dialogCancelAny = dialog.descendants(matching: .any)["取消"]
+        print("dialogCancelAny.exists = \(dialogCancelAny.exists)")
+
+        // 策略：点按对话框中非"删除"的按钮（即取消按钮）
+        var tapped = false
+        for btn in dialogButtons {
+            if btn.identifier != "goods.delete.confirm" && btn.label != "删除" {
+                print("TAPPING non-delete button: label='\(btn.label)' id='\(btn.identifier)'")
+                btn.tap()
+                tapped = true
+                break
+            }
+        }
+        if !tapped, cancelAny.waitForExistence(timeout: 3) {
+            print("TAPPING cancelAny")
+            cancelAny.tap()
+            tapped = true
+        }
+        print("tapped = \(tapped), dialog.exists = \(dialog.exists)")
+        XCTAssertTrue(tapped, "未找到可点按的取消控件")
         XCTAssertTrue(waitUntil(timeout: 5) { !dialog.exists }, "弹窗未关闭")
 
         XCTAssertEqual(app.buttons.matching(identifier: "goods.delete").count, before)
