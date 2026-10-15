@@ -40,30 +40,34 @@ struct V38QuickMenuView: View {
 
     var body: some View {
         if isExpanded {
-            // 注意：展开态不再用 V38MotionLabSurface 包裹内容——iOS 26 下
-            // glassEffect 内容层内的按钮不会暴露到无障碍树（CI run 38795019084 /
-            // 38801281147 实证：收起按钮与菜单行均不可被 XCTest 找到）。
-            // 玻璃只做背景，行按钮作为普通内容放在玻璃之外，视觉一致。
-            VStack(spacing: 0) {
-                HStack(spacing: 10) {
-                    Image(systemName: "bolt.fill")
-                        .foregroundStyle(.tint)
-                    Text("快速操作")
-                        .font(.headline)
-                    Spacer()
-                }
-                .padding(16)
-                Divider().padding(.horizontal, 16)
-                ForEach(DemoAction.allCases, id: \.self) { action in
-                    quickRow(action)
-                    if action != DemoAction.allCases.last {
-                        Divider().padding(.horizontal, 16)
+            // 注意：展开态不用 V38MotionLabSurface 包裹内容，也不用 morph 包裹行按钮——
+            // iOS 26 下，identifier 挂在 matchedGeometryEffect / transition 子树内部的按钮
+            // 不会暴露到无障碍树（CI run 38795019084 / 38801281147 / 38807418888 实证：
+            // 收起按钮与菜单行均不可被 XCTest 找到，而 overlay / 顶层按钮可被找到）。
+            // 因此：玻璃背景层单独承载 morph；内容层（行按钮）在 morph 与 transition 之外，
+            // 只做普通布局，保证无障碍树可达；视觉上玻璃面板仍做液滴形变。
+            ZStack {
+                V38QuickMenuGlassBackground()
+                    .matchedGeometryEffect(id: "v38-capture-quick", in: morph)
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                VStack(spacing: 0) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "bolt.fill")
+                            .foregroundStyle(.tint)
+                        Text("快速操作")
+                            .font(.headline)
+                        Spacer()
+                    }
+                    .padding(16)
+                    Divider().padding(.horizontal, 16)
+                    ForEach(DemoAction.allCases, id: \.self) { action in
+                        quickRow(action)
+                        if action != DemoAction.allCases.last {
+                            Divider().padding(.horizontal, 16)
+                        }
                     }
                 }
             }
-            .background { V38QuickMenuGlassBackground() }
-            .matchedGeometryEffect(id: "v38-capture-quick", in: morph)
-            .transition(.opacity.combined(with: .scale(scale: 0.96)))
             .accessibilityIdentifier("v38.motion.quick.expanded")
             // 收起按钮放在玻璃容器之外（overlay）：iOS 26 下 glassEffect 内容内的
             // 嵌套按钮会从无障碍树消失，顶层 Button + 直接 identifier 则可被找到。
@@ -131,8 +135,9 @@ struct V38QuickMenuView: View {
 }
 
 /// 快捷菜单展开态的玻璃面板背景（三档：Reduce Transparency 回退 / iOS 26 glass / 旧系统材质）。
-/// 与 `V38MotionLabSurface` 同构，但只做背景——内容（行按钮）不在玻璃内容层内，
-/// 否则 iOS 26 下按钮 identifier 会从无障碍树消失（CI run 38795019084 / 38801281147 实证）。
+/// 它同时是 matchedGeometryEffect 的承载层——行按钮放在它之外（ZStack 内容层），
+/// 因为 iOS 26 下 morph / transition 子树内部的按钮 identifier 不会暴露到无障碍树
+///（CI run 38795019084 / 38801281147 / 38807418888 实证）。
 private struct V38QuickMenuGlassBackground: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
