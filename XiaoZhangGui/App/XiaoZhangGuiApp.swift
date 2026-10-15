@@ -27,6 +27,14 @@ struct XiaoZhangGuiApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
+        #if DEBUG
+        if V38CaptureTestHost.isEnabled {
+            // 隔离动效演示宿主：跳过全部启动副作用（持久容器/种子数据/快照/通知）。
+            container = nil
+            databaseError = nil
+            return
+        }
+        #endif
         if Self.isUnitTesting {
             // 测试宿主：不构建持久容器、不触发任何真实业务启动工作。
             container = nil
@@ -62,7 +70,15 @@ struct XiaoZhangGuiApp: App {
 
     var body: some Scene {
         WindowGroup {
+            #if DEBUG
+            if V38CaptureTestHost.isEnabled {
+                // 仅 XCUITest 以 --v38-capture-demo 启动参数触发的独立演示宿主；
+                // 生产启动路径（RootView/TabView）不受影响。
+                V38CaptureDemoHost()
+            } else if Self.isUnitTesting {
+            #else
             if Self.isUnitTesting {
+            #endif
                 // 最小测试宿主：无 RootView、无快照、无 Live Activity。
                 Color.clear
             } else if let container {
