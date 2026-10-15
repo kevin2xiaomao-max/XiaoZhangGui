@@ -138,31 +138,36 @@ struct V38MotionLabView: View {
 
     @ViewBuilder private var quickControl: some View {
         if quickExpanded {
-            // 注意：展开态不再用 V38MotionLabSurface 包裹内容——iOS 26 下
-            // glassEffect 内容层内的按钮不会暴露到无障碍树（B 线 CI run
-            // 38795019084 / 38801281147 实证，本分支 run 38800283136 同样复现：
-            // 收起按钮与菜单行按钮均不可被 XCTest 找到）。
-            // 玻璃只做背景，行按钮作为普通内容放在玻璃之外，视觉一致。
-            VStack(spacing: 0) {
-                HStack {
-                    Text("快速操作").font(.headline)
-                    Spacer()
-                    // 占位：维持标题行布局；真正的收起按钮在 overlay 里（玻璃之外）。
-                    Color.clear
-                        .frame(width: 44, height: 44)
-                        .accessibilityHidden(true)
+            // 注意：iOS 26 下，identifier 挂在 matchedGeometryEffect / transition
+            // 子树内部的按钮不会暴露到无障碍树（B 线 CI run 38795019084 /
+            // 38801281147 / 38807418888 三轮实证，本分支 run 38800283136 /
+            // 38811803218 复现：收起按钮与菜单行按钮均不可被 XCTest 找到，
+            // 而 overlay / 顶层按钮可被找到）。
+            // 因此用 ZStack 分层：玻璃背景层单独承载 morph（液滴形变保留），
+            // 内容层（行按钮）在 morph 与 transition 之外，只做普通布局，
+            // 保证无障碍树可达；视觉上玻璃面板仍做液滴形变。
+            ZStack {
+                V38MotionLabGlassBackground(radius: 26)
+                    .matchedGeometryEffect(id: "quick-button", in: quickGeometry)
+                    .transition(.opacity)
+                VStack(spacing: 0) {
+                    HStack {
+                        Text("快速操作").font(.headline)
+                        Spacer()
+                        // 占位：维持标题行布局；真正的收起按钮在 overlay 里（玻璃之外）。
+                        Color.clear
+                            .frame(width: 44, height: 44)
+                            .accessibilityHidden(true)
+                    }
+                    .padding(16)
+                    Divider().padding(.horizontal, 16)
+                    quickAction("记收入", icon: "plus.circle", key: "income")
+                    Divider().padding(.horizontal, 16)
+                    quickAction("记支出", icon: "minus.circle", key: "expense")
+                    Divider().padding(.horizontal, 16)
+                    quickAction("写备忘", icon: "note.text", key: "memo")
                 }
-                .padding(16)
-                Divider().padding(.horizontal, 16)
-                quickAction("记收入", icon: "plus.circle", key: "income")
-                Divider().padding(.horizontal, 16)
-                quickAction("记支出", icon: "minus.circle", key: "expense")
-                Divider().padding(.horizontal, 16)
-                quickAction("写备忘", icon: "note.text", key: "memo")
             }
-            .background { V38MotionLabGlassBackground(radius: 26) }
-            .matchedGeometryEffect(id: "quick-button", in: quickGeometry)
-            .transition(.opacity)
             .accessibilityIdentifier("v38.motion.quick.expanded")
             // 收起按钮放在玻璃之外（overlay），原因同 AI 胶囊。
             .overlay(alignment: .topTrailing) {
