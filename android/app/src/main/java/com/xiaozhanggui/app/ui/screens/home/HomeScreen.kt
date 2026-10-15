@@ -78,6 +78,7 @@ import com.xiaozhanggui.app.ui.theme.v371.LocalV371Colors
 import com.xiaozhanggui.app.ui.theme.v371.V371Space
 import com.xiaozhanggui.app.ui.theme.v371.V371TestTags
 import com.xiaozhanggui.app.ui.theme.v371.V371Theme
+import com.xiaozhanggui.app.ui.theme.v371.V371Type
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -100,6 +101,16 @@ import java.time.ZoneId
  * V3.6 结构已移除：大蓝渐变 Hero / 周条 / 最近备忘 / 概览三格 / 抽屉入口。
  * 头像按钮与 AICommandEntry 的点击行为由导航 worker 接线（[onOpenProfile] / [onOpenAI]）。
  */
+/**
+ * 首页「今日事项」待办口径（对应 iOS `TodaySummary.build`）：
+ * 未完成 且（无截止时间 或 截止时间为今天）；dueDate 升序（nil 排最后）。
+ * internal 供口径一致性测试锁定（三处：日历 dayData / 待办页 filterTodos / 首页）。
+ */
+internal fun homeTodayTodos(todos: List<TodoEntity>, nowMillis: Long): List<TodoEntity> =
+    todos
+        .filter { !it.isCompleted && (it.dueDate == null || DateExt.isSameDay(it.dueDate, nowMillis)) }
+        .sortedBy { it.dueDate ?: Long.MAX_VALUE }
+
 private const val DAY_MILLIS = 24 * 3600 * 1000L
 
 /** 今日事项行路由（对应 iOS HomeInboxItem.Route） */
@@ -219,9 +230,7 @@ class HomeViewModel(
             .sumOf { it.amount }
 
         // 今日事项口径（对应 iOS TodaySummary）
-        val todayTodos = todos
-            .filter { !it.isCompleted && (it.dueDate == null || DateExt.isSameDay(it.dueDate, now)) }
-            .sortedBy { it.dueDate ?: Long.MAX_VALUE }
+        val todayTodos = homeTodayTodos(todos, now)
         val deliveries = customers.filter { it.status != CustomerStatus.DONE }
         val pendingExpiry = expiryItems.filter { it.returnStatus == ReturnStatus.PENDING }
 
@@ -663,8 +672,7 @@ private fun HeroFlat(
     ) {
         Text(
             "今日营业额",
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium,
+            style = V371Type.heroTitle,
             color = colors.textSecondary
         )
         Text(

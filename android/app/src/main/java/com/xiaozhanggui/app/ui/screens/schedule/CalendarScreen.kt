@@ -33,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -44,10 +45,12 @@ import com.xiaozhanggui.app.domain.DateExt
 import com.xiaozhanggui.app.domain.DisplayLogic
 import com.xiaozhanggui.app.domain.EventFlag
 import com.xiaozhanggui.app.domain.Format
-import com.xiaozhanggui.app.ui.components.V32Card
-import com.xiaozhanggui.app.ui.theme.LocalXzgPalettes
-import com.xiaozhanggui.app.ui.theme.XzgDimens
-import com.xiaozhanggui.app.ui.theme.XzgType
+import com.xiaozhanggui.app.ui.components.GroupSurface
+import com.xiaozhanggui.app.ui.components.V371Divider
+import com.xiaozhanggui.app.ui.theme.v371.LocalV371Colors
+import com.xiaozhanggui.app.ui.theme.v371.V371Space
+import com.xiaozhanggui.app.ui.theme.v371.V371Theme
+import com.xiaozhanggui.app.ui.theme.v371.V371Type
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -112,65 +115,71 @@ fun CalendarContent(
     onSelectDay: (Long) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val palettes = LocalXzgPalettes.current
+    V371Theme {
+        val colors = LocalV371Colors.current
 
-    Scaffold(
-        modifier = modifier,
-        containerColor = palettes.background.pageBG,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Text(
-                        text = "日历",
-                        style = XzgType.headline,
-                        color = palettes.background.textPrimary
+        Scaffold(
+            modifier = modifier,
+            containerColor = colors.canvas,
+            topBar = {
+                CenterAlignedTopAppBar(
+                    title = {
+                        Text(
+                            text = "日历",
+                            style = V371Type.sectionTitle,
+                            color = colors.textPrimary
+                        )
+                    },
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                        containerColor = colors.canvas
                     )
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = palettes.background.pageBG
-                )
-            )
-        }
-    ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-            contentPadding = PaddingValues(
-                start = XzgDimens.pageMargin,
-                end = XzgDimens.pageMargin,
-                top = 8.dp,
-                bottom = 32.dp
-            ),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            item(key = "navigator") {
-                CalendarMonthNavigator(
-                    monthMillis = monthMillis,
-                    onShiftMonth = onShiftMonth
                 )
             }
-            item(key = "grid") {
-                V32Card {
-                    CalendarWeekdayHeader()
-                    Spacer(Modifier.height(8.dp))
-                    CalendarMonthGrid(
+        ) { padding ->
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentPadding = PaddingValues(
+                    start = V371Space.page,
+                    end = V371Space.page,
+                    top = 8.dp,
+                    bottom = 24.dp
+                ),
+                verticalArrangement = Arrangement.spacedBy(V371Space.section)
+            ) {
+                item(key = "navigator") {
+                    CalendarMonthNavigator(
                         monthMillis = monthMillis,
-                        selectedDay = selectedDayMillis,
-                        flags = flags,
-                        onSelectDay = onSelectDay
+                        onShiftMonth = onShiftMonth
                     )
                 }
-            }
-            item(key = "detailHeader") {
-                Text(
-                    text = "${Format.monthDay(selectedDayMillis)} · 星期${weekdaySymbol(selectedDayMillis)}",
-                    style = XzgType.headline,
-                    color = palettes.background.textPrimary
-                )
-            }
-            item(key = "detail") {
-                CalendarDayDetail(data = data)
+                item(key = "grid") {
+                    GroupSurface {
+                        Column(
+                            modifier = Modifier.padding(vertical = 12.dp, horizontal = 4.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            CalendarWeekdayHeader()
+                            CalendarMonthGrid(
+                                monthMillis = monthMillis,
+                                selectedDay = selectedDayMillis,
+                                flags = flags,
+                                onSelectDay = onSelectDay
+                            )
+                        }
+                    }
+                }
+                item(key = "detailHeader") {
+                    Text(
+                        text = "${Format.monthDay(selectedDayMillis)} · 星期${weekdaySymbol(selectedDayMillis)}",
+                        style = V371Type.sectionTitle,
+                        color = colors.textPrimary
+                    )
+                }
+                item(key = "detail") {
+                    CalendarDayDetail(data = data)
+                }
             }
         }
     }
@@ -179,45 +188,65 @@ fun CalendarContent(
 /** 月份导航：chevron.left /「2026年10月」/ chevron.right。对应 iOS monthNavigator。 */
 @Composable
 private fun CalendarMonthNavigator(monthMillis: Long, onShiftMonth: (Int) -> Unit) {
-    val palettes = LocalXzgPalettes.current
+    val colors = LocalV371Colors.current
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        IconButton(onClick = { onShiftMonth(-1) }) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                contentDescription = "上个月",
-                tint = palettes.background.textSecondary
-            )
-        }
+        CalendarNavButton(
+            icon = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+            description = "上个月",
+            onClick = { onShiftMonth(-1) }
+        )
         Text(
             text = DateTimeFormatter.ofPattern("yyyy年M月", Locale.CHINA)
                 .format(localDateOf(monthMillis)),
-            style = XzgType.headline,
-            color = palettes.background.textPrimary,
+            style = V371Type.sectionTitle,
+            color = colors.textPrimary,
             modifier = Modifier.weight(1f),
             textAlign = TextAlign.Center
         )
-        IconButton(onClick = { onShiftMonth(1) }) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = "下个月",
-                tint = palettes.background.textSecondary
-            )
-        }
+        CalendarNavButton(
+            icon = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            description = "下个月",
+            onClick = { onShiftMonth(1) }
+        )
+    }
+}
+
+/** 月份导航圆按钮（对应 iOS monthButton）：groupSecondary 圆底。 */
+@Composable
+private fun CalendarNavButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    description: String,
+    onClick: () -> Unit
+) {
+    val colors = LocalV371Colors.current
+    IconButton(
+        onClick = onClick,
+        modifier = Modifier
+            .size(44.dp)
+            .clip(CircleShape)
+            .background(colors.groupSecondary)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = description,
+            tint = colors.textSecondary,
+            modifier = Modifier.size(16.dp)
+        )
     }
 }
 
 @Composable
 private fun CalendarWeekdayHeader() {
-    val palettes = LocalXzgPalettes.current
+    val colors = LocalV371Colors.current
     Row(modifier = Modifier.fillMaxWidth()) {
         WEEK_SYMBOLS_SUN.forEach { symbol ->
             Text(
                 text = symbol,
-                style = XzgType.caption,
-                color = palettes.background.textTertiary,
+                style = V371Type.rowSubtitle,
+                color = colors.textTertiary,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.weight(1f)
             )
@@ -283,7 +312,7 @@ private fun CalendarDayCell(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val palettes = LocalXzgPalettes.current
+    val colors = LocalV371Colors.current
     Column(
         modifier = modifier
             .clickable(onClick = onClick)
@@ -296,14 +325,14 @@ private fun CalendarDayCell(
                 .clip(CircleShape)
                 .background(
                     when {
-                        isToday -> palettes.accent.accent
-                        isSelected -> palettes.background.cardElevated
+                        isToday -> colors.blue
+                        isSelected -> colors.groupSecondary
                         else -> Color.Transparent
                     }
                 )
                 .then(
                     if (isSelected && !isToday) {
-                        Modifier.border(1.dp, palettes.background.cardOutline, CircleShape)
+                        Modifier.border(1.dp, colors.blue.copy(alpha = 0.55f), CircleShape)
                     } else {
                         Modifier
                     }
@@ -312,10 +341,13 @@ private fun CalendarDayCell(
         ) {
             Text(
                 text = dayOfMonth.toString(),
-                style = XzgType.subhead,
+                style = V371Type.rowSubtitle.copy(
+                    fontWeight = if (isToday) FontWeight.Bold else FontWeight.Medium
+                ),
                 color = when {
-                    isToday -> palettes.accent.onAccent
-                    else -> palettes.background.textPrimary
+                    isToday -> Color.White
+                    isSelected -> colors.textPrimary
+                    else -> colors.textSecondary
                 },
                 textAlign = TextAlign.Center
             )
@@ -341,12 +373,12 @@ private fun CalendarDayCell(
 
 @Composable
 private fun flagColor(flag: EventFlag): Color {
-    val palettes = LocalXzgPalettes.current
+    val colors = LocalV371Colors.current
     return when (flag) {
-        EventFlag.MONEY -> palettes.accent.accent
-        EventFlag.TODO -> palettes.fixed.info
-        EventFlag.EXPIRY -> palettes.fixed.amber
-        EventFlag.CUSTOMER -> palettes.background.neutral
+        EventFlag.MONEY -> colors.green
+        EventFlag.TODO -> colors.blue
+        EventFlag.EXPIRY -> colors.orange
+        EventFlag.CUSTOMER -> colors.gray
     }
 }
 
@@ -359,7 +391,7 @@ private fun weekdaySymbol(millis: Long): String =
  */
 @Composable
 private fun CalendarDayDetail(data: CalendarDayData) {
-    val palettes = LocalXzgPalettes.current
+    val colors = LocalV371Colors.current
     val hasMoney = data.performances.isNotEmpty() || data.expenses.isNotEmpty()
     val hasAny = hasMoney || data.todos.isNotEmpty() || data.memos.isNotEmpty() ||
         data.expiryItems.isNotEmpty() || data.customers.isNotEmpty()
@@ -367,32 +399,34 @@ private fun CalendarDayDetail(data: CalendarDayData) {
     if (!hasAny) {
         Text(
             text = "当天暂无经营记录",
-            style = XzgType.subhead,
-            color = palettes.background.textTertiary,
-            textAlign = TextAlign.Center,
+            style = V371Type.rowSubtitle,
+            color = colors.textTertiary,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 24.dp)
+                .padding(vertical = 24.dp),
+            textAlign = TextAlign.Center
         )
         return
     }
 
-    V32Card {
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            if (hasMoney) {
-                val revenue = data.performances.sumOf { it.amount }
-                CalendarDetailCategory(
-                    dotColor = palettes.accent.accent,
+    val categories = buildList {
+        if (hasMoney) {
+            val revenue = data.performances.sumOf { it.amount }
+            add(
+                CalendarDetailUi(
+                    dotColor = colors.green,
                     label = "营业额/收支",
                     lines = listOf(
                         "收入 ${data.performances.size} 笔 · 支出 ${data.expenses.size} 笔"
                     ),
                     trailing = "¥${Format.groupedAmount(revenue)}"
                 )
-            }
-            if (data.todos.isNotEmpty()) {
-                CalendarDetailCategory(
-                    dotColor = palettes.fixed.info,
+            )
+        }
+        if (data.todos.isNotEmpty()) {
+            add(
+                CalendarDetailUi(
+                    dotColor = colors.blue,
                     label = "待办事项",
                     lines = data.todos.take(2).map { todo ->
                         val timePart = todo.dueDate?.let {
@@ -401,37 +435,65 @@ private fun CalendarDayDetail(data: CalendarDayData) {
                         "$timePart ${DisplayLogic.visible(todo.title, "待办事项")}"
                     }
                 )
-            }
-            if (data.memos.isNotEmpty()) {
-                CalendarDetailCategory(
-                    dotColor = palettes.background.neutral,
+            )
+        }
+        if (data.memos.isNotEmpty()) {
+            add(
+                CalendarDetailUi(
+                    dotColor = colors.textTertiary,
                     label = "记录",
                     lines = data.memos.take(2).map {
                         DisplayLogic.visible(it.title, "备忘")
                     }
                 )
-            }
-            if (data.expiryItems.isNotEmpty()) {
-                CalendarDetailCategory(
-                    dotColor = palettes.fixed.amber,
+            )
+        }
+        if (data.expiryItems.isNotEmpty()) {
+            add(
+                CalendarDetailUi(
+                    dotColor = colors.orange,
                     label = "临期提醒",
                     lines = data.expiryItems.take(2).map {
                         "${DisplayLogic.visible(it.name, "临期商品")} × ${it.quantity}"
                     }
                 )
-            }
-            if (data.customers.isNotEmpty()) {
-                CalendarDetailCategory(
-                    dotColor = palettes.background.neutral,
+            )
+        }
+        if (data.customers.isNotEmpty()) {
+            add(
+                CalendarDetailUi(
+                    dotColor = colors.gray,
                     label = "客户需求",
                     lines = data.customers.take(2).map { customerDeliveryLine(it) }
                 )
+            )
+        }
+    }
+
+    GroupSurface {
+        categories.forEachIndexed { index, category ->
+            if (index > 0) {
+                V371Divider(leading = V371Space.rowPadding)
             }
+            CalendarDetailCategory(
+                dotColor = category.dotColor,
+                label = category.label,
+                lines = category.lines,
+                trailing = category.trailing
+            )
         }
     }
 }
 
-/** 详情分类行：圆点 + 标签 + 副标题行 + 右侧金额。对应 iOS CalendarDetailRow。 */
+/** 日历详情分类行 UI 数据。 */
+private data class CalendarDetailUi(
+    val dotColor: Color,
+    val label: String,
+    val lines: List<String>,
+    val trailing: String? = null
+)
+
+/** 详情分类行：圆点 + 标签 + 副标题行 + 右侧金额。对应 iOS dayDetail 行。 */
 @Composable
 private fun CalendarDetailCategory(
     dotColor: Color,
@@ -439,40 +501,48 @@ private fun CalendarDetailCategory(
     lines: List<String>,
     trailing: String? = null
 ) {
-    val palettes = LocalXzgPalettes.current
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .clip(CircleShape)
-                    .background(dotColor)
-            )
-            Spacer(Modifier.width(8.dp))
+    val colors = LocalV371Colors.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(
+            horizontal = V371Space.rowPadding,
+            vertical = 12.dp
+        )
+    ) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(dotColor)
+        )
+        Spacer(Modifier.width(10.dp))
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
             Text(
                 text = label,
-                style = XzgType.subhead,
-                color = palettes.background.textSecondary
+                style = V371Type.rowTitle,
+                color = colors.textPrimary
             )
-            if (trailing != null) {
-                Spacer(Modifier.weight(1f))
+            lines.forEach { line ->
                 Text(
-                    text = trailing,
-                    style = XzgType.headline,
-                    color = palettes.background.textPrimary,
+                    text = line,
+                    style = V371Type.rowSubtitle,
+                    color = colors.textTertiary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
         }
-        lines.forEach { line ->
+        if (trailing != null) {
+            Spacer(Modifier.width(8.dp))
             Text(
-                text = line,
-                style = XzgType.subhead,
-                color = palettes.background.textTertiary,
+                text = trailing,
+                style = V371Type.rowTitle.copy(fontFeatureSettings = "tnum"),
+                color = colors.blue,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 16.dp)
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
