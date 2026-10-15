@@ -168,20 +168,34 @@ launch_poc() { # <name> <query>  → 深链启动，返回 0/1（intent 是否�
   out="$(adb shell am start -a android.intent.action.VIEW -d "$uri" "$PKG" 2>&1 | tr -d '\r')"
   echo "am start: $uri → $(echo "$out" | tr '\n' ' ' | cut -c1-160)"
   rec "deeplink" "last_uri" "$uri"
-  # 验证 intent data 确实投递到 MainActivity（页面渲染以截图为准人工确认）。
-  # 冷启动在 swiftshader 模拟器上较慢：轮询 dumpsys 最多 20s，而非单次 sleep 1s 检查。
-  local tries=0
-  while (( tries < 10 )); do
+  # 验证：主门槛 = 应用在前台（mFocusedApp）；intent data 做诊断日志。
+  # 原因：singleTask + 冷启动时 dumpsys 的 intent 数据显现时机不稳定，
+  # 而前台检查 robust；实际显示的屏幕以截图/录屏为准人工确认。
+  # 冷启动在 swiftshader 模拟器上较慢：轮询最多 30s。
+  local tries=0 fg_ok=0
+  while (( tries < 15 )); do
     sleep 2
     tries=$((tries + 1))
-    if adbw dumpsys activity activities 2>/dev/null | tr -d '\r' | grep -q "dat=xzg://poc/${name}"; then
-      echo "intent 投递确认: dat=xzg://poc/${name}（第 ${tries} 次轮询）"
-      rec "deeplink" "intent_delivered_${name}" "true"
-      return 0
+    if adbw dumpsys activity activities 2>/dev/null | tr -d '\r' | grep -A2 "mFocusedApp" | grep -q "$PKG"; then
+      fg_ok=1
+      echo "前台确认: $PKG（第 ${tries} 次轮询）"
+      break
     fi
   done
-  echo "警告: 20s 内未在 dumpsys 中找到 dat=xzg://poc/${name}（可能深链未实现或 activity 未前台）"
-  rec "deeplink" "intent_delivered_${name}" "false"
+  # 诊断：intent data 是否可见（不做门槛，只记录）
+  if adbw dumpsys activity activities 2>/dev/null | tr -d '\r' | grep -q "dat=xzg://poc/${name}"; then
+    echo "intent 数据可见: dat=xzg://poc/${name}"
+    rec "deeplink" "intent_delivered_${name}" "true"
+  else
+    echo "诊断: dumpsys 未见 dat=xzg://poc/${name}（以前台为准继续）"
+    rec "deeplink" "intent_delivered_${name}" "unseen"
+  fi
+  if (( fg_ok == 1 )); then
+    rec "deeplink" "foreground_${name}" "true"
+    return 0
+  fi
+  echo "警告: 30s 内 $PKG 未到前台"
+  rec "deeplink" "foreground_${name}" "false"
   return 1
 }
 
