@@ -3,7 +3,9 @@ import SwiftUI
 
 /// V3.8 Worker B · 精修版快捷菜单（隔离演示组件）。
 ///
-/// - 复用 `V38MotionLabTokens` / `V38MotionLabSurface` 的时序与表面（PoC 文件本身未改动）。
+/// - 复用 `V38MotionLabTokens` 时序（PoC 文件本身未改动）；收起态胶囊复用
+///   `V38MotionLabSurface`，展开态改用 `V38QuickMenuGlassBackground` 只做玻璃背景
+///   （iOS 26 下 glassEffect 内容层内的按钮会从无障碍树消失，行按钮必须在玻璃之外）。
 /// - 选项点击仅回调宿主（演示选择展示），不写库、不建任何保存链。
 /// - 状态由宿主持有（`isExpanded` 双向绑定），展开时宿主负责互斥收起 AI 胶囊。
 struct V38QuickMenuView: View {
@@ -38,25 +40,28 @@ struct V38QuickMenuView: View {
 
     var body: some View {
         if isExpanded {
-            V38MotionLabSurface(radius: 26) {
-                VStack(spacing: 0) {
-                    HStack(spacing: 10) {
-                        Image(systemName: "bolt.fill")
-                            .foregroundStyle(.tint)
-                        Text("快速操作")
-                            .font(.headline)
-                        Spacer()
-                    }
-                    .padding(16)
-                    Divider().padding(.horizontal, 16)
-                    ForEach(DemoAction.allCases, id: \.self) { action in
-                        quickRow(action)
-                        if action != DemoAction.allCases.last {
-                            Divider().padding(.horizontal, 16)
-                        }
+            // 注意：展开态不再用 V38MotionLabSurface 包裹内容——iOS 26 下
+            // glassEffect 内容层内的按钮不会暴露到无障碍树（CI run 38795019084 /
+            // 38801281147 实证：收起按钮与菜单行均不可被 XCTest 找到）。
+            // 玻璃只做背景，行按钮作为普通内容放在玻璃之外，视觉一致。
+            VStack(spacing: 0) {
+                HStack(spacing: 10) {
+                    Image(systemName: "bolt.fill")
+                        .foregroundStyle(.tint)
+                    Text("快速操作")
+                        .font(.headline)
+                    Spacer()
+                }
+                .padding(16)
+                Divider().padding(.horizontal, 16)
+                ForEach(DemoAction.allCases, id: \.self) { action in
+                    quickRow(action)
+                    if action != DemoAction.allCases.last {
+                        Divider().padding(.horizontal, 16)
                     }
                 }
             }
+            .background { V38QuickMenuGlassBackground() }
             .matchedGeometryEffect(id: "v38-capture-quick", in: morph)
             .transition(.opacity.combined(with: .scale(scale: 0.96)))
             .accessibilityIdentifier("v38.motion.quick.expanded")
@@ -121,6 +126,30 @@ struct V38QuickMenuView: View {
         withAnimation(V38MotionLabTokens.animation(for: .expand, reduceMotion: reduceMotion)) {
             onExpandChange(value)
             isExpanded = value
+        }
+    }
+}
+
+/// 快捷菜单展开态的玻璃面板背景（三档：Reduce Transparency 回退 / iOS 26 glass / 旧系统材质）。
+/// 与 `V38MotionLabSurface` 同构，但只做背景——内容（行按钮）不在玻璃内容层内，
+/// 否则 iOS 26 下按钮 identifier 会从无障碍树消失（CI run 38795019084 / 38801281147 实证）。
+private struct V38QuickMenuGlassBackground: View {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 26, style: .continuous)
+        if reduceTransparency {
+            shape
+                .fill(Color(uiColor: .secondarySystemBackground))
+                .overlay(shape.strokeBorder(Color.secondary.opacity(0.16), lineWidth: 1))
+        } else if #available(iOS 26.0, *) {
+            shape
+                .fill(.clear)
+                .glassEffect(.regular, in: shape)
+        } else {
+            shape
+                .fill(.ultraThinMaterial)
+                .overlay(shape.strokeBorder(Color.secondary.opacity(0.12), lineWidth: 1))
         }
     }
 }
