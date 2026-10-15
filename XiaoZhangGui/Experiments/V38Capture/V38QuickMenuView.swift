@@ -117,13 +117,20 @@ struct V38QuickMenuView: View {
             onSelect(action)
             setExpanded(false)
         } label: {
-            Label(action.title, systemImage: action.icon)
-                .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading)
-                .contentShape(Rectangle())
-                .padding(.horizontal, 18)
+            // 不用 Label：iOS 26 下 Label 作为按钮内容时，其 identifier
+            // 不会暴露到无障碍树（CI 实证）；显式 HStack + 显式无障碍标签。
+            HStack(spacing: 12) {
+                Image(systemName: action.icon)
+                Text(action.title)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading)
+            .contentShape(Rectangle())
+            .padding(.horizontal, 18)
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("v38.motion.quick.\(action.rawValue)")
+        .accessibilityLabel(action.title)
     }
 
     private func setExpanded(_ value: Bool) {
