@@ -103,7 +103,9 @@ class GlassTierSequenceTest {
     }
 
     @Test
-    fun `frame rate downgrade chains after perf tier - t1 to t2 to t3`() {
+    fun `frame rate downgrade is idempotent - repeated calls stay at t2 with one event`() {
+        // resolveGlassTier 是纯函数：每次从 requested 重新求值，无跨调用记忆。
+        // 持续低帧率下重复调用应幂等地停在 T2，且只记第一次档位变化。
         var now = 1000L
         val seen = mutableListOf<GlassDowngradeEvent>()
         val resolver = GlassTierResolver(clockMs = { now }, onDowngrade = { seen.add(it) })
@@ -112,7 +114,7 @@ class GlassTierSequenceTest {
             reduceMotion = false, perfTier = full(), capability = ok(),
             frameRateDowngraded = false,
         )
-        // 运行时持续低帧率：T1 → T2
+        // 持续低帧率：T1 → T2
         now = 2000L
         var r = resolver.resolve(
             reduceMotion = false, perfTier = full(), capability = ok(),
@@ -120,17 +122,18 @@ class GlassTierSequenceTest {
         )
         assertEquals(GlassTier.T2_BALANCED, r.tier)
         assertEquals(MotionDowngradeReasons.FRAME_RATE, r.downgradeReason)
-        // 继续低帧率：T2 → T3
+        // 再调一次：仍是 T2（不累积到 T3），不记重复事件
         now = 3000L
         r = resolver.resolve(
             reduceMotion = false, perfTier = full(), capability = ok(),
             frameRateDowngraded = true,
         )
-        assertEquals(GlassTier.T3_ESSENTIAL, r.tier)
+        assertEquals(GlassTier.T2_BALANCED, r.tier)
         assertEquals(MotionDowngradeReasons.FRAME_RATE, r.downgradeReason)
 
-        assertEquals(2, seen.size)
+        assertEquals(1, seen.size)
+        assertEquals(GlassTier.T1_FIDELITY, seen[0].from)
+        assertEquals(GlassTier.T2_BALANCED, seen[0].to)
         assertEquals(MotionDowngradeReasons.FRAME_RATE, seen[0].reason)
-        assertEquals(MotionDowngradeReasons.FRAME_RATE, seen[1].reason)
     }
 }
