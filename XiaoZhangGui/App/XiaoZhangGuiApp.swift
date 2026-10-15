@@ -65,6 +65,12 @@ struct XiaoZhangGuiApp: App {
             if Self.isUnitTesting {
                 // 最小测试宿主：无 RootView、无快照、无 Live Activity。
                 Color.clear
+            } else if V38QALaunchOptions.isMotionLabSession {
+                // E·QA：DEBUG + UI 测试模式下的隔离动效演示入口。
+                // Release 下恒为 false；生产页、RootView 本体、数据容器路径均不动。
+                NavigationStack { V38MotionLabView() }
+                    .preferredColorScheme(V38QALaunchOptions.colorScheme)
+                    .modifier(V38QAAccessibilityOverrides())
             } else if let container {
                 RootView()
                     .id(demo.sessionID)

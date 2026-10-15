@@ -22,7 +22,7 @@ jobs:
   validate:
     # Same label family as the proven V3.7.1 workflow (Xcode 27.0 verified 2026-10-10).
     runs-on: xcode-27
-    timeout-minutes: 75
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
         with:
@@ -81,12 +81,88 @@ jobs:
             -resultBundlePath "$RUNNER_TEMP/xzg-ios-v38-test.xcresult" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             >artifacts/test.log 2>&1 || { tail -n 160 artifacts/test.log; exit 1; }
-      - name: Save test result bundle
+      # E·QA: record the MotionLab demo while UI tests drive REAL expand/collapse
+      # transitions. A still-frame recording is NOT a pass (verified in the next step).
+      - name: Record V38 motion demo video (UI test + simctl recordVideo)
         if: always()
         shell: bash
         run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          echo "== starting simctl screen recording =="
+          xcrun simctl io booted recordVideo --force artifacts/v38-motionlab-demo.mp4 &
+          RECORDER=$!
+          sleep 2
+          set +e
+          xcodebuild test -project XiaoZhangGui.xcodeproj -scheme XiaoZhangGui \
+            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+            -derivedDataPath "$RUNNER_TEMP/xzg-ios-v38-derived" \
+            -resultBundlePath "$RUNNER_TEMP/xzg-ios-v38-motion.xcresult" \
+            -only-testing:XiaoZhangGuiUITests/V38MotionLabUITests \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            >artifacts/motion-test.log 2>&1
+          TEST_EXIT=$?
+          set -e
+          echo "== stopping screen recording (test exit=$TEST_EXIT) =="
+          kill -INT "$RECORDER" 2>/dev/null || true
+          wait "$RECORDER" 2>/dev/null || true
+          for i in $(seq 1 30); do
+            [ -s artifacts/v38-motionlab-demo.mp4 ] && break
+            sleep 1
+          done
+          ls -la artifacts/v38-motionlab-demo.mp4
+          tail -n 40 artifacts/motion-test.log
+          exit $TEST_EXIT
+      # E·QA: extract 1-fps frames and require several distinct frames,
+      # so a frozen/still recording fails the gate instead of passing silently.
+      - name: Verify motion video is not a still frame
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          VID=artifacts/v38-motionlab-demo.mp4
+          if [ ! -s "$VID" ]; then echo "motion video missing: $VID"; exit 1; fi
+          if ! command -v ffmpeg >/dev/null 2>&1; then brew install ffmpeg; fi
+          FRAMEDIR="$RUNNER_TEMP/v38-motion-frames"
+          rm -rf "$FRAMEDIR"; mkdir -p "$FRAMEDIR"
+          ffmpeg -hide_banner -loglevel error -i "$VID" -vf fps=1 "$FRAMEDIR/f%04d.png"
+          COUNT=$(ls "$FRAMEDIR" | wc -l | tr -d ' ')
+          DISTINCT=$(md5 -r "$FRAMEDIR"/*.png | awk '{print $1}' | sort -u | wc -l | tr -d ' ')
+          echo "frames=$COUNT distinct=$DISTINCT"
+          if [ "$DISTINCT" -lt 4 ]; then
+            echo "STILL-FRAME FAIL: motion video shows no real animation ($DISTINCT distinct frames)"
+            exit 1
+          fi
+          echo "motion video OK: $DISTINCT distinct frames out of $COUNT"
+      # E·QA: Light/Dark screenshots of the isolated MotionLab demo.
+      # Launched directly via simctl with launch args (dashless aliases defined
+      # in V38MotionLabQA.swift); the app renders V38MotionLabView as its root.
+      - name: Capture V38 MotionLab screenshots (light/dark)
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          BUNDLE=com.xiaozhanggui.ios
+          for SCHEME in light dark; do
+            xcrun simctl terminate booted "$BUNDLE" 2>/dev/null || true
+            sleep 1
+            xcrun simctl launch booted "$BUNDLE" ui-testing v38-motion-lab v38-color-scheme "$SCHEME"
+            sleep 6
+            xcrun simctl io booted screenshot "artifacts/v38-motionlab-$SCHEME.png"
+            xcrun simctl terminate booted "$BUNDLE" 2>/dev/null || true
+          done
+          ls -la artifacts/v38-motionlab-*.png
+      - name: Save test result bundles
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
           if [ -d "$RUNNER_TEMP/xzg-ios-v38-test.xcresult" ]; then
             (cd "$RUNNER_TEMP" && zip -qry "$GITHUB_WORKSPACE/artifacts/V38-Test.xcresult.zip" xzg-ios-v38-test.xcresult)
+          fi
+          if [ -d "$RUNNER_TEMP/xzg-ios-v38-motion.xcresult" ]; then
+            (cd "$RUNNER_TEMP" && zip -qry "$GITHUB_WORKSPACE/artifacts/V38-Motion-Test.xcresult.zip" xzg-ios-v38-motion.xcresult)
           fi
       - name: Upload validation artifacts
         if: always()
@@ -96,4 +172,3 @@ jobs:
           path: artifacts/
           if-no-files-found: warn
 # IMPORTANT: No signed IPA, no unsigned IPA, no GitHub Release in this isolated validation workflow.
-# UI automation screenshots / motion video steps are added by the QA worker (Worker E) in a later commit.
