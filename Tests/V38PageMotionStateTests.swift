@@ -87,7 +87,10 @@ final class V38PageMotionStateTests: XCTestCase {
         var s = V38PageMotionState(isDone: true)
         s.requestToggle()
         XCTAssertEqual(s.phase, .saving(intendedDone: false))
-        XCTAssertTrue(s.showsChecked) // saving 期间仍显示旧的已确认态，不闪烁
+        // saving 期间不展示任何完成态，由 isSaving 驱动"保存中" spinner（实现契约：
+        // 只有 idle(isDone: true) 才是"已完成"）
+        XCTAssertTrue(s.isSaving)
+        XCTAssertFalse(s.showsChecked)
         s.saveSucceeded()
         XCTAssertEqual(s.phase, .idle(isDone: false))
         XCTAssertFalse(s.showsChecked)

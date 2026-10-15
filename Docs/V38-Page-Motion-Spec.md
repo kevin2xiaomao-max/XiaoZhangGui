@@ -111,11 +111,16 @@
 
 | 演示组件 | 覆盖规格节 | 验证点 |
 |---|---|---|
-| `Experiments/V38PageMotion/ScheduleAnchorDemoView.swift` | §3 | 日期锚点在日/周切换与重选时稳定；Reduce Motion 下直接终态 |
-| `Experiments/V38PageMotion/TodoToggleDemoView.swift` | §2 / G5 | 保存成功前不宣告成功；失败可重试；快速连点不乱序 |
-| `V38PageMotionState`（纯逻辑）+ `Tests/V38PageMotionStateTests.swift` | §2 状态机 | saving→saved/failed 转换规则单元测试 |
+| `Experiments/V38PageMotion/ScheduleAnchorDemoView.swift` | §3 | 月/周密度切换时选中日期 matched-geometry 连续滑移，`selectedDate` 不漂移 |
+| `Experiments/V38PagePreviews/V38CalendarAnchorPreview.swift` | §3 | 日/周切换时锚点日期行几何完全不动，仅内容变密/变疏；Reduce Motion 下直接终态 |
+| `Experiments/V38PageMotion/TodoToggleDemoView.swift` | §2 / G5 | 勾选→保存中回执→成功后渲染完成态；失败回弹 + 重试/放弃；保存中禁用连点 |
+| `Experiments/V38PagePreviews/V38TodoCheckFeedbackPreview.swift` | §2 / G5 | 勾选→回执→成功后行沉降到底部无跳动；进度数字过渡；失败保持可操作、再点即重试 |
+| `Experiments/V38PageMotion/V38PageMotionState.swift`（纯逻辑状态机）+ `Tests/V38PageMotionStateTests.swift`（8 个单元测试） | §2 状态机 | idle→saving→idle/failed 转换规则；成功态只在持久化回执后出现；非 saving 态回执被忽略 |
 
-演示组件均为 Debug-only 隔离文件：不接 RootView、不读 Repository、不写 SwiftData、不发网络。
+说明：`V38PageMotion/` 为本任务先前尝试的隔离演示（已提交），`V38PagePreviews/` 为按任务简报补齐的两个 Preview 组件；
+两者目的互补、无符号冲突，一并保留供 Integrator 取舍。
+
+演示组件均为 Debug-only 隔离文件：不接 RootView、不读 Repository、不写 SwiftData、不发网络；仅通过 SwiftUI Preview 打开。
 
 ## 9 · NOT RUN（诚实清单）
 
