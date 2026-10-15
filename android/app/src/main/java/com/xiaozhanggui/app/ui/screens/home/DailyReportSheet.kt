@@ -178,6 +178,38 @@ onDismissRequest = onDismiss,
 containerColor = bg.pageBG,
 shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
 ) {
+DailyReportContent(
+report = report,
+onDismiss = onDismiss,
+onCopyText = {
+clipboard.setText(AnnotatedString(report.shareText))
+view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+},
+onShareText = {
+val intent = Intent(Intent.ACTION_SEND).apply {
+type = "text/plain"
+putExtra(Intent.EXTRA_TEXT, report.shareText)
+}
+context.startActivity(Intent.createChooser(intent, "分享今日经营日报"))
+}
+)
+}
+}
+
+/**
+* 今日经营日报纯内容（与 VM 解耦，供 Paparazzi 截图与 UI 测试使用）。
+* 渲染语义与 [DailyReportSheet] 内的 ModalBottomSheet 内容完全一致。
+*/
+@Composable
+fun DailyReportContent(
+report: DailyReport,
+onDismiss: () -> Unit,
+onCopyText: () -> Unit = {},
+onShareText: () -> Unit = {},
+) {
+val palettes = LocalXzgPalettes.current
+val bg = palettes.background
+
 Column(
 modifier = Modifier
 .verticalScroll(rememberScrollState())
@@ -235,24 +267,14 @@ Spacer(modifier = Modifier.height(16.dp))
 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
 V32SecondaryButton(
 text = "复制文本",
-onClick = {
-clipboard.setText(AnnotatedString(report.shareText))
-view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
-},
+onClick = onCopyText,
 modifier = Modifier.weight(1f)
 )
 V32PrimaryButton(
 text = "分享",
-onClick = {
-val intent = Intent(Intent.ACTION_SEND).apply {
-type = "text/plain"
-putExtra(Intent.EXTRA_TEXT, report.shareText)
-}
-context.startActivity(Intent.createChooser(intent, "分享今日经营日报"))
-},
+onClick = onShareText,
 modifier = Modifier.weight(1f)
 )
-}
 }
 }
 }

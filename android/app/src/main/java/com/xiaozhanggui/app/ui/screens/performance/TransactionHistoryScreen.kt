@@ -32,6 +32,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.xiaozhanggui.app.data.db.ExpenseEntity
+import com.xiaozhanggui.app.data.db.PerformanceEntity
 import com.xiaozhanggui.app.domain.Format
 import com.xiaozhanggui.app.domain.filterTransactions
 import com.xiaozhanggui.app.ui.components.V32Card
@@ -57,6 +59,25 @@ fun TransactionHistoryScreen(onBack: () -> Unit) {
     val vm: PerformanceViewModel = viewModel(factory = remember { performanceViewModelFactory() })
     val performances by vm.performances.collectAsStateWithLifecycle(initialValue = emptyList())
     val expenses by vm.expenses.collectAsStateWithLifecycle(initialValue = emptyList())
+
+    TransactionHistoryContent(
+        performances = performances,
+        expenses = expenses,
+        onBack = onBack
+    )
+}
+
+/**
+ * 全部交易页纯内容（与 VM 解耦，供 Paparazzi 截图与 UI 测试使用）。
+ * 渲染语义与 [TransactionHistoryScreen] 完全一致：搜索→空态/列表（V32Card+行）。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TransactionHistoryContent(
+    performances: List<PerformanceEntity>,
+    expenses: List<ExpenseEntity>,
+    onBack: () -> Unit
+) {
     val palettes = LocalXzgPalettes.current
 
     var searchText by remember { mutableStateOf("") }
