@@ -1,0 +1,99 @@
+# XZG iOS V3.8 isolated validation (PoC-only branch; M0 recovery BLOCKED)
+# Runs ONLY on GitHub Actions macOS/Xcode runner. Muse has no local Xcode.
+# Reviewed from Tools/ios-v38-validate.yml.example (2026-10-16 handoff package).
+# No Release, no signed/unsigned IPA publishing, no secrets required.
+name: XZG iOS V3.8 isolated validation
+
+on:
+  push:
+    branches:
+      - 'ios/v3.8-*'
+      - 'ios/v38-*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: xzg-ios-v38-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    # Same label family as the proven V3.7.1 workflow (Xcode 27.0 verified 2026-10-10).
+    runs-on: xcode-27
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Print commit and Xcode environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD
+          git branch --show-current
+          uname -a
+          xcodebuild -version
+          xcrun simctl list devices available | head -30
+      - name: Generate Xcode project
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v xcodegen >/dev/null; then brew install xcodegen; fi
+          xcodegen generate
+      - name: Resolve Swift packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -resolvePackageDependencies -project XiaoZhangGui.xcodeproj -scheme XiaoZhangGui
+      - name: Select an available simulator
+        id: sim
+        shell: bash
+        run: |
+          set -euo pipefail
+          NAME=""
+          for cand in "iPhone 17" "iPhone 17 Pro" "iPhone 16" "iPhone 16 Pro"; do
+            if xcrun simctl list devices available | grep -F "$cand (" >/dev/null; then NAME="$cand"; break; fi
+          done
+          if [ -z "$NAME" ]; then
+            echo 'No configured iPhone simulator found' >&2
+            exit 3
+          fi
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+      - name: Simulator Build
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          xcodebuild build -project XiaoZhangGui.xcodeproj -scheme XiaoZhangGui \
+            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+            -derivedDataPath "$RUNNER_TEMP/xzg-ios-v38-derived" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            >artifacts/build.log 2>&1 || { tail -n 120 artifacts/build.log; exit 1; }
+      - name: XCTest and UITest
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild test -project XiaoZhangGui.xcodeproj -scheme XiaoZhangGui \
+            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+            -derivedDataPath "$RUNNER_TEMP/xzg-ios-v38-derived" \
+            -resultBundlePath "$RUNNER_TEMP/xzg-ios-v38-test.xcresult" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            >artifacts/test.log 2>&1 || { tail -n 160 artifacts/test.log; exit 1; }
+      - name: Save test result bundle
+        if: always()
+        shell: bash
+        run: |
+          if [ -d "$RUNNER_TEMP/xzg-ios-v38-test.xcresult" ]; then
+            (cd "$RUNNER_TEMP" && zip -qry "$GITHUB_WORKSPACE/artifacts/V38-Test.xcresult.zip" xzg-ios-v38-test.xcresult)
+          fi
+      - name: Upload validation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xzg-ios-v38-ci-${{ github.sha }}
+          path: artifacts/
+          if-no-files-found: warn
+# IMPORTANT: No signed IPA, no unsigned IPA, no GitHub Release in this isolated validation workflow.
+# UI automation screenshots / motion video steps are added by the QA worker (Worker E) in a later commit.
