@@ -823,7 +823,7 @@ private fun PerformanceRecordRow(
     onDelete: () -> Unit
 ) {
     val colors = LocalV371Colors.current
-    val (icon, iconColor): Pair<ImageVector, androidx.compose.ui.graphics.Color> = when {
+    val (icon, iconColor) = when {
         item.source == "扫呗" -> Icons.Filled.QrCode to colors.gray
         item.isIncome -> Icons.Filled.SouthWest to colors.blue
         else -> Icons.Filled.NorthEast to colors.red
