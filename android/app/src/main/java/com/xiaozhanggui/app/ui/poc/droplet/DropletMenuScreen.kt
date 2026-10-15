@@ -174,13 +174,12 @@ fun DropletMenuScreen(onBack: () -> Unit) {
                 FilterChip(
                     selected = PocSpeed.mode == PocSpeedMode.SLOW,
                     onClick = {
-                        PocSpeed.setMode(
+                        PocSpeed.mode =
                             if (PocSpeed.mode == PocSpeedMode.SLOW) {
                                 PocSpeedMode.NORMAL
                             } else {
                                 PocSpeedMode.SLOW
-                            },
-                        )
+                            }
                     },
                     label = { Text("慢放", style = MaterialTheme.typography.labelSmall) },
                 )

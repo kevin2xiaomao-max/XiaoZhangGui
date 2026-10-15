@@ -39,7 +39,6 @@ object PocSpeed {
     const val SLOW_FACTOR = 4
 
     var mode: PocSpeedMode by mutableStateOf(PocSpeedMode.NORMAL)
-        private set
 
     /**
      * 动画时长缩放：`durationMs * 当前档 factor`。
@@ -59,10 +58,5 @@ object PocSpeed {
         "slow" -> PocSpeedMode.SLOW
         "normal" -> PocSpeedMode.NORMAL
         else -> null
-    }
-
-    /** 切换速度档（launcher 分段控件 / 演示屏慢放开关 / 深链落盘共用）。 */
-    fun setMode(newMode: PocSpeedMode) {
-        mode = newMode
     }
 }

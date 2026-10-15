@@ -97,7 +97,7 @@ private fun PocLauncherScreen(
             PocSpeedMode.entries.forEach { m ->
                 FilterChip(
                     selected = PocSpeed.mode == m,
-                    onClick = { PocSpeed.setMode(m) },
+                    onClick = { PocSpeed.mode = m },
                     label = {
                         Text(if (m == PocSpeedMode.SLOW) "慢放 ×4" else "正常")
                     },

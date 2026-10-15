@@ -370,7 +370,7 @@ private sealed interface RootSheet {
  */
 private fun handleOpenPoc(action: DeepLinkAction.OpenPoc, navController: NavController) {
     if (!BuildConfig.POC_ENABLED) return
-    PocSpeed.modeForQuery(action.speed)?.let { PocSpeed.setMode(it) }
+    PocSpeed.modeForQuery(action.speed)?.let { PocSpeed.mode = it }
     navController.navigate(action.route) { launchSingleTop = true }
 }
 

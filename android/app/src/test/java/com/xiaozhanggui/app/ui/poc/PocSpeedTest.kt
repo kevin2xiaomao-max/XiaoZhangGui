@@ -15,12 +15,12 @@ class PocSpeedTest {
 
     @After
     fun resetSpeed() {
-        PocSpeed.setMode(PocSpeedMode.NORMAL)
+        PocSpeed.mode = PocSpeedMode.NORMAL
     }
 
     @Test
     fun `normal mode scale is identity`() {
-        PocSpeed.setMode(PocSpeedMode.NORMAL)
+        PocSpeed.mode = PocSpeedMode.NORMAL
         assertEquals(280, PocSpeed.scale(280))
         assertEquals(100, PocSpeed.scale(100))
         assertEquals(420, PocSpeed.scale(420))
@@ -28,7 +28,7 @@ class PocSpeedTest {
 
     @Test
     fun `slow mode scales duration by four`() {
-        PocSpeed.setMode(PocSpeedMode.SLOW)
+        PocSpeed.mode = PocSpeedMode.SLOW
         // 280ms（Phase C 纵向档）→ 1120ms；与各屏既有慢放口径一致
         assertEquals(1120, PocSpeed.scale(280))
         assertEquals(400, PocSpeed.scale(100))
@@ -38,20 +38,20 @@ class PocSpeedTest {
 
     @Test
     fun `scale boundary non-positive durations return as-is`() {
-        PocSpeed.setMode(PocSpeedMode.SLOW)
+        PocSpeed.mode = PocSpeedMode.SLOW
         // 零/非法时长不放大：避免把"无动画"变成动画
         assertEquals(0, PocSpeed.scale(0))
         assertEquals(-5, PocSpeed.scale(-5))
-        PocSpeed.setMode(PocSpeedMode.NORMAL)
+        PocSpeed.mode = PocSpeedMode.NORMAL
         assertEquals(0, PocSpeed.scale(0))
     }
 
     @Test
     fun `scale is consistent across mode switches`() {
         assertEquals(280, PocSpeed.scale(280))
-        PocSpeed.setMode(PocSpeedMode.SLOW)
+        PocSpeed.mode = PocSpeedMode.SLOW
         assertEquals(1120, PocSpeed.scale(280))
-        PocSpeed.setMode(PocSpeedMode.NORMAL)
+        PocSpeed.mode = PocSpeedMode.NORMAL
         assertEquals(280, PocSpeed.scale(280))
     }
 
