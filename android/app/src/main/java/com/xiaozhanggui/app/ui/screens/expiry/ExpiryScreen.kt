@@ -22,7 +22,6 @@ import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Inventory
 import androidx.compose.material.icons.filled.Undo
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -68,6 +67,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import com.xiaozhanggui.app.ui.components.XzgAlertDialog
+import com.xiaozhanggui.app.ui.components.XzgMotionSpecs
 
 /**
  * 临期提醒页。对应 iOS Expiry/ExpiryView.swift。
@@ -181,7 +182,8 @@ fun ExpiryScreen() {
         )
     }
     if (deleteFailed) {
-        AlertDialog(
+        XzgAlertDialog(
+            spec = XzgMotionSpecs.DIALOG_EXPIRY_DELETE_ERROR,
             onDismissRequest = { deleteFailed = false },
             title = { Text(text = "删除失败", style = XzgType.headline) },
             text = { Text(text = "临期记录未删除，请重试。", style = XzgType.body) },

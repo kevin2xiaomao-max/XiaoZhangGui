@@ -26,7 +26,6 @@ import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.WbCloudy
 import androidx.compose.material.icons.filled.WbSunny
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -88,6 +87,8 @@ import kotlinx.coroutines.launch
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.ZoneId
+import com.xiaozhanggui.app.ui.components.XzgAlertDialog
+import com.xiaozhanggui.app.ui.components.XzgMotionSpecs
 
 /**
  * 首页（V3.7.1 Editorial 平面结构，对应 iOS `Features/Home/HomeView.swift`）。
@@ -424,7 +425,8 @@ fun HomeScreen(
     }
 
     state.actionError?.let { message ->
-        AlertDialog(
+        XzgAlertDialog(
+            spec = XzgMotionSpecs.DIALOG_HOME_ACTION_ERROR,
             onDismissRequest = viewModel::clearActionError,
             confirmButton = {
                 TextButton(onClick = viewModel::clearActionError) { Text("知道了") }

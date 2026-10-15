@@ -18,7 +18,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -57,6 +56,8 @@ import com.xiaozhanggui.app.ui.theme.LocalXzgPalettes
 import com.xiaozhanggui.app.ui.theme.XzgDimens
 import com.xiaozhanggui.app.ui.theme.XzgType
 import kotlinx.coroutines.launch
+import com.xiaozhanggui.app.ui.components.XzgAlertDialog
+import com.xiaozhanggui.app.ui.components.XzgMotionSpecs
 
 /**
  * 临期商品新增/编辑 Sheet。对应 iOS Expiry/ExpiryEditorSheet.swift。
@@ -377,7 +378,8 @@ internal fun ExpiryEditorContent(
     }
 
     if (saveError != null) {
-        AlertDialog(
+        XzgAlertDialog(
+            spec = XzgMotionSpecs.DIALOG_EXPIRY_SAVE_ERROR,
             onDismissRequest = { saveError = null },
             title = { Text(text = "保存失败", style = XzgType.headline) },
             text = { Text(text = saveError ?: "请稍后重试", style = XzgType.body) },

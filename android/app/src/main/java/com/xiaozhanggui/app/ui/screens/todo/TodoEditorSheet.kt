@@ -20,7 +20,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -57,6 +56,8 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import kotlinx.coroutines.launch
+import com.xiaozhanggui.app.ui.components.XzgAlertDialog
+import com.xiaozhanggui.app.ui.components.XzgMotionSpecs
 
 /**
  * Sheet 头：左上"取消" + 居中标题。对应 iOS 各 EditorSheet 的导航栏样式。
@@ -142,7 +143,8 @@ internal fun SaveFailedDialog(
     onCancel: () -> Unit
 ) {
     val palettes = LocalXzgPalettes.current
-    AlertDialog(
+    XzgAlertDialog(
+        spec = XzgMotionSpecs.DIALOG_TODO_SAVE_FAILED,
         onDismissRequest = onCancel,
         title = {
             Text(

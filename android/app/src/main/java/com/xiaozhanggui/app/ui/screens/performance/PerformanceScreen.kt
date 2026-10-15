@@ -30,8 +30,6 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.NorthEast
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.SouthWest
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -93,6 +91,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import com.xiaozhanggui.app.ui.components.XzgDropdownMenu
+import com.xiaozhanggui.app.ui.components.XzgMotionSpecs
+import com.xiaozhanggui.app.ui.components.XzgAlertDialog
 
 /**
  * 经营数据 ViewModel。对应 iOS `PerformanceView` 的 `@Query` 数据源：
@@ -269,7 +270,8 @@ fun PerformanceScreen(
         )
     }
     deleteError?.let { message ->
-        AlertDialog(
+        XzgAlertDialog(
+            spec = XzgMotionSpecs.DIALOG_PERFORMANCE_DELETE_ERROR,
             onDismissRequest = { deleteError = null },
             title = { Text("删除失败", style = XzgType.headline) },
             text = { Text(message, style = XzgType.body) },
@@ -349,7 +351,8 @@ fun PerformanceContent(
                                 tint = palettes.background.textPrimary
                             )
                         }
-                        DropdownMenu(
+                        XzgDropdownMenu(
+                            spec = XzgMotionSpecs.MENU_EXPAND_RECORD,
                             expanded = menuExpanded,
                             onDismissRequest = { menuExpanded = false }
                         ) {

@@ -27,7 +27,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.QrCode
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -63,6 +62,8 @@ import com.xiaozhanggui.app.ui.theme.XzgDimens
 import com.xiaozhanggui.app.ui.theme.XzgType
 import java.io.File
 import kotlinx.coroutines.launch
+import com.xiaozhanggui.app.ui.components.XzgDropdownMenu
+import com.xiaozhanggui.app.ui.components.XzgMotionSpecs
 
 /**
  * 收款码列表页。对应 iOS `Features/PaymentCode/PaymentCodeView.swift`。
@@ -305,7 +306,8 @@ private fun PaymentCodeRow(
                     tint = palettes.background.textSecondary
                 )
             }
-            DropdownMenu(
+            XzgDropdownMenu(
+                spec = XzgMotionSpecs.MENU_EXPAND_PAYMENT_CODE,
                 expanded = menuExpanded,
                 onDismissRequest = { menuExpanded = false }
             ) {

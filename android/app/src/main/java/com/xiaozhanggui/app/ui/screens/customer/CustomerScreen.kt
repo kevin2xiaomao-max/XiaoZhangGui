@@ -36,9 +36,7 @@ import androidx.compose.material.icons.filled.DeliveryDining
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Inventory
 import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -99,6 +97,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import com.xiaozhanggui.app.ui.components.XzgDropdownMenu
+import com.xiaozhanggui.app.ui.components.XzgMotionSpecs
+import com.xiaozhanggui.app.ui.components.XzgAlertDialog
 
 /**
  * 客户配送页。对应 iOS Customer/CustomerView.swift。
@@ -203,7 +204,8 @@ fun CustomerScreen() {
         )
     }
     if (deleteFailed) {
-        AlertDialog(
+        XzgAlertDialog(
+            spec = XzgMotionSpecs.DIALOG_CUSTOMER_DELETE_ERROR,
             onDismissRequest = { deleteFailed = false },
             title = { Text(text = "删除失败", style = XzgType.headline) },
             text = { Text(text = "客户需求未删除，请重试。", style = XzgType.body) },
@@ -514,7 +516,8 @@ private fun CustomerRow(
                         )
                     }
                 }
-                DropdownMenu(
+                XzgDropdownMenu(
+                    spec = XzgMotionSpecs.MENU_EXPAND_CUSTOMER_ROW,
                     expanded = menuOpen,
                     onDismissRequest = { menuOpen = false }
                 ) {

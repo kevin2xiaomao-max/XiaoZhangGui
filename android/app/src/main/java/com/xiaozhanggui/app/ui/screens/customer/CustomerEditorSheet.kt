@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -56,6 +55,8 @@ import com.xiaozhanggui.app.ui.theme.XzgType
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
+import com.xiaozhanggui.app.ui.components.XzgAlertDialog
+import com.xiaozhanggui.app.ui.components.XzgMotionSpecs
 
 /**
  * 配送需求新增/编辑 Sheet。对应 iOS Customer/CustomerEditorSheet.swift。
@@ -377,7 +378,8 @@ internal fun CustomerEditorContent(
             initialMinute = zdt.minute,
             is24Hour = true
         )
-        AlertDialog(
+        XzgAlertDialog(
+            spec = XzgMotionSpecs.DIALOG_CUSTOMER_TIME_PICKER,
             onDismissRequest = { showTimePicker = false },
             text = {
                 TimePicker(state = timeState)
@@ -399,7 +401,8 @@ internal fun CustomerEditorContent(
     }
 
     if (saveError != null) {
-        AlertDialog(
+        XzgAlertDialog(
+            spec = XzgMotionSpecs.DIALOG_CUSTOMER_SAVE_ERROR,
             onDismissRequest = { saveError = null },
             title = { Text(text = "保存失败", style = XzgType.headline) },
             text = { Text(text = saveError ?: "请稍后重试", style = XzgType.body) },

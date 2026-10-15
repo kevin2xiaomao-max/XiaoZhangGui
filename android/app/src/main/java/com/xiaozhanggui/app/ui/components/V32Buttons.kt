@@ -24,6 +24,9 @@ import com.xiaozhanggui.app.ui.theme.XzgType
 /**
  * V32 主按钮。对应 iOS `V32PrimaryButton`：全宽胶囊、品牌色底、白色 headline 文案、
  * 纵向 padding 14。禁用态为中性底 + 三级文本（iOS 侧无显式禁用样式，此为合理补齐）。
+ *
+ * MotionSpec（V3.8 Phase 1）：[XzgMotionSpecs.BUTTON_PRESS]
+ *（按压缩放 0.97 + FAST 180ms；reduce-motion 时无缩放）。
  */
 @Composable
 fun V32PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
@@ -33,7 +36,7 @@ fun V32PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Mod
             .fillMaxWidth()
             .clip(CircleShape)
             .background(if (enabled) palettes.accent.accent else palettes.background.neutralSoft)
-            .v32PressFeedback(enabled = enabled, onClick = onClick)
+            .xzgPressFeedback(spec = XzgMotionSpecs.BUTTON_PRESS, enabled = enabled, onClick = onClick)
             .padding(vertical = 14.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -48,6 +51,9 @@ fun V32PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Mod
 /**
  * V32 次按钮。对应 iOS `V32SecondaryButton`：全宽胶囊、卡片底 + 1dp cardOutline 描边、
  * 主文本色。
+ *
+ * MotionSpec（V3.8 Phase 1）：[XzgMotionSpecs.BUTTON_PRESS]
+ *（按压缩放 0.97 + FAST 180ms；reduce-motion 时无缩放）。
  */
 @Composable
 fun V32SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
@@ -58,7 +64,7 @@ fun V32SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = M
             .clip(CircleShape)
             .background(if (enabled) palettes.background.card else palettes.background.neutralSoft)
             .border(1.dp, palettes.background.cardOutline, CircleShape)
-            .v32PressFeedback(enabled = enabled, onClick = onClick)
+            .xzgPressFeedback(spec = XzgMotionSpecs.BUTTON_PRESS, enabled = enabled, onClick = onClick)
             .padding(vertical = 14.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -73,6 +79,9 @@ fun V32SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = M
 /**
  * V32 圆形勾选。对应 iOS `V32Checkbox`：26dp 圆形；选中为品牌色实心 + 白色对勾，
  * 未选中为透明底 + 1.6dp 三级文本描边（0.55 透明度）。
+ *
+ * MotionSpec（V3.8 Phase 1）：[XzgMotionSpecs.BUTTON_PRESS]
+ *（按压缩放 0.97 + FAST 180ms；reduce-motion 时无缩放）。
  */
 @Composable
 fun V32Checkbox(checked: Boolean, onCheckedChange: () -> Unit, modifier: Modifier = Modifier) {
@@ -90,7 +99,7 @@ fun V32Checkbox(checked: Boolean, onCheckedChange: () -> Unit, modifier: Modifie
                     CircleShape
                 )
             )
-            .v32PressFeedback(onClick = onCheckedChange),
+            .xzgPressFeedback(spec = XzgMotionSpecs.BUTTON_PRESS, onClick = onCheckedChange),
         contentAlignment = Alignment.Center
     ) {
         if (checked) {

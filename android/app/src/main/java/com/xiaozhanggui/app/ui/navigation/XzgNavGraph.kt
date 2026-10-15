@@ -1,5 +1,11 @@
 package com.xiaozhanggui.app.ui.navigation
 
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -17,12 +23,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.navigation.NavController
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.xiaozhanggui.app.ui.components.XzgMotionSpecs
+import com.xiaozhanggui.app.ui.motion.MotionContext
+import com.xiaozhanggui.app.ui.motion.MotionPolicy
 import com.xiaozhanggui.app.ui.screens.ai.AISheet
 import com.xiaozhanggui.app.ui.screens.customer.CustomerScreen
 import com.xiaozhanggui.app.ui.screens.expiry.ExpiryScreen
@@ -41,6 +51,7 @@ import com.xiaozhanggui.app.ui.screens.todo.MemoScreen
 import com.xiaozhanggui.app.ui.screens.todo.TodoScreen
 import com.xiaozhanggui.app.ui.screens.voice.VoiceSheetContent
 import com.xiaozhanggui.app.ui.theme.LocalXzgPalettes
+import com.xiaozhanggui.app.ui.theme.rememberReduceMotion
 import com.xiaozhanggui.app.ui.theme.rememberXzgModalBottomSheetState
 import com.xiaozhanggui.app.ui.theme.XzgType
 
@@ -164,10 +175,38 @@ fun XzgNavGraph(
             }
         }
     ) { innerPadding ->
+        // MotionSpec（V3.8 Phase 1）：XzgMotionSpecs.NAV_PAGE_FADE
+        //（Tab 切换 / NavHost 页面导航：FADE，页面容器单调 tween 180ms 无过冲；
+        // 禁 NATIVE（OEM 转场不一致）/ SHARED_ANCHOR（Phase 2 PoC）；
+        // 解析走 MotionPolicy：reduce-motion / 总开关关闭等任何降级 → 直接显示；
+        // 内容分组错峰淡入由各 Screen 后续接入。）
+        val reduceMotion = rememberReduceMotion()
+        val navResolved = remember(reduceMotion) {
+            MotionPolicy.resolve(
+                XzgMotionSpecs.NAV_PAGE_FADE,
+                MotionContext(reduceMotion = reduceMotion),
+            )
+        }
+        val pageEnter: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition =
+            {
+                if (navResolved.downgradeReason == null)
+                    fadeIn(animationSpec = tween(durationMillis = navResolved.durationTier.ms))
+                else EnterTransition.None
+            }
+        val pageExit: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition =
+            {
+                if (navResolved.downgradeReason == null)
+                    fadeOut(animationSpec = tween(durationMillis = navResolved.durationTier.ms))
+                else ExitTransition.None
+            }
         NavHost(
             navController = navController,
             startDestination = startTab.route,
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.padding(innerPadding),
+            enterTransition = pageEnter,
+            exitTransition = pageExit,
+            popEnterTransition = pageEnter,
+            popExitTransition = pageExit,
         ) {
             // ---- 4 Tab ----
             composable(XzgTab.HOME.route) {

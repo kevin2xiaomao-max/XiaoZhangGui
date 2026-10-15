@@ -1,7 +1,6 @@
 package com.xiaozhanggui.app.ui.components
 
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -28,7 +27,8 @@ fun ConfirmDeleteDialog(
     dismissTestTag: String? = null
 ) {
     val palettes = LocalXzgPalettes.current
-    AlertDialog(
+    XzgAlertDialog(
+        spec = XzgMotionSpecs.DIALOG_CONFIRM_DELETE,
         onDismissRequest = onDismiss,
         title = {
             Text(

@@ -28,7 +28,6 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.WbSunny
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -74,6 +73,8 @@ import com.xiaozhanggui.app.ui.theme.LocalXzgPalettes
 import com.xiaozhanggui.app.ui.theme.XzgDimens
 import com.xiaozhanggui.app.ui.theme.XzgType
 import java.time.DayOfWeek
+import com.xiaozhanggui.app.ui.components.XzgAlertDialog
+import com.xiaozhanggui.app.ui.components.XzgMotionSpecs
 
 /** 周条星期符号：周一起始，对应 iOS ScheduleView.firstWeekday=2。 */
 private val WEEK_SYMBOLS_MON = listOf("一", "二", "三", "四", "五", "六", "日")
@@ -144,7 +145,8 @@ fun ScheduleScreen(
     )
 
     error?.let {
-        AlertDialog(
+        XzgAlertDialog(
+            spec = XzgMotionSpecs.DIALOG_SCHEDULE_ERROR,
             onDismissRequest = vm::clearError,
             title = {
                 Text(

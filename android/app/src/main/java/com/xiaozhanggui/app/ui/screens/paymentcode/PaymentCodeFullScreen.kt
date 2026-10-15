@@ -54,6 +54,10 @@ fun PaymentCodeFullScreen(
 ) {
     if (codes.isEmpty()) return
 
+    // MotionSpec（V3.8 Phase 1）：XzgMotionSpecs.DIALOG_PAYMENT_CODE_FULLSCREEN
+    //（全屏付款码 Dialog：FADE + STANDARD 280ms；reduce-motion 时直接显示。
+    // 全屏 Dialog 用平台 Dialog + 自定义 properties，不走 XzgAlertDialog 包装，
+    // 进出动画由平台窗口动画驱动，服从系统 ANIMATOR_DURATION_SCALE。）
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(

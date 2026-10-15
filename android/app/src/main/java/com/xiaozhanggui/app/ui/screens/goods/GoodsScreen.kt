@@ -21,7 +21,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Inventory2
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -73,6 +72,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import com.xiaozhanggui.app.ui.components.XzgAlertDialog
+import com.xiaozhanggui.app.ui.components.XzgMotionSpecs
 
 /**
  * 商品 ViewModel。对应 iOS `GoodsView` 的 `@Query` 数据源。
@@ -171,7 +172,8 @@ fun GoodsScreen() {
 
     // 删除失败显式提示 + 重试（对应 iOS GoodsView .alert("删除失败")）
     deleteError?.let { message ->
-        AlertDialog(
+        XzgAlertDialog(
+            spec = XzgMotionSpecs.DIALOG_GOODS_DELETE_ERROR,
             onDismissRequest = { deleteError = null },
             title = { Text("删除失败", style = XzgType.headline) },
             text = { Text(message, style = XzgType.body) },

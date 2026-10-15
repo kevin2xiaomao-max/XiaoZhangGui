@@ -26,7 +26,6 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -66,6 +65,8 @@ import com.xiaozhanggui.app.ui.theme.XzgDimens
 import com.xiaozhanggui.app.ui.theme.XzgType
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.xiaozhanggui.app.ui.components.XzgDropdownMenu
+import com.xiaozhanggui.app.ui.components.XzgMotionSpecs
 
 /**
  * 快速记一笔 Sheet 内容（供 coordinator 替换 `XzgSheets.kt` 的 QuickRecordStubSheet）。
@@ -380,7 +381,8 @@ internal fun QuickRecordSheetVisual(
                                     }
                                 },
                             )
-                            DropdownMenu(
+                            XzgDropdownMenu(
+                                spec = XzgMotionSpecs.MENU_EXPAND_QUICK_RECORD_KIND,
                                 expanded = state.kindMenuOpen,
                                 onDismissRequest = { onKindMenuOpenChange(false) },
                             ) {

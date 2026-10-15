@@ -24,8 +24,6 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -54,6 +52,9 @@ import com.xiaozhanggui.app.ui.components.V32EmptyState
 import com.xiaozhanggui.app.ui.components.V32StatusPill
 import com.xiaozhanggui.app.ui.theme.LocalXzgPalettes
 import com.xiaozhanggui.app.ui.theme.XzgType
+import com.xiaozhanggui.app.ui.components.XzgDropdownMenu
+import com.xiaozhanggui.app.ui.components.XzgMotionSpecs
+import com.xiaozhanggui.app.ui.components.XzgAlertDialog
 
 /**
  * 小掌柜 AI 聊天页。对应 iOS `AI/UI/AIChatView.swift`。
@@ -127,7 +128,8 @@ fun AIChatScreen(
     }
 
     if (showClearConfirm) {
-        AlertDialog(
+        XzgAlertDialog(
+            spec = XzgMotionSpecs.DIALOG_AI_CLEAR_CONVERSATION,
             onDismissRequest = { showClearConfirm = false },
             title = { Text("清空当前对话？") },
             text = { Text("将清空消息与未确认的卡片；已保存的营业额 / 待办 / 备忘 / 配送不会被删除。") },
@@ -211,7 +213,11 @@ fun AIChatContent(
                         tint = palettes.background.textPrimary
                     )
                 }
-                DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                XzgDropdownMenu(
+                    spec = XzgMotionSpecs.MENU_EXPAND_AI_CHAT,
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false },
+                ) {
                     DropdownMenuItem(
                         text = { Text("新对话") },
                         onClick = { showMenu = false; onNewConversation() }

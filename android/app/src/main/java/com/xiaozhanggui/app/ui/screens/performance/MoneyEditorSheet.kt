@@ -19,7 +19,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -57,6 +56,8 @@ import com.xiaozhanggui.app.ui.theme.LocalXzgPalettes
 import com.xiaozhanggui.app.ui.theme.XzgDimens
 import com.xiaozhanggui.app.ui.theme.XzgType
 import kotlinx.coroutines.launch
+import com.xiaozhanggui.app.ui.components.XzgAlertDialog
+import com.xiaozhanggui.app.ui.components.XzgMotionSpecs
 
 /**
  * 记账编辑器模式。对应 iOS `MoneyEditorSheet.Mode`：
@@ -421,7 +422,8 @@ internal fun MoneyEditorContent(
     }
 
     saveError?.let { message ->
-        AlertDialog(
+        XzgAlertDialog(
+            spec = XzgMotionSpecs.DIALOG_MONEY_SAVE_ERROR,
             onDismissRequest = { saveError = null },
             title = { Text("保存失败", style = XzgType.headline) },
             text = { Text(message, style = XzgType.body) },
