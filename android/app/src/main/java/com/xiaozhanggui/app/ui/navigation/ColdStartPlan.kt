@@ -29,6 +29,13 @@ data class ColdStartPlan(
      * release 构建中该深链在路由层即被映射为 Ignore。
      */
     val openPocLauncher: Boolean = false,
+    /**
+     * 直达 PoC 演示屏的 route（`xzg://poc/<droplet|glass|morph|transition>`，
+     * V3.8 PoC 测试菜单增强）。null = 不直达。
+     * 仅 POC_ENABLED（debug 构建）时 XzgNavGraph 才实际导航；
+     * release 构建中该深链在路由层即被映射为 Ignore。
+     */
+    val openPocRoute: String? = null,
 )
 
 /**
@@ -49,6 +56,8 @@ fun planColdStart(action: DeepLinkAction?): ColdStartPlan = when (action) {
         ColdStartPlan(startTab = XzgTab.HOME, openQuickRecordSheet = true)
     DeepLinkAction.OpenPocLauncher ->
         ColdStartPlan(startTab = XzgTab.HOME, openPocLauncher = true)
+    is DeepLinkAction.OpenPoc ->
+        ColdStartPlan(startTab = XzgTab.HOME, openPocRoute = action.route)
     null, DeepLinkAction.Ignore ->
         ColdStartPlan(startTab = XzgTab.HOME)
 }

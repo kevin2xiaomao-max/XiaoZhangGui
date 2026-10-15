@@ -2,10 +2,12 @@ package com.xiaozhanggui.app.ui.poc
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -81,10 +83,33 @@ private fun PocLauncherScreen(
                 "生产页无任何引用（grep 门禁）。",
             style = MaterialTheme.typography.bodySmall,
         )
-        PocEntryButton("PoC-1 液滴按钮菜单（poc/droplet）", onOpenDroplet)
-        PocEntryButton("PoC-2 玻璃材质三档（poc/glass）", onOpenGlass)
-        PocEntryButton("PoC-3 连续形变（poc/morph）", onOpenMorph)
-        PocEntryButton("PoC-4 转场探测报告（poc/transition）", onOpenTransition)
+        Text(
+            "截图请分别在浅色 / 深色模式下采集。",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        // ── 全局速度控制（PocSpeed；便于慢放录屏）──
+        Text(
+            "当前速度：" +
+                if (PocSpeed.mode == PocSpeedMode.SLOW) "慢放 ×4" else "正常 1x",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            PocSpeedMode.entries.forEach { m ->
+                FilterChip(
+                    selected = PocSpeed.mode == m,
+                    onClick = { PocSpeed.setMode(m) },
+                    label = {
+                        Text(if (m == PocSpeedMode.SLOW) "慢放 ×4" else "正常")
+                    },
+                )
+            }
+        }
+        // 每个入口标注完整深链（方便脚本直达；Manifest 已注册 xzg:// + host=poc，
+        // path 由 XzgDeepLink 解析，无需改 Manifest）。
+        PocEntryButton("PoC-1 液滴按钮菜单\nxzg://poc/droplet", onOpenDroplet)
+        PocEntryButton("PoC-2 玻璃材质三档\nxzg://poc/glass", onOpenGlass)
+        PocEntryButton("PoC-3 连续形变\nxzg://poc/morph", onOpenMorph)
+        PocEntryButton("PoC-4 转场探测报告\nxzg://poc/transition", onOpenTransition)
         PocEntryButton("返回", onBack)
     }
 }

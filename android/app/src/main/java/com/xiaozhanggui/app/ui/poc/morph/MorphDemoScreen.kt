@@ -42,6 +42,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.xiaozhanggui.app.ui.poc.PocMotionMath.phaseProgress
+import com.xiaozhanggui.app.ui.poc.PocSpeed
 import com.xiaozhanggui.app.ui.theme.v371.V371Radius
 import kotlin.math.abs
 import kotlin.math.sign
@@ -174,8 +175,9 @@ private fun DragMorphDemo() {
                         dragging = false
                         returning = true
                         returnStartPx = offsetX.value
-                        // 回弹：位移→0（220ms tween），scale 经 overshootScale 做单次过冲
-                        offsetX.animateTo(0f, tween(durationMillis = 220))
+                        // 回弹：位移→0（220ms tween，走全局 PocSpeed 缩放），
+                        // scale 经 overshootScale 做单次过冲
+                        offsetX.animateTo(0f, tween(durationMillis = PocSpeed.scale(220)))
                         returning = false
                         // 稳定态 200ms 后释放临时形变
                         cooling = true
@@ -203,8 +205,8 @@ private fun ExpandMorphDemo() {
     var cooling by remember { mutableStateOf(false) }
 
     LaunchedEffect(expanded) {
-        // 收起反向执行同一包络（1→0）
-        expandP.animateTo(if (expanded) 1f else 0f, tween(durationMillis = 280))
+        // 收起反向执行同一包络（1→0）；时长走全局 PocSpeed 缩放
+        expandP.animateTo(if (expanded) 1f else 0f, tween(durationMillis = PocSpeed.scale(280)))
         cooling = true
         delay(MorphEnvelope.SETTLE_RELEASE_MS) // 稳定态 200ms 后释放
         cooling = false

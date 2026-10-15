@@ -35,6 +35,7 @@ import com.xiaozhanggui.app.ui.components.XzgMotionSpecs
 import com.xiaozhanggui.app.ui.motion.MotionContext
 import com.xiaozhanggui.app.ui.motion.MotionPolicy
 import com.xiaozhanggui.app.ui.poc.PocRoutes
+import com.xiaozhanggui.app.ui.poc.PocSpeed
 import com.xiaozhanggui.app.ui.poc.pocGraph
 import com.xiaozhanggui.app.ui.screens.ai.AISheet
 import com.xiaozhanggui.app.ui.screens.customer.CustomerScreen
@@ -115,6 +116,9 @@ fun XzgNavGraph(
         if (coldStart.openPocLauncher && BuildConfig.POC_ENABLED) {
             navController.navigate(PocRoutes.LAUNCHER) { launchSingleTop = true }
         }
+        // V3.8 PoC 测试菜单增强：逐 PoC 深链冷启动（`xzg://poc/<屏>`）→
+        // NavHost setGraph 后直达对应演示屏。POC_ENABLED=false 时不导航。
+        (initialDeepLink as? DeepLinkAction.OpenPoc)?.let { handleOpenPoc(it, navController) }
         if (initialDeepLink != null && initialDeepLink != DeepLinkAction.Ignore) {
             onDeepLink(initialDeepLink)
         }
@@ -147,6 +151,11 @@ fun XzgNavGraph(
                 if (BuildConfig.POC_ENABLED) {
                     navController.navigate(PocRoutes.LAUNCHER) { launchSingleTop = true }
                 }
+            // V3.8 PoC 测试菜单增强：逐 PoC 深链热启动（`xzg://poc/<屏>`）。
+            // pendingDeepLink 为委托属性（不可 smart cast），此处显式转换是安全的：
+            // when 分支的 is 检查已保证类型。
+            is DeepLinkAction.OpenPoc ->
+                handleOpenPoc(pendingDeepLink as DeepLinkAction.OpenPoc, navController)
             null, DeepLinkAction.Ignore -> {}
         }
         val consumed = pendingDeepLink
@@ -350,6 +359,19 @@ private sealed interface RootSheet {
 
     /** AI Sheet；voiceDeepLink = true 时同步拉起短语音面板（`xzg://ai?mode=voice`） */
     data class AI(val voiceDeepLink: Boolean = false) : RootSheet
+}
+
+/**
+ * V3.8 PoC 测试菜单增强：`DeepLinkAction.OpenPoc` 深链导航（冷/热启动共用）。
+ *
+ * - POC_ENABLED=false（release 构建）时 PoC route 未注册，直接返回不导航；
+ * - `?speed=` 参数经 [PocSpeed.modeForQuery] 落盘为全局速度档
+ *   （无参数/非法值 → 保持当前档，不重置）。
+ */
+private fun handleOpenPoc(action: DeepLinkAction.OpenPoc, navController: NavController) {
+    if (!BuildConfig.POC_ENABLED) return
+    PocSpeed.modeForQuery(action.speed)?.let { PocSpeed.setMode(it) }
+    navController.navigate(action.route) { launchSingleTop = true }
 }
 
 private fun NavController.navigateToTab(tab: XzgTab) {

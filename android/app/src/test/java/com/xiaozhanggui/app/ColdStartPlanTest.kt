@@ -111,6 +111,9 @@ class ColdStartPlanTest {
             DeepLinkAction.OpenAISheet,
             DeepLinkAction.OpenAISheetVoice,
             DeepLinkAction.OpenTodoTab,
+            DeepLinkAction.OpenPocLauncher,
+            DeepLinkAction.OpenPoc("poc/droplet", "slow"),
+            DeepLinkAction.OpenPoc("poc/transition"),
             DeepLinkAction.Ignore,
         )
         val fourTabs = XzgTab.values().toSet()
@@ -163,6 +166,8 @@ class ColdStartPlanTest {
             "xzg://todo",
             "xzg://voice",
             "xzg://quickrecord",
+            "xzg://poc",
+            "xzg://poc/droplet?speed=slow",
         )
         for (uri in uris) {
             val freshProcess = planColdStart(XzgDeepLink.parse(uri))
@@ -189,6 +194,37 @@ class ColdStartPlanTest {
         assertEquals(
             ColdStartPlan(startTab = XzgTab.TODO),
             planColdStart(XzgDeepLink.parse("xzg://todo"))
+        )
+    }
+
+    @Test
+    fun `poc per-screen deep link cold start navigates to poc route on home tab`() {
+        // xzg://poc/droplet?speed=slow → 冷启动计划：首页 Tab + 直达 droplet route。
+        val plan = planColdStart(DeepLinkAction.OpenPoc("poc/droplet", "slow"))
+        assertEquals(XzgTab.HOME, plan.startTab)
+        assertEquals("poc/droplet", plan.openPocRoute)
+        assertFalse(plan.openPocLauncher)
+        assertFalse(plan.openAISheet)
+    }
+
+    @Test
+    fun `poc per-screen full chain parse then plan`() {
+        assertEquals(
+            ColdStartPlan(startTab = XzgTab.HOME, openPocRoute = "poc/glass"),
+            planColdStart(XzgDeepLink.parse("xzg://poc/glass")),
+        )
+        assertEquals(
+            ColdStartPlan(startTab = XzgTab.HOME, openPocRoute = "poc/morph"),
+            planColdStart(XzgDeepLink.parse("xzg://poc/morph")),
+        )
+        assertEquals(
+            ColdStartPlan(startTab = XzgTab.HOME, openPocRoute = "poc/transition"),
+            planColdStart(XzgDeepLink.parse("xzg://poc/transition")),
+        )
+        // 非法 path → Ignore → 默认冷启动计划（不直达任何 PoC）。
+        assertEquals(
+            ColdStartPlan(startTab = XzgTab.HOME),
+            planColdStart(XzgDeepLink.parse("xzg://poc/bogus")),
         )
     }
 

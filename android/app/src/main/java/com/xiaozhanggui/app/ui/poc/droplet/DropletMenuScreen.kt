@@ -62,6 +62,8 @@ import com.xiaozhanggui.app.ui.motion.MotionContext
 import com.xiaozhanggui.app.ui.motion.PerfTier
 import com.xiaozhanggui.app.ui.poc.PocMotionMath.lerp
 import com.xiaozhanggui.app.ui.poc.PocMotionMath.phaseProgress
+import com.xiaozhanggui.app.ui.poc.PocSpeed
+import com.xiaozhanggui.app.ui.poc.PocSpeedMode
 import com.xiaozhanggui.app.ui.theme.rememberReduceMotion
 import com.xiaozhanggui.app.ui.theme.v371.V371Radius
 import kotlin.math.roundToInt
@@ -88,7 +90,6 @@ fun DropletMenuScreen(onBack: () -> Unit) {
     val systemReduceMotion = rememberReduceMotion()
 
     var demoOverride by remember { mutableStateOf(DemoOverride.NORMAL) }
-    var slowMo by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
 
     val progress = remember { Animatable(0f) }
@@ -111,16 +112,18 @@ fun DropletMenuScreen(onBack: () -> Unit) {
     }
 
     // ── 展开/收起驱动：同一 master 进度正/反播（收起反向执行各相位）──
-    LaunchedEffect(expanded, resolution, slowMo) {
+    // 时长走全局 PocSpeed 缩放（launcher 分段控件 / 深链 ?speed= 切换；
+    // 慢放 ×4 便于逐帧核验相位顺序）。档位切换不中断进行中的动画，
+    // 下次开启动画生效（PocSpeed.mode 非 LaunchedEffect key）。
+    LaunchedEffect(expanded, resolution) {
         val target = if (expanded) 1f else 0f
         if (progress.value == target) return@LaunchedEffect
-        val ms = if (!resolution.runDropletPhases) {
+        val base = if (!resolution.runDropletPhases) {
             resolution.durationTier.ms
-        } else if (slowMo) {
-            DurationTier.STANDARD.ms * 4 // 慢放 ×4：逐帧核验相位顺序
         } else {
             DurationTier.STANDARD.ms // 280ms（Phase C 纵向档）
         }
+        val ms = PocSpeed.scale(base)
         val stopSampling = FrameRateSampling.start(monitor)
         try {
             progress.animateTo(target, tween(durationMillis = ms))
@@ -169,8 +172,16 @@ fun DropletMenuScreen(onBack: () -> Unit) {
                     }
                 }
                 FilterChip(
-                    selected = slowMo,
-                    onClick = { slowMo = !slowMo },
+                    selected = PocSpeed.mode == PocSpeedMode.SLOW,
+                    onClick = {
+                        PocSpeed.setMode(
+                            if (PocSpeed.mode == PocSpeedMode.SLOW) {
+                                PocSpeedMode.NORMAL
+                            } else {
+                                PocSpeedMode.SLOW
+                            },
+                        )
+                    },
                     label = { Text("慢放", style = MaterialTheme.typography.labelSmall) },
                 )
             }
