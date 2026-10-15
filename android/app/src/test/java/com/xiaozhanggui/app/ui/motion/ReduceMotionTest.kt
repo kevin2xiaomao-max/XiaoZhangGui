@@ -11,13 +11,15 @@ import org.junit.Test
 /**
  * Reduce Motion 全链路测试（Roadmap Phase 1 验收标准 §4）。
  *
- * 链路：`ANIMATOR_DURATION_SCALE` → [isReduceMotionEnabled]（纯函数）
+ * 链路：`ANIMATOR_DURATION_SCALE` → [isReduceMotionEnabled]（纯函数，
+ * `ui.motion`；`ui.theme` 的 Context 版本只取值、判定委托到这里）
  * → MotionContext.reduceMotion（生产侧由 `rememberReduceMotion(reduceMotionOverride)`
  *   测试钩子注入，见 `ui.theme`）
  * → [MotionPolicy.resolve] reduce-motion 分支 → FAST 短淡入。
  *
  * 四路径（按钮/菜单/弹窗/页面）以 Worker B 的真实声明
- * （[XzgMotionSpecs]）为输入，逐一验证 reduce-motion 分支。
+ * （[XzgMotionSpecs]，已迁移为 Worker A 的 [MotionSpec] 类型）为输入，
+ * 逐一验证 reduce-motion 分支。
  */
 class ReduceMotionTest {
 
@@ -40,14 +42,9 @@ class ReduceMotionTest {
     }
 
     // ── 2. 四路径 reduce-motion 分支（Worker B 真实声明 → MotionPolicy） ──
-    // Worker B 的声明已直接使用 ui.motion.MotionSpec（V38MotionDeclarations.kt），
-    // 无需桥接转换。
 
     private fun assertReduceMotionBranch(spec: MotionSpec) {
-        val resolved = MotionPolicy.resolve(
-            spec,
-            MotionContext(reduceMotion = true),
-        )
+        val resolved = MotionPolicy.resolve(spec, MotionContext(reduceMotion = true))
         assertEquals(
             "reduce-motion 具名原因 [${spec.id}]",
             MotionDowngradeReasons.REDUCE_MOTION,

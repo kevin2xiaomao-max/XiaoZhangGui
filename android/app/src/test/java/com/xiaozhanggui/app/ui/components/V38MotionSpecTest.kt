@@ -11,8 +11,7 @@ import org.junit.Test
 /**
  * Worker B 四路径 MotionSpec 声明注册表校验（[XzgMotionSpecs.all]「供测试枚举校验」）。
  *
- * 声明使用 `ui.motion` 的 MotionSpec 数据类（Worker A 基础设施），解析走
- * `MotionPolicy.resolve`；本测试只校验声明内容的硬规则。
+ * 声明已迁移为 Worker A 的 `ui.motion.MotionSpec` 类型（不另起类型体系）。
  *
  * Phase 1 硬规则（见 `V38MotionDeclarations.kt` 文件头文档）：
  * - transitionKind 一律 FADE：禁 NATIVE（OEM 转场不一致，ColorOS 撕裂）、
@@ -78,9 +77,9 @@ class V38MotionSpecTest {
     }
 
     @Test
-    fun `every spec declares a fallback kind`() {
+    fun `every spec declares a fade fallback kind`() {
         XzgMotionSpecs.all.forEach { spec ->
-            // fallbackKind 无默认值（构造必填）是编译期强制；这里再断言降级方向合法：
+            // fallbackKind 构造必填（无默认值）是编译期强制；这里再断言降级方向合法：
             // Phase 1 的降级终点只能是 FADE（直接显示/短淡入）
             assertEquals(
                 "降级 kind 必须是 FADE [${spec.id}]",
@@ -104,7 +103,7 @@ class V38MotionSpecTest {
         assertTrue(ids.any { it.startsWith("v38.menu.") })
         assertTrue(ids.any { it.startsWith("v38.dialog.") })
         assertTrue(ids.any { it.startsWith("v38.nav.") })
-        // 1 button + 5 menus + 16 dialogs + 1 nav = 23
+        // 1 button + 5 menus + 16 dialogs + 1 nav = 23（Worker B 原有断言，合并保留）
         assertEquals(23, ids.size)
     }
 

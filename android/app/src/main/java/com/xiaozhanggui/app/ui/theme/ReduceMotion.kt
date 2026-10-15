@@ -34,13 +34,18 @@ import androidx.compose.ui.platform.LocalDensity
  * 导航可达性、点击区域、返回行为、弹窗保存/取消语义与动效开启时完全一致。
  */
 
+import com.xiaozhanggui.app.ui.motion.isReduceMotionEnabled as isReduceMotionEnabledPure
+
 /** 纯函数：读取系统动画时长缩放是否为 0（0 = 用户开启了「移除动画」）。读取无需权限。 */
 fun isReduceMotionEnabled(context: Context): Boolean = runCatching {
-    Settings.Global.getFloat(
-        context.contentResolver,
-        Settings.Global.ANIMATOR_DURATION_SCALE,
-        1f
-    ) == 0f
+    // 取值在这里，判定逻辑收敛到 ui.motion 的纯函数（JVM 可单测），不分叉。
+    isReduceMotionEnabledPure(
+        Settings.Global.getFloat(
+            context.contentResolver,
+            Settings.Global.ANIMATOR_DURATION_SCALE,
+            1f
+        )
+    )
 }.getOrDefault(false)
 
 /**
