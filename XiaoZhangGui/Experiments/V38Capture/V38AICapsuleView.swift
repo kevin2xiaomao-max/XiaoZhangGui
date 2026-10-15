@@ -24,15 +24,6 @@ struct V38AICapsuleView: View {
                         Text("问小掌柜")
                             .font(.headline)
                         Spacer()
-                        Button {
-                            setExpanded(false)
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.title3)
-                                .foregroundStyle(.secondary)
-                        }
-                        .accessibilityIdentifier("v38.motion.ai.collapse")
-                        .accessibilityLabel("收起问小掌柜")
                     }
                     // 演示占位输入行：不可编辑，不发送任何内容。
                     HStack(spacing: 10) {
@@ -59,6 +50,23 @@ struct V38AICapsuleView: View {
             .matchedGeometryEffect(id: "v38-capture-ai", in: morph)
             .transition(.opacity.combined(with: .scale(scale: 0.96)))
             .accessibilityIdentifier("v38.motion.ai.expanded")
+            // 收起按钮放在玻璃容器之外（overlay）：iOS 26 下 glassEffect 内容内的
+            // 嵌套按钮会从无障碍树消失，顶层 Button + 直接 identifier 则可被找到。
+            .overlay(alignment: .topTrailing) {
+                Button {
+                    setExpanded(false)
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("v38.motion.ai.collapse")
+                .accessibilityLabel("收起问小掌柜")
+                .padding(20)
+            }
         } else {
             Button {
                 setExpanded(true)

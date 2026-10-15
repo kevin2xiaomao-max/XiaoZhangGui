@@ -46,15 +46,6 @@ struct V38QuickMenuView: View {
                         Text("快速操作")
                             .font(.headline)
                         Spacer()
-                        Button {
-                            setExpanded(false)
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.title3)
-                                .foregroundStyle(.secondary)
-                        }
-                        .accessibilityIdentifier("v38.motion.quick.collapse")
-                        .accessibilityLabel("收起快速操作")
                     }
                     .padding(16)
                     Divider().padding(.horizontal, 16)
@@ -69,6 +60,23 @@ struct V38QuickMenuView: View {
             .matchedGeometryEffect(id: "v38-capture-quick", in: morph)
             .transition(.opacity.combined(with: .scale(scale: 0.96)))
             .accessibilityIdentifier("v38.motion.quick.expanded")
+            // 收起按钮放在玻璃容器之外（overlay）：iOS 26 下 glassEffect 内容内的
+            // 嵌套按钮会从无障碍树消失，顶层 Button + 直接 identifier 则可被找到。
+            .overlay(alignment: .topTrailing) {
+                Button {
+                    setExpanded(false)
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("v38.motion.quick.collapse")
+                .accessibilityLabel("收起快速操作")
+                .padding(16)
+            }
         } else {
             Button {
                 setExpanded(true)
