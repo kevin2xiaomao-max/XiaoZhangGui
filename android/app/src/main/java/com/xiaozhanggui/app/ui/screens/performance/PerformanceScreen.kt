@@ -529,9 +529,11 @@ private fun EditorialHero(
                 )
                 Text(
                     Format.money(todayRevenue),
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFeatureSettings = "tnum",
+                    style = V371Type.rowTitle.copy(
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFeatureSettings = "tnum"
+                    ),
                     color = colors.textPrimary,
                     maxLines = 1
                 )
