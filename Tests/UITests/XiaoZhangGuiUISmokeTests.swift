@@ -194,29 +194,13 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         let dialog = app.sheets.firstMatch
         XCTAssertTrue(dialog.waitForExistence(timeout: 5), "确认删除弹窗未出现")
 
-        print("=== DIALOG GEOMETRY ===")
-        print("dialog.frame = \(dialog.frame)")
-        let dialogButtons = dialog.buttons.allElementsBoundByIndex
-        for (i, btn) in dialogButtons.enumerated() {
-            print("BTN[\(i)] label='\(btn.label)' id='\(btn.identifier)' frame=\(btn.frame) hittable=\(btn.isHittable)")
-        }
-        print("=== APP-WIDE BUTTONS with 'goods.delete' id ===")
-        let allDeleteBtns = app.buttons.matching(identifier: "goods.delete.confirm").allElementsBoundByIndex
-        print("count = \(allDeleteBtns.count)")
-        for (i, btn) in allDeleteBtns.enumerated() {
-            print("DELBTN[\(i)] frame=\(btn.frame)")
-        }
-        print("=== TRY: tap outside at top ===")
-        // 对话框疑似底部 Sheet：在顶部点按遮罩关闭
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.08)).tap()
-        print("after top-tap: dialog.exists = \(dialog.exists)")
-        if dialog.exists {
-            print("=== TRY: dialog swipeDown ===")
-            // 注意：已知 visible frame 为空，可能失败
-            dialog.swipeDown()
-            print("after swipeDown: dialog.exists = \(dialog.exists)")
-        }
-
+        // iOS 27：confirmationDialog 以居中浮层呈现（实测约 240x172 居中），
+        // "取消"按钮（role: .cancel）未暴露于无障碍树（树中仅见"删除"按钮）。
+        // 点按对话框外部的遮罩区域关闭——等价于用户取消删除，不触发写库。
+        // 对话框居中，故在屏幕左侧边缘（远离对话框）点按。
+        let dialog = app.sheets.firstMatch
+        XCTAssertTrue(dialog.waitForExistence(timeout: 5), "确认删除弹窗未出现")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.05, dy: 0.5)).tap()
         XCTAssertTrue(waitUntil(timeout: 5) { !dialog.exists }, "弹窗未关闭")
 
         XCTAssertEqual(app.buttons.matching(identifier: "goods.delete").count, before)
