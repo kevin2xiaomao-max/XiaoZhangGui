@@ -108,7 +108,7 @@ struct ScheduleAnchorDemoView: View {
                 VStack(spacing: 2) {
                     Text("\(dayNum)")
                         .font(.system(size: 16, weight: isSelected ? .semibold : .regular))
-                        .foregroundStyle(isSelected ? .accentColor : .primary)
+                        .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
                     if isToday {
                         Circle().fill(Color.accentColor).frame(width: 4, height: 4)
                     } else if demoEvents[dayNum] != nil {

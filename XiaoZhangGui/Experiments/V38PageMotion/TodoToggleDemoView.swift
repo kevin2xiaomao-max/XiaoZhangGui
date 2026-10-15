@@ -145,6 +145,12 @@ struct TodoToggleDemoView: View {
         .accessibilityValue(motion.isSaving ? "正在保存" : (motion.showsChecked ? "已完成" : "未完成"))
     }
 
+    private var disclaimer: some View {
+        Label("演示数据，不读取、不修改真实待办", systemImage: "checkmark.shield")
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+    }
+
     private var pressAnimation: Animation? {
         V38MotionLabTokens.animation(for: .press, reduceMotion: reduceMotion)
     }
