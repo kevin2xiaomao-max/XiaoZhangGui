@@ -14,9 +14,9 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
-import com.xiaozhanggui.app.ui.poc.droplet.DropletPocStub
-import com.xiaozhanggui.app.ui.poc.glass.GlassPocStub
-import com.xiaozhanggui.app.ui.poc.morph.MorphPocStub
+import com.xiaozhanggui.app.ui.poc.droplet.DropletMenuScreen
+import com.xiaozhanggui.app.ui.poc.glass.GlassPocScreen
+import com.xiaozhanggui.app.ui.poc.morph.MorphDemoScreen
 import com.xiaozhanggui.app.ui.poc.transition.TransitionPocScreen
 
 /**
@@ -39,17 +39,17 @@ fun NavGraphBuilder.pocGraph(navController: NavController) {
             onBack = { navController.popBackStack() },
         )
     }
-    // PoC-1 液滴按钮菜单（Worker A 交付真实实现后替换 Stub）。
+    // PoC-1 液滴按钮菜单（真实实现：ui.poc.droplet）。
     composable(PocRoutes.DROPLET) {
-        DropletPocStub(onBack = { navController.popBackStack() })
+        DropletMenuScreen(onBack = { navController.popBackStack() })
     }
-    // PoC-2 玻璃材质三档（Worker A 交付真实实现后替换 Stub）。
+    // PoC-2 玻璃材质三档（真实实现：ui.poc.glass）。
     composable(PocRoutes.GLASS) {
-        GlassPocStub(onBack = { navController.popBackStack() })
+        GlassPocScreen(onBack = { navController.popBackStack() })
     }
-    // PoC-3 连续形变（Worker B 交付真实实现后替换 Stub）。
+    // PoC-3 连续形变（真实实现：ui.poc.morph）。
     composable(PocRoutes.MORPH) {
-        MorphPocStub(onBack = { navController.popBackStack() })
+        MorphDemoScreen(onBack = { navController.popBackStack() })
     }
     // PoC-4 OPPO 私有转场探测报告（Worker C 本轮交付）。
     composable(PocRoutes.TRANSITION) {
