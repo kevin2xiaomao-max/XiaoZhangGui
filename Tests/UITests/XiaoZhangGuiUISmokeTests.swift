@@ -194,36 +194,29 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         let dialog = app.sheets.firstMatch
         XCTAssertTrue(dialog.waitForExistence(timeout: 5), "确认删除弹窗未出现")
 
-        print("=== DIALOG BUTTONS DUMP ===")
+        print("=== DIALOG GEOMETRY ===")
+        print("dialog.frame = \(dialog.frame)")
         let dialogButtons = dialog.buttons.allElementsBoundByIndex
-        print("dialog.buttons count = \(dialogButtons.count)")
         for (i, btn) in dialogButtons.enumerated() {
-            print("BTN[\(i)] label='\(btn.label)' id='\(btn.identifier)' hittable=\(btn.isHittable)")
+            print("BTN[\(i)] label='\(btn.label)' id='\(btn.identifier)' frame=\(btn.frame) hittable=\(btn.isHittable)")
         }
-        print("=== APP-WIDE '取消' (any type) ===")
-        let cancelAny = app.descendants(matching: .any)["取消"]
-        print("cancelAny.exists = \(cancelAny.exists)")
-        print("=== DIALOG DESCENDANTS (any) with '取消' label ===")
-        let dialogCancelAny = dialog.descendants(matching: .any)["取消"]
-        print("dialogCancelAny.exists = \(dialogCancelAny.exists)")
+        print("=== APP-WIDE BUTTONS with 'goods.delete' id ===")
+        let allDeleteBtns = app.buttons.matching(identifier: "goods.delete.confirm").allElementsBoundByIndex
+        print("count = \(allDeleteBtns.count)")
+        for (i, btn) in allDeleteBtns.enumerated() {
+            print("DELBTN[\(i)] frame=\(btn.frame)")
+        }
+        print("=== TRY: tap outside at top ===")
+        // 对话框疑似底部 Sheet：在顶部点按遮罩关闭
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.08)).tap()
+        print("after top-tap: dialog.exists = \(dialog.exists)")
+        if dialog.exists {
+            print("=== TRY: dialog swipeDown ===")
+            // 注意：已知 visible frame 为空，可能失败
+            dialog.swipeDown()
+            print("after swipeDown: dialog.exists = \(dialog.exists)")
+        }
 
-        // 策略：点按对话框中非"删除"的按钮（即取消按钮）
-        var tapped = false
-        for btn in dialogButtons {
-            if btn.identifier != "goods.delete.confirm" && btn.label != "删除" {
-                print("TAPPING non-delete button: label='\(btn.label)' id='\(btn.identifier)'")
-                btn.tap()
-                tapped = true
-                break
-            }
-        }
-        if !tapped, cancelAny.waitForExistence(timeout: 3) {
-            print("TAPPING cancelAny")
-            cancelAny.tap()
-            tapped = true
-        }
-        print("tapped = \(tapped), dialog.exists = \(dialog.exists)")
-        XCTAssertTrue(tapped, "未找到可点按的取消控件")
         XCTAssertTrue(waitUntil(timeout: 5) { !dialog.exists }, "弹窗未关闭")
 
         XCTAssertEqual(app.buttons.matching(identifier: "goods.delete").count, before)
