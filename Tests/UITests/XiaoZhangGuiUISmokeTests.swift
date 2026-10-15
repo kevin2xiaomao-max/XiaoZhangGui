@@ -189,11 +189,23 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         XCTAssertGreaterThan(before, 0)
 
         tapTrailingButton("goods.delete", dx: 0.905)
-        // iOS 26.5 的 confirmationDialog 以可下拉 Sheet 呈现，但 cancel action
-        // 不稳定地缺席于 XCTest 无障碍树；下拉关闭等价于原生取消语义。
-        let confirmationSheet = app.sheets.firstMatch
-        XCTAssertTrue(confirmationSheet.waitForExistence(timeout: 5))
-        confirmationSheet.swipeDown()
+        // iOS 27：confirmationDialog 不再以可下拉 Sheet 暴露于无障碍树
+        // （原 iOS 26.5 假设失效）。优先点按生产代码自带的"取消"按钮
+        //（goods.delete.cancel）：语义即"用户取消删除"，且不依赖弹窗呈现样式。
+        // 若按钮不可达，回退到旧的 sheet 下滑关闭路径。
+        let cancelButton = element("goods.delete.cancel")
+        if cancelButton.waitForExistence(timeout: 5) {
+            if cancelButton.isHittable {
+                cancelButton.tap()
+            } else {
+                cancelButton.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            }
+        } else {
+            // iOS 26.5 回退路径：confirmationDialog 以可下拉 Sheet 呈现
+            let confirmationSheet = app.sheets.firstMatch
+            XCTAssertTrue(confirmationSheet.waitForExistence(timeout: 5))
+            confirmationSheet.swipeDown()
+        }
 
         XCTAssertEqual(app.buttons.matching(identifier: "goods.delete").count, before)
         XCTAssertFalse(app.alerts["删除失败"].exists)
