@@ -2,7 +2,7 @@ name: 小掌柜 Android V3.7.1 构建
 
 on:
   push:
-    branches: [android/v3.6, android/v3.7.1-oppo-port]
+    branches: [android/v3.6, android/v3.7.1-oppo-port, android/v3.8-sleepdown-coloros]
     paths:
       - 'android/**'
       - '.github/workflows/android.yml'
