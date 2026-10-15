@@ -150,8 +150,12 @@ object XzgDeepLink {
     /**
      * 纯 JVM 可测的完整 URI 解析（java.net.URI）。
      * 空/非法输入一律返回 [DeepLinkAction.Ignore]，不抛异常。
+     *
+     * @param pocEnabled PoC 开关（默认取 [BuildConfig.POC_ENABLED]；
+     *   测试可显式传入以覆盖两种构建形态；注意 release 单元测试的
+     *   BuildConfig.POC_ENABLED=false，PoC 相关断言必须显式传 true）
      */
-    fun parse(raw: String?): DeepLinkAction {
+    fun parse(raw: String?, pocEnabled: Boolean = BuildConfig.POC_ENABLED): DeepLinkAction {
         if (raw.isNullOrBlank()) return DeepLinkAction.Ignore
         val parsed = try {
             java.net.URI(raw.trim())
@@ -162,6 +166,7 @@ object XzgDeepLink {
         return route(
             parsed.host,
             queryParam(parsed.rawQuery, "mode"),
+            pocEnabled = pocEnabled,
             path = parsed.path,
             speed = queryParam(parsed.rawQuery, "speed"),
         )

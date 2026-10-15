@@ -211,20 +211,20 @@ class ColdStartPlanTest {
     fun `poc per-screen full chain parse then plan`() {
         assertEquals(
             ColdStartPlan(startTab = XzgTab.HOME, openPocRoute = "poc/glass"),
-            planColdStart(XzgDeepLink.parse("xzg://poc/glass")),
+            planColdStart(XzgDeepLink.parse("xzg://poc/glass", pocEnabled = true)),
         )
         assertEquals(
             ColdStartPlan(startTab = XzgTab.HOME, openPocRoute = "poc/morph"),
-            planColdStart(XzgDeepLink.parse("xzg://poc/morph")),
+            planColdStart(XzgDeepLink.parse("xzg://poc/morph", pocEnabled = true)),
         )
         assertEquals(
             ColdStartPlan(startTab = XzgTab.HOME, openPocRoute = "poc/transition"),
-            planColdStart(XzgDeepLink.parse("xzg://poc/transition")),
+            planColdStart(XzgDeepLink.parse("xzg://poc/transition", pocEnabled = true)),
         )
         // 非法 path → Ignore → 默认冷启动计划（不直达任何 PoC）。
         assertEquals(
             ColdStartPlan(startTab = XzgTab.HOME),
-            planColdStart(XzgDeepLink.parse("xzg://poc/bogus")),
+            planColdStart(XzgDeepLink.parse("xzg://poc/bogus", pocEnabled = true)),
         )
     }
 

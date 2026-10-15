@@ -155,7 +155,7 @@ class DeepLinkParseTest {
         )
         assertEquals(
             DeepLinkAction.OpenPoc("poc/droplet"),
-            XzgDeepLink.parse("xzg://poc/droplet"),
+            XzgDeepLink.parse("xzg://poc/droplet", pocEnabled = true),
         )
     }
 
@@ -167,7 +167,7 @@ class DeepLinkParseTest {
         )
         assertEquals(
             DeepLinkAction.OpenPoc("poc/glass"),
-            XzgDeepLink.parse("xzg://poc/glass"),
+            XzgDeepLink.parse("xzg://poc/glass", pocEnabled = true),
         )
     }
 
@@ -179,7 +179,7 @@ class DeepLinkParseTest {
         )
         assertEquals(
             DeepLinkAction.OpenPoc("poc/morph"),
-            XzgDeepLink.parse("xzg://poc/morph"),
+            XzgDeepLink.parse("xzg://poc/morph", pocEnabled = true),
         )
     }
 
@@ -191,16 +191,16 @@ class DeepLinkParseTest {
         )
         assertEquals(
             DeepLinkAction.OpenPoc("poc/transition"),
-            XzgDeepLink.parse("xzg://poc/transition"),
+            XzgDeepLink.parse("xzg://poc/transition", pocEnabled = true),
         )
     }
 
     @Test
     fun `poc bare host still opens launcher (phase 2 behavior kept)`() {
         // xzg://poc（无 path）仍进 launcher；显式 /launcher 亦可。
-        assertEquals(DeepLinkAction.OpenPocLauncher, XzgDeepLink.parse("xzg://poc"))
-        assertEquals(DeepLinkAction.OpenPocLauncher, XzgDeepLink.parse("xzg://poc/"))
-        assertEquals(DeepLinkAction.OpenPocLauncher, XzgDeepLink.parse("xzg://poc/launcher"))
+        assertEquals(DeepLinkAction.OpenPocLauncher, XzgDeepLink.parse("xzg://poc", pocEnabled = true))
+        assertEquals(DeepLinkAction.OpenPocLauncher, XzgDeepLink.parse("xzg://poc/", pocEnabled = true))
+        assertEquals(DeepLinkAction.OpenPocLauncher, XzgDeepLink.parse("xzg://poc/launcher", pocEnabled = true))
         assertEquals(
             DeepLinkAction.OpenPocLauncher,
             XzgDeepLink.route("poc", pocEnabled = true),
@@ -213,8 +213,8 @@ class DeepLinkParseTest {
 
     @Test
     fun `poc illegal path is ignored`() {
-        assertEquals(DeepLinkAction.Ignore, XzgDeepLink.parse("xzg://poc/bogus"))
-        assertEquals(DeepLinkAction.Ignore, XzgDeepLink.parse("xzg://poc/Droplet"))
+        assertEquals(DeepLinkAction.Ignore, XzgDeepLink.parse("xzg://poc/bogus", pocEnabled = true))
+        assertEquals(DeepLinkAction.Ignore, XzgDeepLink.parse("xzg://poc/Droplet", pocEnabled = true))
         assertEquals(
             DeepLinkAction.Ignore,
             XzgDeepLink.route("poc", path = "/nope", pocEnabled = true),
@@ -237,21 +237,21 @@ class DeepLinkParseTest {
     fun `poc speed query param is parsed into action`() {
         assertEquals(
             DeepLinkAction.OpenPoc("poc/droplet", "slow"),
-            XzgDeepLink.parse("xzg://poc/droplet?speed=slow"),
+            XzgDeepLink.parse("xzg://poc/droplet?speed=slow", pocEnabled = true),
         )
         assertEquals(
             DeepLinkAction.OpenPoc("poc/glass", "normal"),
-            XzgDeepLink.parse("xzg://poc/glass?speed=normal"),
+            XzgDeepLink.parse("xzg://poc/glass?speed=normal", pocEnabled = true),
         )
         // 无 speed 参数 → null（导航层保持当前档，不重置）
         assertEquals(
             DeepLinkAction.OpenPoc("poc/morph"),
-            XzgDeepLink.parse("xzg://poc/morph"),
+            XzgDeepLink.parse("xzg://poc/morph", pocEnabled = true),
         )
         // 非法 speed 值原样透传（导航层 modeForQuery → null → 保持当前档）
         assertEquals(
             DeepLinkAction.OpenPoc("poc/transition", "fast"),
-            XzgDeepLink.parse("xzg://poc/transition?speed=fast"),
+            XzgDeepLink.parse("xzg://poc/transition?speed=fast", pocEnabled = true),
         )
     }
 }
