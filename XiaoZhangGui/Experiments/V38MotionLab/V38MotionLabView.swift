@@ -72,9 +72,13 @@ struct V38MotionLabView: View {
                         Text("问小掌柜")
                             .font(.headline)
                         Spacer()
-                        Button("收起", systemImage: "xmark") { changeAI(false) }
-                            .labelStyle(.iconOnly)
-                            .accessibilityIdentifier("v38.motion.ai.collapse")
+                        // 占位：维持标题行布局；真正的收起按钮在 surface 之外的
+                        // overlay 里（iOS 26 下 glassEffect 内容层内的嵌套按钮不会
+                        // 暴露到无障碍树，见 B 线 CI run 38795019084 / 38801281147
+                        // 与本分支 run 38800283136 实证）。
+                        Color.clear
+                            .frame(width: 44, height: 44)
+                            .accessibilityHidden(true)
                     }
                     TextField("说说你要记录或查询什么…", text: $prompt, axis: .vertical)
                         .lineLimit(2...4)
@@ -96,6 +100,22 @@ struct V38MotionLabView: View {
             .matchedGeometryEffect(id: "ai-capsule", in: aiGeometry)
             .transition(.opacity)
             .accessibilityIdentifier("v38.motion.ai.expanded")
+            // 收起按钮放在玻璃容器之外：iOS 26 下 glassEffect 内容层内的嵌套按钮
+            // 会从无障碍树消失（XCTest 找不到），顶层 overlay 按钮则可被找到；
+            // 视觉位置与原来一致（右上，44pt 热区）。
+            .overlay(alignment: .topTrailing) {
+                Button { changeAI(false) } label: {
+                    Image(systemName: "xmark")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("v38.motion.ai.collapse")
+                .accessibilityLabel("收起")
+                .padding(20)
+            }
         } else {
             Button { changeAI(true) } label: {
                 V38MotionLabSurface(radius: 24) {
@@ -118,27 +138,46 @@ struct V38MotionLabView: View {
 
     @ViewBuilder private var quickControl: some View {
         if quickExpanded {
-            V38MotionLabSurface(radius: 26) {
-                VStack(spacing: 0) {
-                    HStack {
-                        Text("快速操作").font(.headline)
-                        Spacer()
-                        Button("收起", systemImage: "xmark") { changeQuick(false) }
-                            .labelStyle(.iconOnly)
-                            .accessibilityIdentifier("v38.motion.quick.collapse")
-                    }
-                    .padding(16)
-                    Divider().padding(.horizontal, 16)
-                    quickAction("记收入", icon: "plus.circle", key: "income")
-                    Divider().padding(.horizontal, 16)
-                    quickAction("记支出", icon: "minus.circle", key: "expense")
-                    Divider().padding(.horizontal, 16)
-                    quickAction("写备忘", icon: "note.text", key: "memo")
+            // 注意：展开态不再用 V38MotionLabSurface 包裹内容——iOS 26 下
+            // glassEffect 内容层内的按钮不会暴露到无障碍树（B 线 CI run
+            // 38795019084 / 38801281147 实证，本分支 run 38800283136 同样复现：
+            // 收起按钮与菜单行按钮均不可被 XCTest 找到）。
+            // 玻璃只做背景，行按钮作为普通内容放在玻璃之外，视觉一致。
+            VStack(spacing: 0) {
+                HStack {
+                    Text("快速操作").font(.headline)
+                    Spacer()
+                    // 占位：维持标题行布局；真正的收起按钮在 overlay 里（玻璃之外）。
+                    Color.clear
+                        .frame(width: 44, height: 44)
+                        .accessibilityHidden(true)
                 }
+                .padding(16)
+                Divider().padding(.horizontal, 16)
+                quickAction("记收入", icon: "plus.circle", key: "income")
+                Divider().padding(.horizontal, 16)
+                quickAction("记支出", icon: "minus.circle", key: "expense")
+                Divider().padding(.horizontal, 16)
+                quickAction("写备忘", icon: "note.text", key: "memo")
             }
+            .background { V38MotionLabGlassBackground(radius: 26) }
             .matchedGeometryEffect(id: "quick-button", in: quickGeometry)
             .transition(.opacity)
             .accessibilityIdentifier("v38.motion.quick.expanded")
+            // 收起按钮放在玻璃之外（overlay），原因同 AI 胶囊。
+            .overlay(alignment: .topTrailing) {
+                Button { changeQuick(false) } label: {
+                    Image(systemName: "xmark")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("v38.motion.quick.collapse")
+                .accessibilityLabel("收起")
+                .padding(16)
+            }
         } else {
             Button { changeQuick(true) } label: {
                 V38MotionLabSurface(radius: 25) {
@@ -184,6 +223,35 @@ struct V38MotionLabView: View {
         withAnimation(V38MotionLabTokens.animation(for: .expand, reduceMotion: reduceMotion)) {
             quickExpanded = expanded
             if expanded { aiExpanded = false }
+        }
+    }
+}
+
+/// 快捷菜单展开态的玻璃面板背景（三档：Reduce Transparency 回退 / iOS 26 glass / 旧系统材质）。
+/// 与 `V38MotionLabSurface` 同构，但只做背景——交互内容（行按钮/收起按钮）在玻璃
+/// 之外，否则 iOS 26 下 glassEffect 内容层内的按钮 identifier 会从无障碍树消失
+/// （B 线 CI run 38795019084 / 38801281147 实证，本分支 run 38800283136 复现）。
+private struct V38MotionLabGlassBackground: View {
+    let radius: CGFloat
+    @Environment(\.accessibilityReduceTransparency) private var systemReduceTransparency
+    @Environment(\.v38qaReduceTransparencyOverride) private var qaReduceTransparencyOverride
+    /// E·QA：CI 用 `--v38-reduce-transparency` 覆盖时取覆盖值，否则取系统真实值。
+    private var reduceTransparency: Bool { qaReduceTransparencyOverride ?? systemReduceTransparency }
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        if reduceTransparency {
+            shape
+                .fill(Color(uiColor: .secondarySystemBackground))
+                .overlay(shape.strokeBorder(Color.secondary.opacity(0.16), lineWidth: 1))
+        } else if #available(iOS 26.0, *) {
+            shape
+                .fill(.clear)
+                .glassEffect(.regular, in: shape)
+        } else {
+            shape
+                .fill(.ultraThinMaterial)
+                .overlay(shape.strokeBorder(Color.secondary.opacity(0.12), lineWidth: 1))
         }
     }
 }

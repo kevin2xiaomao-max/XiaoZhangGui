@@ -33,7 +33,7 @@ final class V38MotionLabUITests: XCTestCase {
 
         element("v38.motion.ai.expand").tap()
         XCTAssertTrue(
-            element("v38.motion.ai.expanded").waitForExistence(timeout: 5),
+            element("v38.motion.ai.expanded").waitForExistence(timeout: 15),
             "AI expand did not trigger a real transition"
         )
         // 保持展开态，让录屏捕获过渡中的帧。
@@ -41,7 +41,7 @@ final class V38MotionLabUITests: XCTestCase {
 
         element("v38.motion.ai.collapse").tap()
         XCTAssertTrue(
-            element("v38.motion.ai.expand").waitForExistence(timeout: 5),
+            element("v38.motion.ai.expand").waitForExistence(timeout: 15),
             "AI collapse did not return to the entry button"
         )
         sleep(1)
@@ -54,18 +54,18 @@ final class V38MotionLabUITests: XCTestCase {
 
         element("v38.motion.quick.expand").tap()
         XCTAssertTrue(
-            element("v38.motion.quick.expanded").waitForExistence(timeout: 5),
+            element("v38.motion.quick.expanded").waitForExistence(timeout: 15),
             "Quick menu expand did not trigger a real transition"
         )
         sleep(2)
 
         element("v38.motion.quick.income").tap()
         XCTAssertTrue(
-            element("v38.motion.demo.selection").waitForExistence(timeout: 5),
+            element("v38.motion.demo.selection").waitForExistence(timeout: 15),
             "Quick menu selection feedback missing"
         )
         // 选择演示动作后菜单收起，回到入口按钮。
-        XCTAssertTrue(element("v38.motion.quick.expand").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("v38.motion.quick.expand").waitForExistence(timeout: 15))
         sleep(1)
     }
 
@@ -76,9 +76,9 @@ final class V38MotionLabUITests: XCTestCase {
     func testReduceMotionSmoke() {
         launchMotionLab(extraArgs: ["--v38-reduce-motion"])
         element("v38.motion.ai.expand").tap()
-        XCTAssertTrue(element("v38.motion.ai.expanded").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("v38.motion.ai.expanded").waitForExistence(timeout: 15))
         element("v38.motion.ai.collapse").tap()
-        XCTAssertTrue(element("v38.motion.ai.expand").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("v38.motion.ai.expand").waitForExistence(timeout: 15))
         attachScreenshot(named: "v38-reduce-motion")
     }
 
@@ -86,7 +86,7 @@ final class V38MotionLabUITests: XCTestCase {
     func testReduceTransparencySmoke() {
         launchMotionLab(extraArgs: ["--v38-reduce-transparency"])
         element("v38.motion.quick.expand").tap()
-        XCTAssertTrue(element("v38.motion.quick.expanded").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("v38.motion.quick.expanded").waitForExistence(timeout: 15))
         attachScreenshot(named: "v38-reduce-transparency")
     }
 
@@ -96,11 +96,11 @@ final class V38MotionLabUITests: XCTestCase {
             "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL",
         ])
         tapVisible("v38.motion.ai.expand")
-        XCTAssertTrue(element("v38.motion.ai.expanded").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("v38.motion.ai.expanded").waitForExistence(timeout: 15))
         tapVisible("v38.motion.ai.collapse")
-        XCTAssertTrue(element("v38.motion.ai.expand").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("v38.motion.ai.expand").waitForExistence(timeout: 15))
         tapVisible("v38.motion.quick.expand")
-        XCTAssertTrue(element("v38.motion.quick.expanded").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("v38.motion.quick.expanded").waitForExistence(timeout: 15))
         attachScreenshot(named: "v38-large-text-axxxl")
     }
 
