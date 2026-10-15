@@ -108,7 +108,7 @@ struct V38AIOperationCardView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 Image(systemName: "waveform")
-                    .foregroundStyle(.accentColor)
+                    .foregroundStyle(Color.accentColor)
                     .symbolEffect(.variableColor.iterative, isActive: !reduceMotion)
                 Text("正在听…（演示：未开启真实麦克风）")
                     .font(.subheadline)
@@ -235,7 +235,7 @@ struct V38AIOperationCardView: View {
                 Text(draft.beforeText).font(.footnote).foregroundStyle(.secondary)
             }
             HStack(alignment: .top, spacing: 8) {
-                Text("改后").font(.caption).foregroundStyle(.accentColor).frame(width: 32, alignment: .leading)
+                Text("改后").font(.caption).foregroundStyle(Color.accentColor).frame(width: 32, alignment: .leading)
                 Text(draft.afterText).font(.footnote)
             }
             if let note = draft.note {
