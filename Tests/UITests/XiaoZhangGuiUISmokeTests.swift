@@ -189,16 +189,20 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         XCTAssertGreaterThan(before, 0)
 
         tapTrailingButton("goods.delete", dx: 0.905)
-        // iOS 27：confirmationDialog 仍以 Sheet 呈现，但其 visible frame 为空，
-        // 不再支持下滑关闭（原 iOS 26.5 假设失效）；且"取消"按钮的
-        // accessibilityIdentifier 未暴露于无障碍树（"删除"按钮的 identifier 可用，
-        // "取消"的不行）。直接点按对话框内标题为"取消"的按钮——
-        // 语义即"用户取消删除"，不触发写库。
+        // iOS 27：confirmationDialog 以 Sheet 呈现但 visible frame 为空，
+        // 不再支持下滑关闭（原 iOS 26.5 假设失效）；"取消"按钮的
+        // accessibilityIdentifier 未暴露于无障碍树。改为按 label 在全应用
+        // 查找"取消"按钮并点按——语义即"用户取消删除"，不触发写库。
+        // 若 label 也找不到，点按弹窗外部遮罩关闭（等价于取消）。
         let dialog = app.sheets.firstMatch
         XCTAssertTrue(dialog.waitForExistence(timeout: 5), "确认删除弹窗未出现")
-        let cancelButton = dialog.buttons["取消"]
-        XCTAssertTrue(cancelButton.waitForExistence(timeout: 5), "取消按钮未出现")
-        cancelButton.tap()
+        let cancelButton = app.buttons["取消"]
+        if cancelButton.waitForExistence(timeout: 5) {
+            cancelButton.tap()
+        } else {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15)).tap()
+        }
+        XCTAssertTrue(waitUntil(timeout: 5) { !dialog.exists }, "弹窗未关闭")
 
         XCTAssertEqual(app.buttons.matching(identifier: "goods.delete").count, before)
         XCTAssertFalse(app.alerts["删除失败"].exists)
