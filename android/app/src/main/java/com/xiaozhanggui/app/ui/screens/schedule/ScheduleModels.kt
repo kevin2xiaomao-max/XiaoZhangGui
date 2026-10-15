@@ -1,6 +1,7 @@
 package com.xiaozhanggui.app.ui.screens.schedule
 
 import com.xiaozhanggui.app.data.db.CustomerRequestEntity
+import com.xiaozhanggui.app.data.db.CustomerStatus
 import com.xiaozhanggui.app.data.db.ExpiryItemEntity
 import com.xiaozhanggui.app.data.db.MemoEntity
 import com.xiaozhanggui.app.data.db.TodoEntity
@@ -147,4 +148,120 @@ fun customerDeliveryLine(request: CustomerRequestEntity): String {
     }
     val address = DisplayLogic.visible(request.roomOrAddress, "")
     return if (address.isEmpty()) timePart else "$timePart $address"
+}
+
+/**
+ * 「当天完成」口径（P0-2）。逐字对应 iOS `ScheduleAgenda.swift:127-201`（P1-1），
+ * 与首页「今日已完成」（[DailyReportSheet.build] 的 completedTodos）同一事实源：
+ * - Todo：isCompleted 且 completedAt 落在当天；completedAt 缺失的历史数据
+ *   （toggleComplete 现总会写入）仅在查看「今天」时归入，非今天不猜测归属。
+ * - Customer：status == DONE 且 updatedAt 落在当天（每次状态流转都更新 updatedAt）。
+ * 纯函数，可单测；不改 `CalendarAgenda.dayData` / eventFlags 口径、不碰 Room。
+ */
+
+/** 当天完成的 Todo（按 completedAt 归属）。函数契约自带 isCompleted 守卫。 */
+fun completedTodos(todos: List<TodoEntity>, dayMillis: Long): List<TodoEntity> =
+    todos.filter { todo ->
+        if (!todo.isCompleted) return@filter false
+        val completedAt = todo.completedAt
+        if (completedAt != null) DateExt.isSameDay(completedAt, dayMillis)
+        else DateExt.isToday(dayMillis)
+    }
+
+/** 当天完成的配送（按 updatedAt 归属）。 */
+fun completedDeliveries(
+    customers: List<CustomerRequestEntity>,
+    dayMillis: Long
+): List<CustomerRequestEntity> =
+    customers.filter { it.status == CustomerStatus.DONE && DateExt.isSameDay(it.updatedAt, dayMillis) }
+
+/** [completedTodosForDay] 的分类结果：同一项只落一个桶，不重复。 */
+data class CompletedTodosForDay(
+    val timed: List<ScheduleEvent>,
+    val allDay: List<TodoEntity>
+)
+
+/**
+ * 把「当天完成的 Todo」分类为 timed / all-day 展示。只看传入数据，不读数据库。
+ * 展示分桶仍按 dueDate 形态：有真实钟点且与 selectedDayMillis 同日 → timed，其余 → all-day。
+ */
+fun completedTodosForDay(
+    todos: List<TodoEntity>,
+    selectedDayMillis: Long
+): CompletedTodosForDay {
+    val timed = mutableListOf<ScheduleEvent>()
+    val allDay = mutableListOf<TodoEntity>()
+    for (todo in completedTodos(todos, selectedDayMillis)) {
+        val due = todo.dueDate
+        if (due != null && DateExt.hasClock(due) && DateExt.isSameDay(due, selectedDayMillis)) {
+            timed.add(ScheduleEvent.Todo(todo))
+        } else {
+            allDay.add(todo)
+        }
+    }
+    return CompletedTodosForDay(timed, allDay)
+}
+
+/** [completedDeliveriesForDay] 的分类结果。 */
+data class CompletedDeliveriesForDay(
+    val timed: List<ScheduleEvent>,
+    val allDay: List<CustomerRequestEntity>
+)
+
+/** 配送去重键。对应 iOS `"delivery-\(request.notificationID)"`。 */
+internal fun deliveryDedupeKey(request: CustomerRequestEntity): String =
+    "delivery-${request.notificationId}"
+
+/**
+ * 「当天完成的配送」中尚未出现在当天时间线/全天区的部分（dayData 已按 deliveryTime/createdAt
+ * 收录当天配送含 done，这里只补齐「今天完成、但配送时间不在今天」的单，避免重复）。
+ * - 配送时间为真实钟点且在当天 → timed；其余（无时间/他天时间）→ allDay。
+ */
+fun completedDeliveriesForDay(
+    customers: List<CustomerRequestEntity>,
+    selectedDayMillis: Long,
+    alreadyIncludedIds: Set<String>
+): CompletedDeliveriesForDay {
+    val timed = mutableListOf<ScheduleEvent>()
+    val allDay = mutableListOf<CustomerRequestEntity>()
+    for (request in completedDeliveries(customers, selectedDayMillis)) {
+        if (deliveryDedupeKey(request) in alreadyIncludedIds) continue
+        val deliveryTime = CustomerDeliveryStorage.decode(request.customer).deliveryTime
+        if (deliveryTime != null && DateExt.hasClock(deliveryTime) &&
+            DateExt.isSameDay(deliveryTime, selectedDayMillis)
+        ) {
+            timed.add(ScheduleEvent.Delivery(request, deliveryTime))
+        } else {
+            allDay.add(request)
+        }
+    }
+    return CompletedDeliveriesForDay(timed, allDay)
+}
+
+/**
+ * 日程页派生：把「当天完成」合并进 [deriveScheduleDay] 的结果。
+ * 对应 iOS `ScheduleView.scheduleDay`（P1-1）：已完成项按 completedAt/updatedAt 归属当天，
+ * 当天完成但 dueDate/deliveryTime 不在当天的项补入对应桶（去重），保证
+ * 「首页今日完成计数点进来后每一项都能在当天日程追踪到」。
+ */
+fun mergeCompletedForDay(
+    day: ScheduleDay,
+    todos: List<TodoEntity>,
+    customers: List<CustomerRequestEntity>,
+    selectedDayMillis: Long
+): ScheduleDay {
+    val doneTodos = completedTodosForDay(todos, selectedDayMillis)
+    val timedWithTodos = day.timedEvents + doneTodos.timed
+    val existingDeliveryIds = timedWithTodos
+        .filterIsInstance<ScheduleEvent.Delivery>()
+        .map { deliveryDedupeKey(it.request) }.toSet() +
+        day.allDay.deliveries.map { deliveryDedupeKey(it) }
+    val doneDeliveries = completedDeliveriesForDay(customers, selectedDayMillis, existingDeliveryIds)
+    return day.copy(
+        timedEvents = (timedWithTodos + doneDeliveries.timed).sortedBy { it.date },
+        allDay = day.allDay.copy(
+            todos = day.allDay.todos + doneTodos.allDay,
+            deliveries = day.allDay.deliveries + doneDeliveries.allDay
+        )
+    )
 }

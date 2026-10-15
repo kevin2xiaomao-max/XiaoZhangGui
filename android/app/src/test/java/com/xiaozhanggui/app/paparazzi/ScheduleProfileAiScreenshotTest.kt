@@ -25,6 +25,27 @@ class ScheduleProfileAiScreenshotTest : XzgScreenshotTest() {
         )
     }
 
+    /**
+     * P0-1 回归：时间轴同时含已完成/未完成 Todo。
+     * 修复前两者图标相同（填充 CheckCircle + BRAND）；修复后已完成=填充+绿系、未完成=空心+蓝系。
+     * golden 录制于修复后；用 git stash 回退修复再跑 verify 必失败（像素差异），证明测试有效。
+     */
+    @Test
+    fun scheduleTodoIconsLight() = pageLight("ScheduleTodoIcons") {
+        ScheduleContent(
+            selectedDayMillis = ScreenshotFixtures.todayStart(),
+            day = ScreenshotFixtures.scheduleDayMixedTodoIcons()
+        )
+    }
+
+    @Test
+    fun scheduleTodoIconsDark() = pageDark("ScheduleTodoIcons") {
+        ScheduleContent(
+            selectedDayMillis = ScreenshotFixtures.todayStart(),
+            day = ScreenshotFixtures.scheduleDayMixedTodoIcons()
+        )
+    }
+
     @Test
     fun calendarLight() = pageLight("Calendar") {
         CalendarContent(

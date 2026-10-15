@@ -111,9 +111,17 @@ class ScheduleViewModel(
     )
 
     val scheduleDay: StateFlow<ScheduleDay> = combine(
-        dayData, todos, _selectedDayMillis
-    ) { data, ts, day -> deriveScheduleDay(data, ts, day) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ScheduleDay(0L))
+        dayData, tables, _selectedDayMillis
+    ) { data, t, day ->
+        // P0-2：iOS P1-1 口径——已完成项按 completedAt/updatedAt 归属当天并入日程，
+        // 保证首页「今日已完成」计数点进来后每一项都能在当天日程追踪到。
+        mergeCompletedForDay(
+            day = deriveScheduleDay(data, t.todos, day),
+            todos = t.todos,
+            customers = t.customers,
+            selectedDayMillis = day
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ScheduleDay(0L))
 
     /**
      * 当前月份每天的事件旗标（key = 当天 0 点 millis）。
