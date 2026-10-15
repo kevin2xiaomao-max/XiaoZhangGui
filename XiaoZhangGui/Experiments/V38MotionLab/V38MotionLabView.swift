@@ -3,7 +3,10 @@ import SwiftUI
 /// A standalone, no-data, no-network prototype. Not connected to RootView or repositories.
 /// Open from an Xcode preview or a DEBUG-only internal route after integrating with V3.8.
 struct V38MotionLabView: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    @Environment(\.v38qaReduceMotionOverride) private var qaReduceMotionOverride
+    /// E·QA：CI 用 `--v38-reduce-motion` 覆盖时取覆盖值，否则取系统真实值。
+    private var reduceMotion: Bool { qaReduceMotionOverride ?? systemReduceMotion }
     @Namespace private var aiGeometry
     @Namespace private var quickGeometry
     @State private var aiExpanded = false

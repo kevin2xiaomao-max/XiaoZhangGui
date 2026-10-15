@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 /// E·QA：V3.8 MotionLab 的 UI 测试 / CI 截图录屏专用启动参数。
 ///
@@ -64,22 +63,34 @@ enum V38QALaunchOptions {
     }
 }
 
+/// SwiftUI 的 `\.accessibilityReduceMotion` / `\.accessibilityReduceTransparency`
+/// 是只读 KeyPath（系统值，不可经 `.environment(_:_:)` 注入；直接写会编译失败）。
+/// 因此 QA 覆盖走自定义可写 EnvironmentKey；参数不存在时默认 nil，
+/// 视图回退到系统真实值，生产行为不受影响。
+private struct V38QAReduceMotionOverrideKey: EnvironmentKey {
+    static let defaultValue: Bool? = nil
+}
+
+private struct V38QAReduceTransparencyOverrideKey: EnvironmentKey {
+    static let defaultValue: Bool? = nil
+}
+
+extension EnvironmentValues {
+    var v38qaReduceMotionOverride: Bool? {
+        get { self[V38QAReduceMotionOverrideKey.self] }
+        set { self[V38QAReduceMotionOverrideKey.self] = newValue }
+    }
+    var v38qaReduceTransparencyOverride: Bool? {
+        get { self[V38QAReduceTransparencyOverrideKey.self] }
+        set { self[V38QAReduceTransparencyOverrideKey.self] = newValue }
+    }
+}
+
 /// 仅在覆盖参数存在时改写无障碍环境值；参数不存在时保留系统值不变。
 struct V38QAAccessibilityOverrides: ViewModifier {
     func body(content: Content) -> some View {
-        if V38QALaunchOptions.reduceMotionOverride != nil
-            || V38QALaunchOptions.reduceTransparencyOverride != nil {
-            content
-                .environment(
-                    \.accessibilityReduceMotion,
-                    V38QALaunchOptions.reduceMotionOverride ?? UIAccessibility.isReduceMotionEnabled
-                )
-                .environment(
-                    \.accessibilityReduceTransparency,
-                    V38QALaunchOptions.reduceTransparencyOverride ?? UIAccessibility.isReduceTransparencyEnabled
-                )
-        } else {
-            content
-        }
+        content
+            .environment(\.v38qaReduceMotionOverride, V38QALaunchOptions.reduceMotionOverride)
+            .environment(\.v38qaReduceTransparencyOverride, V38QALaunchOptions.reduceTransparencyOverride)
     }
 }

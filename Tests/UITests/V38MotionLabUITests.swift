@@ -90,19 +90,31 @@ final class V38MotionLabUITests: XCTestCase {
         attachScreenshot(named: "v38-reduce-transparency")
     }
 
-    /// 大字体（XXXL）：动效入口与展开态在超大字号下仍可达。
+    /// 大字体（AXXXL）：动效入口与展开态在超大字号下仍可达。
     func testLargeTextSmoke() {
         launchMotionLab(extraArgs: [
-            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryXXXL",
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL",
         ])
-        element("v38.motion.ai.expand").tap()
+        tapVisible("v38.motion.ai.expand")
         XCTAssertTrue(element("v38.motion.ai.expanded").waitForExistence(timeout: 5))
-        element("v38.motion.quick.expand").tap()
+        tapVisible("v38.motion.ai.collapse")
+        XCTAssertTrue(element("v38.motion.ai.expand").waitForExistence(timeout: 5))
+        tapVisible("v38.motion.quick.expand")
         XCTAssertTrue(element("v38.motion.quick.expanded").waitForExistence(timeout: 5))
-        attachScreenshot(named: "v38-large-text-xxxl")
+        attachScreenshot(named: "v38-large-text-axxxl")
     }
 
     // MARK: - Helpers
+
+    /// 超大字号下入口可能被挤到首屏外：先断言存在，不可点则滚一屏再点。
+    private func tapVisible(_ identifier: String, file: StaticString = #file, line: UInt = #line) {
+        let e = element(identifier)
+        XCTAssertTrue(e.waitForExistence(timeout: 10), "missing element: \(identifier)", file: file, line: line)
+        if !e.isHittable {
+            app.swipeUp()
+        }
+        e.tap()
+    }
 
     private func launchMotionLab(extraArgs: [String] = []) {
         app.launchArguments = ["--ui-testing", "--v38-motion-lab"] + extraArgs
