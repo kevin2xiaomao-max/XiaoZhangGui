@@ -30,9 +30,12 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.xiaozhanggui.app.BuildConfig
 import com.xiaozhanggui.app.ui.components.XzgMotionSpecs
 import com.xiaozhanggui.app.ui.motion.MotionContext
 import com.xiaozhanggui.app.ui.motion.MotionPolicy
+import com.xiaozhanggui.app.ui.poc.PocRoutes
+import com.xiaozhanggui.app.ui.poc.pocGraph
 import com.xiaozhanggui.app.ui.screens.ai.AISheet
 import com.xiaozhanggui.app.ui.screens.customer.CustomerScreen
 import com.xiaozhanggui.app.ui.screens.expiry.ExpiryScreen
@@ -107,6 +110,11 @@ fun XzgNavGraph(
             coldStart.openQuickRecordSheet -> RootSheet.QUICK_RECORD
             else -> activeSheet
         }
+        // V3.8 Phase 2：PoC 深链冷启动 → NavHost setGraph 后导航到 PoC 入口。
+        // POC_ENABLED=false（release）时 route 未注册，此处不导航。
+        if (coldStart.openPocLauncher && BuildConfig.POC_ENABLED) {
+            navController.navigate(PocRoutes.LAUNCHER) { launchSingleTop = true }
+        }
         if (initialDeepLink != null && initialDeepLink != DeepLinkAction.Ignore) {
             onDeepLink(initialDeepLink)
         }
@@ -134,6 +142,11 @@ fun XzgNavGraph(
             DeepLinkAction.OpenAISheetVoice -> activeSheet = RootSheet.AI(voiceDeepLink = true)
             DeepLinkAction.OpenTodoTab ->
                 navController.navigateToTab(XzgTab.TODO)
+            // V3.8 Phase 2：PoC 深链热启动。release 构建 route 未注册，不导航。
+            DeepLinkAction.OpenPocLauncher ->
+                if (BuildConfig.POC_ENABLED) {
+                    navController.navigate(PocRoutes.LAUNCHER) { launchSingleTop = true }
+                }
             null, DeepLinkAction.Ignore -> {}
         }
         val consumed = pendingDeepLink
@@ -280,6 +293,12 @@ fun XzgNavGraph(
             // ---- 工具页 ----
             composable("paymentcode") {
                 PaymentCodeScreen(onBack = { navController.popBackStack() })
+            }
+            // ---- PoC 隔离区（V3.8 Phase 2）----
+            // 独立 route（poc/*），与生产页物理隔离；
+            // release 构建（POC_ENABLED=false）不注册。
+            if (BuildConfig.POC_ENABLED) {
+                pocGraph(navController)
             }
         }
     }

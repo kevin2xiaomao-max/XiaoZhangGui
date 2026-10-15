@@ -1,6 +1,7 @@
 package com.xiaozhanggui.app.ui.navigation
 
 import android.net.Uri
+import com.xiaozhanggui.app.BuildConfig
 
 /**
  * 深链接动作。对应 iOS `App/AppDeepLink.swift` + `App/RootView.swift handleDeepLink`。
@@ -11,6 +12,10 @@ import android.net.Uri
  * V3.7.1 语义（对应 iOS「AI 不再是 Tab」）：
  * - `xzg://ai` → 打开 AI Sheet（原 `OpenAssistantTab` 已删除）；
  * - `xzg://ai?mode=voice` → 打开 AI Sheet 并同步拉起短语音面板（原 `OpenAssistantVoice` 已删除）。
+ *
+ * V3.8 Phase 2 新增（Android 侧扩展，PoC 隔离区）：
+ * - `xzg://poc` → 打开 PoC 列表入口（`poc/launcher`）；
+ *   仅 POC_ENABLED（debug 构建）时有效，release 构建映射为 Ignore。
  *
  * 注意：`todo` 为 Android 侧扩展（Phase 6 E2E 旅程需要直达待办页），
  * iOS AppDeepLink 仅有前 4 个 host。
@@ -38,6 +43,13 @@ sealed interface DeepLinkAction {
     /** 切换到「待办」Tab（Android 侧扩展，iOS 无此 host） */
     data object OpenTodoTab : DeepLinkAction
 
+    /**
+     * 打开 PoC 列表入口（V3.8 Phase 2，Android 侧扩展）。
+     * 仅 POC_ENABLED（debug 构建）时产生；release 构建中 `xzg://poc`
+     * 映射为 [Ignore]，PoC route 不注册。
+     */
+    data object OpenPocLauncher : DeepLinkAction
+
     /** 未知链接：忽略 */
     data object Ignore : DeepLinkAction
 }
@@ -50,6 +62,8 @@ sealed interface DeepLinkAction {
  * - host=ai（无 query，或 mode≠voice）→ [DeepLinkAction.OpenAISheet]（V3.7.1：AI Sheet，非 Tab）
  * - host=ai?mode=voice → [DeepLinkAction.OpenAISheetVoice]（AI Sheet + 短语音面板）
  * - host=todo → [DeepLinkAction.OpenTodoTab]（Android 侧扩展）
+ * - host=poc → [DeepLinkAction.OpenPocLauncher]（V3.8 Phase 2；
+ *   仅 POC_ENABLED 时有效，否则为 Ignore）
  * - 其他 → [DeepLinkAction.Ignore]
  */
 object XzgDeepLink {
@@ -61,14 +75,22 @@ object XzgDeepLink {
     /**
      * 纯 JVM 可测的路由核心（不依赖 android.net.Uri）。
      * [handle] 的行为与此前完全一致：仅把已解析的 scheme/host/mode 映射为动作。
+     *
+     * @param pocEnabled PoC 开关（默认取 [BuildConfig.POC_ENABLED]；
+     *   测试可显式传入以覆盖两种构建形态）
      */
-    fun route(host: String?, mode: String? = null): DeepLinkAction = when (host) {
+    fun route(
+        host: String?,
+        mode: String? = null,
+        pocEnabled: Boolean = BuildConfig.POC_ENABLED,
+    ): DeepLinkAction = when (host) {
         "voice" -> DeepLinkAction.OpenVoice
         "quickrecord", "quick" -> DeepLinkAction.OpenQuickRecord
         "ai" ->
             if (mode == "voice") DeepLinkAction.OpenAISheetVoice
             else DeepLinkAction.OpenAISheet
         "todo" -> DeepLinkAction.OpenTodoTab
+        "poc" -> if (pocEnabled) DeepLinkAction.OpenPocLauncher else DeepLinkAction.Ignore
         else -> DeepLinkAction.Ignore
     }
 

@@ -23,6 +23,12 @@ data class ColdStartPlan(
     val openVoiceSheet: Boolean = false,
     /** 打开快速记一笔 Sheet（`xzg://quickrecord`） */
     val openQuickRecordSheet: Boolean = false,
+    /**
+     * 打开 PoC 列表入口（`xzg://poc`，V3.8 Phase 2）。
+     * 仅 POC_ENABLED（debug 构建）时 XzgNavGraph 才实际导航；
+     * release 构建中该深链在路由层即被映射为 Ignore。
+     */
+    val openPocLauncher: Boolean = false,
 )
 
 /**
@@ -41,6 +47,8 @@ fun planColdStart(action: DeepLinkAction?): ColdStartPlan = when (action) {
         ColdStartPlan(startTab = XzgTab.HOME, openVoiceSheet = true)
     DeepLinkAction.OpenQuickRecord ->
         ColdStartPlan(startTab = XzgTab.HOME, openQuickRecordSheet = true)
+    DeepLinkAction.OpenPocLauncher ->
+        ColdStartPlan(startTab = XzgTab.HOME, openPocLauncher = true)
     null, DeepLinkAction.Ignore ->
         ColdStartPlan(startTab = XzgTab.HOME)
 }

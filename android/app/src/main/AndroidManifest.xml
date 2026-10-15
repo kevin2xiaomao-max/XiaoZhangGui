@@ -40,7 +40,8 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
             <!-- 深链接 xzg://（对应 iOS AppDeepLink）：ai / voice / quickrecord / quick；
-                 另有 Android 侧扩展 todo（直达待办页，Phase 6 E2E 用） -->
+                 另有 Android 侧扩展 todo（直达待办页，Phase 6 E2E 用）
+                 与 poc（V3.8 Phase 2 PoC 隔离区入口，仅 debug 构建有效，release 忽略） -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -50,6 +51,7 @@
                 <data android:scheme="xzg" android:host="quickrecord" />
                 <data android:scheme="xzg" android:host="quick" />
                 <data android:scheme="xzg" android:host="todo" />
+                <data android:scheme="xzg" android:host="poc" />
             </intent-filter>
         </activity>
 

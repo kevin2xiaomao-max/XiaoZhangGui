@@ -191,4 +191,18 @@ class ColdStartPlanTest {
             planColdStart(XzgDeepLink.parse("xzg://todo"))
         )
     }
+
+    @Test
+    fun `poc deep link cold start opens poc launcher (debug only)`() {
+        // pocEnabled=true 时 xzg://poc → OpenPocLauncher → 冷启动计划打开 PoC 入口。
+        assertEquals(
+            ColdStartPlan(startTab = XzgTab.HOME, openPocLauncher = true),
+            planColdStart(XzgDeepLink.route("poc", pocEnabled = true)),
+        )
+        // pocEnabled=false（release）时路由层即映射为 Ignore → 默认冷启动计划。
+        assertEquals(
+            ColdStartPlan(startTab = XzgTab.HOME),
+            planColdStart(XzgDeepLink.route("poc", pocEnabled = false)),
+        )
+    }
 }

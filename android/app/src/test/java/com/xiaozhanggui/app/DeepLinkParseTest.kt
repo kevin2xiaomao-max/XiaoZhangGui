@@ -125,4 +125,23 @@ class DeepLinkParseTest {
         assertEquals(DeepLinkAction.Ignore, XzgDeepLink.parse("xzg://unknown?mode=voice"))
         assertEquals(DeepLinkAction.Ignore, XzgDeepLink.parse("xzg://settings?tab=ai"))
     }
+
+    // ── V3.8 Phase 2：xzg://poc（PoC 隔离区入口，POC_ENABLED 门控）──
+
+    @Test
+    fun `poc host opens poc launcher when poc enabled`() {
+        assertEquals(
+            DeepLinkAction.OpenPocLauncher,
+            XzgDeepLink.route("poc", pocEnabled = true),
+        )
+    }
+
+    @Test
+    fun `poc host is ignored when poc disabled (release)`() {
+        // release 构建 POC_ENABLED=false：深链不产生动作，route 不注册。
+        assertEquals(
+            DeepLinkAction.Ignore,
+            XzgDeepLink.route("poc", pocEnabled = false),
+        )
+    }
 }

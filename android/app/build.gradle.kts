@@ -19,6 +19,11 @@ android {
         versionCode = 37
         versionName = "3.7.1"
 
+        // V3.8 Phase 2 PoC 总开关：debug 构建启用 PoC 隔离区，
+        // release 构建关闭（PoC route 不注册、PoC 深链被忽略）。
+        // 密钥/签名口径不受影响（签名配置见 buildTypes）。
+        buildConfigField("boolean", "POC_ENABLED", "true")
+
         // E2E（connectedDebugAndroidTest）必须的 runner（Phase 6 Worker B）
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -57,6 +62,8 @@ android {
                     ?: (findProperty("xzgReleaseKeystoreFile") as String?)).isNullOrBlank()) {
                 signingConfig = signingConfigs.getByName("ciTest")
             }
+            // V3.8 Phase 2：release 构建剔除 PoC（route 不注册、深链忽略）。
+            buildConfigField("boolean", "POC_ENABLED", "false")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -73,6 +80,7 @@ android {
         jvmTarget = "17"
     }
     buildFeatures {
+        buildConfig = true
         compose = true
     }
     packaging {
