@@ -123,14 +123,25 @@ jobs:
           RECORDER=$!
           sleep 2
           set +e
-          xcodebuild test -project XiaoZhangGui.xcodeproj -scheme XiaoZhangGui \
-            -destination "platform=iOS Simulator,id=$SIM_UDID" \
-            -derivedDataPath "$RUNNER_TEMP/xzg-ios-v38-derived" \
-            -resultBundlePath "$RUNNER_TEMP/xzg-ios-v38-motion.xcresult" \
-            -only-testing:XiaoZhangGuiUITests/V38MotionLabUITests \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
-            >artifacts/motion-test.log 2>&1
-          TEST_EXIT=$?
+          # The FIRST app launch in a fresh xcodebuild session flakes with
+          # "Simulator device failed to launch ... No such process" (~2/3 of
+          # runs; the other 4 tests then pass). Retry once on failure: the
+          # second attempt gets a warm simulator and succeeds.
+          TEST_EXIT=1
+          for ATTEMPT in 1 2; do
+            echo "== motion test attempt $ATTEMPT/2 =="
+            xcodebuild test -project XiaoZhangGui.xcodeproj -scheme XiaoZhangGui \
+              -destination "platform=iOS Simulator,id=$SIM_UDID" \
+              -derivedDataPath "$RUNNER_TEMP/xzg-ios-v38-derived" \
+              -resultBundlePath "$RUNNER_TEMP/xzg-ios-v38-motion.xcresult" \
+              -only-testing:XiaoZhangGuiUITests/V38MotionLabUITests \
+              CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+              >artifacts/motion-test.log 2>&1
+            TEST_EXIT=$?
+            [ $TEST_EXIT -eq 0 ] && break
+            echo "attempt $ATTEMPT failed (exit=$TEST_EXIT), retrying after settle..."
+            sleep 10
+          done
           set -e
           echo "== stopping screen recording (test exit=$TEST_EXIT) =="
           kill -INT "$RECORDER" 2>/dev/null || true
