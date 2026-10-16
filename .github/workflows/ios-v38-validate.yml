@@ -103,32 +103,42 @@ jobs:
           # (run 38824029239 flaked exactly this way on the first motion test).
           xcrun simctl bootstatus "$SIM_UDID" -b >/dev/null 2>&1 || true
           sleep 15
-          echo "== starting simctl screen recording =="
           # CRITICAL: record the EXPLICIT UDID we booted, not "booted".
           # xcodebuild "-destination name=..." can resolve to a DIFFERENT
           # device UDID than the first grep match above; recording "booted"
           # then captures the wrong (home-screen) device while tests pass on
           # another (run 38836192317: 5/5 tests green, video all home screen).
-          xcrun simctl io "$SIM_UDID" recordVideo --force artifacts/v38-motionlab-demo.mp4 &
-          RECORDER=$!
-          sleep 2
+          # （录屏启动已移到下方重试循环内，每次重试重新录制覆盖。）
           set +e
-          xcodebuild test -project XiaoZhangGui.xcodeproj -scheme XiaoZhangGui \
-            -destination "platform=iOS Simulator,id=$SIM_UDID" \
-            -derivedDataPath "$RUNNER_TEMP/xzg-ios-v38-derived" \
-            -resultBundlePath "$RUNNER_TEMP/xzg-ios-v38-motion.xcresult" \
-            -only-testing:XiaoZhangGuiUITests/V38MotionLabUITests \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
-            >artifacts/motion-test.log 2>&1
-          TEST_EXIT=$?
-          set -e
-          echo "== stopping screen recording (test exit=$TEST_EXIT) =="
-          kill -INT "$RECORDER" 2>/dev/null || true
-          wait "$RECORDER" 2>/dev/null || true
-          for i in $(seq 1 30); do
-            [ -s artifacts/v38-motionlab-demo.mp4 ] && break
-            sleep 1
+          # 录屏轮次在模拟器高负载下偶发抖动（iOS 26 AX 瞬态 / 启动失败），
+          # 与被测代码无关。最多重试 3 次，每次重新录屏覆盖。
+          TEST_EXIT=1
+          for attempt in 1 2 3; do
+            echo "== motion test attempt $attempt/3 =="
+            rm -f artifacts/v38-motionlab-demo.mp4
+            xcrun simctl io "$SIM_UDID" recordVideo --force artifacts/v38-motionlab-demo.mp4 &
+            RECORDER=$!
+            sleep 2
+            xcodebuild test -project XiaoZhangGui.xcodeproj -scheme XiaoZhangGui \
+              -destination "platform=iOS Simulator,id=$SIM_UDID" \
+              -derivedDataPath "$RUNNER_TEMP/xzg-ios-v38-derived" \
+              -resultBundlePath "$RUNNER_TEMP/xzg-ios-v38-motion.xcresult" \
+              -only-testing:XiaoZhangGuiUITests/V38MotionLabUITests \
+              CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+              >artifacts/motion-test.log 2>&1
+            TEST_EXIT=$?
+            echo "== stopping screen recording (attempt $attempt, test exit=$TEST_EXIT) =="
+            kill -INT "$RECORDER" 2>/dev/null || true
+            wait "$RECORDER" 2>/dev/null || true
+            for i in $(seq 1 30); do
+              [ -s artifacts/v38-motionlab-demo.mp4 ] && break
+              sleep 1
+            done
+            if [ "$TEST_EXIT" -eq 0 ]; then break; fi
+            echo "motion tests failed on attempt $attempt, retrying..."
+            sleep 10
           done
+          set -e
           ls -la artifacts/v38-motionlab-demo.mp4
           tail -n 40 artifacts/motion-test.log
           exit $TEST_EXIT
