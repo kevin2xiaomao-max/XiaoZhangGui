@@ -64,14 +64,19 @@ final class V371Phase0ReliabilityTests: XCTestCase {
 
     func testProductionRoutesUseStableIdentifiers() throws {
         let home = try source("XiaoZhangGui/Features/Home/HomeView.swift")
+        let aiCapsule = try source("XiaoZhangGui/Features/Home/V38/V38HomeAICapsule.swift")
         let business = try source("XiaoZhangGui/Features/Performance/PerformanceView.swift")
         let profile = try source("XiaoZhangGui/Features/Profile/ProfileView.swift")
 
-        // V3.8 重建：AI 入口生产化为 V38HomeAICapsule（v38.home.ai.*），
-        // 快捷记录为 V38HomeQuickMenu + 写备忘（homeQuickRecord 保留）。
+        // V3.8 重建：AI 入口生产化为 V38HomeAICapsule（v38.home.ai.* identifiers
+        // 定义在组件文件中，HomeView 通过 V38HomeAICapsule 引用）。
         XCTAssertTrue(
-            home.contains("V371AccessibilityID.homeAI") || home.contains("v38.home.ai.expand"),
-            "Home 必须有稳定的 AI 入口 identifier"
+            home.contains("V371AccessibilityID.homeAI") || home.contains("V38HomeAICapsule"),
+            "Home 必须有稳定的 AI 入口"
+        )
+        XCTAssertTrue(
+            aiCapsule.contains("v38.home.ai.expand"),
+            "V38HomeAICapsule 必须定义稳定的 v38.home.ai.* identifiers"
         )
         XCTAssertTrue(home.contains("V371AccessibilityID.homeQuickRecord"))
         XCTAssertTrue(

@@ -40,6 +40,9 @@ struct V38HomeQuickMenu: View {
 
     var body: some View {
         if isExpanded {
+            // 注意：不给 ZStack 容器挂 accessibilityIdentifier——实测（Worker B）：
+            // identifier 挂在容器上会覆盖其内部按钮的 identifier。展开态改由
+            // 收起按钮（v38.home.quick.collapse）的存在性判定。
             ZStack {
                 V38HomeQuickMenuBackground()
                     .matchedGeometryEffect(id: "v38-home-quick", in: morph)
@@ -62,7 +65,6 @@ struct V38HomeQuickMenu: View {
                     }
                 }
             }
-            .accessibilityIdentifier("v38.home.quick.expanded")
             .overlay(alignment: .topTrailing) {
                 Button { setExpanded(false) } label: {
                     Image(systemName: "xmark.circle.fill")

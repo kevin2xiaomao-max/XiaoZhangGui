@@ -19,7 +19,15 @@ struct V38HomeAICapsule: View {
 
     var body: some View {
         if isExpanded {
-            V38HomeGlassSurface(radius: 28) {
+            // ZStack 分层：玻璃背景层只承载视觉，内容层（按钮）在玻璃之外——
+            // iOS 26 下 glassEffect 内容内的嵌套按钮会从无障碍树消失（Worker B 实证）。
+            ZStack(alignment: .topLeading) {
+                V38HomeGlassSurface(radius: 28) {
+                    Color.clear
+                        .frame(maxWidth: .infinity, minHeight: 170)
+                }
+                .matchedGeometryEffect(id: "v38-home-ai", in: morph)
+                .transition(.opacity.combined(with: .scale(scale: 0.96)))
                 VStack(alignment: .leading, spacing: 14) {
                     HStack(spacing: 10) {
                         Image(systemName: "sparkles")
@@ -50,11 +58,7 @@ struct V38HomeAICapsule: View {
                 .padding(20)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .matchedGeometryEffect(id: "v38-home-ai", in: morph)
-            .transition(.opacity.combined(with: .scale(scale: 0.96)))
-            .accessibilityIdentifier("v38.home.ai.expanded")
-            // 收起按钮在玻璃容器之外（overlay）：iOS 26 下 glassEffect 内容内的
-            // 嵌套按钮会从无障碍树消失（Worker B 实证）。
+            // 不给 ZStack 挂 identifier（避免遮蔽内部按钮）；展开态由收起按钮判定。
             .overlay(alignment: .topTrailing) {
                 Button { setExpanded(false) } label: {
                     Image(systemName: "xmark.circle.fill")

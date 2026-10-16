@@ -354,7 +354,7 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         // 兼容旧版 home.ai 单步入口。
         if element("v38.home.ai.expand").exists {
             tapElement("v38.home.ai.expand")
-            XCTAssertTrue(element("v38.home.ai.expanded").waitForExistence(timeout: 5))
+            XCTAssertTrue(element("v38.home.ai.collapse").waitForExistence(timeout: 5))
             tapElement("v38.home.ai.openSheet")
         } else {
             let entry = element("home.ai")

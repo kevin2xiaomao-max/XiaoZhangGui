@@ -204,7 +204,7 @@ final class ThinkingIndicatorUITests: XCTestCase {
         // V3.8 重建：AI 胶囊两步打开（展开 → 点击输入行进 Sheet）；兼容旧版 home.ai。
         if element("v38.home.ai.expand").exists {
             element("v38.home.ai.expand").tap()
-            XCTAssertTrue(element("v38.home.ai.expanded").waitForExistence(timeout: 5))
+            XCTAssertTrue(element("v38.home.ai.collapse").waitForExistence(timeout: 5))
             element("v38.home.ai.openSheet").tap()
         } else {
             let entry = element("home.ai")

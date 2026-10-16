@@ -70,10 +70,10 @@ final class V38HomeRebuildUITests: XCTestCase {
     // MARK: - AI 胶囊：展开 → 打开真实 AI Sheet → 返回
 
     func testAICapsuleExpandOpenSheetAndReturn() {
-        // 展开 AI 胶囊
+        // 展开 AI 胶囊（展开态由收起按钮存在性判定）
         element("v38.home.ai.expand").tap()
         XCTAssertTrue(
-            waitForElement("v38.home.ai.expanded", timeout: 5),
+            waitForElement("v38.home.ai.collapse", timeout: 5),
             "AI 胶囊未展开"
         )
         // 点击输入行 → 打开真实 AI Sheet（现有 AIChatView）
@@ -99,10 +99,10 @@ final class V38HomeRebuildUITests: XCTestCase {
     // MARK: - 快捷菜单：展开 → 选择 → QuickRecord → 返回
 
     func testQuickMenuExpandSelectAndReturn() {
-        // 展开快捷菜单
+        // 展开快捷菜单（展开态由收起按钮存在性判定，容器不挂 identifier 避免遮蔽子按钮）
         element("v38.home.quick.expand").tap()
         XCTAssertTrue(
-            waitForElement("v38.home.quick.expanded", timeout: 5),
+            waitForElement("v38.home.quick.collapse", timeout: 5),
             "快捷菜单未展开"
         )
         // 选择"记收入" → 打开 QuickRecord Sheet（现有生产路由）
