@@ -103,6 +103,14 @@ jobs:
           # (run 38824029239 flaked exactly this way on the first motion test).
           xcrun simctl bootstatus "$SIM_UDID" -b >/dev/null 2>&1 || true
           sleep 15
+          # Warmup：bootstatus 返回后首次启动仍可能 "No such process"
+          #（run 38865743826 三次重试均 deterministic 失败在首个测试）。
+          # 先用 simctl 直接启动一次 App 确认模拟器就绪，再进入录制循环。
+          echo "== simulator warmup launch =="
+          xcrun simctl launch "$SIM_UDID" com.xiaozhanggui.ios >/dev/null 2>&1 || true
+          sleep 8
+          xcrun simctl terminate "$SIM_UDID" com.xiaozhanggui.ios >/dev/null 2>&1 || true
+          sleep 3
           # CRITICAL: record the EXPLICIT UDID we booted, not "booted".
           # xcodebuild "-destination name=..." can resolve to a DIFFERENT
           # device UDID than the first grep match above; recording "booted"
