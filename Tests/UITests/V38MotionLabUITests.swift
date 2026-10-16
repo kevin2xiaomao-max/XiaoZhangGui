@@ -29,7 +29,13 @@ final class V38MotionLabUITests: XCTestCase {
         launchMotionLab()
         // 前置：收起态可见、展开态不存在——tap 必须造成一次真实过渡。
         XCTAssertTrue(element("v38.motion.ai.expand").waitForExistence(timeout: 10))
-        XCTAssertFalse(element("v38.motion.ai.expanded").exists)
+        // iOS 26 AX 瞬态：首屏出现动画期间，带 matchedGeometryEffect 的未渲染
+        // 分支可能被短暂上报。轮询等待展开态稳定"不存在"，而非单次 .exists 采样
+        //（run 38830533902 录屏轮次首个用例因此 flaky，主步骤 5/5 通过）。
+        XCTAssertTrue(
+            waitForNonExistence("v38.motion.ai.expanded", timeout: 10),
+            "AI expanded state existed before tap (not a clean precondition)"
+        )
 
         element("v38.motion.ai.expand").tap()
         XCTAssertTrue(
@@ -50,7 +56,10 @@ final class V38MotionLabUITests: XCTestCase {
     func testQuickMenuExpandSelectTriggersRealTransition() {
         launchMotionLab()
         XCTAssertTrue(element("v38.motion.quick.expand").waitForExistence(timeout: 10))
-        XCTAssertFalse(element("v38.motion.quick.income").exists)
+        XCTAssertTrue(
+            waitForNonExistence("v38.motion.quick.income", timeout: 10),
+            "Quick menu row existed before tap (not a clean precondition)"
+        )
 
         element("v38.motion.quick.expand").tap()
         // 展开态由行按钮的可达性证明：iOS 26 下 identifier 若挂在带
@@ -135,6 +144,18 @@ final class V38MotionLabUITests: XCTestCase {
 
     private func element(_ identifier: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+    }
+
+    /// 轮询等待指定 identifier 的元素稳定"不存在"。用于"展开态前置不存在"
+    /// 类断言：iOS 26 下带 matchedGeometryEffect / transition 的未渲染分支
+    /// 可能在首屏出现动画期间被 AX 短暂上报，单次 .exists 采样会 flaky。
+    private func waitForNonExistence(_ identifier: String, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if !element(identifier).exists { return true }
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        return !element(identifier).exists
     }
 
     private func attachScreenshot(named name: String) {
