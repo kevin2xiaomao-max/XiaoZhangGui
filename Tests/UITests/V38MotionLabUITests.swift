@@ -149,13 +149,16 @@ final class V38MotionLabUITests: XCTestCase {
     /// 轮询等待指定 identifier 的元素稳定"不存在"。用于"展开态前置不存在"
     /// 类断言：iOS 26 下带 matchedGeometryEffect / transition 的未渲染分支
     /// 可能在首屏出现动画期间被 AX 短暂上报，单次 .exists 采样会 flaky。
+    /// 必须用 XCTNSPredicateExpectation（转 runloop）；Thread.sleep 会阻塞
+    /// 测试线程、饿死 AX 更新，导致 .exists 返回过期缓存（run 38857045003）。
     private func waitForNonExistence(_ identifier: String, timeout: TimeInterval) -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if !element(identifier).exists { return true }
-            Thread.sleep(forTimeInterval: 0.25)
-        }
-        return !element(identifier).exists
+        let e = element(identifier)
+        if !e.exists { return true }
+        let exp = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"),
+            object: e
+        )
+        return XCTWaiter.wait(for: [exp], timeout: timeout) == .completed
     }
 
     private func attachScreenshot(named name: String) {
