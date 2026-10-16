@@ -108,12 +108,17 @@ jobs:
           xcrun simctl bootstatus "$SIM_UDID" -b >/dev/null 2>&1 || true
           sleep 15
           echo "== starting simctl screen recording =="
-          xcrun simctl io booted recordVideo --force artifacts/v38-motionlab-demo.mp4 &
+          # CRITICAL: record the EXPLICIT UDID we booted, not "booted".
+          # xcodebuild "-destination name=..." can resolve to a DIFFERENT
+          # device UDID than the first grep match above; recording "booted"
+          # then captures the wrong (home-screen) device while tests pass on
+          # another (run 38836192317: 5/5 tests green, video all home screen).
+          xcrun simctl io "$SIM_UDID" recordVideo --force artifacts/v38-motionlab-demo.mp4 &
           RECORDER=$!
           sleep 2
           set +e
           xcodebuild test -project XiaoZhangGui.xcodeproj -scheme XiaoZhangGui \
-            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+            -destination "platform=iOS Simulator,id=$SIM_UDID" \
             -derivedDataPath "$RUNNER_TEMP/xzg-ios-v38-derived" \
             -resultBundlePath "$RUNNER_TEMP/xzg-ios-v38-motion.xcresult" \
             -only-testing:XiaoZhangGuiUITests/V38MotionLabUITests \
@@ -133,6 +138,9 @@ jobs:
           exit $TEST_EXIT
       # E·QA: extract 1-fps frames and require several distinct frames,
       # so a frozen/still recording fails the gate instead of passing silently.
+      # ALSO requires the recording-run's motion-test.log to show all 5 motion
+      # tests passed: a "distinct frames" check alone can be fooled by a home
+      # screen with a changing clock (run 38836192317).
       - name: Verify motion video is not a still frame
         if: always()
         shell: bash
@@ -140,6 +148,12 @@ jobs:
           set -euo pipefail
           VID=artifacts/v38-motionlab-demo.mp4
           if [ ! -s "$VID" ]; then echo "motion video missing: $VID"; exit 1; fi
+          PASSED=$(grep -a -c "Test Case '-\[XiaoZhangGuiUITests.V38MotionLabUITests .*' passed" artifacts/motion-test.log || true)
+          echo "motion tests passed in recording run: $PASSED/5"
+          if [ "$PASSED" -lt 5 ]; then
+            echo "NOT-TEST-DRIVEN FAIL: only $PASSED/5 motion tests passed during recording"
+            exit 1
+          fi
           if ! command -v ffmpeg >/dev/null 2>&1; then brew install ffmpeg; fi
           FRAMEDIR="$RUNNER_TEMP/v38-motion-frames"
           rm -rf "$FRAMEDIR"; mkdir -p "$FRAMEDIR"
@@ -151,7 +165,7 @@ jobs:
             echo "STILL-FRAME FAIL: motion video shows no real animation ($DISTINCT distinct frames)"
             exit 1
           fi
-          echo "motion video OK: $DISTINCT distinct frames out of $COUNT"
+          echo "motion video OK: $DISTINCT distinct frames out of $COUNT, 5/5 tests drove it"
       # E·QA: Light/Dark screenshots of the isolated MotionLab demo.
       # Launched directly via simctl with launch args (dashless aliases defined
       # in V38MotionLabQA.swift); the app renders V38MotionLabView as its root.
@@ -170,12 +184,14 @@ jobs:
           xcrun simctl bootstatus "$SIM_UDID" -b >/dev/null 2>&1 || true
           sleep 15
           for SCHEME in light dark; do
-            xcrun simctl terminate booted "$BUNDLE" 2>/dev/null || true
+            # Use the explicit UDID (not "booted") so launch/screenshot
+            # always target the device we booted above.
+            xcrun simctl terminate "$SIM_UDID" "$BUNDLE" 2>/dev/null || true
             sleep 1
-            xcrun simctl launch booted "$BUNDLE" ui-testing v38-motion-lab v38-color-scheme "$SCHEME"
+            xcrun simctl launch "$SIM_UDID" "$BUNDLE" ui-testing v38-motion-lab v38-color-scheme "$SCHEME"
             sleep 6
-            xcrun simctl io booted screenshot "artifacts/v38-motionlab-$SCHEME.png"
-            xcrun simctl terminate booted "$BUNDLE" 2>/dev/null || true
+            xcrun simctl io "$SIM_UDID" screenshot "artifacts/v38-motionlab-$SCHEME.png"
+            xcrun simctl terminate "$SIM_UDID" "$BUNDLE" 2>/dev/null || true
           done
           ls -la artifacts/v38-motionlab-*.png
       - name: Save test result bundles
