@@ -34,26 +34,26 @@ class PerfFrameCollector {
 
     /**
      * 开始采集（主线程调用）。
-     * @return false 表示窗口不可用等系统级失败，调用方应记 NO_DATA。
+     *
+     * 注：core 1.15.0 的 `add(Activity)` 返回 void（非 boolean），
+     * 失败仅以异常体现；无帧产出时 [stop] 返回空 map，调用方记 NO_DATA。
+     * @return false 仅表示 add 抛异常（窗口不可用等系统级失败）。
      */
     fun start(activity: Activity): Boolean {
         clear()
         val agg = FrameMetricsAggregator(FrameMetricsAggregator.TOTAL_DURATION)
-        val ok = try {
+        return try {
             agg.add(activity)
-        } catch (e: Exception) {
-            false
-        }
-        if (ok) {
             aggregator = agg
-        } else {
+            true
+        } catch (e: Exception) {
             try {
                 agg.stop()
             } catch (_: Exception) {
                 // 忽略：已处于失败路径
             }
+            false
         }
-        return ok
     }
 
     /**
