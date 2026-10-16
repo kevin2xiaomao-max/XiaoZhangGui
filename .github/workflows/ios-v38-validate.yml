@@ -75,6 +75,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Full strict gate (quarantine lifted 2026-10-16): the previously
+          # quarantined testGoodsDeleteCancellationKeepsTarget is fixed for
+          # iOS 27 (Worker Q, verified 3 consecutive quarantine-job passes)
+          # and runs here again. No skips, no continue-on-error.
           xcodebuild test -project XiaoZhangGui.xcodeproj -scheme XiaoZhangGui \
             -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
             -derivedDataPath "$RUNNER_TEMP/xzg-ios-v38-derived" \
