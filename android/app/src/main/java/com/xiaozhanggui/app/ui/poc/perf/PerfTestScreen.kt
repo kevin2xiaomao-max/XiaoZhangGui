@@ -66,10 +66,13 @@ import kotlinx.coroutines.delay
  *    （每段 [STAGE_SEC]s，动画内容复用各 PoC 的确定性渲染器：
  *    [DropletMenuStatic] / [GlassTierShowcase] / [MorphCardStatic]，
  *    程序化循环驱动，无需触摸）；
- * 2. 每段用 [PerfFrameCollector]（FrameMetrics 公开 API）采集真实帧，
- *    [PerfStats] 计算 p50 / p95 / 掉帧率并判定（p95 ≤ 18.18ms → PASS）；
+ * 2. 每段同时跑两个采集器：
+ *    - [PerfIntervalCollector]（Choreographer 帧间隔，**唯一判定依据**）；
+ *    - [PerfFrameCollector]（FrameMetrics 渲染耗时，仅参考）；
+ *    [PerfIntervalStats] 计算帧间隔 p50 / p95 / 真实 fps / 卡顿率并判定
+ *    （帧间隔 p95 ≤ 18.18ms → PASS；渲染耗时**不得**用于判定）；
  * 3. 「分享报告」/「保存到下载目录」导出 Markdown（含机型/系统/刷新率/
- *    各 PoC 统计/判定 + 原始分桶摘要）。
+ *    各 PoC 四口径统计/判定 + 原始分桶摘要）。
  *
  * 门控：只在 `PocGraph`（[PocGate.enabled]）注册；release 构建不可见。
  * 红线：生产业务零引用；只读设备信息，不写库；不碰 Room / Repository / AI。
@@ -85,6 +88,7 @@ fun PerfTestScreen(onBack: () -> Unit) {
     var runId by remember { mutableIntStateOf(0) }
     var currentStageIdx by remember { mutableIntStateOf(-1) }
     var results by remember { mutableStateOf<List<PerfStats.StageSummary>>(emptyList()) }
+    var intervalResults by remember { mutableStateOf<List<PerfIntervalStats.IntervalSummary>>(emptyList()) }
     var rawBuckets by remember { mutableStateOf<Map<String, Map<Int, Long>>>(emptyMap()) }
 
     val device = remember(context, reduceMotion) {
@@ -99,18 +103,39 @@ fun PerfTestScreen(onBack: () -> Unit) {
             PocSpeed.mode = PocSpeedMode.NORMAL
             try {
                 val acc = mutableListOf<PerfStats.StageSummary>()
+                val intervalAcc = mutableListOf<PerfIntervalStats.IntervalSummary>()
                 val bucketAcc = mutableMapOf<String, Map<Int, Long>>()
+                // vsync 预期：取显示刷新率，取不到按 60Hz 假设（摘要中标注）
+                val vsyncHz = if (device.refreshRateHz > 0f) {
+                    device.refreshRateHz.toDouble()
+                } else {
+                    PerfIntervalStats.DEFAULT_REFRESH_RATE_HZ
+                }
                 PERF_STAGES.forEachIndexed { idx, stage ->
                     currentStageIdx = idx
-                    val collector = PerfFrameCollector()
-                    val started = activity?.let { collector.start(it) } == true
+                    val frameCollector = PerfFrameCollector()
+                    val intervalCollector = PerfIntervalCollector()
+                    val started = activity?.let { frameCollector.start(it) } == true
+                    // LaunchedEffect 运行在主线程，满足 Choreographer 主 Looper 要求
+                    val intervalStarted = intervalCollector.start()
                     val t0 = SystemClock.elapsedRealtime()
                     delay(STAGE_MS) // 动画由 StageAnimation 自行循环驱动
-                    val buckets = if (started) collector.stop() else emptyMap()
+                    val buckets = if (started) frameCollector.stop() else emptyMap()
+                    val frameTimesNs = if (intervalStarted) {
+                        intervalCollector.stop()
+                    } else {
+                        emptyList()
+                    }
                     val durSec = (SystemClock.elapsedRealtime() - t0) / 1000.0
                     bucketAcc[stage.id] = buckets
                     acc.add(PerfStats.summarize(stage.id, stage.name, buckets, durSec))
+                    intervalAcc.add(
+                        PerfIntervalStats.summarize(
+                            stage.id, stage.name, frameTimesNs, durSec, vsyncHz,
+                        ),
+                    )
                     results = acc.toList() // 逐段刷新
+                    intervalResults = intervalAcc.toList()
                 }
                 rawBuckets = bucketAcc
             } finally {
@@ -121,8 +146,8 @@ fun PerfTestScreen(onBack: () -> Unit) {
         }
     }
 
-    val markdown = remember(results, rawBuckets, device) {
-        PerfReport.buildMarkdown(device, results, rawBuckets)
+    val markdown = remember(results, intervalResults, rawBuckets, device) {
+        PerfReport.buildMarkdown(device, results, rawBuckets, intervalResults)
     }
     val reportName = remember(results) { PerfReport.fileName() }
 
@@ -159,12 +184,14 @@ fun PerfTestScreen(onBack: () -> Unit) {
                     )
                     Text(
                         "刷新率：${"%.1f".format(Locale.US, device.refreshRateHz)} Hz" +
+                            (if (device.refreshRateHz > 0f) "" else "（取不到，按 60Hz 假设）") +
                             "｜Reduce Motion：${if (device.reduceMotion) "开" else "关"}",
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Text(
-                        "判定：≥55fps ⇔ p95 ≤ " +
-                            "${"%.2f".format(Locale.US, PerfStats.FRAME_BUDGET_55FPS_MS)}ms",
+                        "判定（唯一依据）：帧间隔 p95 ≤ " +
+                            "${"%.2f".format(Locale.US, PerfIntervalStats.FRAME_BUDGET_55FPS_MS)}ms" +
+                            "（Choreographer）；渲染耗时仅参考，不判定（渲染耗时≠帧率）",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -191,9 +218,11 @@ fun PerfTestScreen(onBack: () -> Unit) {
                 }
             }
 
-            // ── 各段结果 ──
+            // ── 各段结果：四个口径分区 ──
+            // ①渲染耗时（FrameMetrics，参考）②刷新率（显示 Hz）③帧间隔（Choreographer，判定依据）④卡顿率
             PERF_STAGES.forEachIndexed { idx, stage ->
                 val r = results.find { it.stageId == stage.id }
+                val iv = intervalResults.find { it.stageId == stage.id }
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Row(
                         modifier = Modifier
@@ -202,24 +231,47 @@ fun PerfTestScreen(onBack: () -> Unit) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
                             Text(stage.name, style = MaterialTheme.typography.titleSmall)
-                            Text(
-                                when {
-                                    phase == PerfPhase.RUNNING && idx == currentStageIdx ->
-                                        "采集中…"
-                                    r == null -> "未测试"
-                                    r.verdict == PerfStats.Verdict.NO_DATA -> "无数据（采集失败）"
-                                    else -> "帧数 ${r.frameCount}｜p50 " +
-                                        "${"%.1f".format(Locale.US, r.p50Ms)}ms｜p95 " +
-                                        "${"%.1f".format(Locale.US, r.p95Ms)}ms｜" +
-                                        "掉帧率 ${"%.1f%%".format(Locale.US, r.dropRate * 100)}"
-                                },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                            when {
+                                phase == PerfPhase.RUNNING && idx == currentStageIdx ->
+                                    IntervalLine("采集中…")
+                                r == null || iv == null ->
+                                    IntervalLine("未测试")
+                                iv.verdict == PerfIntervalStats.Verdict.NO_DATA ->
+                                    IntervalLine("无数据（采集失败）")
+                                else -> {
+                                    // 口径③：帧间隔（判定依据）
+                                    IntervalLine(
+                                        "帧间隔（判定依据）｜间隔数 ${iv.intervalCount}｜" +
+                                            "p50 ${fmt1(iv.p50Ms)}ms｜p95 " +
+                                            "${fmt1(iv.p95Ms)}ms｜fps≈${fmt1(iv.fpsMedian)}",
+                                    )
+                                    // 口径④：卡顿率
+                                    IntervalLine(
+                                        "卡顿率 ${fmtPct(iv.jankRate)}" +
+                                            "（>2×vsync ${fmt1(2 * 1000.0 / iv.refreshRateHz)}ms，" +
+                                            "刷新率 ${fmt0(iv.refreshRateHz)}Hz" +
+                                            (if (iv.assumedRefreshRate) "·假设" else "") + "）",
+                                    )
+                                    // 口径①：渲染耗时（参考，渲染耗时≠帧率）
+                                    IntervalLine(
+                                        "渲染耗时（参考≠帧率）｜帧数 ${r.frameCount}｜" +
+                                            "p50 ${fmt1(r.p50Ms)}ms｜p95 ${fmt1(r.p95Ms)}ms",
+                                    )
+                                    // 口径②：刷新率
+                                    IntervalLine(
+                                        "刷新率 ${"%.1f".format(Locale.US, device.refreshRateHz)}Hz" +
+                                            (if (device.refreshRateHz > 0f) "" else "（取不到，按 60Hz 假设）"),
+                                    )
+                                }
+                            }
                         }
-                        VerdictChip(r?.verdict)
+                        // 判定徽标只反映帧间隔判定（渲染耗时不参与）
+                        VerdictChip(iv?.verdict)
                     }
                 }
             }
@@ -228,6 +280,7 @@ fun PerfTestScreen(onBack: () -> Unit) {
             Button(
                 onClick = {
                     results = emptyList()
+                    intervalResults = emptyList()
                     rawBuckets = emptyMap()
                     runId += 1
                     phase = PerfPhase.RUNNING
@@ -261,8 +314,9 @@ fun PerfTestScreen(onBack: () -> Unit) {
             }
 
             Text(
-                "debug 构建专用。采集经 FrameMetrics 公开 API（无反射）；" +
-                    "分桶为整数 ms 近似，原始分桶随报告导出可审计。",
+                "debug 构建专用。判定只看 Choreographer 帧间隔（公开 API，无反射）；" +
+                    "FrameMetrics 渲染耗时仅作参考——渲染耗时≠帧率，不能证明 fps；" +
+                    "整数 ms 分桶为 FrameMetrics 固有近似，原始分桶随报告导出可审计。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -286,16 +340,35 @@ private val PERF_STAGES = listOf(
 private const val STAGE_SEC = 6L
 private const val STAGE_MS = STAGE_SEC * 1000L
 
-/** 判定徽标。 */
+/** 四口径分区中的单行文本（口径标签 + 数值）。 */
 @Composable
-private fun VerdictChip(verdict: PerfStats.Verdict?) {
+private fun IntervalLine(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+private fun fmt1(v: Double): String =
+    if (v.isNaN()) "—" else "%.1f".format(Locale.US, v)
+
+private fun fmt0(v: Double): String =
+    if (v.isNaN()) "—" else "%.0f".format(Locale.US, v)
+
+private fun fmtPct(v: Double): String =
+    if (v.isNaN()) "—" else "%.1f%%".format(Locale.US, v * 100.0)
+
+/** 判定徽标：只反映帧间隔判定（渲染耗时不参与）。 */
+@Composable
+private fun VerdictChip(verdict: PerfIntervalStats.Verdict?) {
     val (label, container, content) = when (verdict) {
-        PerfStats.Verdict.PASS -> Triple(
+        PerfIntervalStats.Verdict.PASS -> Triple(
             "PASS",
             MaterialTheme.colorScheme.primaryContainer,
             MaterialTheme.colorScheme.onPrimaryContainer,
         )
-        PerfStats.Verdict.FAIL -> Triple(
+        PerfIntervalStats.Verdict.FAIL -> Triple(
             "FAIL",
             MaterialTheme.colorScheme.errorContainer,
             MaterialTheme.colorScheme.onErrorContainer,

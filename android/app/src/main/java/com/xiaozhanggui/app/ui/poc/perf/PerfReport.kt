@@ -69,16 +69,25 @@ object PerfReport {
     /**
      * 生成 Markdown 报告。
      *
-     * @param device 设备信息；[results] 各 PoC stage 摘要（顺序即测试顺序）；
+     * 口径（V3.8 口径审计结论）：
+     * - 唯一判定依据：**帧间隔**（Choreographer frameTimeNanos 差分），
+     *   p95 ≤ 18.18ms → PASS；
+     * - **渲染耗时**（FrameMetrics TOTAL_DURATION）是绘制一帧花费的时间，
+     *   不是帧间隔，**不能证明 FPS**，仅作参考信息展示。
+     *
+     * @param device 设备信息；[results] 各 PoC stage 渲染耗时摘要（参考，顺序即测试顺序）；
+     * @param intervalResults 各 PoC stage 帧间隔摘要（判定依据）；
      * @param rawBuckets 原始分桶（stageId → ms→帧数），审计用，可空。
      */
     fun buildMarkdown(
         device: DeviceInfo,
         results: List<PerfStats.StageSummary>,
         rawBuckets: Map<String, Map<Int, Long>> = emptyMap(),
+        intervalResults: List<PerfIntervalStats.IntervalSummary> = emptyList(),
         generatedAt: Date = Date(),
     ): String {
         val time = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA).format(generatedAt)
+        val budget = "%.2f".format(Locale.US, PerfIntervalStats.FRAME_BUDGET_55FPS_MS)
         val sb = StringBuilder()
         sb.appendLine("# V3.8 PoC 真机性能测试报告")
         sb.appendLine()
@@ -91,23 +100,49 @@ object PerfReport {
                 if (device.reduceMotion) "开（系统可能跳过动画，结果仅供参考）" else "关",
         )
         sb.appendLine(
-            "- 采集方式：androidx.core.app.FrameMetricsAggregator（公开 API，无反射）" +
-                "TOTAL_DURATION",
+            "- 采集方式：① Choreographer 帧回调（frameTimeNanos 序列→帧间隔，公开 API，无反射）；" +
+                "② androidx.core.app.FrameMetricsAggregator（公开 API，无反射）TOTAL_DURATION（渲染耗时，参考）",
         )
         sb.appendLine(
-            "- 判定标准：≥55fps ⇔ p95 ≤ " +
-                "${"%.2f".format(Locale.US, PerfStats.FRAME_BUDGET_55FPS_MS)}ms",
+            "- 判定标准（唯一）：≥55fps ⇔ **帧间隔 p95** ≤ ${budget}ms；" +
+                "渲染耗时**不能**用于判定（渲染耗时≠帧率）",
         )
         sb.appendLine()
-        sb.appendLine("## 结果")
+        sb.appendLine("## 帧间隔（判定依据 · Choreographer）")
         sb.appendLine()
-        sb.appendLine("| PoC | 采集时长(s) | 帧数 | p50(ms) | p95(ms) | 掉帧数(>18.18ms) | 掉帧率 | 判定 |")
-        sb.appendLine("|---|---|---|---|---|---|---|---|")
-        for (r in results) {
+        sb.appendLine(
+            "| PoC | 采集时长(s) | 帧数 | 有效间隔数 | p50(ms) | p95(ms) | " +
+                "真实fps(中位) | 卡顿数(>2×vsync) | 卡顿率 | 刷新率假设 | 判定 |",
+        )
+        sb.appendLine("|---|---|---|---|---|---|---|---|---|---|---|")
+        for (r in intervalResults) {
+            val hzNote = if (r.assumedRefreshRate) {
+                "${"%.0f".format(Locale.US, r.refreshRateHz)}Hz(假设)"
+            } else {
+                "${"%.0f".format(Locale.US, r.refreshRateHz)}Hz"
+            }
             sb.appendLine(
                 "| ${r.stageName} | ${"%.1f".format(Locale.US, r.durationSec)} | " +
-                    "${r.frameCount} | ${fmtMs(r.p50Ms)} | ${fmtMs(r.p95Ms)} | " +
-                    "${r.droppedFrames} | ${fmtPct(r.dropRate)} | ${verdictText(r.verdict)} |",
+                    "${r.frameCount} | ${r.intervalCount} | ${fmtMs(r.p50Ms)} | " +
+                    "${fmtMs(r.p95Ms)} | ${fmtFps(r.fpsMedian)} | ${r.jankCount} | " +
+                    "${fmtPct(r.jankRate)} | $hzNote | ${intervalVerdictText(r.verdict)} |",
+            )
+        }
+        sb.appendLine()
+        sb.appendLine("## 渲染耗时（参考信息 · FrameMetrics）")
+        sb.appendLine()
+        sb.appendLine(
+            "> ⚠️ 渲染耗时是**绘制一帧花费的时间**，不是两帧的间隔；" +
+                "绘制耗时小但等待 vsync/主线程休眠时，实际帧率仍可能很低。" +
+                "本节仅作参考，**不参与 PASS 判定**。",
+        )
+        sb.appendLine()
+        sb.appendLine("| PoC | 帧数 | p50(ms) | p95(ms) | 掉帧数(>18.18ms) | 掉帧率 |")
+        sb.appendLine("|---|---|---|---|---|---|")
+        for (r in results) {
+            sb.appendLine(
+                "| ${r.stageName} | ${r.frameCount} | ${fmtMs(r.p50Ms)} | " +
+                    "${fmtMs(r.p95Ms)} | ${r.droppedFrames} | ${fmtPct(r.dropRate)} |",
             )
         }
         sb.appendLine()
@@ -127,14 +162,29 @@ object PerfReport {
         sb.appendLine("## 方法说明")
         sb.appendLine()
         sb.appendLine(
-            "1. 每 stage 独立创建 FrameMetricsAggregator，动画序列期间采集，" +
-                "结束后读取 TOTAL_DURATION 分桶；",
+            "1. 判定口径（审计结论）：≥55fps **只能**基于帧间隔判定——" +
+                "Choreographer frameTimeNanos 序列相邻差分，p95 ≤ 18.18ms→PASS，" +
+                "否则 FAIL；无有效间隔记 NO_DATA；",
         )
-        sb.appendLine("2. 分桶 key 为整数 ms（向下取整，FrameMetrics 公开 API 固有粒度），" + "p50/p95/掉帧率为该精度的近似值；")
-        sb.appendLine("3. 百分位取 nearest-rank（rank=ceil(p/100·N)）；")
-        sb.appendLine("4. 掉帧=单帧>18.18ms；判定 p95≤18.18ms→PASS，否则 FAIL；0 帧记 NO_DATA；")
-        sb.appendLine("5. 测试期间强制 PocSpeed 正常速度（慢放档会被临时关闭并恢复）；")
-        sb.appendLine("6. 本报告由 Debug 构建 PoC 隔离区生成，不涉及生产业务数据。")
+        sb.appendLine(
+            "2. FrameMetrics TOTAL_DURATION 是**渲染耗时**（绘制一帧花费的时间），" +
+                "不是帧间隔，**不能直接证明 FPS**，本报告中仅作参考信息展示，不参与判定；",
+        )
+        sb.appendLine(
+            "3. 有效间隔：0 < dt ≤ 1s（剔除重复/乱序时间戳与页面静置断档），" +
+                "与 --perf framestats 口径一致；",
+        )
+        sb.appendLine(
+            "4. 帧间隔百分位取 nearest-rank（rank=ceil(p/100·N)，原始 ns 值排序）；" +
+                "真实 fps = 1000 / 中位间隔；",
+        )
+        sb.appendLine(
+            "5. 卡顿=帧间隔 > 2×vsync 预期（vsync 预期=1000/显示刷新率；" +
+                "取不到刷新率时按 60Hz 假设，表中标注\"假设\"）；",
+        )
+        sb.appendLine("6. 每 stage 同时跑两个采集器（Choreographer + FrameMetrics），互不干扰；")
+        sb.appendLine("7. 测试期间强制 PocSpeed 正常速度（慢放档会被临时关闭并恢复）；")
+        sb.appendLine("8. 本报告由 Debug 构建 PoC 隔离区生成，不涉及生产业务数据。")
         return sb.toString()
     }
 
@@ -176,12 +226,15 @@ object PerfReport {
     private fun fmtMs(v: Double): String =
         if (v.isNaN()) "—" else "%.1f".format(Locale.US, v)
 
+    private fun fmtFps(v: Double): String =
+        if (v.isNaN()) "—" else "%.1f".format(Locale.US, v)
+
     private fun fmtPct(v: Double): String =
         if (v.isNaN()) "—" else "%.1f%%".format(Locale.US, v * 100.0)
 
-    private fun verdictText(v: PerfStats.Verdict): String = when (v) {
-        PerfStats.Verdict.PASS -> "PASS"
-        PerfStats.Verdict.FAIL -> "FAIL"
-        PerfStats.Verdict.NO_DATA -> "NO_DATA"
+    private fun intervalVerdictText(v: PerfIntervalStats.Verdict): String = when (v) {
+        PerfIntervalStats.Verdict.PASS -> "PASS"
+        PerfIntervalStats.Verdict.FAIL -> "FAIL"
+        PerfIntervalStats.Verdict.NO_DATA -> "NO_DATA"
     }
 }
