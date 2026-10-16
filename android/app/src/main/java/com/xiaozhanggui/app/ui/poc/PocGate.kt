@@ -21,8 +21,8 @@ object PocGate {
 /**
  * PoC 独立 route 声明（与生产页物理隔离）。
  *
- * - 四个 PoC 各占一个顶层 route：`poc/droplet` / `poc/glass` /
- *   `poc/morph` / `poc/transition`；
+ * - 五个 PoC 各占一个顶层 route：`poc/droplet` / `poc/glass` /
+ *   `poc/morph` / `poc/transition` / `poc/perf`（性能测试，V3.8 真机验收补强）；
  * - `poc/launcher` 为 PoC 列表入口，仅经 `xzg://poc` 深链进入，
  *   生产页无任何入口引用；
  * - 生产路由（`home` / `todo` / `calendar` / `business` / 二级页）
@@ -34,4 +34,7 @@ object PocRoutes {
     const val GLASS = "poc/glass"
     const val MORPH = "poc/morph"
     const val TRANSITION = "poc/transition"
+
+    /** 性能测试（真机帧率）：FrameMetrics 采集 + 报告导出（V3.8 真机验收补强，debug only）。 */
+    const val PERF = "poc/perf"
 }

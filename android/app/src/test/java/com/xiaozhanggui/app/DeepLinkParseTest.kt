@@ -196,6 +196,23 @@ class DeepLinkParseTest {
     }
 
     @Test
+    fun `poc perf path opens perf test screen (V3_8 device acceptance)`() {
+        assertEquals(
+            DeepLinkAction.OpenPoc("poc/perf"),
+            XzgDeepLink.route("poc", path = "/perf", pocEnabled = true),
+        )
+        assertEquals(
+            DeepLinkAction.OpenPoc("poc/perf"),
+            XzgDeepLink.parse("xzg://poc/perf", pocEnabled = true),
+        )
+        // release 构建（pocEnabled=false）一律 Ignore
+        assertEquals(
+            DeepLinkAction.Ignore,
+            XzgDeepLink.parse("xzg://poc/perf", pocEnabled = false),
+        )
+    }
+
+    @Test
     fun `poc bare host still opens launcher (phase 2 behavior kept)`() {
         // xzg://poc（无 path）仍进 launcher；显式 /launcher 亦可。
         assertEquals(DeepLinkAction.OpenPocLauncher, XzgDeepLink.parse("xzg://poc", pocEnabled = true))

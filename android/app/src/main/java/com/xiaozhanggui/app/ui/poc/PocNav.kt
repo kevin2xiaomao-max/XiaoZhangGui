@@ -19,6 +19,7 @@ import androidx.navigation.compose.composable
 import com.xiaozhanggui.app.ui.poc.droplet.DropletMenuScreen
 import com.xiaozhanggui.app.ui.poc.glass.GlassPocScreen
 import com.xiaozhanggui.app.ui.poc.morph.MorphDemoScreen
+import com.xiaozhanggui.app.ui.poc.perf.PerfTestScreen
 import com.xiaozhanggui.app.ui.poc.transition.TransitionPocScreen
 
 /**
@@ -38,6 +39,7 @@ fun NavGraphBuilder.pocGraph(navController: NavController) {
             onOpenGlass = { navController.navigate(PocRoutes.GLASS) },
             onOpenMorph = { navController.navigate(PocRoutes.MORPH) },
             onOpenTransition = { navController.navigate(PocRoutes.TRANSITION) },
+            onOpenPerf = { navController.navigate(PocRoutes.PERF) },
             onBack = { navController.popBackStack() },
         )
     }
@@ -57,6 +59,10 @@ fun NavGraphBuilder.pocGraph(navController: NavController) {
     composable(PocRoutes.TRANSITION) {
         TransitionPocScreen(onBack = { navController.popBackStack() })
     }
+    // 性能测试（真机帧率）：FrameMetrics 采集 + 报告导出（V3.8 真机验收补强，debug only）。
+    composable(PocRoutes.PERF) {
+        PerfTestScreen(onBack = { navController.popBackStack() })
+    }
 }
 
 /**
@@ -69,6 +75,7 @@ private fun PocLauncherScreen(
     onOpenGlass: () -> Unit,
     onOpenMorph: () -> Unit,
     onOpenTransition: () -> Unit,
+    onOpenPerf: () -> Unit,
     onBack: () -> Unit,
 ) {
     Column(
@@ -110,6 +117,7 @@ private fun PocLauncherScreen(
         PocEntryButton("PoC-2 玻璃材质三档\nxzg://poc/glass", onOpenGlass)
         PocEntryButton("PoC-3 连续形变\nxzg://poc/morph", onOpenMorph)
         PocEntryButton("PoC-4 转场探测报告\nxzg://poc/transition", onOpenTransition)
+        PocEntryButton("性能测试（真机帧率）\nxzg://poc/perf", onOpenPerf)
         PocEntryButton("返回", onBack)
     }
 }
