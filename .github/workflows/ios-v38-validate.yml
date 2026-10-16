@@ -221,6 +221,24 @@ jobs:
           if [ -d "$RUNNER_TEMP/xzg-ios-v38-motion.xcresult" ]; then
             (cd "$RUNNER_TEMP" && zip -qry "$GITHUB_WORKSPACE/artifacts/V38-Motion-Test.xcresult.zip" xzg-ios-v38-motion.xcresult)
           fi
+      - name: Build unsigned IPA (rebuild R1+)
+        # V3.8 重建：每阶段产出可编译的完整 unsigned IPA（CI 产物，不签名、不发布）。
+        # 用户用已有手机签名工具自行尝试安装；此步骤不涉及任何签名证书。
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild build -project XiaoZhangGui.xcodeproj -scheme XiaoZhangGui \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath "$RUNNER_TEMP/xzg-ios-v38-ipa" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            >artifacts/ipa-build.log 2>&1 || { tail -n 80 artifacts/ipa-build.log; exit 1; }
+          APP_PATH=$(find "$RUNNER_TEMP/xzg-ios-v38-ipa/Build/Products" -name "*.app" -maxdepth 2 | head -1)
+          if [ -z "$APP_PATH" ]; then echo "No .app found for IPA packaging" >&2; exit 1; fi
+          echo "Packaging: $APP_PATH"
+          rm -rf "$RUNNER_TEMP/ipa-payload" && mkdir -p "$RUNNER_TEMP/ipa-payload/Payload"
+          cp -R "$APP_PATH" "$RUNNER_TEMP/ipa-payload/Payload/"
+          (cd "$RUNNER_TEMP/ipa-payload" && zip -qry "$GITHUB_WORKSPACE/artifacts/XiaoZhangGui-V38-unsigned.ipa" Payload)
+          ls -la artifacts/XiaoZhangGui-V38-unsigned.ipa
       - name: Upload validation artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -228,4 +246,11 @@ jobs:
           name: xzg-ios-v38-ci-${{ github.sha }}
           path: artifacts/
           if-no-files-found: warn
-# IMPORTANT: No signed IPA, no unsigned IPA, no GitHub Release in this isolated validation workflow.
+      - name: Upload unsigned IPA
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xzg-ios-v38-unsigned-ipa-${{ github.sha }}
+          path: artifacts/XiaoZhangGui-V38-unsigned.ipa
+          if-no-files-found: warn
+# IMPORTANT: Unsigned IPA only (CI artifact for user-side signing). No signed IPA, no GitHub Release.

@@ -1,10 +1,17 @@
 import SwiftData
 import SwiftUI
 
-// MARK: - 首页（V3.7.1 presentation）
+// MARK: - 首页（V3.8 重建 · Editorial）
 //
-// 结构（MD §5）：Header → Revenue Hero → QuickActionRow → 「今日重点」
-// → 「接下来」→ AICommandEntry。内容区只用 V371 primitives，禁 Card Wall。
+// 视觉依据：
+// - `XZG_iOS_V38_UI_Light/Dark.png`：大日期 → 今天的经营（Revenue Hero 深绿卡）
+//   → 问小掌柜（AI 胶囊）→ 快捷操作 → 今日事项（平面列表）
+// - `02_设计与交互升级说明.md`：Editorial Content + Soft Frosted Controls +
+//   Native Interaction + Time-driven Organization
+//
+// 业务逻辑全部保留自 V3.7.1（@Query / TodaySummary / MonthlyBusinessMetrics /
+// HomeInbox / navigationDestination / sheets / alerts），仅重做 Presentation。
+// 重建提交前缀 `rebuild(ios/v3.8):`，不冒充原始 8f3a892。
 
 struct HomeView: View {
     @Binding var tab: AppTab
@@ -27,6 +34,10 @@ struct HomeView: View {
     @State private var weatherModel = WeatherViewModel()
     @State private var stateActionError: String?
 
+    // V3.8：AI 胶囊与快捷菜单展开态（互斥，由 onExpandChange 协调）。
+    @State private var aiExpanded = false
+    @State private var quickExpanded = false
+
     private var summary: TodaySummary {
         TodaySummary.build(performances: performances, todos: todos, customers: customers, expiryItems: expiryItems)
     }
@@ -46,19 +57,15 @@ struct HomeView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: V371.Space.section) {
-                header
-                heroFlat
-                AICommandEntry {
-                    withAnimation(V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: reduceMotion))) {
-                        showAI = true
-                    }
-                }
-                focusSection
-                nextSection
+            VStack(alignment: .leading, spacing: 24) {
+                dateHeader
+                businessSection
+                aiSection
+                quickActionsRow
+                mattersSection
                 V371ScrollEndMarker(identifier: V371AccessibilityID.scrollEndHome)
             }
-            .padding(.horizontal, V371.Space.page)
+            .padding(.horizontal, 16)
             .padding(.top, 10)
             .padding(.bottom, 24)
         }
@@ -86,19 +93,28 @@ struct HomeView: View {
         .task { weatherModel.loadIfNeeded() }
     }
 
-    // MARK: 顶部：日期 / 问候 / 天气
+    // MARK: - 顶部：大日期 / 星期 / 经营时间线
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .center, spacing: 8) {
-                HStack(spacing: 8) {
-                    Text(Date(), format: .dateTime.month().day().weekday(.wide).locale(Locale(identifier: "zh_CN")))
+    private var dateHeader: some View {
+        HStack(alignment: .top) {
+            HStack(alignment: .top, spacing: 12) {
+                Text("\(Calendar.current.component(.day, from: Date()))")
+                    .font(V38HomeStyle.dateNumber)
+                    .foregroundStyle(.primary)
+                    .accessibilityLabel("\(Date(), format: .dateTime.month().day().weekday(.wide))")
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(Date(), format: .dateTime.month().weekday(.wide).locale(Locale(identifier: "zh_CN")))
                         .font(.subheadline.weight(.medium))
-                        .foregroundStyle(V371.Colors.textSecondary)
-                    weatherButton
+                        .foregroundStyle(.secondary)
+                    Text("经营时间线")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
                 }
-                Spacer(minLength: 12)
-                quickRecordAction
+                .padding(.top, 8)
+            }
+            Spacer(minLength: 12)
+            HStack(spacing: 4) {
+                weatherButton
                 headerAction(
                     icon: "person.crop.circle.fill",
                     label: "个人中心",
@@ -106,12 +122,6 @@ struct HomeView: View {
                     action: { route = .profile }
                 )
             }
-            Text("\(greetingPrefix)，\(ownerDisplayName)")
-                .font(.system(size: 30, weight: .bold, design: .default))
-                .foregroundStyle(V371.Colors.textPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                .accessibilityLabel("\(greetingPrefix)，\(ownerDisplayName)")
         }
     }
 
@@ -124,59 +134,13 @@ struct HomeView: View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(V371.Colors.textPrimary)
+                .foregroundStyle(.primary)
                 .frame(width: 44, height: 44)
-                .background(.thinMaterial, in: Circle())
-                .overlay {
-                    Circle().strokeBorder(V371.Colors.divider.opacity(0.35), lineWidth: 0.5)
-                }
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)
         .accessibilityIdentifier(identifier)
-    }
-
-    private var quickRecordAction: some View {
-        Button { showQuickRecord = true } label: {
-            ViewThatFits(in: .horizontal) {
-                Label("记一笔", systemImage: "square.and.pencil")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(V371.Colors.textPrimary)
-                    .padding(.horizontal, 14)
-                    .frame(minHeight: 44)
-                    .background(.thinMaterial, in: Capsule())
-                    .overlay {
-                        Capsule().strokeBorder(V371.Colors.divider.opacity(0.35), lineWidth: 0.5)
-                    }
-
-                Image(systemName: "square.and.pencil")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(V371.Colors.textPrimary)
-                    .frame(width: 44, height: 44)
-                    .background(.thinMaterial, in: Circle())
-                    .overlay {
-                        Circle().strokeBorder(V371.Colors.divider.opacity(0.35), lineWidth: 0.5)
-                    }
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("记一笔，支持文字或语音快速记录")
-        .accessibilityIdentifier(V371AccessibilityID.homeQuickRecord)
-    }
-
-    private var greetingPrefix: String {
-        let hour = Calendar.current.component(.hour, from: Date())
-        if hour < 11 { return "早上好" }
-        if hour < 14 { return "中午好" }
-        if hour < 18 { return "下午好" }
-        return "晚上好"
-    }
-
-    private var ownerDisplayName: String {
-        let name = settings.ownerName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return name.isEmpty ? "老板" : name
     }
 
     private var weatherButton: some View {
@@ -189,7 +153,7 @@ struct HomeView: View {
                         .font(.subheadline.weight(.semibold).monospacedDigit())
                 }
             }
-            .foregroundStyle(V371.Colors.textSecondary)
+            .foregroundStyle(.secondary)
             .padding(.horizontal, 2)
             .frame(minHeight: 44)
         }
@@ -197,83 +161,46 @@ struct HomeView: View {
         .accessibilityLabel(weatherModel.snapshot.map { "\($0.city)，\($0.roundedTemperature)度" } ?? "天气")
     }
 
-    // MARK: Revenue Hero（P1：Editorial 平面排版，无大蓝渐变）
+    // MARK: - 今天的经营 · Revenue Hero（深绿卡，唯一主视觉）
 
-    private var heroFlat: some View {
-        Button { route = .performance } label: {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("今日营业额")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(V371.Colors.textSecondary)
-                Text("¥" + Fmt.groupedAmount(summary.revenue))
-                    .font(.system(size: 54, weight: .semibold, design: .rounded).monospacedDigit())
-                    .tracking(-1.5)
-                    .foregroundStyle(V371.Colors.textPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                if !heroInfoParts.isEmpty {
-                    HStack(spacing: 8) {
-                        ForEach(Array(heroInfoParts.enumerated()), id: \.offset) { index, part in
-                            if index > 0 {
-                                Circle()
-                                    .fill(V371.Colors.textTertiary)
-                                    .frame(width: 3, height: 3)
+    private var businessSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            V38HomeSectionHeader(title: "今天的经营")
+            Button { route = .performance } label: {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("今日营业额")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(V38HomeStyle.heroSecondary)
+                    Text("¥" + Fmt.groupedAmount(summary.revenue))
+                        .font(V38HomeStyle.heroAmount)
+                        .tracking(-1.5)
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .contentTransition(.numericText())
+                    if !heroInfoParts.isEmpty {
+                        HStack(spacing: 8) {
+                            ForEach(Array(heroInfoParts.enumerated()), id: \.offset) { index, part in
+                                if index > 0 {
+                                    Circle()
+                                        .fill(.white.opacity(0.4))
+                                        .frame(width: 3, height: 3)
+                                }
+                                Text(part)
+                                    .font(.footnote.weight(.medium))
+                                    .foregroundStyle(V38HomeStyle.heroSecondary)
                             }
-                            Text(part)
-                                .font(.footnote.weight(.medium))
-                                .foregroundStyle(V371.Colors.textSecondary)
                         }
                     }
                 }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 8)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("今日营业额 ¥\(Fmt.groupedAmount(summary.revenue))，查看经营详情")
-    }
-
-    // MARK: AI 薄入口（首页专属，非 Tab）
-
-    private struct AICommandEntry: View {
-        let action: () -> Void
-
-        var body: some View {
-            Button(action: action) {
-                HStack(spacing: 12) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(V371.Colors.blue)
-                        .frame(width: 38, height: 38)
-                        .background(V371.Colors.tinted(V371.Colors.blue), in: Circle())
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("问小掌柜")
-                            .font(.headline)
-                            .foregroundStyle(V371.Colors.textPrimary)
-                        Text("查经营、找商品，或安排一件事")
-                            .font(.caption)
-                            .foregroundStyle(V371.Colors.textSecondary)
-                            .lineLimit(2)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(V371.Colors.textTertiary)
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 11)
-                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .strokeBorder(V371.Colors.divider.opacity(0.28), lineWidth: 0.5)
-                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(20)
+                .background(V38HomeStyle.heroBackground, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityIdentifier(V371AccessibilityID.homeAI)
-            .accessibilityLabel("问小掌柜，AI 助手")
+            .accessibilityIdentifier("v38.home.hero")
+            .accessibilityLabel("今日营业额 ¥\(Fmt.groupedAmount(summary.revenue))，查看经营详情")
         }
     }
 
@@ -289,81 +216,126 @@ struct HomeView: View {
         return parts
     }
 
-    // MARK: 今日重点
+    // MARK: - 问小掌柜 · AI 胶囊（生产）
 
-    private var focusSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            SectionHeader("今日重点")
-            GroupSurface {
-                WorkRow(icon: "box.truck.fill", iconColor: V371.Colors.blue,
-                        title: "客户配送", subtitle: deliverySubtitle,
-                        action: { open(.customer) }) {
-                    HStack(spacing: 8) {
-                        StatusBadge("\(summary.deliveries.count) 单", color: V371.Colors.blue)
-                        V371Chevron()
+    private var aiSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            V38HomeSectionHeader(title: "问小掌柜", trailing: "AI 入口")
+            V38HomeAICapsule(
+                isExpanded: $aiExpanded,
+                onOpenAI: {
+                    aiExpanded = false
+                    withAnimation(V38MotionTokens.animation(for: .contentChange, reduceMotion: reduceMotion)) {
+                        showAI = true
+                    }
+                },
+                onExpandChange: { expanded in
+                    if expanded { quickExpanded = false }
+                }
+            )
+        }
+    }
+
+    // MARK: - 快捷操作行
+
+    private var quickActionsRow: some View {
+        HStack(spacing: 12) {
+            V38HomeQuickMenu(
+                isExpanded: $quickExpanded,
+                onSelect: { _ in
+                    // 三个选项均走现有 QuickRecordSheet 生产路由；
+                    // 收入/支出/备忘由 Sheet 内 parser 按输入内容识别。
+                    showQuickRecord = true
+                },
+                onExpandChange: { expanded in
+                    if expanded { aiExpanded = false }
+                }
+            )
+            .frame(maxWidth: .infinity)
+            Button { showQuickRecord = true } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "note.text")
+                        .font(.subheadline.weight(.semibold))
+                    Text("写备忘")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity, minHeight: 52)
+                .background(.thinMaterial, in: Capsule())
+                .overlay {
+                    Capsule().strokeBorder(Color(.separator).opacity(0.35), lineWidth: 0.5)
+                }
+                .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier(V371AccessibilityID.homeQuickRecord)
+            .accessibilityLabel("写备忘，快速记录备忘")
+        }
+    }
+
+    // MARK: - 今日事项（平面列表）
+
+    private var mattersSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            V38HomeSectionHeader(title: "今日事项")
+            if handlingItems.isEmpty {
+                Text("今天暂无安排")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 8)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(handlingItems.enumerated()), id: \.element.id) { index, item in
+                        if index > 0 {
+                            Divider().padding(.leading, 44)
+                        }
+                        Button { open(item.route) } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: itemIcon(item.tone))
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundStyle(toneAccent(item.tone))
+                                    .frame(width: 32, height: 32)
+                                    .background(toneAccent(item.tone).opacity(0.12), in: Circle())
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(item.title)
+                                        .font(.subheadline.weight(.medium))
+                                        .foregroundStyle(.primary)
+                                        .lineLimit(1)
+                                    if !item.subtitle.isEmpty {
+                                        Text(item.subtitle)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                    }
+                                }
+                                Spacer()
+                                if !item.time.isEmpty {
+                                    Text(item.time)
+                                        .font(.caption.monospacedDigit())
+                                        .foregroundStyle(.secondary)
+                                }
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .frame(minHeight: 60)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(item.title)，\(item.subtitle)")
                     }
                 }
-                .accessibilityIdentifier(V371AccessibilityID.homeCustomer)
-                V371Divider()
-                WorkRow(icon: "checklist", iconColor: V371.Colors.green,
-                        title: "今日待办", subtitle: todoSubtitle,
-                        action: { open(.todo) }) {
-                    HStack(spacing: 8) {
-                        StatusBadge("\(summary.todos.count) 项", color: V371.Colors.green)
-                        V371Chevron()
-                    }
-                }
-                V371Divider()
-                WorkRow(icon: "hourglass", iconColor: V371.Colors.orange,
-                        title: "临期退货", subtitle: expirySubtitle,
-                        action: { open(.expiry) }) {
-                    HStack(spacing: 8) {
-                        StatusBadge("\(summary.pendingExpiry.count) 件", color: V371.Colors.orange)
-                        V371Chevron()
-                    }
-                }
-                .accessibilityIdentifier(V371AccessibilityID.homeExpiry)
             }
         }
     }
 
-    private var deliverySubtitle: String {
-        let delivering = summary.deliveries.filter { $0.statusEnum == .delivering }.count
-        if delivering > 0 { return "有 \(delivering) 单配送中" }
-        return summary.deliveries.isEmpty ? "暂无配送" : "待配送"
-    }
-
-    private var todoSubtitle: String {
-        let dueToday = summary.todos.filter { $0.dueDate?.isToday == true }.count
-        if dueToday > 0 { return "\(dueToday) 项今天到期" }
-        return summary.todos.isEmpty ? "全部完成" : "灵活安排"
-    }
-
-    private var expirySubtitle: String {
-        let urgent = summary.pendingExpiry.filter { $0.daysLeft() <= 3 }.count
-        if urgent > 0 { return "\(urgent) 件 3 天内临期" }
-        return summary.pendingExpiry.isEmpty ? "暂无临期" : "待处理"
-    }
-
-    // MARK: 接下来
-
-    private var nextSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            SectionHeader("接下来")
-            GroupSurface {
-                if handlingItems.isEmpty {
-                    EmptyState(icon: "sun.max", title: "今天暂无安排",
-                               message: "待办、配送与临期事项会出现在这里")
-                } else {
-                    ForEach(Array(handlingItems.enumerated()), id: \.element.id) { index, item in
-                        if index > 0 { V371Divider(leading: 30) }
-                        TimedRow(time: item.time, title: item.title,
-                                 subtitle: item.subtitle.isEmpty ? nil : item.subtitle,
-                                 accent: toneAccent(item.tone),
-                                 action: { open(item.route) })
-                    }
-                }
-            }
+    private func itemIcon(_ tone: HomeInboxItem.Tone) -> String {
+        switch tone {
+        case .urgent: return "exclamationmark.circle.fill"
+        case .warning: return "hourglass"
+        case .accent: return "checklist"
+        case .normal: return "circle"
         }
     }
 
@@ -376,7 +348,7 @@ struct HomeView: View {
         }
     }
 
-    // MARK: 动作
+    // MARK: - 动作（保留 V3.7.1 业务逻辑）
 
     private func toggleTodo(for item: HomeInboxItem) {
         guard item.route == .todo,
