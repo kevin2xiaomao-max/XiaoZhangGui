@@ -78,9 +78,9 @@ final class V38HomeRebuildUITests: XCTestCase {
         )
         // 点击输入行 → 打开真实 AI Sheet（现有 AIChatView）
         element("v38.home.ai.openSheet").tap()
-        // AI Sheet 以 .large detent 呈现；验证 Sheet 内容出现（AI 对话界面）
+        // AI Sheet 以 .large detent 呈现；验证 Sheet 内容出现（sheet.ai）
         XCTAssertTrue(
-            waitForElement("screen.ai", timeout: 10) || app.navigationBars.firstMatch.waitForExistence(timeout: 10),
+            waitForElement("sheet.ai", timeout: 10) || app.navigationBars.firstMatch.waitForExistence(timeout: 10),
             "AI Sheet 未打开"
         )
         // 关闭 Sheet 回到首页
@@ -107,9 +107,9 @@ final class V38HomeRebuildUITests: XCTestCase {
         )
         // 选择"记收入" → 打开 QuickRecord Sheet（现有生产路由）
         element("v38.home.quick.income").tap()
-        // QuickRecord Sheet 出现（验证 Sheet 标题或输入框）
+        // QuickRecord Sheet 出现（sheet.quickRecord 或输入框）
         XCTAssertTrue(
-            waitForElement("screen.quickRecord", timeout: 10) ||
+            waitForElement("sheet.quickRecord", timeout: 10) ||
             app.textFields.firstMatch.waitForExistence(timeout: 10),
             "QuickRecord Sheet 未打开"
         )
