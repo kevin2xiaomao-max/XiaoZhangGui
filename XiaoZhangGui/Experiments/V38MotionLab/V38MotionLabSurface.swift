@@ -6,7 +6,10 @@ import UIKit
 struct V38MotionLabSurface<Content: View>: View {
     let radius: CGFloat
     let content: Content
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.accessibilityReduceTransparency) private var systemReduceTransparency
+    @Environment(\.v38qaReduceTransparencyOverride) private var qaReduceTransparencyOverride
+    /// E·QA：CI 用 `--v38-reduce-transparency` 覆盖时取覆盖值，否则取系统真实值。
+    private var reduceTransparency: Bool { qaReduceTransparencyOverride ?? systemReduceTransparency }
 
     init(radius: CGFloat = 26, @ViewBuilder content: () -> Content) {
         self.radius = radius

@@ -22,7 +22,7 @@ jobs:
   validate:
     # Same label family as the proven V3.7.1 workflow (Xcode 27.0 verified 2026-10-10).
     runs-on: xcode-27
-    timeout-minutes: 75
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
         with:
@@ -85,12 +85,121 @@ jobs:
             -resultBundlePath "$RUNNER_TEMP/xzg-ios-v38-test.xcresult" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             >artifacts/test.log 2>&1 || { tail -n 160 artifacts/test.log; exit 1; }
-      - name: Save test result bundle
+      # E·QA: record the MotionLab demo while UI tests drive REAL expand/collapse
+      # transitions. A still-frame recording is NOT a pass (verified in the next step).
+      - name: Record V38 motion demo video (UI test + simctl recordVideo)
         if: always()
         shell: bash
         run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          # xcodebuild shuts the simulator down after the test step; boot it
+          # explicitly first (recordVideo needs a booted device).
+          SIM_UDID=$(xcrun simctl list devices | grep -F "${{ steps.sim.outputs.name }} (" | head -n 1 | grep -oE '[0-9A-Fa-f-]{36}' | head -n 1)
+          if [ -z "$SIM_UDID" ]; then echo "simulator '${{ steps.sim.outputs.name }}' not found"; exit 3; fi
+          xcrun simctl boot "$SIM_UDID" >/dev/null 2>&1 || true
+          # Wait for FULL boot readiness: the first app launch right after the
+          # "(Booted)" flag appears can fail with "No such process"
+          # (run 38824029239 flaked exactly this way on the first motion test).
+          xcrun simctl bootstatus "$SIM_UDID" -b >/dev/null 2>&1 || true
+          sleep 15
+          echo "== starting simctl screen recording =="
+          # CRITICAL: record the EXPLICIT UDID we booted, not "booted".
+          # xcodebuild "-destination name=..." can resolve to a DIFFERENT
+          # device UDID than the first grep match above; recording "booted"
+          # then captures the wrong (home-screen) device while tests pass on
+          # another (run 38836192317: 5/5 tests green, video all home screen).
+          xcrun simctl io "$SIM_UDID" recordVideo --force artifacts/v38-motionlab-demo.mp4 &
+          RECORDER=$!
+          sleep 2
+          set +e
+          xcodebuild test -project XiaoZhangGui.xcodeproj -scheme XiaoZhangGui \
+            -destination "platform=iOS Simulator,id=$SIM_UDID" \
+            -derivedDataPath "$RUNNER_TEMP/xzg-ios-v38-derived" \
+            -resultBundlePath "$RUNNER_TEMP/xzg-ios-v38-motion.xcresult" \
+            -only-testing:XiaoZhangGuiUITests/V38MotionLabUITests \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            >artifacts/motion-test.log 2>&1
+          TEST_EXIT=$?
+          set -e
+          echo "== stopping screen recording (test exit=$TEST_EXIT) =="
+          kill -INT "$RECORDER" 2>/dev/null || true
+          wait "$RECORDER" 2>/dev/null || true
+          for i in $(seq 1 30); do
+            [ -s artifacts/v38-motionlab-demo.mp4 ] && break
+            sleep 1
+          done
+          ls -la artifacts/v38-motionlab-demo.mp4
+          tail -n 40 artifacts/motion-test.log
+          exit $TEST_EXIT
+      # E·QA: extract 1-fps frames and require several distinct frames,
+      # so a frozen/still recording fails the gate instead of passing silently.
+      # ALSO requires the recording-run's motion-test.log to show all 5 motion
+      # tests passed: a "distinct frames" check alone can be fooled by a home
+      # screen with a changing clock (run 38836192317).
+      - name: Verify motion video is not a still frame
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          VID=artifacts/v38-motionlab-demo.mp4
+          if [ ! -s "$VID" ]; then echo "motion video missing: $VID"; exit 1; fi
+          PASSED=$(grep -a -c "Test Case '-\[XiaoZhangGuiUITests.V38MotionLabUITests .*' passed" artifacts/motion-test.log || true)
+          echo "motion tests passed in recording run: $PASSED/5"
+          if [ "$PASSED" -lt 5 ]; then
+            echo "NOT-TEST-DRIVEN FAIL: only $PASSED/5 motion tests passed during recording"
+            exit 1
+          fi
+          if ! command -v ffmpeg >/dev/null 2>&1; then brew install ffmpeg; fi
+          FRAMEDIR="$RUNNER_TEMP/v38-motion-frames"
+          rm -rf "$FRAMEDIR"; mkdir -p "$FRAMEDIR"
+          ffmpeg -hide_banner -loglevel error -i "$VID" -vf fps=1 "$FRAMEDIR/f%04d.png"
+          COUNT=$(ls "$FRAMEDIR" | wc -l | tr -d ' ')
+          DISTINCT=$(md5 -r "$FRAMEDIR"/*.png | awk '{print $1}' | sort -u | wc -l | tr -d ' ')
+          echo "frames=$COUNT distinct=$DISTINCT"
+          if [ "$DISTINCT" -lt 4 ]; then
+            echo "STILL-FRAME FAIL: motion video shows no real animation ($DISTINCT distinct frames)"
+            exit 1
+          fi
+          echo "motion video OK: $DISTINCT distinct frames out of $COUNT, 5/5 tests drove it"
+      # E·QA: Light/Dark screenshots of the isolated MotionLab demo.
+      # Launched directly via simctl with launch args (dashless aliases defined
+      # in V38MotionLabQA.swift); the app renders V38MotionLabView as its root.
+      - name: Capture V38 MotionLab screenshots (light/dark)
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          BUNDLE=com.xiaozhanggui.ios
+          # xcodebuild shuts the simulator down after the test steps; boot it explicitly.
+          SIM_UDID=$(xcrun simctl list devices | grep -F "${{ steps.sim.outputs.name }} (" | head -n 1 | grep -oE '[0-9A-Fa-f-]{36}' | head -n 1)
+          if [ -z "$SIM_UDID" ]; then echo "simulator '${{ steps.sim.outputs.name }}' not found"; exit 3; fi
+          xcrun simctl boot "$SIM_UDID" >/dev/null 2>&1 || true
+          # Same full-readiness wait as the recording step.
+          xcrun simctl bootstatus "$SIM_UDID" -b >/dev/null 2>&1 || true
+          sleep 15
+          for SCHEME in light dark; do
+            # Use the explicit UDID (not "booted") so launch/screenshot
+            # always target the device we booted above.
+            xcrun simctl terminate "$SIM_UDID" "$BUNDLE" 2>/dev/null || true
+            sleep 1
+            xcrun simctl launch "$SIM_UDID" "$BUNDLE" ui-testing v38-motion-lab v38-color-scheme "$SCHEME"
+            sleep 6
+            xcrun simctl io "$SIM_UDID" screenshot "artifacts/v38-motionlab-$SCHEME.png"
+            xcrun simctl terminate "$SIM_UDID" "$BUNDLE" 2>/dev/null || true
+          done
+          ls -la artifacts/v38-motionlab-*.png
+      - name: Save test result bundles
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
           if [ -d "$RUNNER_TEMP/xzg-ios-v38-test.xcresult" ]; then
             (cd "$RUNNER_TEMP" && zip -qry "$GITHUB_WORKSPACE/artifacts/V38-Test.xcresult.zip" xzg-ios-v38-test.xcresult)
+          fi
+          if [ -d "$RUNNER_TEMP/xzg-ios-v38-motion.xcresult" ]; then
+            (cd "$RUNNER_TEMP" && zip -qry "$GITHUB_WORKSPACE/artifacts/V38-Motion-Test.xcresult.zip" xzg-ios-v38-motion.xcresult)
           fi
       - name: Upload validation artifacts
         if: always()
@@ -100,4 +209,3 @@ jobs:
           path: artifacts/
           if-no-files-found: warn
 # IMPORTANT: No signed IPA, no unsigned IPA, no GitHub Release in this isolated validation workflow.
-# UI automation screenshots / motion video steps are added by the QA worker (Worker E) in a later commit.

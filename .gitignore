@@ -38,3 +38,4 @@ Package.resolved
 # 编辑器
 .vscode/
 .idea/
+.ci-logs/

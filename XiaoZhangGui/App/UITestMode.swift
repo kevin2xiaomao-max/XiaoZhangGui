@@ -5,7 +5,10 @@ import SwiftData
 enum UITestMode {
     #if DEBUG
     static var isEnabled: Bool {
-        ProcessInfo.processInfo.arguments.contains("--ui-testing")
+        let args = ProcessInfo.processInfo.arguments
+        // "ui-testing" 为无横线别名，供 E·QA 的 `xcrun simctl launch` 直启截图时使用，
+        // 避免 `--` 前缀参数在宿主侧的解析歧义。
+        return args.contains("--ui-testing") || args.contains("ui-testing")
     }
     #else
     static let isEnabled = false
