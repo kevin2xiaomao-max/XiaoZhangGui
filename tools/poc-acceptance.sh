@@ -36,6 +36,10 @@ FPS_MIN_FRAMES=30       # 有效帧数下限；低于此记 NOT RUN（数据不�
 REC_SECS=20             # 常规录屏时长（秒）
 RM_REC_SECS=15          # Reduce Motion 录屏时长（秒）
 FPS_WINDOW_SECS=10      # 帧率采集窗口（秒）
+PERF_FPS_MIN=55         # --perf 判定门槛：55fps
+PERF_MIN_INTERVALS=30   # --perf 有效间隔数下限；低于此记 NOT RUN（数据不足不判）
+PERF_MS_55=18.18        # 55fps 对应帧间隔（毫秒），--perf 判定用
+PERF_MS_60=16.67        # 60fps 对应帧间隔（毫秒），仅参考
 
 # --------------------------- 参数（可被覆盖）----------------------------------
 TS="$(date +%Y%m%d-%H%M%S)"
@@ -45,6 +49,9 @@ APK_ARG=""
 NO_INSTALL=0
 ONLY_POC="all"
 SERIAL="${ANDROID_SERIAL:-}"
+PERF_MODE=0             # --perf：逐帧 vsync 间隔口径的性能验收模式
+THEME="both"            # --perf 主题：light | dark | both（默认 both）
+PERF_SECS=15            # --perf 单次前台采集时长（秒）
 
 # --------------------------- 运行时状态 --------------------------------------
 REPORT=""
@@ -61,6 +68,11 @@ NIGHT_WAS="unknown"     # yes / no / unknown（脚本开始时的深色模式状
 ANIM_WAS=""             # 脚本开始时的 animator_duration_scale
 CLEANED=0
 FPS_SUMMARY=""
+DISPLAY_ID=""           # ro.build.display.id（--perf 环境存档）
+FINGERPRINT=""          # ro.build.fingerprint（--perf 环境存档）
+REFRESH_RATE=""         # 屏幕刷新率 Hz（--perf 环境存档）
+PERF_TSV=""             # --perf 结构化结果表
+PERF_SUMMARY=""         # --perf 单次测量的统计文本
 
 usage() {
   cat <<'EOF'
@@ -76,6 +88,11 @@ OPPO 手机 USB 连接电脑并开启 USB 调试后，一键运行：
   --poc <名>        只跑单个 PoC：droplet | glass | morph | transition（默认 all）
   --out <目录>      产物目录（默认 ./poc-acceptance-<时间戳>/）
   --no-install      跳过安装（APK 已装过时复用，节省时间）
+  --perf            性能验收模式：用逐帧 vsync 间隔分布测真实帧率
+                    （droplet/glass/morph × normal+slow × light/dark），
+                    报告单独成节；transition 为静态探测页，按设计跳过
+  --theme <t>       --perf 的主题：light | dark | both（默认 both；仅 --perf 有效）
+  --perf-secs <秒>   --perf 单次前台采集时长（默认 15，最小 5；仅 --perf 有效）
   --dry-run         只打印将执行的命令，不真跑（用于走查脚本逻辑）
   -h, --help        显示本帮助
 
@@ -94,6 +111,8 @@ APK 来源优先级：① --apk ② 环境变量 $POC_APK ③ gh 从 CI 最新�
   tools/poc-acceptance.sh --apk ~/Downloads/app-debug.apk
   ANDROID_SERIAL=ABCD1234 tools/poc-acceptance.sh --poc droplet --no-install
   tools/poc-acceptance.sh --dry-run
+  tools/poc-acceptance.sh --perf --dry-run
+  tools/poc-acceptance.sh --perf --theme dark --perf-secs 20 --no-install
 EOF
 }
 
@@ -185,6 +204,9 @@ parse_args() {
       --poc)    [ $# -ge 2 ] || die "--poc 需要一个参数"; ONLY_POC="$2"; shift 2 ;;
       --out)    [ $# -ge 2 ] || die "--out 需要一个目录"; OUT_DIR="$2"; shift 2 ;;
       --no-install) NO_INSTALL=1; shift ;;
+      --perf)       PERF_MODE=1; shift ;;
+      --theme)      [ $# -ge 2 ] || die "--theme 需要一个参数"; THEME="$2"; THEME_SET=1; shift 2 ;;
+      --perf-secs)  [ $# -ge 2 ] || die "--perf-secs 需要一个秒数"; PERF_SECS="$2"; PERF_SECS_SET=1; shift 2 ;;
       --dry-run)    DRY_RUN=1; shift ;;
       -h|--help)    usage; exit 0 ;;
       *) die "未知参数：$1（用 --help 查看用法）" ;;
@@ -194,6 +216,18 @@ parse_args() {
     all|droplet|glass|morph|transition) ;;
     *) die "--poc 参数无效：$ONLY_POC（可选 droplet|glass|morph|transition|all）" ;;
   esac
+  case "$THEME" in
+    light|dark|both) ;;
+    *) die "--theme 参数无效：$THEME（可选 light|dark|both）" ;;
+  esac
+  case "$PERF_SECS" in
+    ''|*[!0-9]*) die "--perf-secs 必须是正整数秒数：$PERF_SECS" ;;
+  esac
+  [ "$PERF_SECS" -ge 5 ] || die "--perf-secs 太小（至少 5 秒）：$PERF_SECS"
+  if [ "$PERF_MODE" -eq 0 ]; then
+    [ -n "${THEME_SET:-}" ] && warn "--theme 仅在 --perf 模式下有效，已忽略"
+    [ -n "${PERF_SECS_SET:-}" ] && warn "--perf-secs 仅在 --perf 模式下有效，已忽略"
+  fi
 }
 
 # ------------------------------- ① 环境检查 ----------------------------------
@@ -280,7 +314,7 @@ download_apk_from_ci() {
 }
 
 resolve_apk() {
-  log "② 解析 APK"
+  log "③ 解析 APK"
   if [ "$DRY_RUN" -eq 1 ]; then
     APK_PATH="/dry-run/app-debug.apk"
     APK_SOURCE="dry-run 假路径"
@@ -309,10 +343,10 @@ resolve_apk() {
 # ------------------------------- ③ 安装 --------------------------------------
 install_apk() {
   if [ "$NO_INSTALL" -eq 1 ]; then
-    log "③ 跳过安装（--no-install）"
+    log "④ 跳过安装（--no-install）"
     return 0
   fi
-  log "③ 安装 APK（adb install -r，覆盖安装保留数据）"
+  log "④ 安装 APK（adb install -r，覆盖安装保留数据）"
   adb_ install -r "$APK_PATH" || die "安装失败"
   [ "$DRY_RUN" -eq 1 ] && { APP_VER="dry-run"; return 0; }
   adb_ shell pm list packages 2>/dev/null | tr -d '\r' | grep -q "package:${PKG}$" \
@@ -452,7 +486,7 @@ PYEOF
   fi
 }
 
-# ------------------------------- ④ 逐 PoC 验收 --------------------------------
+# ------------------------------- ⑤ 逐 PoC 验收（默认模式） --------------------------
 # transition 是静态探测报告页：只截图，不录屏、不测帧率（设计如此，脚本内注明）
 accept_transition() {
   log "  注：transition 为静态探测报告页，只截图，不录屏、不测帧率。"
@@ -480,7 +514,7 @@ accept_transition() {
 
 accept_poc() {
   local name="$1" f
-  log "④ PoC：$name"
+  log "⑤ PoC：$name"
   if [ "$name" = "transition" ]; then
     accept_transition
     return 0
@@ -539,9 +573,9 @@ accept_poc() {
   set_night no
 }
 
-# ------------------------------- ⑤ Reduce Motion ------------------------------
+# --------------------------- ⑥ Reduce Motion（默认模式） ---------------------------
 reduce_motion_test() {
-  log "⑤ Reduce Motion 抽查（droplet，animator_duration_scale=0）"
+  log "⑥ Reduce Motion 抽查（droplet，animator_duration_scale=0）"
   if [ "$DRY_RUN" -eq 1 ]; then
     mark droplet "Reduce Motion 录屏+截图" "NOT RUN" "dry-run 未实测"
     return 0
@@ -573,9 +607,194 @@ reduce_motion_test() {
   fi
 }
 
-# ------------------------------- ⑥ 生成报告 ------------------------------------
+# --------------------------- ⑤ --perf 性能验收（--perf 模式） ----------------------
+# 说明：--perf 模式替代上面的"⑤ 逐 PoC 验收（默认模式）"，两者二选一。
+# 用户要求：用逐帧 vsync 时间戳计算真实帧间隔分布，
+# 不许用"采样 N 秒数帧数"代替实际帧率。
+# 测量对象：droplet / glass / morph × 速度(normal/slow) × 主题(light/dark)；
+# transition 是静态探测页，按设计跳过帧率（脚本内注明，记 NOT RUN）。
+# 判定：n ≥ 30 且 p95 ≤ 18.18ms → PASS；
+#       n ≥ 30 但 p95 > 18.18ms → FAIL；
+#       n < 30 或解析失败 → NOT RUN（数据不足不判）。
+
+# 设备环境采集：存档到产物目录 device-info.txt
+collect_device_info() {
+  log "② 设备环境信息采集（存档到 device-info.txt，供后续调优版本解析）"
+  local info="${OUT_DIR}/device-info.txt"
+  if [ "$DRY_RUN" -eq 1 ]; then
+    DISPLAY_ID="dry-run-display-id"; FINGERPRINT="dry-run/fingerprint:0"
+    REFRESH_RATE="120"
+  else
+    DISPLAY_ID="$(adb_ shell getprop ro.build.display.id 2>/dev/null | tr -d '\r')"
+    DISPLAY_ID="${DISPLAY_ID:-unknown}"
+    FINGERPRINT="$(adb_ shell getprop ro.build.fingerprint 2>/dev/null | tr -d '\r')"
+    FINGERPRINT="${FINGERPRINT:-unknown}"
+    REFRESH_RATE="$(adb_ shell dumpsys display 2>/dev/null | tr -d '\r' \
+      | grep -m1 -o 'refreshRate=[0-9][0-9.]*' | cut -d= -f2)"
+    REFRESH_RATE="${REFRESH_RATE:-unknown}"
+  fi
+  {
+    printf 'ro.product.model=%s\n' "${MODEL:-unknown}"
+    printf 'ro.build.version.release=%s\n' "${ANDROID_VER:-unknown}"
+    printf 'ro.build.version.sdk=%s\n' "${SDK:-unknown}"
+    printf 'ro.build.display.id=%s\n' "$DISPLAY_ID"
+    printf 'ro.build.fingerprint=%s\n' "$FINGERPRINT"
+    printf 'refresh_rate_hz=%s\n' "$REFRESH_RATE"
+    printf 'serial=%s\n' "${SERIAL:-unknown}"
+    printf '采集时间=%s\n' "$TS"
+    printf '说明：ro.build.display.id 与 ro.build.fingerprint 由脚本自动采集并存档，'
+    printf '用于后续性能调优时解析系统版本差异（如 ColorOS 小版本行为变化），用户无需手动提供。\n'
+  } > "$info"
+  log "  已存档：$info（机型=${MODEL:-unknown}，Android=${ANDROID_VER:-unknown}，刷新率=${REFRESH_RATE}Hz）"
+}
+
+# 从 $PERF_SUMMARY 取字段：perf_field <前缀> [单位后缀]
+perf_field() {
+  printf '%s' "$PERF_SUMMARY" | awk -v pre="$1" -v suf="${2:-}" '
+    {for(i=1;i<=NF;i++) if(index($i,pre)==1){v=substr($i,length(pre)+1); if(suf!="") sub(suf"$","",v); print v; exit}}'
+}
+
+# --perf 单次测量：深链启动 → reset → 前台 PERF_SECS 秒 → framestats
+# 解析已完成帧的 IntendedVsync 时间戳序列，算相邻帧间隔分布。
+# 返回 0=PASS 1=FAIL 2=NOT RUN；统计文本进 $PERF_SUMMARY
+measure_perf() {
+  local name="$1" speed="$2" theme_label="$3"
+  local raw="${OUT_DIR}/poc-${name}-perf-${speed}-${theme_label}-framestats.txt"
+  launch_poc "$name" "$speed" || return 2
+  adb_ shell dumpsys gfxinfo "$PKG" reset >/dev/null 2>&1 || true
+  log "  正在采集 ${PERF_SECS} 秒逐帧数据（${name}，${speed}，${theme_label}）…"
+  pause "$PERF_SECS"
+  adb_ shell dumpsys gfxinfo "$PKG" framestats 2>/dev/null | tr -d '\r' > "$raw"
+  if [ "$DRY_RUN" -eq 1 ]; then PERF_SUMMARY="dry-run 未实测"; return 2; fi
+  if ! command -v python3 >/dev/null 2>&1; then
+    PERF_SUMMARY="本机无 python3，无法解析 framestats"
+    return 2
+  fi
+  PERF_SUMMARY="$(python3 - "$raw" <<'PYEOF'
+import sys
+path = sys.argv[1]
+MS55 = 18.18   # 55fps 对应帧间隔（毫秒）
+MS60 = 16.67   # 60fps 对应帧间隔（毫秒，参考）
+header = None
+iv_idx = fc_idx = -1
+vsyncs = []
+
+def to_int(s):
+    try:
+        return int(s)
+    except (ValueError, TypeError):
+        return None
+
+try:
+    with open(path, encoding='utf-8', errors='replace') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('---') or line.startswith('Package:') \
+               or line.startswith('Profile data'):
+                continue
+            parts = [p for p in (x.strip() for x in line.split(',')) if p != '']
+            if 'IntendedVsync' in parts:   # 表头行（列顺序随 Android 版本变化，按名取列）
+                header = parts
+                iv_idx = header.index('IntendedVsync')
+                fc_idx = header.index('FrameCompleted')
+                continue
+            if header is None or len(parts) <= max(iv_idx, fc_idx):
+                continue
+            # 对齐：数据行首列可能是 flags（0~3 的小整数），表头没有。
+            # 不能靠"行长度 vs 表头长度"判断（trailing comma 的有无会改变长度），
+            # 用值域判断：IntendedVsync 是纳秒时间戳（>1e12），flags 不可能是这么大的数。
+            row = parts
+            first = to_int(parts[0])
+            second = to_int(parts[1]) if len(parts) > 1 else None
+            if first is not None and 0 <= first <= 3 \
+               and second is not None and second > 10**12:
+                row = parts[1:]
+                if len(row) <= max(iv_idx, fc_idx):
+                    continue
+            iv = to_int(row[iv_idx]); fc = to_int(row[fc_idx])
+            if iv is None or fc is None:
+                continue
+            if iv > 0 and fc > iv:        # 只取已完成帧
+                vsyncs.append(iv)
+except OSError:
+    print('READ_ERROR'); sys.exit(0)
+if not vsyncs:
+    print('NO_FRAMES'); sys.exit(0)
+vsyncs.sort()
+gaps = [(b - a) / 1e6 for a, b in zip(vsyncs, vsyncs[1:])]  # 相邻帧间隔（毫秒）
+gaps = [g for g in gaps if 0 < g <= 1000]                  # sanity：剔除 >1s 的静置断档
+n = len(gaps)
+if n == 0:
+    print('NO_INTERVALS'); sys.exit(0)
+gaps.sort()
+p50 = gaps[int(0.50 * (n - 1))]
+p95 = gaps[int(0.95 * (n - 1))]
+le55 = sum(1 for g in gaps if g <= MS55) / n * 100.0
+le60 = sum(1 for g in gaps if g <= MS60) / n * 100.0
+print('n=%d p50=%.2fms p95=%.2fms le18.18=%.1f%% le16.67=%.1f%%' % (n, p50, p95, le55, le60))
+PYEOF
+)"
+  case "$PERF_SUMMARY" in
+    n=*) ;;
+    *) return 2 ;;
+  esac
+  local n p95
+  n="$(perf_field 'n=')"; p95="$(perf_field 'p95=' 'ms')"
+  n="${n:-0}"; p95="${p95:-9999}"
+  if [ "$n" -lt "$PERF_MIN_INTERVALS" ]; then
+    PERF_SUMMARY="${PERF_SUMMARY}（有效间隔 ${n} < ${PERF_MIN_INTERVALS}，数据不足不判）"
+    return 2
+  fi
+  if awk -v v="$p95" -v t="$PERF_MS_55" 'BEGIN{exit !(v <= t)}'; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+# --perf 主循环：每个 PoC × 速度 × 主题独立采集
+run_perf() {
+  log "⑤ 性能验收（--perf：逐帧 vsync 间隔口径）"
+  local pocs="$POCS_ALL"
+  [ "$ONLY_POC" != "all" ] && pocs="$ONLY_POC"
+  local themes="$THEME"
+  [ "$THEME" = "both" ] && themes="light dark"
+  PERF_TSV="${OUT_DIR}/.perf.tsv"
+  : > "$PERF_TSV"
+
+  local p t s mode rc verdict n p50 p95v le55 le60
+  for p in $pocs; do
+    if [ "$p" = "transition" ]; then
+      log "  注：transition 为静态探测报告页，按设计跳过 --perf 帧率采集。"
+      mark transition "帧率-perf" "NOT RUN" "静态探测页，按设计跳过"
+      continue
+    fi
+    for t in $themes; do
+      case "$t" in
+        light) mode="no" ;;
+        dark)  mode="yes" ;;
+      esac
+      set_night "$mode"
+      for s in normal slow; do
+        measure_perf "$p" "$s" "$t"; rc=$?
+        n="$(perf_field 'n=')";      p50="$(perf_field 'p50=' 'ms')"
+        p95v="$(perf_field 'p95=' 'ms')"
+        le55="$(perf_field 'le18.18=' '%')"; le60="$(perf_field 'le16.67=' '%')"
+        if [ "$rc" -eq 0 ]; then verdict="PASS"
+        elif [ "$rc" -eq 1 ]; then verdict="FAIL"
+        else verdict="NOT RUN"; fi
+        printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+          "$p" "$s" "$t" "${n:-—}" "${p50:-—}" "${p95v:-—}" "${le55:-—}" "${le60:-—}" "$verdict" >> "$PERF_TSV"
+        mark "$p" "帧率-perf(${s}/${t})" "$verdict" "${PERF_SUMMARY:-无数据}"
+      done
+    done
+  done
+  set_night no
+}
+
+# ------------------------------- ⑦ 生成报告 ------------------------------------
 write_report() {
-  log "⑥ 生成验收报告"
+  log "⑦ 生成验收报告"
   local pass_n fail_n notrun_n total
   pass_n="$(grep -c ' | PASS |' "$RESULTS_TSV" || true)"
   fail_n="$(grep -c ' | FAIL |' "$RESULTS_TSV" || true)"
@@ -597,20 +816,50 @@ write_report() {
   rep "| --- | ---- | ---- | ---- |"
   awk -F' \\| ' '{printf "| %s | %s | %s | %s |\n", $1, $2, $3, $4}' "$RESULTS_TSV" >> "$REPORT"
   rep ""
-  rep "## 帧率口径"
-  rep ""
-  rep "- 命令：\`adb shell dumpsys gfxinfo ${PKG} reset\` → 前台展示 10 秒 → \`dumpsys gfxinfo ${PKG} framestats\`"
-  rep "- 解析：取 framestats 表头定位 IntendedVsync / FrameCompleted 列，帧耗时 = (FrameCompleted − IntendedVsync) / 1e6（毫秒）"
-  rep "- 统计：p50 / p95 / >16.7ms 占比（jank）；fps ≈ 1000 / p50(ms)"
-  rep "- 结论：fps ≥ ${FPS_MIN} 判 PASS；有效帧 < ${FPS_MIN_FRAMES} 或解析失败记 NOT RUN（数据不足不判，不虚报）"
-  rep "- 原始 framestats 文本保留在产物目录（poc-<name>-framestats.txt），可复核"
-  rep ""
+  if [ "$PERF_MODE" -eq 0 ]; then
+    rep "## 帧率口径"
+    rep ""
+    rep "- 命令：\`adb shell dumpsys gfxinfo ${PKG} reset\` → 前台展示 10 秒 → \`dumpsys gfxinfo ${PKG} framestats\`"
+    rep "- 解析：取 framestats 表头定位 IntendedVsync / FrameCompleted 列，帧耗时 = (FrameCompleted − IntendedVsync) / 1e6（毫秒）"
+    rep "- 统计：p50 / p95 / >16.7ms 占比（jank）；fps ≈ 1000 / p50(ms)"
+    rep "- 结论：fps ≥ ${FPS_MIN} 判 PASS；有效帧 < ${FPS_MIN_FRAMES} 或解析失败记 NOT RUN（数据不足不判，不虚报）"
+    rep "- 原始 framestats 文本保留在产物目录（poc-<name>-framestats.txt），可复核"
+    rep ""
+  fi
+  if [ "$PERF_MODE" -eq 1 ]; then
+    rep "## --perf 性能验收（逐帧 vsync 间隔口径）"
+    rep ""
+    rep "- 测试环境：${MODEL:-未知}（Android ${ANDROID_VER:-未知} / SDK ${SDK:-未知}，serial=${SERIAL:-未知}），屏幕刷新率 ${REFRESH_RATE:-unknown}Hz"
+    rep "- 设备信息已存档到 \`device-info.txt\`（ro.product.model / ro.build.version.release / ro.build.version.sdk / ro.build.display.id / ro.build.fingerprint / 屏幕刷新率）。"
+    rep "  display.id 与 fingerprint 由脚本自动采集存档，用于后续性能调优时解析系统版本差异，用户无需手动提供。"
+    rep "- 方法：深链启动 → \`dumpsys gfxinfo ${PKG} reset\` → 前台 ${PERF_SECS}s → \`dumpsys gfxinfo ${PKG} framestats\`；每个 PoC × 速度（normal/slow）× 主题（light/dark）独立采集"
+    rep "- 解析：取已完成帧（FrameCompleted > IntendedVsync）的 IntendedVsync 时间戳序列（升序），相邻帧间隔 interval[i] = vsync[i+1] − vsync[i]（毫秒）；只统计 0 < interval ≤ 1000ms 的有效间隔（剔除页面静置断档）"
+    rep "- 统计：n（有效间隔数）、p50、p95、≤18.18ms 占比（55fps 门槛）、≤16.67ms 占比（60fps 参考）"
+    rep "- 判定：n ≥ ${PERF_MIN_INTERVALS} 且 p95 ≤ ${PERF_MS_55}ms → PASS；n ≥ ${PERF_MIN_INTERVALS} 且 p95 > ${PERF_MS_55}ms → FAIL；n < ${PERF_MIN_INTERVALS} 或解析失败 → NOT RUN（数据不足不判，不虚报）"
+    rep "- 帧率结论只基于实测间隔分布，不用「采样 N 秒数帧数」代替实际帧率"
+    rep "- 原始 framestats 按 PoC/速度/主题分别保留（\`poc-<name>-perf-<speed>-<theme>-framestats.txt\`），可复核"
+    rep "- transition 为静态探测页，按设计跳过 --perf 帧率采集，记 NOT RUN"
+    rep ""
+    rep "| PoC | 速度 | 主题 | n | p50(ms) | p95(ms) | ≤18.18ms | ≤16.67ms | 判定 |"
+    rep "| --- | ---- | ---- | - | ------- | ------- | -------- | -------- | ---- |"
+    if [ -s "$PERF_TSV" ]; then
+      awk -F'\t' '{printf "| %s | %s | %s | %s | %s | %s | %s | %s | %s |\n", $1,$2,$3,$4,$5,$6,$7,$8,$9}' "$PERF_TSV" >> "$REPORT"
+    else
+      rep "（无 --perf 数据）"
+    fi
+    rep ""
+  fi
   rep "## 说明与诚实标注"
   rep ""
   rep "- transition（PoC-4）为静态探测报告页：只截图，不录屏、不测帧率，属设计如此"
   rep "- Light/Dark 通过 \`adb shell cmd uimode night yes/no\` 切换，未重启 App；截图为系统深色模式实时渲染结果"
   rep "- Reduce Motion 通过 \`settings put global animator_duration_scale 0\` 生效（仅 droplet 抽查），结束后恢复原值"
-  rep "- 录屏期间页面处于前台静置状态，未做点击交互；帧率反映的是页面静置/自有动画的 10 秒窗口"
+  rep "- 录屏期间页面处于前台静置状态，未做点击交互；帧率反映的是页面静置/自有动画的采集窗口"
+  if [ "$PERF_MODE" -eq 1 ]; then
+    rep "  （--perf 模式：前台静置 ${PERF_SECS}s/次，深链启动后 reset 再采集；见上节 --perf 口径）"
+  else
+    rep "  （默认模式：10 秒窗口）"
+  fi
   rep "- 本脚本不 root、不改系统分区；所有设备侧文件（/sdcard/poc-*）已拉取后删除"
   if [ "$DRY_RUN" -eq 1 ]; then
     rep "- **本次为 dry-run，未连接真机，所有 PASS 均为流程走查占位，不代表实测结论**"
@@ -649,26 +898,35 @@ main() {
   : > "$RESULTS_TSV"
   : > "$REPORT"
 
-  log "========== PoC 真机一键验收开始（$TS）=========="
+  if [ "$PERF_MODE" -eq 1 ]; then
+    log "========== PoC 性能验收（--perf）开始（$TS）=========="
+  else
+    log "========== PoC 真机一键验收开始（$TS）=========="
+  fi
   log "产物目录：$OUT_DIR"
 
   check_env
+  collect_device_info
   save_initial_state
   resolve_apk
   install_apk
 
-  local pocs="$POCS_ALL"
-  [ "$ONLY_POC" != "all" ] && pocs="$ONLY_POC"
-  local p
-  for p in $pocs; do
-    accept_poc "$p"
-  done
+  if [ "$PERF_MODE" -eq 1 ]; then
+    run_perf
+  else
+    local pocs="$POCS_ALL"
+    [ "$ONLY_POC" != "all" ] && pocs="$ONLY_POC"
+    local p
+    for p in $pocs; do
+      accept_poc "$p"
+    done
 
-  # Reduce Motion 只在 droplet 被选中时做
-  case " $pocs " in
-    *" droplet "*) reduce_motion_test ;;
-    *) log "⑤ Reduce Motion：droplet 未被选中，跳过" ;;
-  esac
+    # Reduce Motion 只在 droplet 被选中时做
+    case " $pocs " in
+      *" droplet "*) reduce_motion_test ;;
+      *) log "⑥ Reduce Motion：droplet 未被选中，跳过" ;;
+    esac
+  fi
 
   restore_settings
   write_report
