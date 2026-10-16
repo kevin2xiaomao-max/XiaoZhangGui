@@ -32,8 +32,11 @@ final class V38MotionLabUITests: XCTestCase {
         // iOS 26 AX 瞬态：首屏出现动画期间，带 matchedGeometryEffect 的未渲染
         // 分支可能被短暂上报。轮询等待展开态稳定"不存在"，而非单次 .exists 采样
         //（run 38830533902 录屏轮次首个用例因此 flaky，主步骤 5/5 通过）。
+        // 集成后录屏步骤系统负载更高，AX 瞬态持续更久：先等首屏动画稳定，
+        // 再放宽轮询超时（run 38840044738 两次录屏轮次因此失败，主步骤均 5/5 通过）。
+        Thread.sleep(forTimeInterval: 3)
         XCTAssertTrue(
-            waitForNonExistence("v38.motion.ai.expanded", timeout: 10),
+            waitForNonExistence("v38.motion.ai.expanded", timeout: 20),
             "AI expanded state existed before tap (not a clean precondition)"
         )
 
