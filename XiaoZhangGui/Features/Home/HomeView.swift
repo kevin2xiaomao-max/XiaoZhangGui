@@ -324,6 +324,7 @@ struct HomeView: View {
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("\(item.title)，\(item.subtitle)")
+                        .accessibilityIdentifier(routeIdentifier(item.route))
                     }
                 }
             }
@@ -345,6 +346,16 @@ struct HomeView: View {
         case .warning: return V371.Colors.orange
         case .accent: return V371.Colors.blue
         case .normal: return V371.Colors.gray
+        }
+    }
+
+    /// 今日事项行的稳定 identifier（供 UI 测试导航到客户/临期/待办）。
+    /// V3.8 重建保留 V3.7.1 的路由标识符契约。
+    private func routeIdentifier(_ route: HomeInboxItem.Route) -> String {
+        switch route {
+        case .todo: return "home.todo"
+        case .customer: return "home.customer"
+        case .expiry: return "home.expiry"
         }
     }
 
