@@ -97,38 +97,38 @@ jobs:
           # explicitly first (recordVideo needs a booted device).
           SIM_UDID=$(xcrun simctl list devices | grep -F "${{ steps.sim.outputs.name }} (" | head -n 1 | grep -oE '[0-9A-Fa-f-]{36}' | head -n 1)
           if [ -z "$SIM_UDID" ]; then echo "simulator '${{ steps.sim.outputs.name }}' not found"; exit 3; fi
+          # Clean slate: the main test step can leave SpringBoard wedged
+          # ("Failed to terminate" / "No such process" flakes). A plain
+          # `boot` is a no-op on an already-booted-but-wedged device, so
+          # shut it down first, then boot fresh.
+          xcrun simctl shutdown "$SIM_UDID" >/dev/null 2>&1 || true
+          sleep 5
           xcrun simctl boot "$SIM_UDID" >/dev/null 2>&1 || true
           # Wait for FULL boot readiness: the first app launch right after the
           # "(Booted)" flag appears can fail with "No such process"
           # (run 38824029239 flaked exactly this way on the first motion test).
           xcrun simctl bootstatus "$SIM_UDID" -b >/dev/null 2>&1 || true
           sleep 15
-          # Warmup：bootstatus 返回后首次启动仍可能 "No such process"
-          #（run 38865743826 三次重试均 deterministic 失败在首个测试）。
-          # 先用 simctl 直接启动一次 App 确认模拟器就绪，再进入录制循环。
-          echo "== simulator warmup launch =="
-          xcrun simctl launch "$SIM_UDID" com.xiaozhanggui.ios >/dev/null 2>&1 || true
-          sleep 8
-          xcrun simctl terminate "$SIM_UDID" com.xiaozhanggui.ios >/dev/null 2>&1 || true
-          sleep 3
+          echo "== starting simctl screen recording =="
           # CRITICAL: record the EXPLICIT UDID we booted, not "booted".
           # xcodebuild "-destination name=..." can resolve to a DIFFERENT
           # device UDID than the first grep match above; recording "booted"
           # then captures the wrong (home-screen) device while tests pass on
           # another (run 38836192317: 5/5 tests green, video all home screen).
-          # （录屏启动已移到下方重试循环内，每次重试重新录制覆盖。）
+          xcrun simctl io "$SIM_UDID" recordVideo --force artifacts/v38-motionlab-demo.mp4 &
+          RECORDER=$!
+          sleep 2
           set +e
-          # 录屏轮次在模拟器高负载下偶发抖动（iOS 26 AX 瞬态 / 启动失败），
-          # 与被测代码无关。最多重试 3 次，每次重新录屏覆盖。
+          # The FIRST app launch in a fresh xcodebuild session flakes with
+          # "Simulator device failed to launch ... No such process" (~2/3 of
+          # runs; the other 4 tests then pass). Retry once on failure: the
+          # second attempt gets a warm simulator and succeeds.
           TEST_EXIT=1
-          for attempt in 1 2 3; do
-            echo "== motion test attempt $attempt/3 =="
-            rm -f artifacts/v38-motionlab-demo.mp4
-            # xcodebuild 拒绝覆盖已存在的 resultBundlePath，重试前必须删除。
+          for ATTEMPT in 1 2; do
+            echo "== motion test attempt $ATTEMPT/2 =="
+            # xcodebuild refuses to overwrite an existing result bundle,
+            # so remove the previous attempt's before retrying.
             rm -rf "$RUNNER_TEMP/xzg-ios-v38-motion.xcresult"
-            xcrun simctl io "$SIM_UDID" recordVideo --force artifacts/v38-motionlab-demo.mp4 &
-            RECORDER=$!
-            sleep 2
             xcodebuild test -project XiaoZhangGui.xcodeproj -scheme XiaoZhangGui \
               -destination "platform=iOS Simulator,id=$SIM_UDID" \
               -derivedDataPath "$RUNNER_TEMP/xzg-ios-v38-derived" \
@@ -137,18 +137,18 @@ jobs:
               CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
               >artifacts/motion-test.log 2>&1
             TEST_EXIT=$?
-            echo "== stopping screen recording (attempt $attempt, test exit=$TEST_EXIT) =="
-            kill -INT "$RECORDER" 2>/dev/null || true
-            wait "$RECORDER" 2>/dev/null || true
-            for i in $(seq 1 30); do
-              [ -s artifacts/v38-motionlab-demo.mp4 ] && break
-              sleep 1
-            done
-            if [ "$TEST_EXIT" -eq 0 ]; then break; fi
-            echo "motion tests failed on attempt $attempt, retrying..."
+            [ $TEST_EXIT -eq 0 ] && break
+            echo "attempt $ATTEMPT failed (exit=$TEST_EXIT), retrying after settle..."
             sleep 10
           done
           set -e
+          echo "== stopping screen recording (test exit=$TEST_EXIT) =="
+          kill -INT "$RECORDER" 2>/dev/null || true
+          wait "$RECORDER" 2>/dev/null || true
+          for i in $(seq 1 30); do
+            [ -s artifacts/v38-motionlab-demo.mp4 ] && break
+            sleep 1
+          done
           ls -la artifacts/v38-motionlab-demo.mp4
           tail -n 40 artifacts/motion-test.log
           exit $TEST_EXIT

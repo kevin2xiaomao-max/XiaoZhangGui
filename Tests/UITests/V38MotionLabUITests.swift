@@ -32,11 +32,8 @@ final class V38MotionLabUITests: XCTestCase {
         // iOS 26 AX 瞬态：首屏出现动画期间，带 matchedGeometryEffect 的未渲染
         // 分支可能被短暂上报。轮询等待展开态稳定"不存在"，而非单次 .exists 采样
         //（run 38830533902 录屏轮次首个用例因此 flaky，主步骤 5/5 通过）。
-        // 集成后录屏步骤系统负载更高，AX 瞬态持续更久：先等首屏动画稳定，
-        // 再放宽轮询超时（run 38840044738 两次录屏轮次因此失败，主步骤均 5/5 通过）。
-        Thread.sleep(forTimeInterval: 3)
         XCTAssertTrue(
-            waitForNonExistence("v38.motion.ai.expanded", timeout: 20),
+            waitForNonExistence("v38.motion.ai.expanded", timeout: 10),
             "AI expanded state existed before tap (not a clean precondition)"
         )
 
@@ -152,13 +149,16 @@ final class V38MotionLabUITests: XCTestCase {
     /// 轮询等待指定 identifier 的元素稳定"不存在"。用于"展开态前置不存在"
     /// 类断言：iOS 26 下带 matchedGeometryEffect / transition 的未渲染分支
     /// 可能在首屏出现动画期间被 AX 短暂上报，单次 .exists 采样会 flaky。
+    /// 必须用 XCTNSPredicateExpectation（转 runloop）；Thread.sleep 会阻塞
+    /// 测试线程、饿死 AX 更新，导致 .exists 返回过期缓存（run 38857045003）。
     private func waitForNonExistence(_ identifier: String, timeout: TimeInterval) -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if !element(identifier).exists { return true }
-            Thread.sleep(forTimeInterval: 0.25)
-        }
-        return !element(identifier).exists
+        let e = element(identifier)
+        if !e.exists { return true }
+        let exp = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"),
+            object: e
+        )
+        return XCTWaiter.wait(for: [exp], timeout: timeout) == .completed
     }
 
     private func attachScreenshot(named name: String) {
