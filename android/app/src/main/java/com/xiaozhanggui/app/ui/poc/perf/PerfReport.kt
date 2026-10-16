@@ -185,6 +185,10 @@ object PerfReport {
         sb.appendLine("6. 每 stage 同时跑两个采集器（Choreographer + FrameMetrics），互不干扰；")
         sb.appendLine("7. 测试期间强制 PocSpeed 正常速度（慢放档会被临时关闭并恢复）；")
         sb.appendLine("8. 本报告由 Debug 构建 PoC 隔离区生成，不涉及生产业务数据。")
+        sb.appendLine(
+            "9. FrameMetrics 分桶 key 为整数 ms（舍入方式未验证，边界视为近似），" +
+                "p50/p95/掉帧率为该精度的近似值；原始分桶见上方可审计。",
+        )
         return sb.toString()
     }
 

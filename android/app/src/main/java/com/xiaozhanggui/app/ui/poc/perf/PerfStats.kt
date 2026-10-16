@@ -12,9 +12,8 @@ import kotlin.math.ceil
  * - ≥55fps ⇔ p95 帧耗时 ≤ 1000/55 ≈ 18.18ms；
  * - 掉帧：单帧耗时 > 18.18ms。
  *
- * 精度说明：[PerfFrameCollector] 的分桶 key 为整数 ms（FrameMetrics
- * 公开 API 的固有粒度，向下取整），p50/p95/掉帧率均为该精度的近似值；
- * 原始分桶随报告导出，可审计。
+ * 精度说明：[PerfFrameCollector] 的分桶 key 为整数 ms（舍入方式未验证，
+ * 边界视为近似），p50/p95/掉帧率均为该精度的近似值；原始分桶随报告导出可审计。
  */
 object PerfStats {
 

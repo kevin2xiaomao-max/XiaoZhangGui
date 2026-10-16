@@ -90,6 +90,8 @@ fun PerfTestScreen(onBack: () -> Unit) {
     var results by remember { mutableStateOf<List<PerfStats.StageSummary>>(emptyList()) }
     var intervalResults by remember { mutableStateOf<List<PerfIntervalStats.IntervalSummary>>(emptyList()) }
     var rawBuckets by remember { mutableStateOf<Map<String, Map<Int, Long>>>(emptyMap()) }
+    // FrameMetrics 采集失败原因（stageId → CollectReason）：按原因分别展示，不再一律 NO_DATA
+    var frameFailReasons by remember { mutableStateOf<Map<String, CollectReason>>(emptyMap()) }
 
     val device = remember(context, reduceMotion) {
         PerfReport.collectDeviceInfo(context, reduceMotion)
@@ -105,6 +107,7 @@ fun PerfTestScreen(onBack: () -> Unit) {
                 val acc = mutableListOf<PerfStats.StageSummary>()
                 val intervalAcc = mutableListOf<PerfIntervalStats.IntervalSummary>()
                 val bucketAcc = mutableMapOf<String, Map<Int, Long>>()
+                val frameFailAcc = mutableMapOf<String, CollectReason>()
                 // vsync 预期：取显示刷新率，取不到按 60Hz 假设（摘要中标注）
                 val vsyncHz = if (device.refreshRateHz > 0f) {
                     device.refreshRateHz.toDouble()
@@ -120,7 +123,16 @@ fun PerfTestScreen(onBack: () -> Unit) {
                     val intervalStarted = intervalCollector.start()
                     val t0 = SystemClock.elapsedRealtime()
                     delay(STAGE_MS) // 动画由 StageAnimation 自行循环驱动
-                    val buckets = if (started) frameCollector.stop() else emptyMap()
+                    // FrameMetrics 显式结果：失败按 CollectReason 记录，不再静默记空数据
+                    val frameOutcome: CollectOutcome = if (started) {
+                        frameCollector.stop()
+                    } else {
+                        CollectOutcome.Failed(CollectReason.START_EXCEPTION)
+                    }
+                    val buckets = (frameOutcome as? CollectOutcome.Ok)?.buckets ?: emptyMap()
+                    (frameOutcome as? CollectOutcome.Failed)?.let {
+                        frameFailAcc[stage.id] = it.reason
+                    }
                     val frameTimesNs = if (intervalStarted) {
                         intervalCollector.stop()
                     } else {
@@ -138,6 +150,7 @@ fun PerfTestScreen(onBack: () -> Unit) {
                     intervalResults = intervalAcc.toList()
                 }
                 rawBuckets = bucketAcc
+                frameFailReasons = frameFailAcc
             } finally {
                 PocSpeed.mode = prevSpeed
                 currentStageIdx = -1
@@ -257,11 +270,17 @@ fun PerfTestScreen(onBack: () -> Unit) {
                                             "刷新率 ${fmt0(iv.refreshRateHz)}Hz" +
                                             (if (iv.assumedRefreshRate) "·假设" else "") + "）",
                                     )
-                                    // 口径①：渲染耗时（参考，渲染耗时≠帧率）
-                                    IntervalLine(
-                                        "渲染耗时（参考≠帧率）｜帧数 ${r.frameCount}｜" +
-                                            "p50 ${fmt1(r.p50Ms)}ms｜p95 ${fmt1(r.p95Ms)}ms",
-                                    )
+                                    // 口径①：渲染耗时（参考，渲染耗时≠帧率）；
+                                    // 采集失败时按 CollectReason 分别展示，不再一律 NO_DATA
+                                    val frameReason = frameFailReasons[stage.id]
+                                    if (r.verdict == PerfStats.Verdict.NO_DATA && frameReason != null) {
+                                        IntervalLine("渲染耗时（参考）｜${reasonText(frameReason)}")
+                                    } else {
+                                        IntervalLine(
+                                            "渲染耗时（参考≠帧率）｜帧数 ${r.frameCount}｜" +
+                                                "p50 ${fmt1(r.p50Ms)}ms｜p95 ${fmt1(r.p95Ms)}ms",
+                                        )
+                                    }
                                     // 口径②：刷新率
                                     IntervalLine(
                                         "刷新率 ${"%.1f".format(Locale.US, device.refreshRateHz)}Hz" +
@@ -282,6 +301,7 @@ fun PerfTestScreen(onBack: () -> Unit) {
                     results = emptyList()
                     intervalResults = emptyList()
                     rawBuckets = emptyMap()
+                    frameFailReasons = emptyMap()
                     runId += 1
                     phase = PerfPhase.RUNNING
                 },
@@ -316,7 +336,7 @@ fun PerfTestScreen(onBack: () -> Unit) {
             Text(
                 "debug 构建专用。判定只看 Choreographer 帧间隔（公开 API，无反射）；" +
                     "FrameMetrics 渲染耗时仅作参考——渲染耗时≠帧率，不能证明 fps；" +
-                    "整数 ms 分桶为 FrameMetrics 固有近似，原始分桶随报告导出可审计。",
+                    "整数 ms 分桶，舍入方式未验证，边界视为近似；原始分桶随报告导出可审计。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -339,6 +359,15 @@ private val PERF_STAGES = listOf(
 /** 每段采集时长（秒/毫秒）。 */
 private const val STAGE_SEC = 6L
 private const val STAGE_MS = STAGE_SEC * 1000L
+
+/** FrameMetrics 采集失败原因 → 面向用户的一行说明（不再一律 NO_DATA）。 */
+private fun reasonText(reason: CollectReason): String = when (reason) {
+    CollectReason.START_EXCEPTION -> "启动失败：窗口不可用"
+    CollectReason.METRICS_NULL -> "未取到帧指标：窗口无帧回调"
+    CollectReason.INDEX_MISSING -> "指标缺失：TOTAL 分桶下标无数据"
+    CollectReason.ZERO_FRAMES -> "0 帧：动画期间无帧产出"
+    CollectReason.STOP_EXCEPTION -> "停止采集时发生异常"
+}
 
 /** 四口径分区中的单行文本（口径标签 + 数值）。 */
 @Composable

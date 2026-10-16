@@ -116,6 +116,9 @@ dependencies {
     implementation(libs.androidx.security.crypto)
 
     testImplementation(libs.junit.junit)
+    // PerfFrameCollector 真机根因回归：真实 android.util.SparseIntArray +
+    // Activity 伪造路径，test only（AGP 8.5 / JDK17 兼容的稳定版）
+    testImplementation(libs.robolectric)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.androidx.room.testing)
     testImplementation(libs.androidx.test.core)
