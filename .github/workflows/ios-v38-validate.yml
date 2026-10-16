@@ -130,6 +130,9 @@ jobs:
           TEST_EXIT=1
           for ATTEMPT in 1 2; do
             echo "== motion test attempt $ATTEMPT/2 =="
+            # xcodebuild refuses to overwrite an existing result bundle,
+            # so remove the previous attempt's before retrying.
+            rm -rf "$RUNNER_TEMP/xzg-ios-v38-motion.xcresult"
             xcodebuild test -project XiaoZhangGui.xcodeproj -scheme XiaoZhangGui \
               -destination "platform=iOS Simulator,id=$SIM_UDID" \
               -derivedDataPath "$RUNNER_TEMP/xzg-ios-v38-derived" \
