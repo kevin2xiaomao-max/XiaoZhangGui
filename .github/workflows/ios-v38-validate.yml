@@ -116,6 +116,8 @@ jobs:
           for attempt in 1 2 3; do
             echo "== motion test attempt $attempt/3 =="
             rm -f artifacts/v38-motionlab-demo.mp4
+            # xcodebuild 拒绝覆盖已存在的 resultBundlePath，重试前必须删除。
+            rm -rf "$RUNNER_TEMP/xzg-ios-v38-motion.xcresult"
             xcrun simctl io "$SIM_UDID" recordVideo --force artifacts/v38-motionlab-demo.mp4 &
             RECORDER=$!
             sleep 2
