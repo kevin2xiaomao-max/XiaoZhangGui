@@ -102,11 +102,11 @@ jobs:
           SIM_UDID=$(xcrun simctl list devices | grep -F "${{ steps.sim.outputs.name }} (" | head -n 1 | grep -oE '[0-9A-Fa-f-]{36}' | head -n 1)
           if [ -z "$SIM_UDID" ]; then echo "simulator '${{ steps.sim.outputs.name }}' not found"; exit 3; fi
           xcrun simctl boot "$SIM_UDID" >/dev/null 2>&1 || true
-          for i in $(seq 1 60); do
-            xcrun simctl list devices | grep "$SIM_UDID" | grep -q "(Booted)" && break
-            sleep 2
-          done
-          xcrun simctl list devices | grep "$SIM_UDID" | grep -q "(Booted)" || { echo "simulator failed to boot"; exit 3; }
+          # Wait for FULL boot readiness: the first app launch right after the
+          # "(Booted)" flag appears can fail with "No such process"
+          # (run 38824029239 flaked exactly this way on the first motion test).
+          xcrun simctl bootstatus "$SIM_UDID" -b >/dev/null 2>&1 || true
+          sleep 15
           echo "== starting simctl screen recording =="
           xcrun simctl io booted recordVideo --force artifacts/v38-motionlab-demo.mp4 &
           RECORDER=$!
@@ -166,11 +166,9 @@ jobs:
           SIM_UDID=$(xcrun simctl list devices | grep -F "${{ steps.sim.outputs.name }} (" | head -n 1 | grep -oE '[0-9A-Fa-f-]{36}' | head -n 1)
           if [ -z "$SIM_UDID" ]; then echo "simulator '${{ steps.sim.outputs.name }}' not found"; exit 3; fi
           xcrun simctl boot "$SIM_UDID" >/dev/null 2>&1 || true
-          for i in $(seq 1 60); do
-            xcrun simctl list devices | grep "$SIM_UDID" | grep -q "(Booted)" && break
-            sleep 2
-          done
-          xcrun simctl list devices | grep "$SIM_UDID" | grep -q "(Booted)" || { echo "simulator failed to boot"; exit 3; }
+          # Same full-readiness wait as the recording step.
+          xcrun simctl bootstatus "$SIM_UDID" -b >/dev/null 2>&1 || true
+          sleep 15
           for SCHEME in light dark; do
             xcrun simctl terminate booted "$BUNDLE" 2>/dev/null || true
             sleep 1
