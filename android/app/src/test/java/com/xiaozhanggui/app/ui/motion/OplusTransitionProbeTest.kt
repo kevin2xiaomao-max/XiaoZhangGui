@@ -98,6 +98,74 @@ class OplusTransitionProbeTest {
     }
 
     @Test
+    fun `parse falls back to buildFingerprint when display and incremental have no version marker`() {
+        // 三级回退顺序：DISPLAY（无版本形态）> INCREMENTAL（构建哈希）> FINGERPRINT 命中。
+        assertEquals(
+            17,
+            parseColorOsMajorVersion("AP3A.240905.015.A1", "1474513791", "PKJ110_17.0.0.201(CN01)"),
+        )
+        assertEquals(
+            17,
+            parseColorOsMajorVersion(null, null, "PKJ110_17.0.0.201(CN01)"),
+        )
+        assertEquals(
+            15,
+            parseColorOsMajorVersion("", "  ", "CPH2581_15.0.0.601(EX01)"),
+        )
+    }
+
+    @Test
+    fun `parse buildFingerprint with ColorOS marker`() {
+        // fingerprint 中带显式 ColorOS/V 标记时同样解析。
+        assertEquals(
+            17,
+            parseColorOsMajorVersion(null, null, "OPPO/PKJ110/PKJ110_ColorOS V17.0:user/release-keys"),
+        )
+        assertEquals(
+            15,
+            parseColorOsMajorVersion(null, null, "OPPO/CPH2581/CPH2581:V15.0.0:user/release-keys"),
+        )
+    }
+
+    @Test
+    fun `explicit marker wins over build-id form within fingerprint`() {
+        // 同一来源内显式标记优先，第三级同样复用该规则。
+        assertEquals(15, parseColorOsMajorVersion(null, null, "V15 CPH2581_17.0.0.601(EX01)"))
+    }
+
+    @Test
+    fun `parse returns null when fingerprint has no version marker`() {
+        // fingerprint 常见形态只有 Android 平台版本串（…/13/…）：解析不到诚实返回 null，不猜测。
+        assertNull(
+            parseColorOsMajorVersion(
+                "AP3A.240905.015.A1",
+                "1474513791",
+                "google/sdk_gphone64_arm64/emulator64_x86_64_arm64:13/TE1A.220922.011/9298727:userdebug/test-keys",
+            ),
+        )
+        assertNull(parseColorOsMajorVersion(null, null, null))
+        assertNull(parseColorOsMajorVersion("", "   ", "random-fingerprint-string"))
+    }
+
+    @Test
+    fun `display takes precedence over buildFingerprint`() {
+        // DISPLAY 仍是第一优先级：冲突时以它为准，不被第三级覆盖。
+        assertEquals(
+            15,
+            parseColorOsMajorVersion("CPH2581_15.0.0.601(EX01)", "V17.0.1", "PKJ110_ColorOS V17.0"),
+        )
+    }
+
+    @Test
+    fun `incremental takes precedence over buildFingerprint`() {
+        // 第二级 INCREMENTAL 命中时不继续落到第三级。
+        assertEquals(
+            15,
+            parseColorOsMajorVersion(null, "V15.0.1", "PKJ110_ColorOS V17.0"),
+        )
+    }
+
+    @Test
     fun `parse coloros major returns null when unreadable`() {
         assertNull(parseColorOsMajorVersion(null))
         assertNull(parseColorOsMajorVersion(""))
@@ -216,9 +284,40 @@ class OplusTransitionProbeTest {
     }
 
     @Test
-    fun `unreadable requires both display and incremental blank`() {
+    fun `coloros 17 yields ok via buildFingerprint fallback`() {
+        // 三级回退：DISPLAY 与 INCREMENTAL 均无可用版本串时，fingerprint 命中 → Ok。
         val items = probeOplusTransitions(
-            baseEnv().copy(buildDisplay = null, versionIncremental = null),
+            baseEnv().copy(
+                buildDisplay = null,
+                versionIncremental = null,
+                buildFingerprint = "PKJ110_17.0.0.201(CN01)",
+            ),
+        )
+        assertEquals(CapabilityResult.Ok, itemById(items, "coloros-version").result)
+    }
+
+    @Test
+    fun `fingerprint alone unparseable yields unparseable not unreadable`() {
+        // 采集到了 fingerprint 但它不含版本形态：具名为 unparseable（读得到 ≠ 解析到）。
+        val items = probeOplusTransitions(
+            baseEnv().copy(
+                buildDisplay = null,
+                versionIncremental = null,
+                buildFingerprint = "google/sdk_gphone64_arm64/emulator64_x86_64_arm64:13/TE1A.220922.011:userdebug/test-keys",
+            ),
+        )
+        assertEquals("coloros-version-unparseable", reasonOf(items, "coloros-version"))
+    }
+
+    @Test
+    fun `unreadable requires all three sources blank`() {
+        // unreadable 口径：DISPLAY、INCREMENTAL、FINGERPRINT 三者全空才算读不到。
+        val items = probeOplusTransitions(
+            baseEnv().copy(
+                buildDisplay = null,
+                versionIncremental = null,
+                buildFingerprint = null,
+            ),
         )
         assertEquals("coloros-version-unreadable", reasonOf(items, "coloros-version"))
     }

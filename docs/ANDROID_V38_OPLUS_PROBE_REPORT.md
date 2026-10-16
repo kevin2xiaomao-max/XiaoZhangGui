@@ -28,7 +28,7 @@
 | 手段 | 说明 | 是否反射私有 API |
 |---|---|---|
 | `Class.forName` 候选类名 | 只判断类是否存在；不获取方法/字段、不调用 | 否（公开 API 的存在性检查，任务书明确允许） |
-| `Build.VERSION.SDK_INT` / `Build.MANUFACTURER` / `Build.DISPLAY` / `Build.VERSION.INCREMENTAL` | 只读公开字段 | 否 |
+| `Build.VERSION.SDK_INT` / `Build.MANUFACTURER` / `Build.DISPLAY` / `Build.VERSION.INCREMENTAL` / `Build.FINGERPRINT` | 只读公开字段 | 否 |
 | `Activity.isInMultiWindowMode` / `isInPictureInPictureMode` | 公开 API | 否 |
 | 预测性返回的**系统级**开关 | **无公开 API 可读** → 采集为 null，探测项具名为 `predictive-back-system-state-unknown`，**不猜测** | 否 |
 
@@ -38,20 +38,29 @@
 其存在性是「Oplus 私有转场 API 路径可达」的前置条件；
 类名本身未经真机验证，真机探测时以实际存在性为准。
 
-ColorOS 主版本号解析（多公开字段，零反射）：
-- 来源优先级：`Build.DISPLAY`（设置"版本号"显示的构建号）> `Build.VERSION.INCREMENTAL`
-  （部分机型此处为构建哈希而非版本串，非版本形态自动忽略）；
+ColorOS 主版本号解析（三公开字段三级回退，零反射）：
+- 来源优先级（即 `parseColorOsMajorVersion` 参数顺序）：`Build.DISPLAY`
+  （设置"版本号"显示的构建号）> `Build.VERSION.INCREMENTAL`
+  （部分机型此处为构建哈希而非版本串，非版本形态自动忽略）>
+  `Build.FINGERPRINT`（常见形态只有 Android 平台版本串如 `…/13/…`，
+  解析不到诚实返回 null，不猜测）；
 - 每个来源内部规则顺序：显式标记（`ColorOS V17` / `V15` / `ColorOS17`，
-  大小写不敏感，数字限 1–2 位）> OPPO 构建号形态
+  大小写不敏感，数字限 1–2 位 + 词边界）> OPPO 构建号形态
   （`PKJ110_17.0.0.201(CN01)` / `CPH2581_15.0.0.601(EX01)`，短分量版本号；
-  AOSP 形态长分量如 `AP3A.240905.015.A1` 不会命中）；
-- 任一来源任一规则命中即返回；两来源均读不到/解析不到时具名为
-  `coloros-version-unreadable` / `coloros-version-unparseable`，不猜测、不回退默认值。
+  AOSP 形态长分量如 `AP3A.240905.015.A1` 不会命中）；三级复用同一规则；
+- 任一来源任一规则命中即返回；三来源均读不到/解析不到时具名为
+  `coloros-version-unreadable`（三者全空）/ `coloros-version-unparseable`
+  （读得到但无版本形态），不猜测、不回退默认值。
 
 > 2026-10-16 P0 真机修复：OPPO PKJ110 / ColorOS 17 真机上 `Build.DISPLAY`
 > 无 `ColorOS` / `V` 版本标记，旧逻辑（只读 DISPLAY、只认显式标记）
 > 返回 `coloros-version-unparseable`（PoC-4 界面显示 `UNAVAILABLE`）。
 > 增补第二来源与构建号形态规则后该真机解析为 17。
+> 2026-10-16 补强再增补第三来源 `Build.FINGERPRINT`（`OplusProbeEnv.buildFingerprint`，
+> 向后兼容默认 null；仍零反射、纯公开字段）：fingerprint 常见形态只有
+> Android 平台版本串（`…/13/…`），解析不到诚实返回 null，不猜测。
+> 之前的报告若声称已有第三级而实际代码只有两级，以本轮代码+文档为准，
+> 现已真实补齐为三级：`Build.DISPLAY` > `Build.VERSION.INCREMENTAL` > `Build.FINGERPRINT`。
 > `ro.build.version.oplusrom` 等系统属性需反射 `SystemProperties` 才能读，
 > 未获用户授权，本阶段继续不用。
 
@@ -96,11 +105,15 @@ ColorOS 主版本号解析（多公开字段，零反射）：
 ## 4. 测试证据
 
 `OplusTransitionProbeTest`（JVM，`ui.motion`）：
-25 个测试，覆盖全部探测分支的具名原因断言——
+43 个测试，覆盖全部探测分支的具名原因断言——
 含 `coloros-version-unreadable/unparseable/below-17`、
 `predictive-back-system-state-unknown`（禁止猜测为可用）、
 `oplus-class-missing:<SimpleName>`、窗口模式三态、
-「每个探测项 fallback 恒为 FADE」、「结果类型禁止裸 boolean」。
+「每个探测项 fallback 恒为 FADE」、「结果类型禁止裸 boolean」，
+以及三级回退专测：DISPLAY/INCREMENTAL 均空或无版本形态时
+FINGERPRINT 命中（显式标记 / 构建号形态均复用同一规则）、
+FINGERPRINT 只有平台版本串时诚实 null、优先级顺序
+DISPLAY > INCREMENTAL > FINGERPRINT。
 
 ## 5. NOT VERIFIED 清单（需真机/模拟器实测）
 

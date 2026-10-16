@@ -6,7 +6,7 @@ package com.xiaozhanggui.app.ui.motion
  * **本阶段只做存在性/只读探测**：
  * - `Class.forName` 只做类存在性检查，**不调用任何方法**；
  * - 只读系统公开字段（`Build.VERSION.SDK_INT` / `Build.MANUFACTURER` /
- *   `Build.DISPLAY` / `Build.VERSION.INCREMENTAL` / Activity 窗口模式）；
+ *   `Build.DISPLAY` / `Build.VERSION.INCREMENTAL` / `Build.FINGERPRINT` / Activity 窗口模式）；
  * - **不使用 `java.lang.reflect` 调用任何私有 API**——反射私有转场 API
  *   需用户明确授权，当前无授权；`ro.build.version.oplusrom` 等系统属性
  *   需反射 `android.os.SystemProperties` 才能读，本阶段同样不用。
@@ -55,6 +55,8 @@ enum class OplusWindowMode {
  * @param buildDisplay `Build.DISPLAY`（只读；null = 不可读）
  * @param versionIncremental `Build.VERSION.INCREMENTAL`（只读；null = 不可读；
  *   部分机型此处为构建哈希而非版本串，解析时自动忽略非版本形态）
+ * @param buildFingerprint `Build.FINGERPRINT`（只读；null = 不可读；
+ *   常见形态为 Android 平台版本串而非 ColorOS 版本，解析不到诚实返回 null，不猜测）
  * @param classPresent 候选类名 → `Class.forName` 是否成功（只做存在性检查）
  * @param predictiveBackSystemEnabled 系统级预测性返回是否启用；
  *   null = 无法经公开 API 读取到系统状态（诚实标 unknown，不猜测）
@@ -66,6 +68,7 @@ data class OplusProbeEnv(
     val manufacturer: String,
     val buildDisplay: String?,
     val versionIncremental: String? = null,
+    val buildFingerprint: String? = null,
     val classPresent: Map<String, Boolean> = emptyMap(),
     val predictiveBackSystemEnabled: Boolean? = null,
     val windowMode: OplusWindowMode = OplusWindowMode.NORMAL,
@@ -108,15 +111,22 @@ private val OPPO_BUILD_ID_REGEX =
 /**
  * 从多个公开字段解析 ColorOS 主版本号。
  *
- * 来源优先级（即参数顺序）：`Build.DISPLAY` 先于
- * `Build.VERSION.INCREMENTAL`——DISPLAY 是设置里"版本号"显示的
- * 构建号，是最权威的公开来源。每个来源内部规则顺序：
- * 显式标记（[COLOROS_MARKER_REGEX]）先于构建号形态（[OPPO_BUILD_ID_REGEX]）。
+ * 来源优先级（三级回退，即参数顺序）：`Build.DISPLAY` >
+ * `Build.VERSION.INCREMENTAL` > `Build.FINGERPRINT`——
+ * DISPLAY 是设置里"版本号"显示的构建号，是最权威的公开来源；
+ * FINGERPRINT 常见形态为 Android 平台版本串（如 `.../13/...`），
+ * 解析不到就诚实返回 null，不猜测。
+ *
+ * 每个来源内部规则顺序：显式标记（[COLOROS_MARKER_REGEX]）先于
+ * 构建号形态（[OPPO_BUILD_ID_REGEX]）。所有来源三级规则（含数字
+ * 1–2 位 + 词边界等防误命中规则）完全复用同一逻辑。
  *
  * 背景（P0 真机修复，2026-10-16）：OPPO PKJ110 / ColorOS 17 真机上
  * `Build.DISPLAY` 无 `ColorOS` / `V` 版本标记（旧逻辑直接返回 null，
  * PoC-4 界面显示 `UNAVAILABLE · coloros-version-unparseable`），
- * 增补 `Build.VERSION.INCREMENTAL` 第二来源与构建号形态规则后可解析。
+ * 增补 `Build.VERSION.INCREMENTAL` 第二来源与构建号形态规则后可解析；
+ * 2026-10-16 补强再增补 `Build.FINGERPRINT` 为第三来源（仍零反射，
+ * 纯公开字段）。
  *
  * 任一来源任一规则命中即返回；全部读不到返回 null
  * （由调用方具名 `coloros-version-unparseable` / `-unreadable`，不猜测）。
@@ -124,10 +134,12 @@ private val OPPO_BUILD_ID_REGEX =
 fun parseColorOsMajorVersion(
     buildDisplay: String?,
     versionIncremental: String? = null,
+    buildFingerprint: String? = null,
 ): Int? {
     val sources = listOfNotNull(
         buildDisplay?.takeIf { it.isNotBlank() },
         versionIncremental?.takeIf { it.isNotBlank() },
+        buildFingerprint?.takeIf { it.isNotBlank() },
     )
     for (source in sources) {
         parseColorOsMajorFromSource(source)?.let { return it }
@@ -178,11 +190,17 @@ fun probeOplusTransitions(env: OplusProbeEnv): List<OplusProbeItem> {
         },
     )
 
-    val colorOsMajor = parseColorOsMajorVersion(env.buildDisplay, env.versionIncremental)
+    val colorOsMajor = parseColorOsMajorVersion(
+        env.buildDisplay,
+        env.versionIncremental,
+        env.buildFingerprint,
+    )
     items += OplusProbeItem(
         id = "coloros-version",
         result = when {
-            env.buildDisplay.isNullOrBlank() && env.versionIncremental.isNullOrBlank() ->
+            env.buildDisplay.isNullOrBlank()
+                && env.versionIncremental.isNullOrBlank()
+                && env.buildFingerprint.isNullOrBlank() ->
                 CapabilityResult.Unsupported("coloros-version-unreadable")
             colorOsMajor == null ->
                 CapabilityResult.Unsupported("coloros-version-unparseable")
