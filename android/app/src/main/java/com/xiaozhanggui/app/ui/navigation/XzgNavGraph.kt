@@ -34,6 +34,7 @@ import com.xiaozhanggui.app.BuildConfig
 import com.xiaozhanggui.app.ui.components.XzgMotionSpecs
 import com.xiaozhanggui.app.ui.motion.MotionContext
 import com.xiaozhanggui.app.ui.motion.MotionPolicy
+import com.xiaozhanggui.app.ui.poc.PocAutodrive
 import com.xiaozhanggui.app.ui.poc.PocRoutes
 import com.xiaozhanggui.app.ui.poc.PocSpeed
 import com.xiaozhanggui.app.ui.poc.pocGraph
@@ -366,11 +367,14 @@ private sealed interface RootSheet {
  *
  * - POC_ENABLED=false（release 构建）时 PoC route 未注册，直接返回不导航；
  * - `?speed=` 参数经 [PocSpeed.modeForQuery] 落盘为全局速度档
- *   （无参数/非法值 → 保持当前档，不重置）。
+ *   （无参数/非法值 → 保持当前档，不重置）；
+ * - `?autodrive=` 参数经 [PocAutodrive.enabledForQuery] 置位自动交互驱动
+ *   （V3.8 真机验收补强；无参数/非法值 → 保持当前状态，不重置）。
  */
 private fun handleOpenPoc(action: DeepLinkAction.OpenPoc, navController: NavController) {
     if (!BuildConfig.POC_ENABLED) return
     PocSpeed.modeForQuery(action.speed)?.let { PocSpeed.mode = it }
+    PocAutodrive.enabledForQuery(action.autodrive)?.let { PocAutodrive.setEnabled(it) }
     navController.navigate(action.route) { launchSingleTop = true }
 }
 

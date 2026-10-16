@@ -9,7 +9,9 @@
 # 深链契约（Worker A 实现，见 ui/poc/PocNav.kt + AndroidManifest xzg://poc）：
 #   xzg://poc/droplet  xzg://poc/glass  xzg://poc/morph  xzg://poc/transition
 #   ?speed=slow  → 4x 慢放
-#   启动：adb shell am start -a android.intent.action.VIEW -d "xzg://poc/droplet" com.xiaozhanggui.app
+#   ?autodrive=true → PoC 屏自动循环执行关键动画（无需触摸；V3.8 真机验收补强）
+#   可联用：xzg://poc/droplet?autodrive=true&speed=slow
+#   启动：adb shell am start -a android.intent.action.VIEW -d "xzg://poc/droplet?autodrive=true" com.xiaozhanggui.app
 #
 # 设计原则：
 #   - 不 root、不改系统分区，只用 adb shell 合法命令
@@ -73,6 +75,7 @@ FINGERPRINT=""          # ro.build.fingerprint（--perf 环境存档）
 REFRESH_RATE=""         # 屏幕刷新率 Hz（--perf 环境存档）
 PERF_TSV=""             # --perf 结构化结果表
 PERF_SUMMARY=""         # --perf 单次测量的统计文本
+PERF_VIDEO=""           # --perf 单次测量的录像路径（或说明）
 
 usage() {
   cat <<'EOF'
@@ -88,9 +91,11 @@ OPPO 手机 USB 连接电脑并开启 USB 调试后，一键运行：
   --poc <名>        只跑单个 PoC：droplet | glass | morph | transition（默认 all）
   --out <目录>      产物目录（默认 ./poc-acceptance-<时间戳>/）
   --no-install      跳过安装（APK 已装过时复用，节省时间）
-  --perf            性能验收模式：用逐帧 vsync 间隔分布测真实帧率
+  --perf            性能验收模式：autodrive 自动交互驱动 PoC 动画
+                    （无需触摸）+ 逐帧 vsync 间隔分布测真实帧率
                     （droplet/glass/morph × normal+slow × light/dark），
-                    报告单独成节；transition 为静态探测页，按设计跳过
+                    动画期间录像 + framestats 原始时间戳存档；报告单独成节；
+                    transition 为静态探测页，按设计跳过
   --theme <t>       --perf 的主题：light | dark | both（默认 both；仅 --perf 有效）
   --perf-secs <秒>   --perf 单次前台采集时长（默认 15，最小 5；仅 --perf 有效）
   --dry-run         只打印将执行的命令，不真跑（用于走查脚本逻辑）
@@ -358,10 +363,16 @@ install_apk() {
 
 # ------------------------------- PoC 原子操作 ---------------------------------
 # 深链启动：先 force-stop，再 am start（契约命令原样）
-# 用法：launch_poc <name> [normal|slow]
+# 用法：launch_poc <name> [normal|slow] [extra-query]
+#   extra-query 如 autodrive=true（--perf 用）；与 speed 拼成 ?speed=slow&autodrive=true
 launch_poc() {
-  local name="$1" speed="${2:-normal}" uri="xzg://poc/${name}"
-  [ "$speed" = "slow" ] && uri="${uri}?speed=slow"
+  local name="$1" speed="${2:-normal}" extra="${3:-}" uri="xzg://poc/${name}"
+  local q=""
+  [ "$speed" = "slow" ] && q="speed=slow"
+  if [ -n "$extra" ]; then
+    if [ -n "$q" ]; then q="${q}&${extra}"; else q="$extra"; fi
+  fi
+  [ -n "$q" ] && uri="${uri}?${q}"
   adb_ shell am force-stop "$PKG" >/dev/null 2>&1 || true
   pause 1
   if ! adb_ shell am start -a android.intent.action.VIEW -d "$uri" "$PKG" >/dev/null 2>&1; then
@@ -611,6 +622,13 @@ reduce_motion_test() {
 # 说明：--perf 模式替代上面的"⑤ 逐 PoC 验收（默认模式）"，两者二选一。
 # 用户要求：用逐帧 vsync 时间戳计算真实帧间隔分布，
 # 不许用"采样 N 秒数帧数"代替实际帧率。
+# 用户批评：静态页面采样不能作为动画达标证据。因此 --perf 流程改为：
+# 深链 `?autodrive=true` 启动自动交互驱动 → screenrecord 录像 →
+# dumpsys gfxinfo framestats 在动画期间采样（reset→dump 窗口即动画窗口）。
+# autodrive 各 PoC 自动动作：
+#   droplet：液滴展开→停留→收起循环；glass：三档 T1/T2/T3 循环聚焦切换；
+#   morph：拖拽扫动（右扫→左扫→松手回弹）+ 展开/收起循环；
+#   transition 为静态探测页，按设计跳过。
 # 测量对象：droplet / glass / morph × 速度(normal/slow) × 主题(light/dark)；
 # transition 是静态探测页，按设计跳过帧率（脚本内注明，记 NOT RUN）。
 # 判定：n ≥ 30 且 p95 ≤ 18.18ms → PASS；
@@ -654,27 +672,53 @@ perf_field() {
     {for(i=1;i<=NF;i++) if(index($i,pre)==1){v=substr($i,length(pre)+1); if(suf!="") sub(suf"$","",v); print v; exit}}'
 }
 
-# --perf 单次测量：深链启动 → reset → 前台 PERF_SECS 秒 → framestats
-# 解析已完成帧的 IntendedVsync 时间戳序列，算相邻帧间隔分布。
-# 返回 0=PASS 1=FAIL 2=NOT RUN；统计文本进 $PERF_SUMMARY
+# --perf 单次测量：深链启动 autodrive → screenrecord 录像 →
+#   dumpsys gfxinfo <pkg> framestats 在动画期间采样 → 解析统计。
+# autodrive（?autodrive=true）让 PoC 屏自动循环执行关键动画（无需触摸），
+# framestats 的 reset→dump 窗口即为动画窗口——帧率是"动画期间实测"，
+# 不是静态页面采样。
+# 返回 0=PASS 1=FAIL 2=NOT RUN；统计文本进 $PERF_SUMMARY，录像路径进 $PERF_VIDEO
 measure_perf() {
   local name="$1" speed="$2" theme_label="$3"
   local raw="${OUT_DIR}/poc-${name}-perf-${speed}-${theme_label}-framestats.txt"
-  launch_poc "$name" "$speed" || return 2
+  local dev="/sdcard/poc-${name}-perf-${speed}-${theme_label}.mp4"
+  local out="${OUT_DIR}/poc-${name}-perf-${speed}-${theme_label}.mp4"
+  launch_poc "$name" "$speed" "autodrive=true" || return 2
   adb_ shell dumpsys gfxinfo "$PKG" reset >/dev/null 2>&1 || true
-  log "  正在采集 ${PERF_SECS} 秒逐帧数据（${name}，${speed}，${theme_label}）…"
-  pause "$PERF_SECS"
+  log "  正在录像 + 逐帧采集 ${PERF_SECS}s（${name}，${speed}，${theme_label}，autodrive 动画中）…"
+  adb_ shell screenrecord --time-limit "$PERF_SECS" "$dev" &
+  local rec=$!
+  pause $((PERF_SECS + 2))
+  wait "$rec" 2>/dev/null || true
+  # framestats 在动画期间采样：autodrive 循环持续进行，
+  # reset→dump 窗口覆盖上面的录像窗口（动画窗口）
   adb_ shell dumpsys gfxinfo "$PKG" framestats 2>/dev/null | tr -d '\r' > "$raw"
+  if [ "$DRY_RUN" -eq 1 ]; then
+    PERF_VIDEO="dry-run 占位：$out"
+  elif adb_ pull "$dev" "$out" >/dev/null 2>&1 && [ -s "$out" ]; then
+    adb_ shell rm -f "$dev" >/dev/null 2>&1 || true
+    PERF_VIDEO="$out"
+  else
+    PERF_VIDEO="录像拉取失败（不影响帧率判定）"
+    warn "  ${name}/${speed}/${theme_label}：screenrecord 录像拉取失败，帧率照常判定"
+  fi
   if [ "$DRY_RUN" -eq 1 ]; then PERF_SUMMARY="dry-run 未实测"; return 2; fi
   if ! command -v python3 >/dev/null 2>&1; then
     PERF_SUMMARY="本机无 python3，无法解析 framestats"
     return 2
   fi
-  PERF_SUMMARY="$(python3 - "$raw" <<'PYEOF'
+  PERF_SUMMARY="$(python3 - "$raw" "${REFRESH_RATE:-}" <<'PYEOF'
 import sys
 path = sys.argv[1]
-MS55 = 18.18   # 55fps 对应帧间隔（毫秒）
+MS55 = 18.18   # 55fps 对应帧间隔（毫秒），--perf 判定用
 MS60 = 16.67   # 60fps 对应帧间隔（毫秒，参考）
+# 严重掉帧阈值 = 2×vsync：vsync 取设备刷新率换算，取不到回退 60Hz（16.67ms）
+try:
+    rr = float(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2] else 0.0
+    vsync_ms = 1000.0 / rr if rr > 0 else MS60
+except (ValueError, ZeroDivisionError):
+    vsync_ms = MS60
+SEVERE_MS = 2.0 * vsync_ms
 header = None
 iv_idx = fc_idx = -1
 vsyncs = []
@@ -731,13 +775,17 @@ p50 = gaps[int(0.50 * (n - 1))]
 p95 = gaps[int(0.95 * (n - 1))]
 le55 = sum(1 for g in gaps if g <= MS55) / n * 100.0
 le60 = sum(1 for g in gaps if g <= MS60) / n * 100.0
-print('n=%d p50=%.2fms p95=%.2fms le18.18=%.1f%% le16.67=%.1f%%' % (n, p50, p95, le55, le60))
+jank55 = sum(1 for g in gaps if g > MS55) / n * 100.0     # 掉帧率（帧间隔 >18.18ms 占比）
+severe = sum(1 for g in gaps if g > SEVERE_MS) / n * 100.0  # 严重掉帧（>2×vsync）单独列
+print('n=%d p50=%.2fms p95=%.2fms le18.18=%.1f%% le16.67=%.1f%% jank55=%.1f%% severe2v=%.1f%% vsync=%.2fms' % (n, p50, p95, le55, le60, jank55, severe, vsync_ms))
 PYEOF
 )"
   case "$PERF_SUMMARY" in
     n=*) ;;
     *) return 2 ;;
   esac
+  # 统计文本追加录像路径（token 无空格，不影响 perf_field 解析）
+  PERF_SUMMARY="${PERF_SUMMARY} video=${PERF_VIDEO##*/}"
   local n p95
   n="$(perf_field 'n=')"; p95="$(perf_field 'p95=' 'ms')"
   n="${n:-0}"; p95="${p95:-9999}"
@@ -762,7 +810,7 @@ run_perf() {
   PERF_TSV="${OUT_DIR}/.perf.tsv"
   : > "$PERF_TSV"
 
-  local p t s mode rc verdict n p50 p95v le55 le60
+  local p t s mode rc verdict n p50 p95v le55 le60 jank severe
   for p in $pocs; do
     if [ "$p" = "transition" ]; then
       log "  注：transition 为静态探测报告页，按设计跳过 --perf 帧率采集。"
@@ -780,11 +828,13 @@ run_perf() {
         n="$(perf_field 'n=')";      p50="$(perf_field 'p50=' 'ms')"
         p95v="$(perf_field 'p95=' 'ms')"
         le55="$(perf_field 'le18.18=' '%')"; le60="$(perf_field 'le16.67=' '%')"
+        jank="$(perf_field 'jank55=' '%')";   severe="$(perf_field 'severe2v=' '%')"
         if [ "$rc" -eq 0 ]; then verdict="PASS"
         elif [ "$rc" -eq 1 ]; then verdict="FAIL"
         else verdict="NOT RUN"; fi
-        printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-          "$p" "$s" "$t" "${n:-—}" "${p50:-—}" "${p95v:-—}" "${le55:-—}" "${le60:-—}" "$verdict" >> "$PERF_TSV"
+        printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+          "$p" "$s" "$t" "${n:-—}" "${p50:-—}" "${p95v:-—}" "${le55:-—}" "${le60:-—}" \
+          "${jank:-—}" "${severe:-—}" "$verdict" >> "$PERF_TSV"
         mark "$p" "帧率-perf(${s}/${t})" "$verdict" "${PERF_SUMMARY:-无数据}"
       done
     done
@@ -827,23 +877,30 @@ write_report() {
     rep ""
   fi
   if [ "$PERF_MODE" -eq 1 ]; then
-    rep "## --perf 性能验收（逐帧 vsync 间隔口径）"
+    rep "## --perf 性能验收（逐帧 vsync 间隔口径，动画期间实测）"
     rep ""
+    rep "- **以下数据均为动画期间实测**：深链 \`xzg://poc/<name>?autodrive=true[&speed=slow]\`"
+    rep "  启动自动交互驱动（PoC 屏自动循环执行关键动画，无需触摸），"
+    rep "  \`screenrecord\` 同步录像，\`dumpsys gfxinfo ${PKG} framestats\`"
+    rep "  的 reset→dump 窗口即为动画窗口——帧率不是静态页面采样。"
+    rep "- autodrive 各 PoC 自动动作：droplet=液滴展开→停留→收起循环；"
+    rep "  glass=三档 T1/T2/T3 循环聚焦切换（显隐只改 alpha 的真实动画帧）；"
+    rep "  morph=拖拽扫动（右扫→左扫→松手回弹→释放）+ 展开/收起循环。"
+    rep "  transition 为静态探测页，按设计跳过，记 NOT RUN。"
     rep "- 测试环境：${MODEL:-未知}（Android ${ANDROID_VER:-未知} / SDK ${SDK:-未知}，serial=${SERIAL:-未知}），屏幕刷新率 ${REFRESH_RATE:-unknown}Hz"
     rep "- 设备信息已存档到 \`device-info.txt\`（ro.product.model / ro.build.version.release / ro.build.version.sdk / ro.build.display.id / ro.build.fingerprint / 屏幕刷新率）。"
     rep "  display.id 与 fingerprint 由脚本自动采集存档，用于后续性能调优时解析系统版本差异，用户无需手动提供。"
-    rep "- 方法：深链启动 → \`dumpsys gfxinfo ${PKG} reset\` → 前台 ${PERF_SECS}s → \`dumpsys gfxinfo ${PKG} framestats\`；每个 PoC × 速度（normal/slow）× 主题（light/dark）独立采集"
+    rep "- 方法：深链启动（autodrive）→ \`dumpsys gfxinfo ${PKG} reset\` → 录像 + 前台 ${PERF_SECS}s（动画持续循环）→ \`dumpsys gfxinfo ${PKG} framestats\`；每个 PoC × 速度（normal/slow）× 主题（light/dark）独立采集"
     rep "- 解析：取已完成帧（FrameCompleted > IntendedVsync）的 IntendedVsync 时间戳序列（升序），相邻帧间隔 interval[i] = vsync[i+1] − vsync[i]（毫秒）；只统计 0 < interval ≤ 1000ms 的有效间隔（剔除页面静置断档）"
-    rep "- 统计：n（有效间隔数）、p50、p95、≤18.18ms 占比（55fps 门槛）、≤16.67ms 占比（60fps 参考）"
+    rep "- 统计：n（有效间隔数）、p50、p95、≤18.18ms 占比（55fps 门槛）、≤16.67ms 占比（60fps 参考）、**掉帧率**（帧间隔 >18.18ms 占比）、**严重掉帧**（帧间隔 >2×vsync 占比，vsync 取自设备刷新率，取不到回退 16.67ms）"
     rep "- 判定：n ≥ ${PERF_MIN_INTERVALS} 且 p95 ≤ ${PERF_MS_55}ms → PASS；n ≥ ${PERF_MIN_INTERVALS} 且 p95 > ${PERF_MS_55}ms → FAIL；n < ${PERF_MIN_INTERVALS} 或解析失败 → NOT RUN（数据不足不判，不虚报）"
-    rep "- 帧率结论只基于实测间隔分布，不用「采样 N 秒数帧数」代替实际帧率"
-    rep "- 原始 framestats 按 PoC/速度/主题分别保留（\`poc-<name>-perf-<speed>-<theme>-framestats.txt\`），可复核"
-    rep "- transition 为静态探测页，按设计跳过 --perf 帧率采集，记 NOT RUN"
+    rep "- 帧率结论只基于动画期间实测间隔分布，不用「采样 N 秒数帧数」代替实际帧率"
+    rep "- 录像（\`poc-<name>-perf-<speed>-<theme>.mp4\`，动画过程证据）与原始 framestats 时间戳文件（\`poc-<name>-perf-<speed>-<theme>-framestats.txt\`）分别存档，可复核"
     rep ""
-    rep "| PoC | 速度 | 主题 | n | p50(ms) | p95(ms) | ≤18.18ms | ≤16.67ms | 判定 |"
-    rep "| --- | ---- | ---- | - | ------- | ------- | -------- | -------- | ---- |"
+    rep "| PoC | 速度 | 主题 | n | p50(ms) | p95(ms) | ≤18.18ms | ≤16.67ms | 掉帧率 | 严重掉帧 | 判定 |"
+    rep "| --- | ---- | ---- | - | ------- | ------- | -------- | -------- | ------ | -------- | ---- |"
     if [ -s "$PERF_TSV" ]; then
-      awk -F'\t' '{printf "| %s | %s | %s | %s | %s | %s | %s | %s | %s |\n", $1,$2,$3,$4,$5,$6,$7,$8,$9}' "$PERF_TSV" >> "$REPORT"
+      awk -F'\t' '{printf "| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n", $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11}' "$PERF_TSV" >> "$REPORT"
     else
       rep "（无 --perf 数据）"
     fi
@@ -856,7 +913,7 @@ write_report() {
   rep "- Reduce Motion 通过 \`settings put global animator_duration_scale 0\` 生效（仅 droplet 抽查），结束后恢复原值"
   rep "- 录屏期间页面处于前台静置状态，未做点击交互；帧率反映的是页面静置/自有动画的采集窗口"
   if [ "$PERF_MODE" -eq 1 ]; then
-    rep "  （--perf 模式：前台静置 ${PERF_SECS}s/次，深链启动后 reset 再采集；见上节 --perf 口径）"
+    rep "  （--perf 模式：autodrive 自动交互驱动动画期间实测 ${PERF_SECS}s/次，深链启动后 reset 再采集；见上节 --perf 口径）"
   else
     rep "  （默认模式：10 秒窗口）"
   fi

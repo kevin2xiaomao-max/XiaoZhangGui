@@ -59,11 +59,28 @@ APK 来源优先级：`--apk` > `$POC_APK` > `gh` 从 CI 自动下载。
 5. **报告**：生成 `poc-acceptance-report-<时间戳>.md`，含设备信息、逐项结论表、
    帧率口径说明、失败/NOT RUN 清单、产物文件清单
 
-## --perf 性能验收模式（P0，逐帧 vsync 间隔口径）
+## --perf 性能验收模式（P0，逐帧 vsync 间隔口径，动画期间实测）
 
-用户要求：用**逐帧 vsync 时间戳计算真实帧间隔分布**，不许用"采样 N 秒数帧数"
-代替实际帧率。`--perf` 是一个独立模式（替代默认的录屏/截图/旧帧率流程，
-现有默认流程不动），只做帧率实测。
+用户批评：只采样静态页面的帧率不能作为动画达标证据。`--perf` 是一个独立模式
+（替代默认的录屏/截图/旧帧率流程，现有默认流程不动），只做帧率实测，
+且**采样窗口即为动画窗口**。
+
+核心机制：**autodrive 自动交互驱动**（debug only）。深链
+`xzg://poc/<name>?autodrive=true` 进入后，PoC 屏自动循环执行关键动画，
+无需触摸；`--perf` 的 `screenrecord` 录像 + `dumpsys gfxinfo framestats`
+的 reset→dump 窗口都在动画进行中完成。
+
+| PoC | autodrive 自动动作 |
+| --- | ------------------ |
+| droplet | 液滴展开 → 停留 → 收起 → 停留，无限循环 |
+| glass | 三档 T1 / T2 / T3 循环聚焦切换（显隐只改 alpha 的真实动画帧） |
+| morph | 拖拽扫动的程序化等效（右扫 → 左扫 → 松手回弹 → 200ms 释放）+ 展开/收起循环 |
+| transition | 静态探测页，按设计跳过帧率，记 NOT RUN |
+
+门控：`PocAutodrive.enabled` 只能由 PoC 深链 `?autodrive=` 置位；
+release 构建（`POC_ENABLED=false`）导航层直接返回，永不置位；
+离屏即取消循环；手动模式（`autodrive=false` / 无参数）行为零变化。
+各屏在 autodrive 时会显示"autodrive 自动循环中"提示行（录像中可见）。
 
 ### 参数
 
@@ -71,7 +88,7 @@ APK 来源优先级：`--apk` > `$POC_APK` > `gh` 从 CI 自动下载。
 | ---- | ---- |
 | `--perf` | 开启性能验收模式 |
 | `--theme light\|dark\|both` | 主题，默认 `both`（light + dark 各跑一遍；仅 `--perf` 有效） |
-| `--perf-secs <秒>` | 单次前台采集时长，默认 15，最小 5（仅 `--perf` 有效） |
+| `--perf-secs <秒>` | 单次动画窗口时长，默认 15，最小 5（仅 `--perf` 有效） |
 | `--poc <名>` | 可联用，缩小到单个 PoC |
 
 ### 测量对象与方法
@@ -79,11 +96,14 @@ APK 来源优先级：`--apk` > `$POC_APK` > `gh` 从 CI 自动下载。
 - **对象**：droplet / glass / morph × 速度（normal + `?speed=slow` 慢放）× 主题
   （light/dark）。transition 是静态探测页，**按设计跳过帧率**，记 NOT RUN。
 - **方法**（每个 PoC × 每种速度 × 每种主题）：
-  1. 深链启动（`xzg://poc/<name>[?speed=slow]`，`cmd uimode night` 先切好主题）
+  1. 深链启动（`xzg://poc/<name>?autodrive=true[&speed=slow]`，
+     `cmd uimode night` 先切好主题）
   2. `dumpsys gfxinfo <pkg> reset`
-  3. 前台展示 N 秒（`--perf-secs`，默认 15）
-  4. `dumpsys gfxinfo <pkg> framestats`，原始文本按
-     `poc-<name>-perf-<speed>-<theme>-framestats.txt` 存档，可复核
+  3. `screenrecord` 同步录像（`--time-limit <perf-secs>`）
+  4. 动画持续循环 `--perf-secs` 秒（默认 15）
+  5. `dumpsys gfxinfo <pkg> framestats`，原始文本按
+     `poc-<name>-perf-<speed>-<theme>-framestats.txt` 存档，可复核；
+     录像按 `poc-<name>-perf-<speed>-<theme>.mp4` 存档（动画过程证据）
 - **解析**：取已完成帧（`FrameCompleted > IntendedVsync`）的 `IntendedVsync`
   时间戳序列（升序），相邻帧间隔 `interval[i] = vsync[i+1] − vsync[i]`（毫秒）。
   只统计 `0 < interval ≤ 1000ms` 的有效间隔（剔除页面静置断档）。
@@ -91,7 +111,9 @@ APK 来源优先级：`--apk` > `$POC_APK` > `gh` 从 CI 自动下载。
   `flags` 用值域判断剔除（`IntendedVsync` 是 >1e12 的纳秒时间戳，flags 是
   0~3 小整数），不依赖行长度比较。
 - **统计**：n（有效间隔数）、p50、p95、≤18.18ms 占比（55fps 门槛）、
-  ≤16.67ms 占比（60fps 参考）。
+  ≤16.67ms 占比（60fps 参考）、**掉帧率**（帧间隔 >18.18ms 占比）、
+  **严重掉帧**（帧间隔 >2×vsync 占比；vsync 取自设备刷新率，取不到回退
+  16.67ms/60Hz）。
 - **判定**：n ≥ 30 且 p95 ≤ 18.18ms → **PASS**；
   n ≥ 30 且 p95 > 18.18ms → **FAIL**；
   n < 30 或解析失败 → **NOT RUN**（数据不足不判，不虚报）。
@@ -111,9 +133,12 @@ APK 来源优先级：`--apk` > `$POC_APK` > `gh` 从 CI 自动下载。
 
 ### 报告
 
-`--perf` 结果在报告中单独一节，表格列出
-PoC / 速度 / 主题 / n / p50 / p95 / ≤18.18ms 占比 / ≤16.67ms 占比 / PASS-FAIL；
-原始 framestats 保留可复核；dry-run 的行全部标 NOT RUN 并注明未实测。
+`--perf` 结果在报告中单独一节（节标题注明"动画期间实测"），表格列出
+PoC / 速度 / 主题 / n / p50 / p95 / ≤18.18ms 占比 / ≤16.67ms 占比 /
+**掉帧率** / **严重掉帧** / PASS-FAIL；
+每组录像（`poc-<name>-perf-<speed>-<theme>.mp4`）与原始 framestats
+（`poc-<name>-perf-<speed>-<theme>-framestats.txt`，原始时间戳文件）
+分别存档，可复核；dry-run 的行全部标 NOT RUN 并注明未实测。
 
 ## 产物
 
@@ -127,17 +152,28 @@ PoC / 速度 / 主题 / n / p50 / p95 / ≤18.18ms 占比 / ≤16.67ms 占比 / 
 | `poc-droplet-reducemotion.mp4` / `.png` | Reduce Motion 抽查 |
 | `poc-<name>-framestats.txt` | 帧率原始数据（默认模式，可复核） |
 | `device-info.txt` | 设备环境存档（机型/系统/display.id/fingerprint/刷新率） |
-| `poc-<name>-perf-<speed>-<theme>-framestats.txt` | --perf 逐帧原始数据（可复核） |
+| `poc-<name>-perf-<speed>-<theme>.mp4` | --perf 动画窗口录像（autodrive 动画过程证据） |
+| `poc-<name>-perf-<speed>-<theme>-framestats.txt` | --perf 逐帧原始时间戳数据（可复核） |
+
+## autodrive 深链参数
+
+`xzg://poc/<droplet|glass|morph>?autodrive=true`（可与 `?speed=slow|normal`
+联用，如 `xzg://poc/droplet?autodrive=true&speed=slow`）。transition 为静态
+探测页，按设计跳过 autodrive。`autodrive=false` 或无参数 = 手动模式。
+release 构建（`POC_ENABLED=false`）下 PoC route 不注册、深链被忽略，
+autodrive 永不置位。
 
 ## 结论口径（不虚报）
 
 - **PASS / FAIL / NOT RUN** 三态；单项失败记 FAIL 继续跑，不中断整体
 - 帧率（默认模式）：有效帧 < 30 或解析失败 → **NOT RUN**（数据不足不判）
-- 帧率（--perf 模式）：有效间隔 n < 30 或解析失败 → **NOT RUN**（数据不足不判）；
+- 帧率（--perf 模式）：**动画期间实测**（autodrive 自动交互驱动）；
+  有效间隔 n < 30 或解析失败 → **NOT RUN**（数据不足不判）；
   n ≥ 30 且 p95 ≤ 18.18ms → PASS，否则 FAIL
 - transition 的录屏/帧率 → **NOT RUN**（静态页，按设计跳过；--perf 亦然）
 - 录屏期间页面前台静置、未做点击；帧率反映采集窗口内页面静置/自有动画
-  （默认模式 10 秒；--perf 模式见报告 --perf 节的 `--perf-secs`）
+  （默认模式 10 秒；--perf 模式见报告 --perf 节的 `--perf-secs`，
+  此时页面由 autodrive 自动循环执行动画）
 - Ctrl+C 会尽力清理：SIGINT 停掉设备侧 screenrecord（正常收尾 mp4）、恢复深色模式
   与 animator_duration_scale、杀本地后台任务
 

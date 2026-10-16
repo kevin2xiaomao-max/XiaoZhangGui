@@ -19,7 +19,7 @@ import com.xiaozhanggui.app.ui.poc.PocRoutes
  *   仅 POC_ENABLED（debug 构建）时有效，release 构建映射为 Ignore。
  *
  * V3.8 PoC 测试菜单增强（Android 侧扩展，debug only）：
- * - `xzg://poc/droplet|glass|morph|transition` → 直达对应 PoC 演示屏；
+ * - `xzg://poc/droplet|glass|morph|transition|perf` → 直达对应 PoC 演示屏；
  * - `?speed=slow|normal` → 切换 PoC 全局速度档（PocSpeed）；
  *   仅 POC_ENABLED 时有效，release 构建映射为 Ignore。
  *
@@ -60,12 +60,19 @@ sealed interface DeepLinkAction {
      * 直达某个 PoC 演示屏（V3.8 PoC 测试菜单增强，Android 侧扩展）。
      *
      * - [route]：目标 PoC route（见 [PocRoutes]），由
-     *   `xzg://poc/<droplet|glass|morph|transition>` 的 path 解析得到；
+     *   `xzg://poc/<droplet|glass|morph|transition|perf>` 的 path 解析得到；
      * - [speed]：`?speed=` 原始值（`"slow"` / `"normal"` / null），
      *   导航层经 `PocSpeed.modeForQuery` 落盘为全局速度档；
+     * - [autodrive]：`?autodrive=` 原始值（`"true"` / `"false"` / null，
+     *   V3.8 真机验收补强），导航层经 `PocAutodrive.enabledForQuery`
+     *   置位自动交互驱动；null = 保持当前状态；
      * - 仅 POC_ENABLED（debug 构建）时产生；release 构建映射为 [Ignore]。
      */
-    data class OpenPoc(val route: String, val speed: String? = null) : DeepLinkAction
+    data class OpenPoc(
+        val route: String,
+        val speed: String? = null,
+        val autodrive: String? = null,
+    ) : DeepLinkAction
 
     /** 未知链接：忽略 */
     data object Ignore : DeepLinkAction
@@ -81,9 +88,11 @@ sealed interface DeepLinkAction {
  * - host=todo → [DeepLinkAction.OpenTodoTab]（Android 侧扩展）
  * - host=poc（无 path）→ [DeepLinkAction.OpenPocLauncher]（V3.8 Phase 2；
  *   仅 POC_ENABLED 时有效，否则为 Ignore）
- * - host=poc + path=droplet|glass|morph|transition → [DeepLinkAction.OpenPoc]
+ * - host=poc + path=droplet|glass|morph|transition|perf → [DeepLinkAction.OpenPoc]
  *   （V3.8 PoC 测试菜单增强；非法 path → Ignore；release 下一律 Ignore）；
- *   `?speed=slow|normal` 解析进 [DeepLinkAction.OpenPoc.speed]
+ *   `?speed=slow|normal` 解析进 [DeepLinkAction.OpenPoc.speed]，
+ *   `?autodrive=true|false` 解析进 [DeepLinkAction.OpenPoc.autodrive]
+ *   （V3.8 真机验收补强：自动交互驱动）
  * - 其他 → [DeepLinkAction.Ignore]
  */
 object XzgDeepLink {
@@ -94,6 +103,7 @@ object XzgDeepLink {
             uri.getQueryParameter("mode"),
             path = uri.path,
             speed = uri.getQueryParameter("speed"),
+            autodrive = uri.getQueryParameter("autodrive"),
         )
     }
 
@@ -107,6 +117,8 @@ object XzgDeepLink {
      * @param path 深链 path（如 `xzg://poc/droplet` 的 `/droplet`；
      *   追加在末尾的默认参数，保持既有调用签名兼容）
      * @param speed `?speed=` 原始值（原样透传进 [DeepLinkAction.OpenPoc]）
+     * @param autodrive `?autodrive=` 原始值（原样透传进
+     *   [DeepLinkAction.OpenPoc]；V3.8 真机验收补强）
      */
     fun route(
         host: String?,
@@ -114,6 +126,7 @@ object XzgDeepLink {
         pocEnabled: Boolean = BuildConfig.POC_ENABLED,
         path: String? = null,
         speed: String? = null,
+        autodrive: String? = null,
     ): DeepLinkAction = when (host) {
         "voice" -> DeepLinkAction.OpenVoice
         "quickrecord", "quick" -> DeepLinkAction.OpenQuickRecord
@@ -121,28 +134,34 @@ object XzgDeepLink {
             if (mode == "voice") DeepLinkAction.OpenAISheetVoice
             else DeepLinkAction.OpenAISheet
         "todo" -> DeepLinkAction.OpenTodoTab
-        "poc" -> routePoc(path, speed, pocEnabled)
+        "poc" -> routePoc(path, speed, pocEnabled, autodrive)
         else -> DeepLinkAction.Ignore
     }
 
     /**
-     * `xzg://poc[/<path>][?speed=]` 路由（V3.8 PoC 测试菜单增强）。
+     * `xzg://poc[/<path>][?speed=][&autodrive=]` 路由（V3.8 PoC 测试菜单增强）。
      *
      * - path 为空 / `"launcher"` → [DeepLinkAction.OpenPocLauncher]
      *  （`xzg://poc` 仍进 launcher，保持 Phase 2 行为）；
-     * - `droplet` / `glass` / `morph` / `transition` →
+     * - `droplet` / `glass` / `morph` / `transition` / `perf` →
      *   [DeepLinkAction.OpenPoc]（route 取 [PocRoutes] 对应值）；
      * - 非法 path → [DeepLinkAction.Ignore]；
      * - pocEnabled=false（release 构建）→ 一律 [DeepLinkAction.Ignore]。
      */
-    private fun routePoc(path: String?, speed: String?, pocEnabled: Boolean): DeepLinkAction {
+    private fun routePoc(
+        path: String?,
+        speed: String?,
+        pocEnabled: Boolean,
+        autodrive: String?,
+    ): DeepLinkAction {
         if (!pocEnabled) return DeepLinkAction.Ignore
         return when (path?.trim('/')) {
             null, "", "launcher" -> DeepLinkAction.OpenPocLauncher
-            "droplet" -> DeepLinkAction.OpenPoc(PocRoutes.DROPLET, speed)
-            "glass" -> DeepLinkAction.OpenPoc(PocRoutes.GLASS, speed)
-            "morph" -> DeepLinkAction.OpenPoc(PocRoutes.MORPH, speed)
-            "transition" -> DeepLinkAction.OpenPoc(PocRoutes.TRANSITION, speed)
+            "droplet" -> DeepLinkAction.OpenPoc(PocRoutes.DROPLET, speed, autodrive)
+            "glass" -> DeepLinkAction.OpenPoc(PocRoutes.GLASS, speed, autodrive)
+            "morph" -> DeepLinkAction.OpenPoc(PocRoutes.MORPH, speed, autodrive)
+            "transition" -> DeepLinkAction.OpenPoc(PocRoutes.TRANSITION, speed, autodrive)
+            "perf" -> DeepLinkAction.OpenPoc(PocRoutes.PERF, speed, autodrive)
             else -> DeepLinkAction.Ignore
         }
     }
@@ -169,6 +188,7 @@ object XzgDeepLink {
             pocEnabled = pocEnabled,
             path = parsed.path,
             speed = queryParam(parsed.rawQuery, "speed"),
+            autodrive = queryParam(parsed.rawQuery, "autodrive"),
         )
     }
 

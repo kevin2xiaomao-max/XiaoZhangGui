@@ -62,11 +62,13 @@ import com.xiaozhanggui.app.ui.motion.MotionContext
 import com.xiaozhanggui.app.ui.motion.PerfTier
 import com.xiaozhanggui.app.ui.poc.PocMotionMath.lerp
 import com.xiaozhanggui.app.ui.poc.PocMotionMath.phaseProgress
+import com.xiaozhanggui.app.ui.poc.PocAutodrive
 import com.xiaozhanggui.app.ui.poc.PocSpeed
 import com.xiaozhanggui.app.ui.poc.PocSpeedMode
 import com.xiaozhanggui.app.ui.theme.rememberReduceMotion
 import com.xiaozhanggui.app.ui.theme.v371.V371Radius
 import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
 
 /**
  * PoC-1 液滴按钮菜单（Design System §2.2 六层动作；合入标准见 Roadmap §3 PoC-1）。
@@ -136,6 +138,27 @@ fun DropletMenuScreen(onBack: () -> Unit) {
     val settled = p >= 1f && !progress.isRunning
     val showOverlay = p > 0f || expanded
 
+    // ── autodrive 自动交互驱动（V3.8 真机验收补强；debug only）──
+    // ?autodrive=true 深链进入后：展开→停留→收起→停留，无限循环，无需触摸。
+    // 离屏（composition 销毁）即取消；enabled=false 时手动模式行为零变化。
+    // release 构建 PocAutodrive.enabled 恒为 false（handleOpenPoc 早返）。
+    val autodrive = PocAutodrive.enabled
+    LaunchedEffect(autodrive, resolution.runDropletPhases, resolution.durationTier.ms) {
+        if (!autodrive) return@LaunchedEffect
+        delay(PocAutodrive.WARMUP_MS.toLong()) // 等锚点 onGloballyPositioned 测量完成
+        while (true) {
+            val base = if (resolution.runDropletPhases) {
+                DurationTier.STANDARD.ms // 280ms（与上面展开驱动同一口径）
+            } else {
+                resolution.durationTier.ms
+            }
+            expanded = true
+            delay((PocSpeed.scale(base) + PocAutodrive.DROPLET_EXPANDED_DWELL_MS).toLong())
+            expanded = false
+            delay(PocAutodrive.DROPLET_COLLAPSED_DWELL_MS.toLong())
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -203,6 +226,14 @@ fun DropletMenuScreen(onBack: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
+            if (autodrive) {
+                Text(
+                    "autodrive 自动循环中（展开/收起，无需触摸）",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+            }
 
             // ── 舞台 ──
             BoxWithConstraints(

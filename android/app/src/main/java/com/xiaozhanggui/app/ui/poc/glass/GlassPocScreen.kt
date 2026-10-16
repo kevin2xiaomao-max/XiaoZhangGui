@@ -31,8 +31,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xiaozhanggui.app.ui.motion.PerfTier
+import com.xiaozhanggui.app.ui.poc.PocAutodrive
 import com.xiaozhanggui.app.ui.theme.LocalXzgPalettes
 import com.xiaozhanggui.app.ui.theme.rememberReduceMotion
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
 /**
@@ -124,6 +126,22 @@ fun GlassPocScreen(onBack: () -> Unit) {
     // 初次进入解析一次（建立 lastTier 基线，不记事件）
     LaunchedEffect(apiLevel, lowMemory, reduceMotion) { reResolve() }
 
+    // ── autodrive 自动交互驱动（V3.8 真机验收补强；debug only）──
+    // ?autodrive=true 深链进入后：三档 T1/T2/T3 循环聚焦切换（显隐只改 alpha，
+    // GlassSurface 内 animateFloatAsState 产生真实动画帧），无需触摸。
+    // 离屏（composition 销毁）即取消；enabled=false 时手动模式行为零变化。
+    val tiers = GlassTier.values()
+    val autodrive = PocAutodrive.enabled
+    var focusIndex by remember { mutableStateOf(0) }
+    LaunchedEffect(autodrive) {
+        if (!autodrive) return@LaunchedEffect
+        delay(PocAutodrive.WARMUP_MS.toLong())
+        while (true) {
+            delay(PocAutodrive.GLASS_FOCUS_MS.toLong())
+            focusIndex = (focusIndex + 1) % tiers.size
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -172,8 +190,16 @@ fun GlassPocScreen(onBack: () -> Unit) {
 
         Spacer(modifier = Modifier.height(4.dp))
         Text(text = "三档展示（同一背景域 / 同一几何 / 同一文字）", fontSize = 14.sp, color = palettes.background.textPrimary)
-        GlassTier.values().forEach { tier ->
-            GlassTierShowcase(tier = tier)
+        if (autodrive) {
+            Text(
+                text = "autodrive 自动循环中（三档轮切，当前=${tiers[focusIndex].tierId}，无需触摸）",
+                fontSize = 12.sp,
+                color = palettes.background.textSecondary,
+            )
+        }
+        tiers.forEachIndexed { index, tier ->
+            // autodrive 时非聚焦档 alpha 淡出（真实显隐动画帧）；手动模式全显。
+            GlassTierShowcase(tier = tier, visible = !autodrive || index == focusIndex)
         }
         Spacer(modifier = Modifier.height(16.dp))
     }

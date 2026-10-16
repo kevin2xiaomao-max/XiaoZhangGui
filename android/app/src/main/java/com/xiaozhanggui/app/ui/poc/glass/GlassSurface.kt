@@ -196,13 +196,17 @@ private fun GlassHairline(
  *
  * 同一具名背景域（[BackdropDomain.POC_DEMO_FEED]）、同一几何、同一份文字内容；
  * 档位不同只改变材质层/底色不透明度/hairline 层数。
+ *
+ * @param visible autodrive 三档轮切用：false 时只改 alpha 淡出
+ *  （[GlassSurface] 的 `animateFloatAsState` 产生真实显隐动画帧），
+ *   布局占位不变。默认 true，手动模式与 Paparazzi 行为零变化。
  */
 // Material: Glass/T{1,2,3}
 // Backdrop-Domain: poc-demo-feed
 // Role: floating-sheet
 // Fallback: T2 -> T3
 @Composable
-fun GlassTierShowcase(tier: GlassTier) {
+fun GlassTierShowcase(tier: GlassTier, visible: Boolean = true) {
     val declaration = remember(tier) {
         GlassMaterialDeclaration(
             tier = tier,
@@ -222,6 +226,7 @@ fun GlassTierShowcase(tier: GlassTier) {
         GlassSurface(
             tier = tier,
             declaration = declaration,
+            visible = visible,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = 28.dp),

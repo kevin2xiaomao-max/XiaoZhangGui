@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.xiaozhanggui.app.ui.poc.PocAutodrive
 import com.xiaozhanggui.app.ui.poc.PocMotionMath.phaseProgress
 import com.xiaozhanggui.app.ui.poc.PocSpeed
 import com.xiaozhanggui.app.ui.theme.v371.V371Radius
@@ -95,6 +96,13 @@ fun MorphDemoScreen(onBack: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (PocAutodrive.enabled) {
+                Text(
+                    "autodrive 自动循环中（拖拽扫动 + 展开/收起，无需触摸）",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
             DragMorphDemo()
             ExpandMorphDemo()
         }
@@ -131,6 +139,31 @@ private fun DragMorphDemo() {
     val bulge = MorphEnvelope.cornerBulge(dragP)
     val taperT = MorphEnvelope.leadingTaperT(dragP)
     val scale = if (returning) MorphEnvelope.overshootScale(returnP) else 1f
+
+    // ── autodrive：拖拽扫动的程序化等效（V3.8 真机验收补强；debug only）──
+    // 右扫→左扫（圆角包络+前缘锥度跟随）→松手回弹（末段一次过冲）→200ms 释放，
+    // 无限循环，无需触摸。序列与 onDragStopped 的手动回弹同一语义。
+    val autodrive = PocAutodrive.enabled
+    LaunchedEffect(autodrive, maxDragPx) {
+        if (!autodrive) return@LaunchedEffect
+        delay(PocAutodrive.WARMUP_MS.toLong())
+        while (true) {
+            dragging = true
+            cooling = false
+            offsetX.animateTo(maxDragPx, tween(durationMillis = PocSpeed.scale(400)))
+            offsetX.animateTo(-maxDragPx, tween(durationMillis = PocSpeed.scale(800)))
+            // 松手回弹：位移→0（与 onDragStopped 同一 220ms tween 口径）
+            dragging = false
+            returning = true
+            returnStartPx = offsetX.value
+            offsetX.animateTo(0f, tween(durationMillis = PocSpeed.scale(220)))
+            returning = false
+            cooling = true
+            delay(MorphEnvelope.SETTLE_RELEASE_MS) // 稳定态 200ms 后释放临时形变
+            cooling = false
+            delay(PocAutodrive.MORPH_DRAG_PAUSE_MS.toLong())
+        }
+    }
 
     // ── 形状：活跃态=包络插值；释放态=token 常量（精确）──
     val restR: Dp = V371Radius.group
@@ -210,6 +243,21 @@ private fun ExpandMorphDemo() {
         cooling = true
         delay(MorphEnvelope.SETTLE_RELEASE_MS) // 稳定态 200ms 后释放
         cooling = false
+    }
+
+    // ── autodrive：展开/收起自动切换（V3.8 真机验收补强；debug only）──
+    // 与点击同一包络（280ms + 末段一次过冲 + 200ms 释放），无限循环，无需触摸。
+    val autodrive = PocAutodrive.enabled
+    LaunchedEffect(autodrive) {
+        if (!autodrive) return@LaunchedEffect
+        delay(PocAutodrive.WARMUP_MS.toLong())
+        while (true) {
+            expanded = !expanded
+            delay(
+                (PocSpeed.scale(280) + MorphEnvelope.SETTLE_RELEASE_MS +
+                    PocAutodrive.MORPH_EXPAND_DWELL_MS).toLong(),
+            )
+        }
     }
 
     val ep = expandP.value.coerceIn(0f, 1f)
