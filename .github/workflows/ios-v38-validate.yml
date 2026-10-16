@@ -224,6 +224,8 @@ jobs:
       - name: Build unsigned IPA (rebuild R1+)
         # V3.8 重建：每阶段产出可编译的完整 unsigned IPA（CI 产物，不签名、不发布）。
         # 用户用已有手机签名工具自行尝试安装；此步骤不涉及任何签名证书。
+        # if: always() —— 即使录制/截图步骤失败，只要编译通过就产出 IPA。
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
