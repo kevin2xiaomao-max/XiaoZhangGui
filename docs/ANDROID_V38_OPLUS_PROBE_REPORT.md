@@ -28,7 +28,7 @@
 | 手段 | 说明 | 是否反射私有 API |
 |---|---|---|
 | `Class.forName` 候选类名 | 只判断类是否存在；不获取方法/字段、不调用 | 否（公开 API 的存在性检查，任务书明确允许） |
-| `Build.VERSION.SDK_INT` / `Build.MANUFACTURER` / `Build.DISPLAY` | 只读公开字段 | 否 |
+| `Build.VERSION.SDK_INT` / `Build.MANUFACTURER` / `Build.DISPLAY` / `Build.VERSION.INCREMENTAL` | 只读公开字段 | 否 |
 | `Activity.isInMultiWindowMode` / `isInPictureInPictureMode` | 公开 API | 否 |
 | 预测性返回的**系统级**开关 | **无公开 API 可读** → 采集为 null，探测项具名为 `predictive-back-system-state-unknown`，**不猜测** | 否 |
 
@@ -38,9 +38,22 @@
 其存在性是「Oplus 私有转场 API 路径可达」的前置条件；
 类名本身未经真机验证，真机探测时以实际存在性为准。
 
-`Build.DISPLAY` 解析 ColorOS 主版本号是启发式
-（正则 `(?:ColorOS|V)[\s_]?(\d+)`，大小写不敏感）；
-解析不到时具名为 `coloros-version-unparseable`，不猜测、不回退默认值。
+ColorOS 主版本号解析（多公开字段，零反射）：
+- 来源优先级：`Build.DISPLAY`（设置"版本号"显示的构建号）> `Build.VERSION.INCREMENTAL`
+  （部分机型此处为构建哈希而非版本串，非版本形态自动忽略）；
+- 每个来源内部规则顺序：显式标记（`ColorOS V17` / `V15` / `ColorOS17`，
+  大小写不敏感，数字限 1–2 位）> OPPO 构建号形态
+  （`PKJ110_17.0.0.201(CN01)` / `CPH2581_15.0.0.601(EX01)`，短分量版本号；
+  AOSP 形态长分量如 `AP3A.240905.015.A1` 不会命中）；
+- 任一来源任一规则命中即返回；两来源均读不到/解析不到时具名为
+  `coloros-version-unreadable` / `coloros-version-unparseable`，不猜测、不回退默认值。
+
+> 2026-10-16 P0 真机修复：OPPO PKJ110 / ColorOS 17 真机上 `Build.DISPLAY`
+> 无 `ColorOS` / `V` 版本标记，旧逻辑（只读 DISPLAY、只认显式标记）
+> 返回 `coloros-version-unparseable`（PoC-4 界面显示 `UNAVAILABLE`）。
+> 增补第二来源与构建号形态规则后该真机解析为 17。
+> `ro.build.version.oplusrom` 等系统属性需反射 `SystemProperties` 才能读，
+> 未获用户授权，本阶段继续不用。
 
 ## 2. 探测项 × 具名结果
 

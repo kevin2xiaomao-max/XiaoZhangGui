@@ -6,9 +6,10 @@ package com.xiaozhanggui.app.ui.motion
  * **本阶段只做存在性/只读探测**：
  * - `Class.forName` 只做类存在性检查，**不调用任何方法**；
  * - 只读系统公开字段（`Build.VERSION.SDK_INT` / `Build.MANUFACTURER` /
- *   `Build.DISPLAY` / Activity 窗口模式）；
+ *   `Build.DISPLAY` / `Build.VERSION.INCREMENTAL` / Activity 窗口模式）；
  * - **不使用 `java.lang.reflect` 调用任何私有 API**——反射私有转场 API
- *   需用户明确授权，当前无授权。
+ *   需用户明确授权，当前无授权；`ro.build.version.oplusrom` 等系统属性
+ *   需反射 `android.os.SystemProperties` 才能读，本阶段同样不用。
  *
  * 探测逻辑是纯函数：所有输入经 [OplusProbeEnv] 注入，JVM 可测；
  * Android 侧只读采集见 `ui.poc.transition.OplusProbeCollector`。
@@ -52,6 +53,8 @@ enum class OplusWindowMode {
  * @param apiLevel `Build.VERSION.SDK_INT`
  * @param manufacturer `Build.MANUFACTURER`
  * @param buildDisplay `Build.DISPLAY`（只读；null = 不可读）
+ * @param versionIncremental `Build.VERSION.INCREMENTAL`（只读；null = 不可读；
+ *   部分机型此处为构建哈希而非版本串，解析时自动忽略非版本形态）
  * @param classPresent 候选类名 → `Class.forName` 是否成功（只做存在性检查）
  * @param predictiveBackSystemEnabled 系统级预测性返回是否启用；
  *   null = 无法经公开 API 读取到系统状态（诚实标 unknown，不猜测）
@@ -62,6 +65,7 @@ data class OplusProbeEnv(
     val apiLevel: Int,
     val manufacturer: String,
     val buildDisplay: String?,
+    val versionIncremental: String? = null,
     val classPresent: Map<String, Boolean> = emptyMap(),
     val predictiveBackSystemEnabled: Boolean? = null,
     val windowMode: OplusWindowMode = OplusWindowMode.NORMAL,
@@ -83,16 +87,59 @@ data class OplusProbeItem(
 )
 
 /**
- * 从 `Build.DISPLAY` 解析 ColorOS 主版本号。
+ * 显式版本标记：`ColorOS V17` / `V15` / `ColorOS17`（大小写不敏感）。
  *
- * ColorOS 设备的 DISPLAY 常含版本串（如含 `ColorOS` / `V17` 标记）；
- * 解析不到返回 null（由调用方具名 `coloros-version-unparseable`，不猜测）。
+ * 数字限 1–2 位并要求词边界，避免把 `V177` 误读成主版本 17；
+ * 读不到时由调用方具名 `coloros-version-unparseable`，不猜测。
  */
-fun parseColorOsMajorVersion(buildDisplay: String?): Int? {
-    if (buildDisplay.isNullOrBlank()) return null
-    val match = Regex("""(?:ColorOS|V)[\s_]?(\d+)""", RegexOption.IGNORE_CASE)
-        .find(buildDisplay)
-    return match?.groupValues?.get(1)?.toIntOrNull()
+private val COLOROS_MARKER_REGEX =
+    Regex("""(?:ColorOS|V)[\s_]?(\d{1,2})\b""", RegexOption.IGNORE_CASE)
+
+/**
+ * OPPO 构建号形态：型号前缀 + 下划线 + 短分量版本号，
+ * 如 `PKJ110_17.0.0.201(CN01)` / `CPH2581_15.0.0.601(EX01)`。
+ *
+ * 分量限定短数字（`\d{1,2}` / `\d{1,3}`），AOSP 形态的长分量
+ * 构建号（如 `AP3A.240905.015.A1`）不会命中。
+ */
+private val OPPO_BUILD_ID_REGEX =
+    Regex("""\b[A-Za-z0-9]+_(\d{1,2})\.\d{1,2}\.\d{1,3}\b""")
+
+/**
+ * 从多个公开字段解析 ColorOS 主版本号。
+ *
+ * 来源优先级（即参数顺序）：`Build.DISPLAY` 先于
+ * `Build.VERSION.INCREMENTAL`——DISPLAY 是设置里"版本号"显示的
+ * 构建号，是最权威的公开来源。每个来源内部规则顺序：
+ * 显式标记（[COLOROS_MARKER_REGEX]）先于构建号形态（[OPPO_BUILD_ID_REGEX]）。
+ *
+ * 背景（P0 真机修复，2026-10-16）：OPPO PKJ110 / ColorOS 17 真机上
+ * `Build.DISPLAY` 无 `ColorOS` / `V` 版本标记（旧逻辑直接返回 null，
+ * PoC-4 界面显示 `UNAVAILABLE · coloros-version-unparseable`），
+ * 增补 `Build.VERSION.INCREMENTAL` 第二来源与构建号形态规则后可解析。
+ *
+ * 任一来源任一规则命中即返回；全部读不到返回 null
+ * （由调用方具名 `coloros-version-unparseable` / `-unreadable`，不猜测）。
+ */
+fun parseColorOsMajorVersion(
+    buildDisplay: String?,
+    versionIncremental: String? = null,
+): Int? {
+    val sources = listOfNotNull(
+        buildDisplay?.takeIf { it.isNotBlank() },
+        versionIncremental?.takeIf { it.isNotBlank() },
+    )
+    for (source in sources) {
+        parseColorOsMajorFromSource(source)?.let { return it }
+    }
+    return null
+}
+
+private fun parseColorOsMajorFromSource(source: String): Int? {
+    COLOROS_MARKER_REGEX.find(source)
+        ?.groupValues?.get(1)?.toIntOrNull()?.let { return it }
+    return OPPO_BUILD_ID_REGEX.find(source)
+        ?.groupValues?.get(1)?.toIntOrNull()
 }
 
 /**
@@ -131,11 +178,11 @@ fun probeOplusTransitions(env: OplusProbeEnv): List<OplusProbeItem> {
         },
     )
 
-    val colorOsMajor = parseColorOsMajorVersion(env.buildDisplay)
+    val colorOsMajor = parseColorOsMajorVersion(env.buildDisplay, env.versionIncremental)
     items += OplusProbeItem(
         id = "coloros-version",
         result = when {
-            env.buildDisplay.isNullOrBlank() ->
+            env.buildDisplay.isNullOrBlank() && env.versionIncremental.isNullOrBlank() ->
                 CapabilityResult.Unsupported("coloros-version-unreadable")
             colorOsMajor == null ->
                 CapabilityResult.Unsupported("coloros-version-unparseable")

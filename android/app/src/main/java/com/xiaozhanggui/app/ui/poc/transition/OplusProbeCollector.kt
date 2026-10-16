@@ -14,8 +14,10 @@ import com.xiaozhanggui.app.ui.motion.probeOplusTransitions
  *
  * **只做只读采集，不反射调用任何私有 API**（无用户授权）：
  * - `Class.forName`：仅存在性检查，不获取方法、不调用；
- * - `Build.*` 字段、`Activity.isInMultiWindowMode` /
- *   `isInPictureInPictureMode`：均为公开 API；
+ * - `Build.*` 字段（含 `Build.VERSION.INCREMENTAL`，部分 ColorOS 机型的
+ *   `Build.DISPLAY` 无版本标记时作为第二解析来源）、
+ *   `Activity.isInMultiWindowMode` / `isInPictureInPictureMode`：均为公开 API；
+ * - 不读 `ro.build.version.oplusrom` 等系统属性（需反射 `SystemProperties`，无授权）。
  * - 预测性返回的系统级开关无公开 API 可读 → 采集为 null，
  *   探测项具名为 `predictive-back-system-state-unknown`（不猜测）。
  *
@@ -34,6 +36,7 @@ object OplusProbeCollector {
             apiLevel = Build.VERSION.SDK_INT,
             manufacturer = Build.MANUFACTURER ?: "",
             buildDisplay = Build.DISPLAY,
+            versionIncremental = Build.VERSION.INCREMENTAL,
             classPresent = OPLUS_CLASS_CANDIDATES_UNVERIFIED.associateWith(::classExists),
             // 系统级预测性返回开关：无公开 API 可读，诚实标 unknown。
             predictiveBackSystemEnabled = null,
