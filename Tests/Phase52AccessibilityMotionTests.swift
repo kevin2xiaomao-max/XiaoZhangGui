@@ -12,7 +12,11 @@ final class Phase52AccessibilityMotionTests: XCTestCase {
         let todo = try source("XiaoZhangGui/Features/Todo/TodoView.swift")
         let schedule = try source("XiaoZhangGui/Features/Schedule/ScheduleView.swift")
         let customer = try source("XiaoZhangGui/Features/Customer/CustomerView.swift")
-        XCTAssertTrue(home.contains("V371.Motion.resolve(.fade, reduceMotion: reduceMotion)"))
+        // V3.8 重建：Home 使用生产级 V38MotionTokens（Reduce Motion 时返回 nil，即静态呈现）。
+        XCTAssertTrue(
+            home.contains("V38MotionTokens.animation(for:") && home.contains("reduceMotion: reduceMotion"),
+            "Home 必须显式处理 Reduce Motion（V38MotionTokens）"
+        )
         XCTAssertTrue(drawer.contains("reduceMotion ? .easeOut(duration: 0.16)"))
         XCTAssertTrue(todo.contains("V371.Motion.resolve(.spring, reduceMotion: reduceMotion)"))
         XCTAssertTrue(schedule.contains("V371.Motion.resolve(.spring, reduceMotion: reduceMotion)"))

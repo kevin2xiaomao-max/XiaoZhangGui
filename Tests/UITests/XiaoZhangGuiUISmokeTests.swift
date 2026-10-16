@@ -350,9 +350,17 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         if !element("screen.home").exists {
             assertTab("tab.home", shows: "screen.home")
         }
-        let entry = element("home.ai")
-        XCTAssertTrue(entry.waitForExistence(timeout: 5))
-        tapElement("home.ai")
+        // V3.8 重建：AI 胶囊两步打开（展开 → 点击输入行进 Sheet）；
+        // 兼容旧版 home.ai 单步入口。
+        if element("v38.home.ai.expand").exists {
+            tapElement("v38.home.ai.expand")
+            XCTAssertTrue(element("v38.home.ai.expanded").waitForExistence(timeout: 5))
+            tapElement("v38.home.ai.openSheet")
+        } else {
+            let entry = element("home.ai")
+            XCTAssertTrue(entry.waitForExistence(timeout: 5))
+            tapElement("home.ai")
+        }
         XCTAssertTrue(element("sheet.ai").waitForExistence(timeout: 5))
     }
 

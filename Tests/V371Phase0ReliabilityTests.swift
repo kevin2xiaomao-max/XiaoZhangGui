@@ -67,9 +67,19 @@ final class V371Phase0ReliabilityTests: XCTestCase {
         let business = try source("XiaoZhangGui/Features/Performance/PerformanceView.swift")
         let profile = try source("XiaoZhangGui/Features/Profile/ProfileView.swift")
 
-        XCTAssertTrue(home.contains("V371AccessibilityID.homeAI"))
+        // V3.8 重建：AI 入口生产化为 V38HomeAICapsule（v38.home.ai.*），
+        // 快捷记录为 V38HomeQuickMenu + 写备忘（homeQuickRecord 保留）。
+        XCTAssertTrue(
+            home.contains("V371AccessibilityID.homeAI") || home.contains("v38.home.ai.expand"),
+            "Home 必须有稳定的 AI 入口 identifier"
+        )
         XCTAssertTrue(home.contains("V371AccessibilityID.homeQuickRecord"))
-        XCTAssertTrue(home.contains("Label(\"记一笔\", systemImage: \"square.and.pencil\")"))
+        XCTAssertTrue(
+            home.contains("Label(\"记一笔\", systemImage: \"square.and.pencil\")") ||
+            home.contains("V38HomeQuickMenu") ||
+            home.contains("\"快速记一笔\""),
+            "Home 必须有可发现的快速记录入口"
+        )
         XCTAssertTrue(business.contains("V371AccessibilityID.businessGoods"))
         XCTAssertTrue(business.contains("Label(\"商品\", systemImage: \"shippingbox\")"))
         XCTAssertTrue(business.contains("V371AccessibilityID.businessMemo"))

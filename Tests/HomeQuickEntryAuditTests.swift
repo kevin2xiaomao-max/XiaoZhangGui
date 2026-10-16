@@ -25,12 +25,13 @@ final class HomeQuickEntryAuditTests: XCTestCase {
         )
     }
 
-    /// V3.7.1：AI 不再是 Tab，首页必须且只能有一个紧凑 AI 入口。
+    /// V3.8 重建：AI 不再是 Tab，首页必须且只能有一个 AI 入口（V38HomeAICapsule）。
+    /// 设计意图与 V3.7.1 一致（唯一入口、不内嵌完整对话），仅实现生产化为胶囊。
     func testHomeHasExactlyOneCompactAssistantEntry() throws {
         let home = try source("XiaoZhangGui/Features/Home/HomeView.swift")
         XCTAssertTrue(
-            home.contains("AICommandEntry"),
-            "V3.7.1 首页必须保留唯一的紧凑 AI 入口（AICommandEntry）"
+            home.contains("V38HomeAICapsule"),
+            "V3.8 首页必须保留唯一的 AI 入口（V38HomeAICapsule）"
         )
         XCTAssertFalse(
             home.contains("AIChatView"),
@@ -45,26 +46,28 @@ final class HomeQuickEntryAuditTests: XCTestCase {
                 return String(line[..<commentStart.lowerBound])
             }
             .joined(separator: "\n")
-        let pattern = try NSRegularExpression(pattern: #"AICommandEntry\s*[\({]"#)
+        let pattern = try NSRegularExpression(pattern: #"V38HomeAICapsule\s*[\({]"#)
         let matches = pattern.matches(
             in: codeOnly,
             range: NSRange(codeOnly.startIndex..., in: codeOnly)
         )
         XCTAssertEqual(
             matches.count, 1,
-            "紧凑 AI 入口在首页只能出现一次"
+            "AI 入口在首页只能出现一次"
         )
     }
 
     func testHomeHeaderKeepsDiscoverableQuickRecordEntry() throws {
         let home = try source("XiaoZhangGui/Features/Home/HomeView.swift")
+        // V3.8：快捷操作生产化为 V38HomeQuickMenu（"快速记一笔"）+ "写备忘"按钮；
+        // 两者均经 showQuickRecord 打开现有 QuickRecord Sheet。
         XCTAssertTrue(
-            home.contains("Label(\"记一笔\", systemImage: \"square.and.pencil\")"),
-            "右上角快速记录入口必须说明是记录操作，不能仅用麦克风暗示仅支持语音"
+            home.contains("V38HomeQuickMenu") || home.contains("\"快速记一笔\""),
+            "首页必须保留清晰的快速记录入口"
         )
         XCTAssertTrue(
             home.contains("showQuickRecord = true"),
-            "记一笔入口必须继续弹出 QuickRecord 半屏面板"
+            "快速记录入口必须继续弹出 QuickRecord 面板"
         )
     }
 

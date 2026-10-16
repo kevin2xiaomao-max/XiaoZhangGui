@@ -28,22 +28,38 @@ final class V38HomeRebuildUITests: XCTestCase {
         }
     }
 
+    /// 使用 `.any` 类型匹配（Worker B 实证：玻璃/形变容器上的 identifier
+    /// 可能不暴露为特定类型，用 descendants(.any) 最可靠）。
+    private func element(_ identifier: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+    }
+
+    private func waitForElement(_ identifier: String, timeout: TimeInterval = 10) -> Bool {
+        let el = element(identifier)
+        let start = Date()
+        while Date().timeIntervalSince(start) < timeout {
+            if el.exists { return true }
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        return el.exists
+    }
+
     // MARK: - V3.8 Home 结构渲染
 
     func testV38HomeStructureRenders() {
         // Revenue Hero（深绿卡，唯一主视觉）
         XCTAssertTrue(
-            app.otherElements["v38.home.hero"].waitForExistence(timeout: 10),
+            waitForElement("v38.home.hero", timeout: 10),
             "Revenue Hero 未渲染"
         )
         // AI 胶囊入口
         XCTAssertTrue(
-            app.buttons["v38.home.ai.expand"].waitForExistence(timeout: 5),
+            waitForElement("v38.home.ai.expand", timeout: 5),
             "AI 胶囊未渲染"
         )
         // 快捷菜单入口
         XCTAssertTrue(
-            app.buttons["v38.home.quick.expand"].waitForExistence(timeout: 5),
+            waitForElement("v38.home.quick.expand", timeout: 5),
             "快捷菜单未渲染"
         )
         // AI 不在 TabBar 中（设计红线）
@@ -55,28 +71,27 @@ final class V38HomeRebuildUITests: XCTestCase {
 
     func testAICapsuleExpandOpenSheetAndReturn() {
         // 展开 AI 胶囊
-        app.buttons["v38.home.ai.expand"].tap()
+        element("v38.home.ai.expand").tap()
         XCTAssertTrue(
-            app.otherElements["v38.home.ai.expanded"].waitForExistence(timeout: 5),
+            waitForElement("v38.home.ai.expanded", timeout: 5),
             "AI 胶囊未展开"
         )
         // 点击输入行 → 打开真实 AI Sheet（现有 AIChatView）
-        app.buttons["v38.home.ai.openSheet"].tap()
+        element("v38.home.ai.openSheet").tap()
         // AI Sheet 以 .large detent 呈现；验证 Sheet 内容出现（AI 对话界面）
-        let aiSheet = app.otherElements["screen.ai"]
         XCTAssertTrue(
-            aiSheet.waitForExistence(timeout: 10) || app.navigationBars.firstMatch.waitForExistence(timeout: 10),
+            waitForElement("screen.ai", timeout: 10) || app.navigationBars.firstMatch.waitForExistence(timeout: 10),
             "AI Sheet 未打开"
         )
         // 关闭 Sheet 回到首页
         app.swipeDown()
         XCTAssertTrue(
-            app.otherElements["screen.home"].waitForExistence(timeout: 10),
+            waitForElement("screen.home", timeout: 10),
             "关闭 AI Sheet 后未回到首页"
         )
         // AI 胶囊应回到收起态
         XCTAssertTrue(
-            app.buttons["v38.home.ai.expand"].waitForExistence(timeout: 5),
+            waitForElement("v38.home.ai.expand", timeout: 5),
             "返回后 AI 胶囊未回到收起态"
         )
     }
@@ -85,23 +100,23 @@ final class V38HomeRebuildUITests: XCTestCase {
 
     func testQuickMenuExpandSelectAndReturn() {
         // 展开快捷菜单
-        app.buttons["v38.home.quick.expand"].tap()
+        element("v38.home.quick.expand").tap()
         XCTAssertTrue(
-            app.otherElements["v38.home.quick.expanded"].waitForExistence(timeout: 5),
+            waitForElement("v38.home.quick.expanded", timeout: 5),
             "快捷菜单未展开"
         )
         // 选择"记收入" → 打开 QuickRecord Sheet（现有生产路由）
-        app.buttons["v38.home.quick.income"].tap()
+        element("v38.home.quick.income").tap()
         // QuickRecord Sheet 出现（验证 Sheet 标题或输入框）
         XCTAssertTrue(
-            app.otherElements["screen.quickRecord"].waitForExistence(timeout: 10) ||
+            waitForElement("screen.quickRecord", timeout: 10) ||
             app.textFields.firstMatch.waitForExistence(timeout: 10),
             "QuickRecord Sheet 未打开"
         )
         // 关闭回到首页
         app.swipeDown()
         XCTAssertTrue(
-            app.otherElements["screen.home"].waitForExistence(timeout: 10),
+            waitForElement("screen.home", timeout: 10),
             "关闭 QuickRecord 后未回到首页"
         )
     }
@@ -109,8 +124,8 @@ final class V38HomeRebuildUITests: XCTestCase {
     // MARK: - Revenue Hero 真实金额（非占位）
 
     func testHeroShowsRealAmountNotPlaceholder() {
-        let hero = app.otherElements["v38.home.hero"]
-        XCTAssertTrue(hero.waitForExistence(timeout: 10))
+        let hero = element("v38.home.hero")
+        XCTAssertTrue(waitForElement("v38.home.hero", timeout: 10))
         // Hero 的 accessibilityLabel 包含真实金额（"今日营业额 ¥..."）
         let label = hero.label
         XCTAssertTrue(label.contains("今日营业额"), "Hero 缺少标题：\(label)")
@@ -121,7 +136,7 @@ final class V38HomeRebuildUITests: XCTestCase {
     // MARK: - Light/Dark 截图（CI 产物）
 
     func testHomeLightDarkScreenshots() {
-        XCTAssertTrue(app.otherElements["screen.home"].waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForElement("screen.home", timeout: 10))
         let screenshot = app.screenshot()
         let attachment = XCTAttachment(screenshot: screenshot)
         attachment.name = "v38-home-rebuild"
