@@ -44,12 +44,19 @@ object PocAutodrive {
     /**
      * autodrive 是否开启（Compose 可观察）。
      * 只读对外暴露；置位经 [setEnabled]（深链导航层调用）。
+     *
+     * 注：内部状态命名为 `enabledState`——若直接用 `var enabled … private set`
+     * 再加 `fun setEnabled`，Kotlin 会报 platform declaration clash
+     *（两者 JVM 签名同为 `setEnabled(Z)V`）；此写法对外 API 不变。
      */
-    var enabled: Boolean by mutableStateOf(false)
-        private set
+    val enabled: Boolean
+        get() = enabledState
+
+    /** Compose 可观察的内部开关状态。 */
+    private var enabledState: Boolean by mutableStateOf(false)
 
     fun setEnabled(value: Boolean) {
-        enabled = value
+        enabledState = value
     }
 
     /**
