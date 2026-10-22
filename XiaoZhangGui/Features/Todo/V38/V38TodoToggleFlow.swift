@@ -17,6 +17,9 @@ enum V38TodoToggleFlow {
 
     /// 第一步：发起一次勾选/重试。返回进入保存中的状态机；不应发起（连点）时返回 nil。
     static func begin(from current: V38PageMotionState) -> V38PageMotionState? {
+        // 已在保存中：连点直接忽略（requestToggle 在 saving 态是 no-op，
+        // 不能用调用后的 isSaving 判断「本次是否发起了保存」）。
+        guard !current.isSaving else { return nil }
         var machine = current
         machine.requestToggle()
         return machine.isSaving ? machine : nil

@@ -23,7 +23,9 @@ final class V38TodoRebuildUITests: XCTestCase {
         if let app, app.state != .notRunning {
             app.terminate()
         }
-        XCUIDevice.shared.appearance = .unspecified
+        // 注意：XCUIDevice.appearance 不可设 .unspecified（iOS 27 报
+        // "Requested appearance value (0) is not valid" 并使测试失败）；
+        // 外观复位由截图测试自身以 .light 显式完成。
     }
 
     private func launchApp(failingOnce operation: String? = nil) {
@@ -127,7 +129,12 @@ final class V38TodoRebuildUITests: XCTestCase {
         openTodoTab()
         let toggle = element("todo.toggle")
         XCTAssertTrue(toggle.waitForExistence(timeout: 5))
-        let anchor = toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        // 用 App 级绝对坐标点按：行完成移出后元素消失，元素派生坐标再点按会
+        // 报 "Failed to get matching snapshot"；绝对坐标不依赖元素存续，
+        // 行移出后点在空白列表区无副作用。
+        let toggleFrame = toggle.frame
+        let anchor = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
+            .withOffset(CGVector(dx: toggleFrame.midX, dy: toggleFrame.midY))
         // 快速连点 20 次：保存中/停留期的点按被状态机与在途守卫忽略。
         for _ in 0..<20 {
             anchor.tap()
@@ -150,6 +157,7 @@ final class V38TodoRebuildUITests: XCTestCase {
     // MARK: - Light/Dark 截图（CI 产物）
 
     func testTodoLightDarkScreenshots() {
+        XCUIDevice.shared.appearance = .light
         openTodoTab()
         XCTAssertTrue(app.staticTexts[seedTitle].waitForExistence(timeout: 5))
         attachScreenshot(named: "v38-todo-rebuild-light")
@@ -159,7 +167,8 @@ final class V38TodoRebuildUITests: XCTestCase {
         openTodoTab()
         XCTAssertTrue(app.staticTexts[seedTitle].waitForExistence(timeout: 5))
         attachScreenshot(named: "v38-todo-rebuild-dark")
-        XCUIDevice.shared.appearance = .unspecified
+        // 复位为 .light（.unspecified 在 iOS 27 是无效值，会使测试失败）。
+        XCUIDevice.shared.appearance = .light
     }
 
     private func attachScreenshot(named name: String) {
