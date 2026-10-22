@@ -158,7 +158,12 @@ final class V38TodoRebuildUITests: XCTestCase {
     // MARK: - Light/Dark 截图（CI 产物）
 
     func testTodoLightDarkScreenshots() {
-        XCUIDevice.shared.appearance = .light
+        // 外观切换走 App 生产路径（我的 → 显示模式 → 浅色/深色模式）：
+        // XCUIDevice.appearance 在本 harness 下不传导到本 App 渲染——
+        // run 39815551862 实测其 Dark 截图亮度 0.9346 ≈ Light 0.933（假 Dark），
+        // 故改用 App 自带 themeMode（settings.colorScheme），切换立即生效。
+        // 每相位截图都做像素亮度断言，未真生效会明确失败，不产出假图。
+        setDisplayMode("浅色模式")
         openTodoTab()
         XCTAssertTrue(app.staticTexts[seedTitle].waitForExistence(timeout: 5))
         let lightShot = app.screenshot()
@@ -167,18 +172,53 @@ final class V38TodoRebuildUITests: XCTestCase {
         let lightLuminance = meanLuminance(of: lightShot)
         XCTAssertGreaterThan(lightLuminance, 0.7, "Light 截图亮度异常：\(lightLuminance)")
 
-        XCUIDevice.shared.appearance = .dark
-        launchApp()
+        setDisplayMode("深色模式")
         openTodoTab()
         XCTAssertTrue(app.staticTexts[seedTitle].waitForExistence(timeout: 5))
         let darkShot = app.screenshot()
         attachScreenshot(darkShot, named: "v38-todo-rebuild-dark")
         // 像素级自证：Dark 必须真生效（墨绿黑底，整体低亮）。
-        // 若设备外观切换未传导到 App 渲染，此断言会失败而不是产出假 Dark 图。
         let darkLuminance = meanLuminance(of: darkShot)
         XCTAssertLessThan(darkLuminance, 0.45, "Dark 截图未真生效，亮度：\(darkLuminance)")
-        // 复位为 .light（.unspecified 在 iOS 27 是无效值，会使测试失败）。
-        XCUIDevice.shared.appearance = .light
+
+        // themeMode 持久化在 UserDefaults：恢复「跟随系统」，不污染后续测试。
+        setDisplayMode("跟随系统")
+    }
+
+    /// 经生产 UI 设置显示模式：首页头像 → 我的 → 显示模式 sheet → 选项（选后自动关闭）→ 返回。
+    private func setDisplayMode(_ optionLabel: String) {
+        // 先回到首页根部：在待办 tab 时切回首页；若「我的」还压在首页栈上，先点返回弹出。
+        let homeTab = app.tabBars.buttons["首页"]
+        if homeTab.exists { homeTab.tap() }
+        if element("screen.profile").exists {
+            let back = app.navigationBars.buttons.element(boundBy: 0)
+            if back.exists { back.tap() }
+        }
+        XCTAssertTrue(element("screen.home").waitForExistence(timeout: 5), "未回到首页")
+        element("home.profile").tap()
+        XCTAssertTrue(element("screen.profile").waitForExistence(timeout: 5), "我的页未出现")
+        tapLabeled("显示模式")
+        tapLabeled(optionLabel)
+        // 选项点击后 sheet 自动 dismiss：等选项元素消失，再返回首页根部。
+        XCTAssertTrue(
+            waitUntil(timeout: 5) { !self.labeledElement(optionLabel).exists },
+            "显示模式 sheet 未关闭"
+        )
+        let back = app.navigationBars.buttons.element(boundBy: 0)
+        if back.exists { back.tap() }
+        XCTAssertTrue(element("screen.home").waitForExistence(timeout: 5), "未返回首页")
+    }
+
+    /// WorkRow 的按钮 label 会拼上 trailing 值（如「显示模式 跟随系统」），用 BEGINSWITH 匹配。
+    private func labeledElement(_ label: String) -> XCUIElement {
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", label)).firstMatch
+    }
+
+    /// 按 label 前缀点按按钮（WorkRow 等无 identifier 的行）。
+    private func tapLabeled(_ label: String) {
+        let target = labeledElement(label)
+        XCTAssertTrue(target.waitForExistence(timeout: 5), "未找到元素：\(label)")
+        target.tap()
     }
 
     private func attachScreenshot(_ screenshot: XCUIScreenshot, named name: String) {
