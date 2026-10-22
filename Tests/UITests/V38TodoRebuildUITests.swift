@@ -1,3 +1,4 @@
+import UIKit
 import XCTest
 
 /// V3.8 重建 R2 · Todo 生产级交互 UI 测试。
@@ -160,21 +161,54 @@ final class V38TodoRebuildUITests: XCTestCase {
         XCUIDevice.shared.appearance = .light
         openTodoTab()
         XCTAssertTrue(app.staticTexts[seedTitle].waitForExistence(timeout: 5))
-        attachScreenshot(named: "v38-todo-rebuild-light")
+        let lightShot = app.screenshot()
+        attachScreenshot(lightShot, named: "v38-todo-rebuild-light")
+        // 像素级自证：Light 渲染整体高亮（实测基线 ≈0.93），断言 >0.7 留足余量。
+        let lightLuminance = meanLuminance(of: lightShot)
+        XCTAssertGreaterThan(lightLuminance, 0.7, "Light 截图亮度异常：\(lightLuminance)")
 
         XCUIDevice.shared.appearance = .dark
         launchApp()
         openTodoTab()
         XCTAssertTrue(app.staticTexts[seedTitle].waitForExistence(timeout: 5))
-        attachScreenshot(named: "v38-todo-rebuild-dark")
+        let darkShot = app.screenshot()
+        attachScreenshot(darkShot, named: "v38-todo-rebuild-dark")
+        // 像素级自证：Dark 必须真生效（墨绿黑底，整体低亮）。
+        // 若设备外观切换未传导到 App 渲染，此断言会失败而不是产出假 Dark 图。
+        let darkLuminance = meanLuminance(of: darkShot)
+        XCTAssertLessThan(darkLuminance, 0.45, "Dark 截图未真生效，亮度：\(darkLuminance)")
         // 复位为 .light（.unspecified 在 iOS 27 是无效值，会使测试失败）。
         XCUIDevice.shared.appearance = .light
     }
 
-    private func attachScreenshot(named name: String) {
-        let attachment = XCTAttachment(screenshot: app.screenshot())
+    private func attachScreenshot(_ screenshot: XCUIScreenshot, named name: String) {
+        let attachment = XCTAttachment(screenshot: screenshot)
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    /// 截图整体平均亮度（0–1）：把截图缩绘到 16×16 位图后按 Rec.709 加权。
+    private func meanLuminance(of screenshot: XCUIScreenshot) -> Double {
+        guard let cgImage = screenshot.image.cgImage else { return -1 }
+        let side = 16
+        var pixels = [UInt8](repeating: 0, count: side * side * 4)
+        guard let context = CGContext(
+            data: &pixels,
+            width: side,
+            height: side,
+            bitsPerComponent: 8,
+            bytesPerRow: side * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return -1 }
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: side, height: side))
+        var sum = 0.0
+        for index in stride(from: 0, to: pixels.count, by: 4) {
+            sum += 0.2126 * Double(pixels[index])
+                + 0.7152 * Double(pixels[index + 1])
+                + 0.0722 * Double(pixels[index + 2])
+        }
+        return sum / Double(side * side) / 255.0
     }
 }
