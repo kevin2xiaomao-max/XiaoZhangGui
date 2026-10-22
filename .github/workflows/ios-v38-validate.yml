@@ -239,15 +239,16 @@ jobs:
           xcrun simctl bootstatus "$SIM_UDID" -b >/dev/null 2>&1 || true
           sleep 15
           xcrun simctl ui "$SIM_UDID" appearance dark
-          XCTESTRUN=$(find "$RUNNER_TEMP/xzg-ios-v38-derived/Build/Products" -name "*.xctestrun" | head -n 1)
-          if [ -z "$XCTESTRUN" ]; then echo "no .xctestrun found under derived data"; exit 3; fi
-          echo "Using xctestrun: $XCTESTRUN"
           rm -rf "$RUNNER_TEMP/xzg-ios-v38-performance-dark.xcresult"
-          TEST_RUNNER_V38_DARK_SCREENSHOT=1 xcodebuild test-without-building \
-            -xctestrun "$XCTESTRUN" \
+          # 与录屏步骤同款直跑（build-for-testing 产物不在派生数据中以
+          # .xctestrun 形式落盘，run 39809981577 已证实，故不用
+          # test-without-building；派生数据已热，增量构建后只跑门控用例）。
+          TEST_RUNNER_V38_DARK_SCREENSHOT=1 xcodebuild test -project XiaoZhangGui.xcodeproj -scheme XiaoZhangGui \
             -destination "platform=iOS Simulator,id=$SIM_UDID" \
+            -derivedDataPath "$RUNNER_TEMP/xzg-ios-v38-derived" \
             -only-testing:XiaoZhangGuiUITests/V38PerformanceRebuildUITests/testPerformanceScreenshotDark \
             -resultBundlePath "$RUNNER_TEMP/xzg-ios-v38-performance-dark.xcresult" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             >artifacts/performance-dark-test.log 2>&1 || { tail -n 60 artifacts/performance-dark-test.log; exit 1; }
           grep -F "testPerformanceScreenshotDark]' passed" artifacts/performance-dark-test.log \
             || { echo "dark screenshot test did not pass (env gate not injected?)"; tail -n 60 artifacts/performance-dark-test.log; exit 1; }
