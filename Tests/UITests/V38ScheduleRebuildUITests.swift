@@ -5,7 +5,7 @@ import XCTest
 ///
 /// 在真实生产 App（`--ui-testing`）验证 Spec §3 的核心承诺：
 /// - 月/周密度切换 20 次后 `selectedDate` 不漂移（选中格始终为同一天）
-/// - 选中格相对网格容器的像素位置不变（锚点位移 ≤1pt，实测 frame）
+/// - 选中格相对地标（密度 chip）的像素位置不变（锚点位移 ≤1pt，实测 frame）
 /// - 周密度下非选中周的日期不可达（ghost/collapsed 行不拦截、不播报）
 /// - 点按其他日期可正常移动选中（原有选择路由不变）
 /// - Light/Dark 截图为真实渲染（像素亮度断言 + keepAlways 附件）
@@ -23,6 +23,10 @@ final class V38ScheduleRebuildUITests: XCTestCase {
         app.launchArguments = ["--ui-testing", "--ui-testing-id", UUID().uuidString] + extraArguments
         app.launch()
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 20))
+        openCalendarTab()
+    }
+
+    private func openCalendarTab() {
         app.tabBars.buttons["日历"].tap()
         XCTAssertTrue(
             element(V371AccessibilityIDCompat.screenCalendar).waitForExistence(timeout: 10),
@@ -62,12 +66,22 @@ final class V38ScheduleRebuildUITests: XCTestCase {
         XCTAssertTrue(chip.isHittable, "密度切换 chips 未能滚动到可见")
     }
 
-    /// 网格内相对坐标（选中格中心 − 网格原点）：布局锚点的直接度量，
-    /// 不受 ScrollView 偏移影响。
-    private func relativeCenter(of cell: XCUIElement, in grid: XCUIElement) -> CGPoint {
+    /// 相对地标坐标（选中格中心 − 地标原点）：布局锚点的直接度量。
+    /// 地标与网格同处一个滚动内容、相对位置不随密度变化，故该度量
+    /// 不受 ScrollView 偏移/钳制影响。
+    private func relativeCenter(of cell: XCUIElement, in landmark: XCUIElement) -> CGPoint {
         let f = cell.frame
-        let g = grid.frame
+        let g = landmark.frame
         return CGPoint(x: f.midX - g.minX, y: f.midY - g.minY)
+    }
+
+    /// masthead 大日期文本（如「10月22日」）：`selectedDate` 的生产 UI 直接信号，
+    /// 作为选中日期未漂移的行为级共证（不单独依赖 isSelected trait 反射）。
+    private func mastheadShows(_ date: Date) -> Bool {
+        var cal = Calendar(identifier: .gregorian)
+        cal.firstWeekday = 1
+        let text = "\(cal.component(.month, from: date))月\(cal.component(.day, from: date))日"
+        return app.staticTexts[text].exists
     }
 
     // MARK: - 核心：20 次密度切换后 selectedDate 与锚点均不漂移
@@ -84,9 +98,13 @@ final class V38ScheduleRebuildUITests: XCTestCase {
 
         let today = Date()
         let cell = dayCell(today)
-        let grid = element("v38.schedule.grid")
+        // 几何地标：密度 chip（月）按钮。不用网格容器作地标——容器挂
+        // identifier 会遮蔽日期格按钮的 identifier（R1 实证），生产代码
+        // 已移除 `v38.schedule.grid`（见 ScheduleView.monthGrid 注释）。
+        let grid = element("v38.schedule.density.month")
         XCTAssertTrue(cell.waitForExistence(timeout: 10), "今日日期格未找到")
         XCTAssertTrue(cell.isSelected, "今日应为选中日期")
+        XCTAssertTrue(mastheadShows(today), "masthead 未显示今日为选中日期")
 
         let before = relativeCenter(of: cell, in: grid)
         let windowBefore = cell.frame
@@ -98,8 +116,9 @@ final class V38ScheduleRebuildUITests: XCTestCase {
             Thread.sleep(forTimeInterval: 0.6) // 等待 contentChange 动画（0.28s）收敛
 
             XCTAssertTrue(cell.isSelected, "第 \(i) 次切换后选中日期漂移（不再是今日）")
+            XCTAssertTrue(mastheadShows(today), "第 \(i) 次切换后 masthead 选中日期漂移")
             if i == 1 {
-                // 周密度下锚点实测：选中格相对网格容器的位置必须与月密度一致（≤1pt）
+                // 周密度下锚点实测：选中格相对地标的位置必须与月密度一致（≤1pt）
                 let weekCenter = relativeCenter(of: cell, in: grid)
                 XCTAssertLessThanOrEqual(abs(weekCenter.x - before.x), 1.0, "周密度锚点 X 位移超限：\(before.x) → \(weekCenter.x)")
                 XCTAssertLessThanOrEqual(abs(weekCenter.y - before.y), 1.0, "周密度锚点 Y 位移超限：\(before.y) → \(weekCenter.y)")
@@ -159,6 +178,9 @@ final class V38ScheduleRebuildUITests: XCTestCase {
         }
         targetCell.tap()
         Thread.sleep(forTimeInterval: 0.6)
+        // 行为共证先于 trait 断言：masthead 大日期应已切换为目标日期
+        // （selectedDate 的生产 UI 直接信号）。
+        XCTAssertTrue(mastheadShows(target), "点按后 masthead 未切换到目标日期")
         XCTAssertTrue(targetCell.isSelected, "点按后选中未移动到目标日期")
         XCTAssertFalse(dayCell(today).isSelected, "原今日格仍显示为选中")
     }
@@ -166,28 +188,80 @@ final class V38ScheduleRebuildUITests: XCTestCase {
     // MARK: - Light/Dark 真实截图（像素亮度断言 + 附件）
 
     func testScheduleLightDarkScreenshots() {
-        // Light（系统默认浅色，UITest 种子环境）
+        // Light（默认外观：跟随系统，CI 模拟器为浅色）
         launch()
         scrollToGrid()
         let lightShot = app.screenshot()
         attach(lightShot, name: "v38-schedule-rebuild-month-light")
-        if let b = averageBrightness(of: lightShot) {
-            XCTAssertGreaterThan(b, 0.7, "Light 截图亮度异常（疑似非浅色渲染）：\(b)")
-        }
+        let lightLuminance = meanLuminance(of: lightShot)
+        XCTAssertGreaterThan(lightLuminance, 0.7, "Light 截图亮度异常（疑似非浅色渲染）：\(lightLuminance)")
         // 周密度截图（Light）
         element("v38.schedule.density.week").tap()
         Thread.sleep(forTimeInterval: 0.6)
         attach(app.screenshot(), name: "v38-schedule-rebuild-week-light")
-        app.terminate()
+        element("v38.schedule.density.month").tap()
+        Thread.sleep(forTimeInterval: 0.6)
 
-        // Dark（启动参数指定深色外观）
-        launch(extraArguments: ["-AppleInterfaceStyle", "Dark"])
+        // Dark：走 App 生产路径切外观（我的 → 显示模式 → 深色模式，
+        // 即 AppSettings.themeMode，切换立即生效）。启动参数
+        // `-AppleInterfaceStyle` / XCUIDevice.appearance 在本 harness 下
+        // 不传导到本 App 渲染——run 39794952408 实测其 Dark 截图亮度
+        // 0.9446 ≈ Light（假 Dark），与 R2 run 39815551862 实测一致。
+        setDisplayMode("深色模式")
+        openCalendarTab()
         scrollToGrid()
         let darkShot = app.screenshot()
         attach(darkShot, name: "v38-schedule-rebuild-month-dark")
-        if let b = averageBrightness(of: darkShot) {
-            XCTAssertLessThan(b, 0.35, "Dark 截图亮度异常（疑似未渲染深色）：\(b)")
+        let darkLuminance = meanLuminance(of: darkShot)
+        XCTAssertLessThan(darkLuminance, 0.45, "Dark 截图未真生效（疑似未渲染深色）：\(darkLuminance)")
+
+        // themeMode 持久化在 UserDefaults：恢复「跟随系统」，不污染后续测试。
+        setDisplayMode("跟随系统")
+    }
+
+    /// 经生产 UI 设置显示模式：首页头像 → 我的 → 显示模式 sheet → 选项
+    /// （选后自动关闭）→ 返回首页根部。与 R2 已验证实现同构。
+    private func setDisplayMode(_ optionLabel: String) {
+        let homeTab = app.tabBars.buttons["首页"]
+        if homeTab.exists { homeTab.tap() }
+        if element("screen.profile").exists {
+            let back = app.navigationBars.buttons.element(boundBy: 0)
+            if back.exists { back.tap() }
         }
+        XCTAssertTrue(element("screen.home").waitForExistence(timeout: 5), "未回到首页")
+        element("home.profile").tap()
+        XCTAssertTrue(element("screen.profile").waitForExistence(timeout: 5), "我的页未出现")
+        tapLabeled("显示模式")
+        tapLabeled(optionLabel)
+        // 选项点击后 sheet 自动 dismiss：等选项元素消失，再返回首页根部。
+        XCTAssertTrue(
+            waitUntil(timeout: 5) { !self.labeledElement(optionLabel).exists },
+            "显示模式 sheet 未关闭"
+        )
+        let back = app.navigationBars.buttons.element(boundBy: 0)
+        if back.exists { back.tap() }
+        XCTAssertTrue(element("screen.home").waitForExistence(timeout: 5), "未返回首页")
+    }
+
+    /// WorkRow 的按钮 label 会拼上 trailing 值（如「显示模式 跟随系统」），用 BEGINSWITH 匹配。
+    private func labeledElement(_ label: String) -> XCUIElement {
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", label)).firstMatch
+    }
+
+    /// 按 label 前缀点按按钮（WorkRow 等无 identifier 的行）。
+    private func tapLabeled(_ label: String) {
+        let target = labeledElement(label)
+        XCTAssertTrue(target.waitForExistence(timeout: 5), "未找到元素：\(label)")
+        target.tap()
+    }
+
+    private func waitUntil(timeout: TimeInterval = 8, _ condition: () -> Bool) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if condition() { return true }
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        return condition()
     }
 
     private func attach(_ screenshot: XCUIScreenshot, name: String) {
@@ -197,35 +271,29 @@ final class V38ScheduleRebuildUITests: XCTestCase {
         add(attachment)
     }
 
-    /// 采样截图左侧页边距区域多点亮度均值（画布色，避开文字与控件）。
-    private func averageBrightness(of screenshot: XCUIScreenshot) -> Double? {
-        let data = screenshot.pngRepresentation
-        guard let provider = CGDataProvider(data: data as CFData),
-              let image = CGImage(pngDataProviderSource: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent) else {
-            return nil
-        }
-        let points = [(30, 200), (30, 320), (30, 440)]
-        var values: [Double] = []
-        for (x, y) in points {
-            if let v = pixelBrightness(image, x: x, y: y) { values.append(v) }
-        }
-        guard !values.isEmpty else { return nil }
-        return values.reduce(0, +) / Double(values.count)
-    }
-
-    private func pixelBrightness(_ image: CGImage, x: Int, y: Int) -> Double? {
-        guard x < image.width, y < image.height else { return nil }
-        var pixel: [UInt8] = [0, 0, 0, 0]
-        guard let ctx = CGContext(
-            data: &pixel, width: 1, height: 1,
-            bitsPerComponent: 8, bytesPerRow: 4,
+    /// 截图整体平均亮度（0–1）：把截图缩绘到 16×16 位图后按 Rec.709 加权。
+    /// 与 R2 已验证实现相同（全图均值，避免采样点落在控件/文字上失真）。
+    private func meanLuminance(of screenshot: XCUIScreenshot) -> Double {
+        guard let cgImage = screenshot.image.cgImage else { return -1 }
+        let side = 16
+        var pixels = [UInt8](repeating: 0, count: side * side * 4)
+        guard let context = CGContext(
+            data: &pixels,
+            width: side,
+            height: side,
+            bitsPerComponent: 8,
+            bytesPerRow: side * 4,
             space: CGColorSpaceCreateDeviceRGB(),
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else { return nil }
-        // CGContext 原点在左下：把目标像素（左上原点坐标）平移到 (0, 0)
-        ctx.translateBy(x: CGFloat(-x), y: CGFloat(-(image.height - 1 - y)))
-        ctx.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
-        return (0.299 * Double(pixel[0]) + 0.587 * Double(pixel[1]) + 0.114 * Double(pixel[2])) / 255.0
+        ) else { return -1 }
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: side, height: side))
+        var sum = 0.0
+        for index in stride(from: 0, to: pixels.count, by: 4) {
+            sum += 0.2126 * Double(pixels[index])
+                + 0.7152 * Double(pixels[index + 1])
+                + 0.0722 * Double(pixels[index + 2])
+        }
+        return sum / Double(side * side) / 255.0
     }
 }
 

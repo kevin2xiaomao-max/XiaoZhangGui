@@ -538,7 +538,11 @@ struct ScheduleView: View {
                 weekRowView(row)
             }
         }
-        .accessibilityIdentifier("v38.schedule.grid")
+        // 注意：不给网格容器挂 accessibilityIdentifier——iOS 26/27 实证
+        // （R1 commit 7b92d3b）：容器 identifier 会遮蔽其内部按钮的
+        // identifier。此前这里挂 `v38.schedule.grid` 导致全部日期格按钮的
+        // `v38.schedule.day.*` 在无障碍树中不可见（run 39794952408 实测
+        // 5 个断言失败）。网格几何基准由 UI 测试改用密度 chip 元素作地标。
     }
 
     @ViewBuilder
