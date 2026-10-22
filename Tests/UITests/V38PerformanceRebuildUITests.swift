@@ -138,20 +138,20 @@ final class V38PerformanceRebuildUITests: XCTestCase {
     }
 
     func testPerformanceScreenshotDark() throws {
-        // 以 Dark 外观重新启动（-AppleInterfaceStyle 为进程级参数）。
-        app.terminate()
-        let darkApp = XCUIApplication()
-        darkApp.launchArguments = [
-            "--ui-testing", "--ui-testing-id", UUID().uuidString,
-            "-AppleInterfaceStyle", "Dark",
-        ]
-        darkApp.launch()
-        app = darkApp
-        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 20))
-        XCTAssertTrue(
-            app.otherElements["screen.home"].waitForExistence(timeout: 10),
-            "Dark 外观下 Home 未出现"
-        )
+        // Dark 截图只在专用 CI 步骤中运行：该步骤先用
+        // `simctl ui appearance dark` 把模拟器切到全局 Dark，
+        // 再以 TEST_RUNNER_V38_DARK_SCREENSHOT=1 重跑本用例。
+        //
+        // 为什么不用 -AppleInterfaceStyle 启动参数：run 39794230701 的
+        // xcresult 经逐字节核查，Light/Dark 两个附件指向同一 payload
+        // （内容寻址去重）——即该参数在本 runner（xcode-27 / iOS 27）
+        // 下未改变 App 渲染外观，附件实际是 Light 渲染。故改走
+        // E·QA 已验证的 simctl 全局外观路线；主测试运行中本用例 skip，
+        // 避免再产出一张名为 dark 实为 light 的截图。
+        guard ProcessInfo.processInfo.environment["V38_DARK_SCREENSHOT"] == "1" else {
+            throw XCTSkip("Dark 截图由专用 CI 步骤以 simctl 全局 Dark 外观运行")
+        }
+        // setUp 已以种子数据启动 App；模拟器全局 Dark 下 App 跟随系统渲染。
         openBusinessTab()
         XCTAssertTrue(waitForElement("v38.performance.hero", timeout: 10), "Dark 外观下 Hero 未渲染")
         let attachment = XCTAttachment(screenshot: app.screenshot())

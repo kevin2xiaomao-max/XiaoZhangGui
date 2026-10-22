@@ -221,6 +221,43 @@ jobs:
           if [ -d "$RUNNER_TEMP/xzg-ios-v38-motion.xcresult" ]; then
             (cd "$RUNNER_TEMP" && zip -qry "$GITHUB_WORKSPACE/artifacts/V38-Motion-Test.xcresult.zip" xzg-ios-v38-motion.xcresult)
           fi
+      - name: Capture V38 Performance dark screenshot (simctl appearance)
+        # R4 Dark 截图专用步骤。背景：-AppleInterfaceStyle 启动参数在
+        # xcode-27 / iOS 27 runner 上未改变 App 渲染（run 39794230701 的
+        # Light/Dark 附件逐字节相同，内容寻址去重后指向同一 payload）。
+        # 改走 E·QA 已验证路线：simctl 全局 Dark 外观 +
+        # test-without-building 重跑门控用例
+        # （TEST_RUNNER_V38_DARK_SCREENSHOT=1 注入测试运行器环境）。
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          SIM_UDID=$(xcrun simctl list devices | grep -F "${{ steps.sim.outputs.name }} (" | head -n 1 | grep -oE '[0-9A-Fa-f-]{36}' | head -n 1)
+          if [ -z "$SIM_UDID" ]; then echo "simulator '${{ steps.sim.outputs.name }}' not found"; exit 3; fi
+          xcrun simctl boot "$SIM_UDID" >/dev/null 2>&1 || true
+          xcrun simctl bootstatus "$SIM_UDID" -b >/dev/null 2>&1 || true
+          sleep 15
+          xcrun simctl ui "$SIM_UDID" appearance dark
+          XCTESTRUN=$(find "$RUNNER_TEMP/xzg-ios-v38-derived/Build/Products" -name "*.xctestrun" | head -n 1)
+          if [ -z "$XCTESTRUN" ]; then echo "no .xctestrun found under derived data"; exit 3; fi
+          echo "Using xctestrun: $XCTESTRUN"
+          rm -rf "$RUNNER_TEMP/xzg-ios-v38-performance-dark.xcresult"
+          TEST_RUNNER_V38_DARK_SCREENSHOT=1 xcodebuild test-without-building \
+            -xctestrun "$XCTESTRUN" \
+            -destination "platform=iOS Simulator,id=$SIM_UDID" \
+            -only-testing:XiaoZhangGuiUITests/V38PerformanceRebuildUITests/testPerformanceScreenshotDark \
+            -resultBundlePath "$RUNNER_TEMP/xzg-ios-v38-performance-dark.xcresult" \
+            >artifacts/performance-dark-test.log 2>&1 || { tail -n 60 artifacts/performance-dark-test.log; exit 1; }
+          grep -F "testPerformanceScreenshotDark]' passed" artifacts/performance-dark-test.log \
+            || { echo "dark screenshot test did not pass (env gate not injected?)"; tail -n 60 artifacts/performance-dark-test.log; exit 1; }
+          (cd "$RUNNER_TEMP" && zip -qry "$GITHUB_WORKSPACE/artifacts/V38-Performance-Dark.xcresult.zip" xzg-ios-v38-performance-dark.xcresult)
+          xcrun xcresulttool export attachments \
+            --path "$RUNNER_TEMP/xzg-ios-v38-performance-dark.xcresult" \
+            --output-path "$RUNNER_TEMP/perf-dark-attachments" 2>/dev/null || true
+          PNG=$(find "$RUNNER_TEMP/perf-dark-attachments" -name "*v38-performance-rebuild-dark*.png" 2>/dev/null | head -n 1)
+          if [ -n "$PNG" ]; then cp "$PNG" artifacts/v38-performance-dark.png; fi
+          ls -la artifacts/ | grep -i "performance-dark" || true
       - name: Build unsigned IPA (rebuild R1+)
         # V3.8 重建：每阶段产出可编译的完整 unsigned IPA（CI 产物，不签名、不发布）。
         # 用户用已有手机签名工具自行尝试安装；此步骤不涉及任何签名证书。
