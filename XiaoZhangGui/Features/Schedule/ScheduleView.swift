@@ -1,15 +1,17 @@
 import SwiftData
 import SwiftUI
 
-// MARK: - 日历（V3.7.1：Schedule + Calendar 合并）
+// MARK: - 日历（V3.8 重建 R3：Editorial + 日期锚点 Motion）
 //
-// 结构（MD §7）：
-// - 顶部 editorial 月份标题 + 轻量周日期 strip
-// - 当日事件 GroupSurface：TimedRow（time/title/type-status/trailing 完成圈），allDay 事项为 WorkRow
-// - 月历 Section：月份导航 + 状态点月历 + 当日详情行（整月能力保留，去玻璃卡，保留行 + hairline）
+// 结构（MD §7 + `Docs/V38-Page-Motion-Spec.md` §3）：
+// - 顶部 editorial 月份标题 + 当日事件/全天事项平面列表（细分割线）
+// - 月历 Section：月份导航 + 月/周密度 chips + 状态点月历 + 当日详情行
+// - 密度切换：选中格为几何锚点（matchedGeometryEffect 选中环滑移），
+//   布局由 `V38ScheduleLayout` 纯函数决定，`selectedDate` 绝不漂移
 // - 当日经营摘要（数据口径不变）
 //
 // 数据复用 CalendarAgenda + ScheduleAgenda；计算语义零改动（§15 受保护核心）。
+// V3.8 改动仅限展示层与密度状态，业务链（toggle/导航路由/数据派生）与 V3.7.1 一致。
 
 struct ScheduleView: View {
     @Query private var todos: [Todo]
@@ -24,6 +26,11 @@ struct ScheduleView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var selectedDate = Date()
     @State private var currentMonth: Date = Date().startOfMonth
+    /// V3.8 R3：月/周展示密度（纯视图状态；周密度只取月网格中选中日期
+    /// 所在的既有周行，不构造周数据，不影响 selectedDate 语义）。
+    @State private var density: V38ScheduleDensity = .month
+    /// V3.8 R3：选中环 matched-geometry 命名空间（Spec §3 日期锚点）。
+    @Namespace private var selectionAnchor
     @State private var expandedExpiry: Set<String> = []
     @State private var stateActionError: String?
     @State private var showCustomer = false
@@ -136,7 +143,7 @@ struct ScheduleView: View {
                 selectedDate = Date()
             }
             .font(.subheadline.weight(.semibold))
-            .foregroundStyle(V371.Colors.blue)
+            .foregroundStyle(V38ScheduleStyle.accent)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
             .background(.thinMaterial, in: Capsule(style: .continuous))
@@ -160,6 +167,8 @@ struct ScheduleView: View {
                     }
                 }
             }
+            // V3.8 R3：切换日期时事项列表 contentChange 交叉淡入，不整列闪烁（Spec §3）
+            .transition(.opacity)
         }
     }
 
@@ -397,6 +406,8 @@ struct ScheduleView: View {
                     accessibleMonthList
                         .padding(.vertical, 6)
                 } else {
+                    densityChips
+                        .padding(.bottom, 2)
                     weekdayHeader
                     monthGrid
                         .padding(.vertical, 6)
@@ -408,22 +419,76 @@ struct ScheduleView: View {
         }
     }
 
+    // MARK: - V3.8 R3 月/周密度切换（chip 样式）
+
+    /// 月/周密度 chips。只切换网格展示密度：
+    /// 周密度展示月网格中选中日期所在的既有周行，`selectedDate` 不变、
+    /// 选中格位置不变（Spec §3 锚点模型，实现见 `V38ScheduleLayout`）。
+    private var densityChips: some View {
+        HStack {
+            Spacer(minLength: 8)
+            HStack(spacing: 2) {
+                densityChip(.month, title: "月", label: "月视图")
+                densityChip(.week, title: "周", label: "周视图")
+            }
+            .padding(3)
+            .background(Capsule(style: .continuous).fill(V371.Colors.groupSecondary))
+        }
+    }
+
+    private func densityChip(_ value: V38ScheduleDensity, title: String, label: String) -> some View {
+        let isActive = density == value
+        return Button {
+            Haptic.selection()
+            withAnimation(V38MotionTokens.animation(for: .contentChange, reduceMotion: reduceMotion)) {
+                density = value
+            }
+        } label: {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(isActive ? Color.white : V371.Colors.textSecondary)
+                .padding(.horizontal, 16)
+                .frame(minHeight: 36)
+                .background {
+                    if isActive {
+                        Capsule(style: .continuous).fill(V38ScheduleStyle.accent)
+                    }
+                }
+                .contentShape(Capsule(style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .padding(.vertical, 4) // 命中区 ≥44pt（36 + 上下各 4）
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(isActive ? .isSelected : [])
+        .accessibilityIdentifier(value == .month ? "v38.schedule.density.month" : "v38.schedule.density.week")
+    }
+
     private var monthNavigator: some View {
         HStack {
-            monthButton("chevron.left", label: "上个月") {
-                withAnimation(V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: reduceMotion))) {
-                    currentMonth = monthCalendar.date(byAdding: .month, value: -1, to: currentMonth) ?? currentMonth
-                }
+            monthButton("chevron.left", label: density == .week ? "上一周" : "上个月") {
+                navigatePeriod(by: -1)
             }
             Spacer()
-            Text(currentMonth, format: .dateTime.year().month(.wide).locale(Locale(identifier: "zh_CN")))
+            // 周密度下标题跟随选中日期所在月；月密度下为网格月份。
+            Text(density == .week ? selectedDate : currentMonth, format: .dateTime.year().month(.wide).locale(Locale(identifier: "zh_CN")))
                 .font(V371.Typography.sectionTitle)
                 .foregroundStyle(V371.Colors.textPrimary)
             Spacer()
-            monthButton("chevron.right", label: "下个月") {
-                withAnimation(V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: reduceMotion))) {
-                    currentMonth = monthCalendar.date(byAdding: .month, value: 1, to: currentMonth) ?? currentMonth
-                }
+            monthButton("chevron.right", label: density == .week ? "下一周" : "下个月") {
+                navigatePeriod(by: 1)
+            }
+        }
+    }
+
+    /// 周期导航：月密度按月移动网格（选中日期不变，V3.7.1 原行为）；
+    /// 周密度按周移动选中日期（标准周视图行为，月份由 onChange 同步跟随）。
+    private func navigatePeriod(by direction: Int) {
+        withAnimation(V38MotionTokens.animation(for: .contentChange, reduceMotion: reduceMotion)) {
+            switch density {
+            case .month:
+                currentMonth = monthCalendar.date(byAdding: .month, value: direction, to: currentMonth) ?? currentMonth
+            case .week:
+                selectedDate = calendar.date(byAdding: .day, value: 7 * direction, to: selectedDate) ?? selectedDate
             }
         }
     }
@@ -455,36 +520,106 @@ struct ScheduleView: View {
         }
     }
 
+    /// V3.8 R3 网格：按周行渲染（不用 LazyVGrid），密度形态由
+    /// `V38ScheduleLayout` 纯函数决定 —— 选中格 (row, col) 在月/周密度下
+    /// 恒定，选中行上方行保留高度（ghost）、下方行收起（collapsed），
+    /// 容器高度过渡不引起选中格位移（Spec §3 锚点 ≤1pt）。
     private var monthGrid: some View {
-        let days = gridDates(for: currentMonth)
-        return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 7), spacing: 4) {
-            ForEach(days.indices, id: \.self) { index in
-                if let date = days[index] {
-                    ScheduleCalendarDayCell(
-                        date: date,
-                        isToday: date.isToday,
-                        isSelected: date.isSameDay(as: selectedDate),
-                        flags: CalendarAgenda.eventFlags(
-                            date: date,
-                            todos: todos,
-                            performances: performances,
-                            expenses: expenses,
-                            expiryItems: expiryItems,
-                            customers: customers,
-                            memos: memos
-                        )
-                    ) {
-                        withAnimation(V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: reduceMotion))) {
-                            selectedDate = date
-                        }
-                        Haptic.light()
-                    }
+        // 周密度锚定选中日期所在月；月密度展示导航月份（V3.7.1 原语义）。
+        let gridMonth = density == .week ? selectedDate : currentMonth
+        let rows = V38ScheduleLayout.rows(
+            month: gridMonth,
+            calendar: monthCalendar,
+            selectedDate: selectedDate,
+            density: density
+        )
+        return VStack(spacing: 4) {
+            ForEach(rows, id: \.index) { row in
+                weekRowView(row)
+            }
+        }
+        .accessibilityIdentifier("v38.schedule.grid")
+    }
+
+    @ViewBuilder
+    private func weekRowView(_ row: V38ScheduleLayout.WeekRow) -> some View {
+        HStack(spacing: 2) {
+            ForEach(Array(row.cells.enumerated()), id: \.offset) { _, date in
+                if let date {
+                    dayCell(date)
                 } else {
                     Color.clear
-                        .aspectRatio(1, contentMode: .fit)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: V38ScheduleStyle.cellHeight)
                 }
             }
         }
+        .frame(height: row.presentation == .collapsed ? 0 : V38ScheduleStyle.cellHeight)
+        .opacity(row.presentation == .full ? 1 : 0)
+        .clipped()
+        .allowsHitTesting(row.presentation == .full)
+        .accessibilityHidden(row.presentation != .full)
+    }
+
+    /// V3.8 R3 日期格：大日期数字 + 真实事项状态点；
+    /// 今日 = 经营绿实心圆；选中 = 选中环（matchedGeometryEffect 以格为锚滑移）。
+    @ViewBuilder
+    private func dayCell(_ date: Date) -> some View {
+        let isSelected = date.isSameDay(as: selectedDate)
+        let isToday = date.isToday
+        let flags = eventFlags(for: date)
+        Button {
+            withAnimation(V38ScheduleStyle.selectionAnimation(reduceMotion: reduceMotion)) {
+                selectedDate = date
+            }
+            Haptic.light()
+        } label: {
+            ZStack {
+                if isToday {
+                    Circle().fill(V38ScheduleStyle.accent)
+                        .frame(width: 40, height: 40)
+                } else if isSelected {
+                    Circle().fill(V38ScheduleStyle.accent.opacity(0.12))
+                        .frame(width: 40, height: 40)
+                }
+                if isSelected {
+                    // 选中环：全网格唯一实例，切换选中日期时滑到新格，格子 frame 不变。
+                    Circle()
+                        .strokeBorder(isToday ? Color.white : V38ScheduleStyle.accent, lineWidth: 1.5)
+                        .frame(width: 40, height: 40)
+                        .matchedGeometryEffect(id: "v38.schedule.selectionRing", in: selectionAnchor)
+                }
+                VStack(spacing: 2) {
+                    Text("\(monthCalendar.component(.day, from: date))")
+                        .font(isSelected || isToday ? V38ScheduleStyle.dayNumberFontEmphasized : V38ScheduleStyle.dayNumberFont)
+                        .foregroundStyle(isToday ? Color.white : (isSelected ? V371.Colors.textPrimary : V371.Colors.textSecondary))
+                    HStack(spacing: 2) {
+                        if flags.hasRevenue { ScheduleEventDot(color: V371.Colors.green) }
+                        if flags.hasTodo { ScheduleEventDot(color: V371.Colors.blue) }
+                        if flags.hasExpiry { ScheduleEventDot(color: V371.Colors.orange) }
+                        if flags.hasCustomer { ScheduleEventDot(color: V371.Colors.gray) }
+                        if flags.hasMemo { ScheduleEventDot(color: V371.Colors.textTertiary) }
+                    }
+                    .frame(height: 4)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: V38ScheduleStyle.cellHeight)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(calendarAccessibilityLabel(date: date, flags: flags))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityIdentifier("v38.schedule.day.\(Self.isoDateString(date))")
+    }
+
+    /// UI 测试定位用的稳定日期标识（yyyy-MM-dd，本地时区）。
+    private static func isoDateString(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: date)
     }
 
     /// 辅助功能字号改用纵向日期列表，避免七列网格挤压；日期选择与详情仍复用同一状态。
@@ -530,7 +665,7 @@ struct ScheduleView: View {
     }
 
     private func monthDates(for month: Date) -> [Date] {
-        gridDates(for: month).compactMap { $0 }
+        V38ScheduleLayout.gridDates(month: month, calendar: monthCalendar).compactMap { $0 }
     }
 
     private func eventFlags(for date: Date) -> CalendarAgenda.EventFlags {
@@ -549,22 +684,6 @@ struct ScheduleView: View {
         let dateText = date.formatted(.dateTime.month().day().weekday(.wide).locale(Locale(identifier: "zh_CN")))
         let todayText = date.isToday ? "，今天" : ""
         return "\(dateText)\(todayText)，\(flags.accessibilitySummary)"
-    }
-
-    /// 当月网格日期（首尾补 nil 空位，总格数为 7 的倍数）
-    private func gridDates(for month: Date) -> [Date?] {
-        let monthStart = month.startOfMonth
-        let daysInMonth = monthCalendar.range(of: .day, in: .month, for: monthStart)?.count ?? 30
-        let firstWeekday = monthCalendar.component(.weekday, from: monthStart) - 1 // 0 = 周日
-        let totalCells = Int(ceil(Double(firstWeekday + daysInMonth) / 7.0)) * 7
-
-        var cells: [Date?] = Array(repeating: nil, count: totalCells)
-        for day in 1...daysInMonth {
-            if let date = monthCalendar.date(byAdding: .day, value: day - 1, to: monthStart) {
-                cells[firstWeekday + day - 1] = date
-            }
-        }
-        return cells
     }
 
     // MARK: - 当日详情（去玻璃卡，保留行 + hairline）
@@ -716,73 +835,12 @@ struct ScheduleView: View {
     }
 }
 
-// MARK: - 月历日期格（今日蓝色实心 / 选中描边 / 状态点）
-// 由原 CalendarView.CalendarDayCell 移植，仅换 V371 语义色；改名避免与 CalendarView.swift 重定义冲突。
+// MARK: - 事项状态点（日期格内，颜色沿用 V371 语义色：收入/待办/临期/客户/备忘）
 
-private struct ScheduleCalendarDayCell: View {
-    let date: Date
-    let isToday: Bool
-    let isSelected: Bool
-    let flags: CalendarAgenda.EventFlags
-    var onTap: () -> Void
-
-    private var dayNumber: Int {
-        Calendar.current.component(.day, from: date)
-    }
-
+private struct ScheduleEventDot: View {
+    let color: Color
     var body: some View {
-        Button(action: onTap) {
-            VStack(spacing: 2) {
-                Text("\(dayNumber)")
-                    .font(V371.Typography.rowSubtitle)
-                    .fontWeight(isToday ? .bold : .medium)
-                    .foregroundStyle(
-                        isToday ? Color.white :
-                        (isSelected ? V371.Colors.textPrimary : V371.Colors.textSecondary)
-                    )
-                HStack(spacing: 2) {
-                    if flags.hasRevenue { EventDot(color: V371.Colors.green) }
-                    if flags.hasTodo { EventDot(color: V371.Colors.blue) }
-                    if flags.hasExpiry { EventDot(color: V371.Colors.orange) }
-                    if flags.hasCustomer { EventDot(color: V371.Colors.gray) }
-                    if flags.hasMemo { EventDot(color: V371.Colors.textTertiary) }
-                }
-                .frame(height: 4)
-            }
-            .frame(maxWidth: .infinity)
-            .aspectRatio(1, contentMode: .fit)
-            .background {
-                ZStack {
-                    if isToday {
-                        Circle().fill(V371.Colors.blue)
-                    } else if isSelected {
-                        Circle().fill(V371.Colors.groupSecondary)
-                    }
-                }
-            }
-            .overlay {
-                if isSelected && !isToday {
-                    Circle().strokeBorder(V371.Colors.blue.opacity(0.55), lineWidth: 1.2)
-                }
-            }
-            .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(accessibilityLabel)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-    }
-
-    private var accessibilityLabel: String {
-        let dateText = date.formatted(.dateTime.month().day().weekday(.wide).locale(Locale(identifier: "zh_CN")))
-        let todayText = isToday ? "，今天" : ""
-        return "\(dateText)\(todayText)，\(flags.accessibilitySummary)"
-    }
-
-    private struct EventDot: View {
-        let color: Color
-        var body: some View {
-            Circle().fill(color).frame(width: 4, height: 4)
-        }
+        Circle().fill(color).frame(width: 4, height: 4)
     }
 }
 
