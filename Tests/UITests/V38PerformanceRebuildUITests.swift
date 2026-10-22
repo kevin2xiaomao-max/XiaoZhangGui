@@ -127,36 +127,108 @@ final class V38PerformanceRebuildUITests: XCTestCase {
         XCTAssertTrue(waitForElement("v38.performance.chart", timeout: 5), "切回周后趋势图消失")
     }
 
-    // MARK: - 截图（CI 产物，Light / Dark）
+    // MARK: - 截图（CI 产物，Light / Dark，生产主题路径 + 像素亮度自证）
 
-    func testPerformanceScreenshotLight() {
+    func testPerformanceLightDarkScreenshots() {
+        // 外观切换走 App 生产路径（我的 → 显示模式 → 浅色/深色模式）：
+        // XCUIDevice.appearance 在本 harness 下不传导到本 App 渲染
+        // （R2 实测其 Dark 截图亮度 0.9346 ≈ Light 0.933，假 Dark）；
+        // -AppleInterfaceStyle 启动参数同样无效（R4 run 39794230701
+        // 的 Light/Dark 附件逐字节相同、被 xcresult 内容哈希去重）。
+        // 改用 App 自带 AppSettings.themeMode（settings.colorScheme，
+        // 立即生效，与 R2 同一解法）。每相位截图做像素亮度断言，
+        // 未真生效会明确失败，不产出假图。
+        setDisplayMode("浅色模式")
+        openBusinessTab()
         XCTAssertTrue(waitForElement("v38.performance.hero", timeout: 10))
-        let attachment = XCTAttachment(screenshot: app.screenshot())
-        attachment.name = "v38-performance-rebuild-light"
+        let lightShot = app.screenshot()
+        attachScreenshot(lightShot, named: "v38-performance-rebuild-light")
+        // 像素级自证：Light 渲染整体高亮（实测基线 ≈0.92），断言 >0.7 留足余量。
+        let lightLuminance = meanLuminance(of: lightShot)
+        XCTAssertGreaterThan(lightLuminance, 0.7, "Light 截图亮度异常：\(lightLuminance)")
+
+        setDisplayMode("深色模式")
+        openBusinessTab()
+        XCTAssertTrue(waitForElement("v38.performance.hero", timeout: 10))
+        let darkShot = app.screenshot()
+        attachScreenshot(darkShot, named: "v38-performance-rebuild-dark")
+        // 像素级自证：Dark 必须真生效（墨绿黑底，整体低亮）。
+        let darkLuminance = meanLuminance(of: darkShot)
+        XCTAssertLessThan(darkLuminance, 0.45, "Dark 截图未真生效，亮度：\(darkLuminance)")
+
+        // themeMode 持久化在 UserDefaults：恢复「跟随系统」，不污染后续测试。
+        setDisplayMode("跟随系统")
+    }
+
+    /// 经生产 UI 设置显示模式：首页头像 → 我的 → 显示模式 sheet → 选项（选后自动关闭）→ 返回。
+    private func setDisplayMode(_ optionLabel: String) {
+        // 先回到首页根部：在经营 tab 时切回首页；若「我的」还压在首页栈上，先点返回弹出。
+        let homeTab = app.tabBars.buttons["首页"]
+        if homeTab.exists { homeTab.tap() }
+        if element("screen.profile").exists {
+            let back = app.navigationBars.buttons.element(boundBy: 0)
+            if back.exists { back.tap() }
+        }
+        XCTAssertTrue(element("screen.home").waitForExistence(timeout: 5), "未回到首页")
+        element("home.profile").tap()
+        XCTAssertTrue(element("screen.profile").waitForExistence(timeout: 5), "我的页未出现")
+        tapLabeled("显示模式")
+        tapLabeled(optionLabel)
+        // 选项点击后 sheet 自动 dismiss：用谓词期望等选项元素消失
+        // （不用 Thread.sleep 轮询，避免饿死 AX runloop）。
+        let gone = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"),
+            object: labeledElement(optionLabel)
+        )
+        XCTAssertEqual(
+            XCTWaiter().wait(for: [gone], timeout: 5), .completed,
+            "显示模式 sheet 未关闭"
+        )
+        let back = app.navigationBars.buttons.element(boundBy: 0)
+        if back.exists { back.tap() }
+        XCTAssertTrue(element("screen.home").waitForExistence(timeout: 5), "未返回首页")
+    }
+
+    /// WorkRow 的按钮 label 会拼上 trailing 值（如「显示模式 跟随系统」），用 BEGINSWITH 匹配。
+    private func labeledElement(_ label: String) -> XCUIElement {
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", label)).firstMatch
+    }
+
+    /// 按 label 前缀点按按钮（WorkRow 等无 identifier 的行）。
+    private func tapLabeled(_ label: String) {
+        let target = labeledElement(label)
+        XCTAssertTrue(target.waitForExistence(timeout: 5), "未找到元素：\(label)")
+        target.tap()
+    }
+
+    private func attachScreenshot(_ screenshot: XCUIScreenshot, named name: String) {
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
     }
 
-    func testPerformanceScreenshotDark() throws {
-        // Dark 截图只在专用 CI 步骤中运行：该步骤先用
-        // `simctl ui appearance dark` 把模拟器切到全局 Dark，
-        // 再以 TEST_RUNNER_V38_DARK_SCREENSHOT=1 重跑本用例。
-        //
-        // 为什么不用 -AppleInterfaceStyle 启动参数：run 39794230701 的
-        // xcresult 经逐字节核查，Light/Dark 两个附件指向同一 payload
-        // （内容寻址去重）——即该参数在本 runner（xcode-27 / iOS 27）
-        // 下未改变 App 渲染外观，附件实际是 Light 渲染。故改走
-        // E·QA 已验证的 simctl 全局外观路线；主测试运行中本用例 skip，
-        // 避免再产出一张名为 dark 实为 light 的截图。
-        guard ProcessInfo.processInfo.environment["V38_DARK_SCREENSHOT"] == "1" else {
-            throw XCTSkip("Dark 截图由专用 CI 步骤以 simctl 全局 Dark 外观运行")
+    /// 截图整体平均亮度（0–1）：把截图缩绘到 16×16 位图后按 Rec.709 加权。
+    private func meanLuminance(of screenshot: XCUIScreenshot) -> Double {
+        guard let cgImage = screenshot.image.cgImage else { return -1 }
+        let side = 16
+        var pixels = [UInt8](repeating: 0, count: side * side * 4)
+        guard let context = CGContext(
+            data: &pixels,
+            width: side,
+            height: side,
+            bitsPerComponent: 8,
+            bytesPerRow: side * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return -1 }
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: side, height: side))
+        var sum = 0.0
+        for index in stride(from: 0, to: pixels.count, by: 4) {
+            sum += 0.2126 * Double(pixels[index])
+                + 0.7152 * Double(pixels[index + 1])
+                + 0.0722 * Double(pixels[index + 2])
         }
-        // setUp 已以种子数据启动 App；模拟器全局 Dark 下 App 跟随系统渲染。
-        openBusinessTab()
-        XCTAssertTrue(waitForElement("v38.performance.hero", timeout: 10), "Dark 外观下 Hero 未渲染")
-        let attachment = XCTAttachment(screenshot: app.screenshot())
-        attachment.name = "v38-performance-rebuild-dark"
-        attachment.lifetime = .keepAlways
-        add(attachment)
+        return sum / Double(side * side) / 255.0
     }
 }
