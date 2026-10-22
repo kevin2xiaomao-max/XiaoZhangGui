@@ -1,8 +1,18 @@
 import SwiftUI
 import SwiftData
 
-// MARK: - 经营 · 业绩（V371 presentation）
-// 业务语义（PerformanceModel / Repository / 删除确认流程）原样保留，只换 presentation。
+// MARK: - 经营 · 业绩（V3.8 重建 · Editorial）
+//
+// 视觉依据：
+// - `02_设计与交互升级说明.md`：Editorial Content + Soft Frosted Controls +
+//   Native Interaction；经营页金额来自真实模型，不补演示数字。
+// - Worker C `Docs/V38-Page-Motion-Spec.md` §4：金额 numericText 过渡、
+//   图表柱高插值、分类 chip 的 matchedGeometryEffect 滑动选中。
+//
+// 业务语义全部保留自 V3.7.1（PerformanceModel / IncomeSourceSummary /
+// MonthlyBusinessMetrics / Repository / 删除确认流程），仅重做 Presentation。
+// 收入分类与营业额公式零改动（红线）。重建提交前缀 `rebuild(ios/v3.8):`，
+// 不冒充原始 8f3a892。
 
 struct PerformanceView: View {
     @Environment(\.modelContext) private var context
@@ -23,6 +33,10 @@ struct PerformanceView: View {
     @State private var editingExpense: Expense?
     @State private var deletingRecord: MoneyRecord?
     @State private var deleteError: String?
+
+    // V3.8：图表周期与收入分类选择（纯展示层状态，不影响任何业务计算）。
+    @State private var chartPeriod: PerformanceChartPeriod = .week
+    @State private var sourceSelection: V38SourceSelection = .all
 
     private var todayRevenue: Double {
         performances.filter { $0.date.isToday }.reduce(0) { $0 + $1.amount }
@@ -55,8 +69,21 @@ struct PerformanceView: View {
         return (todayRevenue - yesterdayRevenue) / yesterdayRevenue * 100
     }
 
-    private var trend: [TrendPoint] {
-        PerformanceTrend.last7Days(performances: performances)
+    /// 图表数据：既有模型 `PerformanceTrend.points(for:)`，不做二次计算。
+    private var chartPoints: [TrendPoint] {
+        PerformanceTrend.points(for: chartPeriod, performances: performances)
+    }
+
+    private var chartTotal: Double {
+        chartPoints.reduce(0) { $0 + $1.value }
+    }
+
+    /// 收入分类汇总：既有模型 `IncomeSourceSummary.compute`（公式零改动）。
+    private var sourceSummaries: [IncomeSourceSummary] {
+        IncomeSourceSummary.compute(
+            performances: performances,
+            range: (Date().startOfMonth, Date().endOfDay)
+        )
     }
 
     private var records: [MoneyRecord] {
@@ -66,17 +93,18 @@ struct PerformanceView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: V371.Space.section) {
+            VStack(alignment: .leading, spacing: 24) {
                 editorialHero
                 .accessibilityLabel(heroAccessibilityLabel)
-                goalSection
+                trendSection
                 sourcesSection
+                goalSection
                 recordsSection
                 V371ScrollEndMarker(identifier: V371AccessibilityID.scrollEndBusiness)
             }
-            .padding(.horizontal, V371.Space.page)
-            .padding(.top, V371.Space.page)
-            .padding(.bottom, V371.Space.section)
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 20)
         }
         .scrollIndicators(.hidden)
         .accessibilityIdentifier(V371AccessibilityID.screenBusiness)
@@ -141,44 +169,46 @@ struct PerformanceView: View {
         } message: { Text(deleteError ?? "请稍后重试") }
     }
 
-    // MARK: Hero info（目标 / 对比）
+    // MARK: Hero（本月营业额 · 54pt Editorial 大数字）
 
     private var editorialHero: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("本月营业额")
-                .font(V371.Typography.heroTitle)
+                .font(V38PerformanceStyle.heroLabel)
                 .foregroundStyle(V371.Colors.textSecondary)
             Text(Fmt.money(monthRevenue))
-                .font(V371.Typography.heroNumber)
+                .font(V38PerformanceStyle.heroAmount)
                 .foregroundStyle(V371.Colors.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.58)
                 .contentTransition(.numericText())
+                .animation(
+                    V38MotionTokens.animation(for: .contentChange, reduceMotion: reduceMotion),
+                    value: monthRevenue
+                )
             heroInfo
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 8)
+        .accessibilityIdentifier("v38.performance.hero")
     }
 
     private var heroInfo: some View {
-        // P0-B：窄屏自适应，主金额独立一行不折断
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("今日")
-                    .font(V371.Typography.rowSubtitle)
-                    .foregroundStyle(V371.Colors.textTertiary)
-                Text(Fmt.money(todayRevenue))
-                    .font(.system(size: 20, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(V371.Colors.textPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                changeBadge
-            }
-            if !trend.isEmpty {
-                // 趋势只保留细线（TrendChart 无大面积填充），独立一行
-                TrendChart(points: trend, height: 36, onHero: false)
-                    .frame(height: 36)
-            }
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text("今日")
+                .font(V371.Typography.rowSubtitle)
+                .foregroundStyle(V371.Colors.textTertiary)
+            Text(Fmt.money(todayRevenue))
+                .font(V38PerformanceStyle.secondaryAmount)
+                .foregroundStyle(V371.Colors.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .contentTransition(.numericText())
+                .animation(
+                    V38MotionTokens.animation(for: .contentChange, reduceMotion: reduceMotion),
+                    value: todayRevenue
+                )
+            changeBadge
         }
     }
 
@@ -214,50 +244,36 @@ struct PerformanceView: View {
         }
     }
 
-    // MARK: 月目标
+    // MARK: 收入趋势（周期 chip + 柱状图）
 
-    private var goalSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            SectionHeader("月目标")
+    private var trendSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            V38HomeSectionHeader(title: "收入趋势")
+            V38ChipSelector(
+                options: PerformanceChartPeriod.allCases,
+                selection: $chartPeriod,
+                title: { $0.rawValue },
+                identifier: { periodIdentifier($0) }
+            )
             GroupSurface {
                 VStack(alignment: .leading, spacing: 10) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(Fmt.money(monthRevenue))
-                            .font(V371.Typography.rowTitle)
-                            .foregroundStyle(V371.Colors.textPrimary)
-                            .monospacedDigit()
-                        Text("/ 目标 \(Fmt.money(monthGoal))")
-                            .font(V371.Typography.rowSubtitle)
-                            .foregroundStyle(V371.Colors.textTertiary)
-                        Spacer(minLength: 8)
-                        Text("\(Int((goalProgress * 100).rounded()))%")
-                            .font(V371.Typography.badge)
-                            .foregroundStyle(V371.Colors.blue)
-                            .monospacedDigit()
-                    }
-                    GeometryReader { proxy in
-                        Capsule()
-                            .fill(V371.Colors.groupSecondary)
-                            .overlay(alignment: .leading) {
-                                Capsule()
-                                    .fill(V371.Colors.blue)
-                                    .frame(width: proxy.size.width * goalProgress)
-                            }
-                    }
-                    .frame(height: 6)
-                    .animation(V371.Motion.progressWidth(reduceMotion: reduceMotion), value: goalProgress)
-                    .accessibilityElement()
-                    .accessibilityLabel("月目标完成 \(Int((goalProgress * 100).rounded()))%")
+                    V38TrendBarChart(points: chartPoints)
+                        .accessibilityIdentifier("v38.performance.chart")
                     V371Divider(leading: 0)
-                    HStack {
-                        Text("本年累计")
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(chartPeriod == .month ? "近30日合计" : "近7日合计")
                             .font(V371.Typography.rowSubtitle)
                             .foregroundStyle(V371.Colors.textTertiary)
                         Spacer(minLength: 8)
-                        Text(Fmt.money(yearRevenue))
-                            .font(V371.Typography.rowTitle)
+                        Text(Fmt.money(chartTotal))
+                            .font(V38PerformanceStyle.secondaryAmount)
                             .foregroundStyle(V371.Colors.textPrimary)
-                            .monospacedDigit()
+                            .lineLimit(1)
+                            .contentTransition(.numericText())
+                            .animation(
+                                V38MotionTokens.animation(for: .contentChange, reduceMotion: reduceMotion),
+                                value: chartTotal
+                            )
                     }
                 }
                 .padding(V371.Space.rowPadding)
@@ -265,22 +281,60 @@ struct PerformanceView: View {
         }
     }
 
-    // MARK: 收入来源
+    private func periodIdentifier(_ period: PerformanceChartPeriod) -> String {
+        switch period {
+        case .day: return "v38.performance.period.day"
+        case .week: return "v38.performance.period.week"
+        case .month: return "v38.performance.period.month"
+        }
+    }
+
+    // MARK: 收入来源（分类 chip + 汇总数字 + 明细）
 
     private var sourcesSection: some View {
-        let summaries = IncomeSourceSummary.compute(
-            performances: performances,
-            range: (Date().startOfMonth, Date().endOfDay)
-        )
+        let summaries = sourceSummaries
+        let summary = V38SourceSummary.make(summaries: summaries, selection: sourceSelection)
         let active = summaries.filter { $0.amount > 0 }
-        return VStack(alignment: .leading, spacing: 8) {
-            SectionHeader("收入来源")
-            GroupSurface {
-                if active.isEmpty {
+        return VStack(alignment: .leading, spacing: 12) {
+            V38HomeSectionHeader(title: "收入来源")
+            if summary.total <= 0 {
+                GroupSurface {
                     EmptyState(icon: "chart.bar", title: "本月暂无收入", message: "记录第一笔收入开始统计")
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(V371.Space.rowPadding)
-                } else {
+                }
+            } else {
+                V38ChipSelector(
+                    options: V38SourceSelection.allCases,
+                    selection: $sourceSelection,
+                    title: { $0.title },
+                    identifier: { $0.identifier }
+                )
+                // 分类汇总数字：切换 chip 时 numericText 滚动过渡（规格 §4）。
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(sourceSelection == .all ? "本月总收入" : "\(sourceSelection.title)收入")
+                        .font(V371.Typography.rowSubtitle)
+                        .foregroundStyle(V371.Colors.textTertiary)
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        Text(Fmt.money(summary.amount))
+                            .font(V38PerformanceStyle.summaryAmount)
+                            .foregroundStyle(V371.Colors.textPrimary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                            .contentTransition(.numericText())
+                            .animation(
+                                V38MotionTokens.animation(for: .contentChange, reduceMotion: reduceMotion),
+                                value: summary.amount
+                            )
+                            .accessibilityIdentifier("v38.performance.sourceAmount")
+                        if sourceSelection != .all {
+                            Text("占 \(String(format: "%.0f%%", summary.ratio * 100))")
+                                .font(V371.Typography.badge)
+                                .foregroundStyle(V371.Colors.textTertiary)
+                        }
+                    }
+                }
+                GroupSurface {
                     ForEach(Array(active.enumerated()), id: \.element.id) { index, item in
                         if index > 0 { V371Divider() }
                         let ratioText = "占 \(String(format: "%.0f%%", item.ratio * 100))"
@@ -319,11 +373,64 @@ struct PerformanceView: View {
         }
     }
 
+    // MARK: 月目标
+
+    private var goalSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            V38HomeSectionHeader(title: "月目标")
+            GroupSurface {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(Fmt.money(monthRevenue))
+                            .font(V371.Typography.rowTitle)
+                            .foregroundStyle(V371.Colors.textPrimary)
+                            .monospacedDigit()
+                            .contentTransition(.numericText())
+                        Text("/ 目标 \(Fmt.money(monthGoal))")
+                            .font(V371.Typography.rowSubtitle)
+                            .foregroundStyle(V371.Colors.textTertiary)
+                        Spacer(minLength: 8)
+                        Text("\(Int((goalProgress * 100).rounded()))%")
+                            .font(V371.Typography.badge)
+                            .foregroundStyle(V38PerformanceStyle.accent)
+                            .monospacedDigit()
+                    }
+                    GeometryReader { proxy in
+                        Capsule()
+                            .fill(V371.Colors.groupSecondary)
+                            .overlay(alignment: .leading) {
+                                Capsule()
+                                    .fill(V38PerformanceStyle.accent)
+                                    .frame(width: proxy.size.width * goalProgress)
+                            }
+                    }
+                    .frame(height: 6)
+                    .animation(V371.Motion.progressWidth(reduceMotion: reduceMotion), value: goalProgress)
+                    .accessibilityElement()
+                    .accessibilityLabel("月目标完成 \(Int((goalProgress * 100).rounded()))%")
+                    V371Divider(leading: 0)
+                    HStack {
+                        Text("本年累计")
+                            .font(V371.Typography.rowSubtitle)
+                            .foregroundStyle(V371.Colors.textTertiary)
+                        Spacer(minLength: 8)
+                        Text(Fmt.money(yearRevenue))
+                            .font(V371.Typography.rowTitle)
+                            .foregroundStyle(V371.Colors.textPrimary)
+                            .monospacedDigit()
+                            .contentTransition(.numericText())
+                    }
+                }
+                .padding(V371.Space.rowPadding)
+            }
+        }
+    }
+
     // MARK: 近期记录
 
     private var recordsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            SectionHeader("近期记录")
+        VStack(alignment: .leading, spacing: 12) {
+            V38HomeSectionHeader(title: "近期记录")
             if records.isEmpty {
                 GroupSurface {
                     VStack(spacing: 12) {
