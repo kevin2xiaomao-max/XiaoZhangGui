@@ -48,9 +48,12 @@ final class V39HomeContractTests: XCTestCase {
     }
 
     func testV39StyleTokensExist() throws {
+        // V3.9 PR-F:颜色单源在 DesignSystem 层 V39Palette,Home 侧 V39Style 转发。
         let style = try source("XiaoZhangGui/Features/Home/V39/V39Style.swift")
-        for token in ["static let gold", "heroGradient", "canvasGradient", "clampedProgress"] {
-            XCTAssertTrue(style.contains(token), "V39 令牌缺失:\(token)")
+        XCTAssertTrue(style.contains("V39Palette.gold"), "V39Style 必须转发 V39Palette 单源色")
+        let palette = try source("XiaoZhangGui/DesignSystem/V39/V39Palette.swift")
+        for token in ["static let gold", "heroGradient", "canvasGradientDark", "canvasGradientLight"] {
+            XCTAssertTrue(palette.contains(token), "V39Palette 令牌缺失:\(token)")
         }
     }
 

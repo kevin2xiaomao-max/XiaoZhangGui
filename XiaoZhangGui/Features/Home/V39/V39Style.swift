@@ -8,7 +8,9 @@ import UIKit
 // - 夜蓝渐变画布 + 香槟金强调（替代 V3.8 暖白/经营绿的单色系）
 // - 玻璃卡片浮于渐变之上（复用 V38HomeGlassSurface 三档降级：RT 实色 / 旧系统材质）
 // - 数字排版全面 Rounded + 等宽（掌柜 App 的门面是数字）
-// - 信息密度补齐：目标环 / 统计 chips / 近7日趋势 / 收入来源 一屏可见
+//
+// V3.9 PR-F：颜色与渐变已上移到 DesignSystem 层 `V39Palette`（全 App 单源，
+// 供 v371Canvas 升级与各页共用）；本文件保留 Home 侧语义别名与组件级约定。
 //
 // 约束（延续 V3.8 红线）：
 // - 动态字体：文本用语义样式，展示型大数字由调用点 @ScaledMetric 随动
@@ -16,59 +18,22 @@ import UIKit
 // - 无障碍标识符契约不变（v38.home.* / home.* 全保留）
 
 enum V39Style {
-    // MARK: 配色（跨明暗单源：UIColor 动态提供者）
+    // MARK: 配色（单源转发 V39Palette，保持 Home 侧 API 不变）
 
-    private static func adaptive(light: UIColor, dark: UIColor) -> Color {
-        Color(UIColor { trait in
-            trait.userInterfaceStyle == .dark ? dark : light
-        })
-    }
+    /// 香槟金（金额/目标/上涨语义；状态色不归它管）。
+    static var gold: Color { V39Palette.gold }
 
-    /// 香槟金：Dark #E7C983（暖金）/ Light #A97E2F（深金，保证对比度）。
-    static let gold = adaptive(
-        light: UIColor(red: 0.663, green: 0.494, blue: 0.184, alpha: 1),
-        dark: UIColor(red: 0.906, green: 0.788, blue: 0.514, alpha: 1)
-    )
+    /// 夜蓝（Light 深蓝 / Dark 浅蓝，同语义双值）。
+    static var navy: Color { V39Palette.navy }
 
-    /// 夜蓝（Light 模式下作为主要文字/柱形色）。
-    static let navy = adaptive(
-        light: UIColor(red: 0.11, green: 0.14, blue: 0.25, alpha: 1),
-        dark: UIColor(red: 0.82, green: 0.85, blue: 0.94, alpha: 1)
-    )
+    /// Dark 画布渐变：夜蓝深邃（同 V39Palette.canvasGradientDark）。
+    static var canvasGradient: LinearGradient { V39Palette.canvasGradientDark }
 
-    /// 画布渐变（页面背景）：Dark 夜蓝深邃 / Light 冰蓝珍珠。
-    static var canvasGradient: LinearGradient {
-        let dark = Color(red: 0.09, green: 0.11, blue: 0.20)
-        let darkDeep = Color(red: 0.043, green: 0.059, blue: 0.122)
-        let light = Color(red: 0.943, green: 0.955, blue: 0.976)
-        let lightDeep = Color(red: 0.876, green: 0.897, blue: 0.933)
-        return LinearGradient(
-            colors: [dark, darkDeep],
-            startPoint: .top, endPoint: .bottom
-        )
-    }
-
-    /// Light 画布渐变（与 canvasGradient 按环境选择，见 V39Canvas）。
-    static var canvasGradientLight: LinearGradient {
-        LinearGradient(
-            colors: [
-                Color(red: 0.943, green: 0.955, blue: 0.976),
-                Color(red: 0.876, green: 0.897, blue: 0.933),
-            ],
-            startPoint: .top, endPoint: .bottom
-        )
-    }
+    /// Light 画布渐变：冰蓝珍珠。
+    static var canvasGradientLight: LinearGradient { V39Palette.canvasGradientLight }
 
     /// Hero 主卡渐变（深空蓝，明暗通用，数字/金字在其上高对比）。
-    static var heroGradient: LinearGradient {
-        LinearGradient(
-            colors: [
-                Color(red: 0.157, green: 0.184, blue: 0.325),
-                Color(red: 0.078, green: 0.098, blue: 0.219),
-            ],
-            startPoint: .topLeading, endPoint: .bottomTrailing
-        )
-    }
+    static var heroGradient: LinearGradient { V39Palette.heroGradient }
 
     /// 涨（金）/ 跌（沿用既有告警红语义）。
     static var changeUp: Color { gold }
@@ -86,26 +51,11 @@ enum V39Style {
     }
 }
 
-// MARK: - 页面画布（替换首页的 v371Canvas）
+// MARK: - 页面画布
 
-/// V3.9 首页画布：按明暗铺夜蓝/冰蓝渐变（等效 v371Canvas 的忽略安全区铺底）。
-struct V39Canvas: ViewModifier {
-    @Environment(\.colorScheme) private var colorScheme
-
-    func body(content: Content) -> some View {
-        content.background(
-            Group {
-                if colorScheme == .dark {
-                    V39Style.canvasGradient
-                } else {
-                    V39Style.canvasGradientLight
-                }
-            }
-            .ignoresSafeArea()
-        )
-    }
-}
-
+/// V3.9 PR-F：v39Canvas 与升级后的 v371Canvas 同源（主题感知：
+/// 壁纸/自选主题原样生效，仅默认底色升级为夜蓝/冰蓝渐变）。
+/// Home 用本入口表达「V3.9 画布」语义，行为与其他 19 页完全一致。
 extension View {
-    func v39Canvas() -> some View { modifier(V39Canvas()) }
+    func v39Canvas() -> some View { v371Canvas() }
 }

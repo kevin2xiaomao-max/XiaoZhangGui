@@ -178,10 +178,10 @@ struct PerformanceView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("本月营业额")
                 .font(V38PerformanceStyle.heroLabel)
-                .foregroundStyle(V371.Colors.textSecondary)
+                .foregroundStyle(.white.opacity(0.72))
             Text(Fmt.money(monthRevenue))
                 .font(V38PerformanceStyle.heroAmount)
-                .foregroundStyle(V371.Colors.textPrimary)
+                .foregroundStyle(.white)
                 .lineLimit(1)
                 .minimumScaleFactor(0.58)
                 .contentTransition(.numericText())
@@ -192,7 +192,19 @@ struct PerformanceView: View {
             heroInfo
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 8)
+        .padding(18)
+        // V3.9 PR-F:与首页 V39HeroCard 同语言——深空蓝渐变 + 金色包边 + 右上柔光。
+        .background(
+            ZStack {
+                V39Palette.heroGradient
+                V39Palette.heroGlow.blendMode(.plusLighter)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .strokeBorder(V39Palette.heroStroke, lineWidth: 1)
+        )
         .accessibilityIdentifier("v38.performance.hero")
     }
 
@@ -200,10 +212,10 @@ struct PerformanceView: View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text("今日")
                 .font(V371.Typography.rowSubtitle)
-                .foregroundStyle(V371.Colors.textTertiary)
+                .foregroundStyle(.white.opacity(0.6))
             Text(Fmt.money(todayRevenue))
                 .font(V38PerformanceStyle.secondaryAmount)
-                .foregroundStyle(V371.Colors.textPrimary)
+                .foregroundStyle(.white)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
                 .contentTransition(.numericText())
@@ -229,6 +241,7 @@ struct PerformanceView: View {
 
     @ViewBuilder
     private var changeBadge: some View {
+        // V3.9 PR-F:徽标配色换 V39 语义——涨 = 香槟金,跌 = 柔红,在深空蓝卡上高对比。
         if let change = changePercent {
             HStack(spacing: 4) {
                 Image(systemName: change >= 0 ? "arrow.up.right" : "arrow.down.right")
@@ -236,14 +249,18 @@ struct PerformanceView: View {
                 Text("\(String(format: "%.1f", abs(change)))% 较昨日")
                     .font(V371.Typography.badge)
             }
-            .foregroundStyle(change >= 0 ? V371.Colors.green : V371.Colors.red)
+            .foregroundStyle(change >= 0 ? V39Style.changeUp : V39Style.changeDown)
             .padding(.horizontal, 9)
             .padding(.vertical, 5)
-            .background(Capsule().fill(V371.Colors.tinted(change >= 0 ? V371.Colors.green : V371.Colors.red)))
+            .background(
+                Capsule().fill(
+                    (change >= 0 ? V39Style.changeUp : V39Style.changeDown).opacity(0.2)
+                )
+            )
         } else {
             Text("暂无昨日对比")
                 .font(V371.Typography.badge)
-                .foregroundStyle(V371.Colors.textTertiary)
+                .foregroundStyle(.white.opacity(0.6))
         }
     }
 

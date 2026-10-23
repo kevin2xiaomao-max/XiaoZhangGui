@@ -48,7 +48,12 @@ struct V38HomeSectionHeader: View {
     var trailing: String? = nil
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            // V3.9 PR-F:与全 App SectionHeader 同款金色签名竖条。
+            Capsule()
+                .fill(V39Palette.headerTick)
+                .frame(width: 4, height: 16)
+                .accessibilityHidden(true)
             Text(title)
                 .font(V38HomeStyle.sectionTitle)
                 .foregroundStyle(.primary)
@@ -59,7 +64,7 @@ struct V38HomeSectionHeader: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel(title)
     }
 }

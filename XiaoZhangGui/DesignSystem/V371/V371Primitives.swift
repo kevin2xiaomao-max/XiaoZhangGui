@@ -113,7 +113,13 @@ struct SectionHeader<Trailing: View>: View {
     }
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            // V3.9 PR-F：金色小竖条 = 全 App 统一的「高级感签名」。
+            // 4×16 圆角竖条,与标题基线对齐;无障碍隐藏(纯装饰)。
+            Capsule()
+                .fill(V39Palette.headerTick)
+                .frame(width: 4, height: 16)
+                .accessibilityHidden(true)
             Text(title)
                 .font(V371.Typography.sectionTitle)
                 .foregroundStyle(V371.Colors.textPrimary)

@@ -249,14 +249,33 @@ private extension UIColor {
 // MARK: - Canvas / Dock 安全区 Modifier
 
 /// S0 页面底色。
+///
+/// V3.9 PR-F：默认底色升级为夜蓝/冰蓝渐变（设计语言统一,全 App 19 页一处生效）。
+/// 主题系统兼容（红线:不删除 V3.7.1 稳定能力）：
+/// - 用户开启壁纸 → 壁纸原样生效（分支不变）
+/// - 用户选择非默认背景主题 → 该主题原样生效
+/// - 仅「默认暖米」背景升级为 V39Palette 渐变（Light 冰蓝 / Dark 夜蓝）
 struct V371CanvasModifier: ViewModifier {
     @Environment(ThemeStore.self) private var themeStore
+    @Environment(\.colorScheme) private var colorScheme
 
     func body(content: Content) -> some View {
         if themeStore.wallpaper.isEnabled {
             content.background {
                 V32WallpaperBackground()
             }
+        } else if themeStore.backgroundTheme == BackgroundTheme.default {
+            // V3.9：默认底色 = 渐变画布（高级质感,明暗各自一档）。
+            content.background(
+                Group {
+                    if colorScheme == .dark {
+                        V39Palette.canvasGradientDark
+                    } else {
+                        V39Palette.canvasGradientLight
+                    }
+                }
+                .ignoresSafeArea()
+            )
         } else {
             content.background(themeStore.backgroundPalette.pageBG.ignoresSafeArea())
         }
