@@ -280,6 +280,36 @@ jobs:
           if [ -d "$RUNNER_TEMP/xzg-ios-v38-motion.xcresult" ]; then
             (cd "$RUNNER_TEMP" && zip -qry "$GITHUB_WORKSPACE/artifacts/V38-Motion-Test.xcresult.zip" xzg-ios-v38-motion.xcresult)
           fi
+      # Font-scale branch only (ios/v38-font-scale-shots; NOT merged back):
+      # export XCTAttachment screenshots (font-<category>-<page>) and the
+      # font-report text attachments from the main test result bundle so
+      # they can be reviewed without the full .xcresult. Never gates the run.
+      - name: Export font-scale screenshot attachments
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -uo pipefail
+          BUNDLE="$RUNNER_TEMP/xzg-ios-v38-test.xcresult"
+          if [ ! -d "$BUNDLE" ]; then echo "result bundle not found: $BUNDLE"; exit 0; fi
+          mkdir -p artifacts/font-attachments
+          xcrun xcresulttool export attachments \
+            --path "$BUNDLE" \
+            --output-path artifacts/font-attachments \
+            > artifacts/font-attachments-export.log 2>&1 || {
+              echo "xcresulttool export attachments failed; see artifacts/font-attachments-export.log"
+              tail -n 40 artifacts/font-attachments-export.log || true
+              exit 0
+            }
+          find artifacts/font-attachments -type f | head -60
+      - name: Upload font screenshots
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: font-screenshots-${{ github.sha }}
+          path: artifacts/font-attachments/
+          if-no-files-found: warn
       - name: Build unsigned IPA (rebuild R1+)
         # V3.8 重建：每阶段产出可编译的完整 unsigned IPA（CI 产物，不签名、不发布）。
         # 用户用已有手机签名工具自行尝试安装；此步骤不涉及任何签名证书。
