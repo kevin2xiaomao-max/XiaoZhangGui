@@ -22,11 +22,24 @@ enum V38HomeStyle {
     }
 
     /// Section 标题（"今天的经营" / "问小掌柜" / "今日事项"）。
-    static let sectionTitle: Font = .system(size: 20, weight: .bold, design: .default)
-    /// Hero 金额：54pt SF Rounded 等宽。
+    /// V3.8 PR-D C3：20pt == .title3 默认字号，语义样式获得动态字体缩放。
+    static let sectionTitle: Font = .title3.weight(.bold)
+    /// Hero 金额：54pt SF Rounded 等宽（展示型大数字，基准值）。
+    /// V3.8 PR-D C3：调用点（HomeView）用 @ScaledMetric 随动放大，见 scaledHeroAmount(size:)。
     static let heroAmount: Font = .system(size: 54, weight: .semibold, design: .rounded).monospacedDigit()
-    /// 日期大数字。
+    /// 日期大数字（展示型基准值，调用点随动见 scaledDateNumber(size:)）。
     static let dateNumber: Font = .system(size: 64, weight: .bold, design: .default)
+
+    /// V3.8 PR-D C3：随动 Hero 金额——Token 层无法用 @ScaledMetric，
+    /// 展示型大数字由调用点传入 @ScaledMetric 缩放后的字号。
+    static func scaledHeroAmount(size: CGFloat) -> Font {
+        .system(size: size, weight: .semibold, design: .rounded).monospacedDigit()
+    }
+
+    /// V3.8 PR-D C3：随动日期大数字。
+    static func scaledDateNumber(size: CGFloat) -> Font {
+        .system(size: size, weight: .bold, design: .default)
+    }
 }
 
 /// V3.8 Home Section 标题行（标题 + 可选尾部标签）。

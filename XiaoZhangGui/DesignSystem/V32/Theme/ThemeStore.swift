@@ -120,7 +120,7 @@ final class ThemeStore {
                 try WallpaperStorage.saveJPEGData(blurredData, fileName: blurredName)
             } catch {
                 // 预渲染失败不阻塞，V32WallpaperBackground 会回退到 .blur
-                print("壁纸预渲染模糊版本失败：\(error.localizedDescription)")
+                AppLog.theme.error("壁纸预渲染模糊版本失败：\(error.localizedDescription)")
             }
         }
         // 4. 更新配置（此刻起当前壁纸已是新文件）

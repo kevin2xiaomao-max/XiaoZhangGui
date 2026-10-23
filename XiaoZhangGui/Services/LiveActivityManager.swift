@@ -11,7 +11,7 @@ enum LiveActivityManager {
     static func startIfNeeded(snapshot: BusinessSnapshot) {
         let enabled = ActivityAuthorizationInfo().areActivitiesEnabled
         #if DEBUG
-        print("[LiveActivity] areActivitiesEnabled = \(enabled)")
+        AppLog.liveActivity.info("areActivitiesEnabled = \(enabled, privacy: .public)")
         #endif
         guard enabled else { return }
         let attributes = BusinessActivityAttributes(dayStart: Date().startOfDay)
@@ -31,11 +31,11 @@ enum LiveActivityManager {
                 content: .init(state: state(from: snapshot), staleDate: Calendar.current.date(byAdding: .day, value: 1, to: Date().startOfDay))
             )
             #if DEBUG
-            print("[LiveActivity] Activity.request 成功, id = \(activity.id)")
+            AppLog.liveActivity.info("Activity.request 成功, id = \(activity.id, privacy: .public)")
             #endif
         } catch {
             #if DEBUG
-            print("[LiveActivity] Activity.request 失败: \(error.localizedDescription) (\(error))")
+            AppLog.liveActivity.error("Activity.request 失败: \(error.localizedDescription, privacy: .public)")
             #endif
         }
     }

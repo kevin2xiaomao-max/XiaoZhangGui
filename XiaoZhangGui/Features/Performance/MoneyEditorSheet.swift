@@ -4,6 +4,21 @@ import SwiftData
 // MARK: - 记收入/记支出 编辑器（原生 Form + Mode 三态）
 // 写入逻辑（Repository add/update）原样保留，只换原生 Form 与 toolbar 样式。
 
+/// V3.8 PR-D C1：金额文本解析与有效性（纯函数，可单测）。
+enum MoneyAmountText {
+    /// 解析金额：容忍千分位逗号；非数字 / ≤0 视为无效返回 nil。
+    static func parse(_ text: String) -> Double? {
+        let cleaned = text.replacingOccurrences(of: ",", with: "")
+        guard let value = Double(cleaned), value > 0 else { return nil }
+        return value
+    }
+
+    /// 是否需要「无效金额」行内提示：已输入但解析不出有效金额。
+    static func needsInvalidHint(_ text: String) -> Bool {
+        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && parse(text) == nil
+    }
+}
+
 struct MoneyEditorSheet: View {
     enum Mode {
         case new(NewMoneyKind)
@@ -22,6 +37,13 @@ struct MoneyEditorSheet: View {
     @State private var date = Date()
     @State private var incomeSource: IncomeSource = .store
     @State private var saveError: String?
+    /// V3.8 PR-D C1：金额输入焦点——decimalPad 无回车键，键盘栏补「完成」收起。
+    @FocusState private var amountFocused: Bool
+
+    /// V3.8 PR-D C1：已输入但无效（非数字 / ≤0）时行内提示，不再静默置灰保存。
+    private var showsInvalidAmountHint: Bool {
+        MoneyAmountText.needsInvalidHint(amountText)
+    }
 
     private let incomeSources: [IncomeSource] = IncomeSource.allCases
 
@@ -45,15 +67,13 @@ struct MoneyEditorSheet: View {
     }
 
     private var amount: Double? {
-        let cleaned = amountText.replacingOccurrences(of: ",", with: "")
-        guard let value = Double(cleaned), value > 0 else { return nil }
-        return value
+        MoneyAmountText.parse(amountText)
     }
 
     var body: some View {
         NavigationStack {
             Form {
-                Section(kind == .income ? "收入金额" : "支出金额") {
+                Section {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text("¥")
                             .font(.system(size: 22, weight: .semibold, design: .rounded))
@@ -62,7 +82,16 @@ struct MoneyEditorSheet: View {
                             .font(.system(size: 34, weight: .bold, design: .rounded).monospacedDigit())
                             .keyboardType(.decimalPad)
                             .minimumScaleFactor(0.6)
+                            .focused($amountFocused)
                             .accessibilityLabel(kind == .income ? "收入金额" : "支出金额")
+                    }
+                } header: {
+                    Text(kind == .income ? "收入金额" : "支出金额")
+                } footer: {
+                    // V3.8 PR-D C1：无效金额行内提示（原先只是保存键静默置灰）。
+                    if showsInvalidAmountHint {
+                        Text("请输入大于 0 的有效金额")
+                            .foregroundStyle(V371.Colors.red)
                     }
                 }
 
@@ -95,6 +124,7 @@ struct MoneyEditorSheet: View {
             }
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
+            .scrollDismissesKeyboard(.interactively)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
@@ -102,6 +132,12 @@ struct MoneyEditorSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("保存") { save() }
                         .disabled(amount == nil)
+                }
+                // V3.8 PR-D C1：decimalPad 没有回车键，键盘栏补「完成」收起
+                // （与 VoiceView 输入栏的 Done 同一口径）。
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("完成") { amountFocused = false }
                 }
             }
             .onAppear(perform: loadEditing)

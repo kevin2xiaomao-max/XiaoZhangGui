@@ -331,7 +331,7 @@ struct GoodsView: View {
         if diagOn {
             // 隔离模式诊断：只记录 ID 哈希与数量，不记录业务数据
             let idHash = String(describing: targetID).hashValue
-            print("DIAG-DELETE: targetID_hash=\(idHash) @Query_count=\(allGoods.count)")
+            AppLog.goods.debug("DIAG-DELETE: targetID_hash=\(idHash) @Query_count=\(allGoods.count)")
         }
         #endif
         do {
@@ -340,7 +340,7 @@ struct GoodsView: View {
             #if DEBUG
             if diagOn {
                 let remaining = (try? context.fetch(FetchDescriptor<Goods>())) ?? []
-                print("DIAG-DELETE: 删除成功 DB_count=\(remaining.count) @Query_count=\(allGoods.count)")
+                AppLog.goods.debug("DIAG-DELETE: 删除成功 DB_count=\(remaining.count) @Query_count=\(allGoods.count)")
             }
             #endif
             failedDeleteGoodsID = nil
@@ -351,7 +351,7 @@ struct GoodsView: View {
             deleteError = "商品未删除，请重试。"
             #if DEBUG
             if diagOn {
-                print("DIAG-DELETE: 删除失败已记录 failedDeleteGoodsID")
+                AppLog.goods.debug("DIAG-DELETE: 删除失败已记录 failedDeleteGoodsID")
             }
             #endif
         }
@@ -362,7 +362,7 @@ struct GoodsView: View {
         let diagOn = UITestMode.isEnabled
         if diagOn {
             retryCallCount += 1
-            print("DIAG-RETRY: 调用次数=\(retryCallCount)")
+            AppLog.goods.debug("DIAG-RETRY: 调用次数=\(retryCallCount)")
         }
         #endif
         guard let id = failedDeleteGoodsID else {
@@ -377,7 +377,7 @@ struct GoodsView: View {
             #if DEBUG
             if diagOn {
                 let idHash = String(describing: id).hashValue
-                print("DIAG-RETRY: 查找ID_hash=\(idHash) DB_count=\(all.count) @Query_count=\(allGoods.count)")
+                AppLog.goods.debug("DIAG-RETRY: 查找ID_hash=\(idHash) DB_count=\(all.count) @Query_count=\(allGoods.count)")
             }
             #endif
             if let goods = all.first(where: { $0.persistentModelID == id }) {
@@ -387,7 +387,7 @@ struct GoodsView: View {
                 deleteError = "商品数据异常，无法重试删除。"
                 #if DEBUG
                 if diagOn {
-                    print("DIAG-RETRY: DB中未找到目标")
+                    AppLog.goods.debug("DIAG-RETRY: DB中未找到目标")
                 }
                 #endif
             }

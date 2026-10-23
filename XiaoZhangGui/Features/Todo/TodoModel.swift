@@ -77,4 +77,16 @@ enum TodoFilter {
         case .records: return "暂无备忘"
         }
     }
+
+    /// V3.8 PR-D C1：空态副文案按 tab 语义区分（原先所有 tab 共用同一句，
+    /// 在「已完成」等 tab 语义错位）。口径与 EmptyState 组件一致：一句行动指引。
+    static func emptyMessage(for tab: TodoTab) -> String {
+        switch tab {
+        case .today: return "点右上角 + 安排今天的事"
+        case .tomorrow: return "提前安排，明天更从容"
+        case .overdue: return "继续保持，安排好截止时间就不怕逾期"
+        case .done: return "完成的事项会留档在这里"
+        case .records: return "记下的备忘会出现在这里"
+        }
+    }
 }

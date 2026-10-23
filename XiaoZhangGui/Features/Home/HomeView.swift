@@ -38,6 +38,10 @@ struct HomeView: View {
     @State private var aiExpanded = false
     @State private var quickExpanded = false
 
+    // V3.8 PR-D C3：展示型大数字随系统动态字体档位缩放（基准确认默认视觉不变）。
+    @ScaledMetric(relativeTo: .largeTitle) private var heroAmountSize: CGFloat = 54
+    @ScaledMetric(relativeTo: .largeTitle) private var dateNumberSize: CGFloat = 64
+
     private var summary: TodaySummary {
         TodaySummary.build(performances: performances, todos: todos, customers: customers, expiryItems: expiryItems)
     }
@@ -103,7 +107,7 @@ struct HomeView: View {
         HStack(alignment: .top) {
             HStack(alignment: .top, spacing: 12) {
                 Text("\(Calendar.current.component(.day, from: Date()))")
-                    .font(V38HomeStyle.dateNumber)
+                    .font(V38HomeStyle.scaledDateNumber(size: dateNumberSize))
                     .foregroundStyle(.primary)
                     .accessibilityLabel("\(Date(), format: .dateTime.month().day().weekday(.wide))")
                 VStack(alignment: .leading, spacing: 4) {
@@ -176,7 +180,7 @@ struct HomeView: View {
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(V38HomeStyle.heroSecondary)
                     Text("¥" + Fmt.groupedAmount(summary.revenue))
-                        .font(V38HomeStyle.heroAmount)
+                        .font(V38HomeStyle.scaledHeroAmount(size: heroAmountSize))
                         .tracking(-1.5)
                         .foregroundStyle(.white)
                         .lineLimit(1)

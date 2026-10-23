@@ -70,25 +70,31 @@ enum V371 {
         static let rowPadding: CGFloat = 14
     }
 
-    // MARK: - Typography（系统字体，层级靠 size/weight/spacing）
+    // MARK: - Typography（V3.8 PR-D C3：语义文字样式映射）
+    //
+    // 原 `.system(size:)` 固定字号不响应系统动态字体（Dynamic Type），
+    // 且与同屏系统语义字体（.subheadline 等会缩放）混用导致特大字号层级倒挂。
+    // 现映射到**默认字号完全相同**的语义样式（15=subheadline、17=headline、
+    // 16=callout、13=footnote、12=caption），默认视觉零变化，获得全档缩放；
+    // 展示型大数字（heroNumber 等）保持固定（数据展示用途 + minimumScaleFactor）。
 
     enum Typography {
-        /// Hero 大数字
+        /// Hero 大数字（展示型：固定 44pt，等宽数字；随动字体见各页 @ScaledMetric 用法）
         static let heroNumber: Font = .system(size: 44, weight: .bold, design: .rounded).monospacedDigit()
-        /// Hero 标题
-        static let heroTitle: Font = .system(size: 15, weight: .semibold)
-        /// Section 标题
-        static let sectionTitle: Font = .system(size: 17, weight: .semibold)
-        /// 行标题
-        static let rowTitle: Font = .system(size: 16, weight: .medium)
-        /// 行副标题
-        static let rowSubtitle: Font = .system(size: 13, weight: .regular)
-        /// 时间列
-        static let time: Font = .system(size: 13, weight: .semibold).monospacedDigit()
-        /// Badge
-        static let badge: Font = .system(size: 12, weight: .semibold)
-        /// 快捷入口 label
-        static let quickAction: Font = .system(size: 12, weight: .medium)
+        /// Hero 标题（15 → subheadline）
+        static let heroTitle: Font = .subheadline.weight(.semibold)
+        /// Section 标题（17 semibold → headline，默认字号一致）
+        static let sectionTitle: Font = .headline
+        /// 行标题（16 → callout）
+        static let rowTitle: Font = .callout.weight(.medium)
+        /// 行副标题（13 → footnote）
+        static let rowSubtitle: Font = .footnote
+        /// 时间列（13 → footnote + 等宽数字）
+        static let time: Font = .footnote.weight(.semibold).monospacedDigit()
+        /// Badge（12 → caption）
+        static let badge: Font = .caption.weight(.semibold)
+        /// 快捷入口 label（12 → caption）
+        static let quickAction: Font = .caption.weight(.medium)
     }
 
     // MARK: - Shadow（柔软浮层感，不厚重；行不加 shadow）
