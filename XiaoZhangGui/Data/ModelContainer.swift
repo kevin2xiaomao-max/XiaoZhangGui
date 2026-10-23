@@ -17,6 +17,25 @@ enum AppDatabase {
         Goods.self,
     ])
 
+    // MARK: - V3.8 PR-C：App Intent 进程内容器缓存
+    //
+    // App Intent（Siri 快捷指令）每次执行原先都 makeContainer() 重新打开 store；
+    // Widget 扩展侧 WidgetIntentStore 早已用同思路缓存。Intent 均在主线程
+    // perform，缓存只在 MainActor 读写，无并发风险。
+
+    @MainActor
+    private static var intentContainerCache: ModelContainer?
+
+    /// App Intent 专用：取缓存容器；首次调用才真实构建（走 makeContainer 的
+    /// 全部安全回退与失败抛错语义，成功才缓存）。
+    @MainActor
+    static func makeCachedContainer() throws -> ModelContainer {
+        if let intentContainerCache { return intentContainerCache }
+        let container = try makeContainer()
+        intentContainerCache = container
+        return container
+    }
+
     /// 生产入口：只允许返回「可持久化」的容器。
     /// - App Group store 失败：安全 fallback 到 App sandbox 持久 store，并留下可检测标记。
     /// - 两个持久 store 都失败：抛出错误，由 UI 明确告知「数据存储暂不可用」。

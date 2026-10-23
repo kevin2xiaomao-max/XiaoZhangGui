@@ -19,7 +19,34 @@ enum SnapshotSyncManager {
         refreshAll(context: context)
     }
 
-    /// 仅当快照构建成功才落盘 / 刷新 Widget / 更新 Live Activity。
+    // MARK: - V3.8 PR-C：写路径合并刷新（trailing-edge 去抖）
+
+    private static let refreshDebouncer = SnapshotRefreshDebouncer()
+
+    /// Repository 写成功后的合并刷新入口：250ms 静默窗口内的多次写合并为一次
+    /// 全量快照 + Widget reload + Live Activity 更新；**最后一次写必然最终同步**
+    /// （trailing edge 永远执行）。需要立即生效的调用方（scenePhase 兜底、
+    /// 批量导入收尾、App Intent 单发场景）用 `flushDebouncedRefresh()` /
+    /// `refreshAll`，二者都会使在途预约失效，不会二次刷新。
+    static func scheduleDebouncedRefresh(context: ModelContext) {
+        let container = context.container
+        refreshDebouncer.schedule {
+            refreshAll(container: container)
+        }
+    }
+
+    /// 立即落地挂起的合并刷新（有挂起返回 true；无挂起为 no-op）。
+    @discardableResult
+    static func flushDebouncedRefresh() -> Bool {
+        refreshDebouncer.flushNow()
+    }
+
+    /// 仅当还有挂起的合并刷新（供测试与兜底判断）。
+    static var hasDebouncedRefreshPending: Bool {
+        refreshDebouncer.hasPendingFlush
+    }
+
+    /// 仅当成功构建完整快照才落盘 / 刷新 Widget / 更新 Live Activity。
     /// snapshot == nil（查询失败）时直接保留上一次有效快照，绝不用空数据清零。
     static func commit(snapshot: BusinessSnapshot?) {
         guard let snapshot else { return }

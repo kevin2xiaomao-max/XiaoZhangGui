@@ -29,21 +29,25 @@ struct AddTodoIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        guard !title.trimmingCharacters(in: .whitespaces).isEmpty else {
+        guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return .result(dialog: "待办内容不能为空")
         }
-        let container = try AppDatabase.makeContainer()
+        // V3.8 PR-C：
+        // - 复用 TodoRepository.add（原先手写 insert+save+通知+刷新，逻辑与
+        //   Repository 重复，存在口径漂移风险）；通知 / 优先级 / 截止时间语义不变。
+        // - makeCachedContainer：Intent 进程内容器缓存，不再每次重开 store。
+        // - Intent 是单发场景，flushDebouncedRefresh 立即落地 Repository 预约的
+        //   合并刷新（替代原先 Repository 刷新 + 手动 refreshAll 的双重刷新）。
+        let container = try AppDatabase.makeCachedContainer()
         let context = ModelContext(container)
-        let todo = Todo(
-            title: title.trimmingCharacters(in: .whitespaces),
+        try TodoRepository(context: context).add(
+            title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+            detail: "",
             dueDate: dueToday ? Date().endOfDay : nil,
             priority: min(max(priority, 0), 2)
         )
-        context.insert(todo)
-        try context.save()
-        NotificationManager.scheduleTodo(todo)
-        SnapshotSyncManager.refreshAll(container: container)
-        return .result(dialog: "已新增待办：\(todo.title)")
+        SnapshotSyncManager.flushDebouncedRefresh()
+        return .result(dialog: "已新增待办：\(title.trimmingCharacters(in: .whitespacesAndNewlines))")
     }
 }
 
@@ -69,10 +73,17 @@ struct RecordRevenueIntent: AppIntent {
         guard amount > 0 else {
             return .result(dialog: "金额需要大于 0")
         }
-        let container = try AppDatabase.makeContainer()
+        // V3.8 PR-C：容器缓存 + flush 立即落地（消除与 Repository 的双重刷新）；
+        // 收入来源按备注派生（与 P0-A1 修复后的录入链路口径一致）。
+        let container = try AppDatabase.makeCachedContainer()
         let context = ModelContext(container)
-        try PerformanceRepository(context: context).add(amount: amount, note: note, date: Date())
-        SnapshotSyncManager.refreshAll(container: container)
+        try PerformanceRepository(context: context).add(
+            amount: amount,
+            note: note,
+            date: Date(),
+            incomeSource: IncomeSource.from(note: note)
+        )
+        SnapshotSyncManager.flushDebouncedRefresh()
         return .result(dialog: "已记录营业额 ¥\(String(format: "%.2f", amount))")
     }
 }
@@ -99,10 +110,11 @@ struct AddMemoIntent: AppIntent {
         guard !title.trimmingCharacters(in: .whitespaces).isEmpty else {
             return .result(dialog: "记录标题不能为空")
         }
-        let container = try AppDatabase.makeContainer()
+        // V3.8 PR-C：容器缓存 + flush 立即落地（消除与 Repository 的双重刷新）。
+        let container = try AppDatabase.makeCachedContainer()
         let context = ModelContext(container)
         try MemoRepository(context: context).add(title: title, content: content)
-        SnapshotSyncManager.refreshAll(container: container)
+        SnapshotSyncManager.flushDebouncedRefresh()
         return .result(dialog: "已记下记录：\(title)")
     }
 }
