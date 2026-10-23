@@ -111,7 +111,8 @@ struct PerformanceView: View {
         .v371Canvas()
         // V3.8.1 P0-2：共享浮动 Tab 栏底部避让（safeAreaInset，非内容内 Spacer）。
         .v32PageBottomInset()
-        .navigationTitle("经营数据")
+        // V3.8 P1-B2：标题与 Tab 口径统一为「经营」（Tab/首页入口/页面标题三处一致）。
+        .navigationTitle("经营")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
@@ -263,7 +264,7 @@ struct PerformanceView: View {
                         .accessibilityIdentifier("v38.performance.chart")
                     V371Divider(leading: 0)
                     HStack(alignment: .firstTextBaseline) {
-                        Text(chartPeriod == .month ? "近30日合计" : "近7日合计")
+                        Text(chartPeriod.trendTotalLabel)
                             .font(V371.Typography.rowSubtitle)
                             .foregroundStyle(V371.Colors.textTertiary)
                         Spacer(minLength: 8)
@@ -530,7 +531,8 @@ private struct PerformanceRecordRow: View {
                 Image(systemName: "trash")
                     .font(.system(size: 14))
                     .foregroundStyle(V371.Colors.textTertiary)
-                    .frame(width: 32, height: 44)
+                    // V3.8 P1-B2：删除命中区提到 44×44pt 最低触控标准（原 32×44 易误触漏触）。
+                    .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)

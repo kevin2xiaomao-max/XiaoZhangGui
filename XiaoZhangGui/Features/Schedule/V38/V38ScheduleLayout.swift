@@ -105,4 +105,15 @@ enum V38ScheduleLayout {
         rows(month: month, calendar: calendar, selectedDate: selectedDate, density: .week)
             .first { $0.containsSelectedDate }
     }
+
+    /// V3.8 P1-B1：ghost 行「二次沉降」的最终展示形态（纯函数，可单测）。
+    ///
+    /// 锚点过渡期间 ghost 行保留高度（保证选中格像素位置不变）；
+    /// 过渡完成（`weekSettled == true`）后 ghost 行按 collapsed 收起，
+    /// 消除周密度稳态下选中行上方的大片透明空白。
+    /// 月密度不受影响（本来全为 full）。
+    static func settledPresentation(for row: WeekRow, density: V38ScheduleDensity, weekSettled: Bool) -> RowPresentation {
+        guard density == .week, weekSettled, row.presentation == .ghost else { return row.presentation }
+        return .collapsed
+    }
 }

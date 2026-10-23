@@ -36,6 +36,16 @@ struct ScheduleView: View {
     @State private var showCustomer = false
     @State private var showMemo = false
     @State private var showPerformance = false
+    /// V3.8 P1-B1：日历页原生「+」新建待办，预填当前选中日期。
+    @State private var showNewTodo = false
+    /// V3.8 P1-B1：勾选待办复用 TodoView 的两段式持久化状态机（G5：持久化前不宣告成功）。
+    @State private var toggleMachines: [PersistentIdentifier: V38PageMotionState] = [:]
+    @State private var togglingIDs: Set<PersistentIdentifier> = []
+    @State private var failedToggleTodo: Todo?
+    /// V3.8 P1-B1：周密度 ghost 行「二次沉降」——锚点过渡完成后收起选中行上方的
+    /// 透明占位行，消除月末第 5 周约 190pt 的稳态空白；过渡期间锚点不变量不受影响。
+    @State private var weekGhostSettled = false
+    @State private var ghostSettleTask: Task<Void, Never>?
 
     /// 周一起始（日程周条用）
     private var calendar: Calendar {
@@ -114,17 +124,56 @@ struct ScheduleView: View {
         // V3.8.1 P0-2：共享浮动 Tab 栏底部避让（safeAreaInset，非内容内 Spacer）。
         .v32PageBottomInset()
         .alert("操作失败", isPresented: Binding(get: { stateActionError != nil }, set: { if !$0 { stateActionError = nil } })) {
-            Button("知道了", role: .cancel) { stateActionError = nil }
+            Button("重试") {
+                stateActionError = nil
+                if let todo = failedToggleTodo { toggleTodo(todo) }
+            }
+            .accessibilityIdentifier(V371AccessibilityID.reliabilityRetry)
+            Button("知道了", role: .cancel) {
+                stateActionError = nil
+                failedToggleTodo = nil
+            }
         } message: { Text(stateActionError ?? "事项状态未改变，请重试") }
         .navigationTitle("日历")
         .navigationBarTitleDisplayMode(.inline)
+        // V3.8 P1-B1：原生「+」新建待办（预填选中日期），与待办页同款 44pt 触点。
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showNewTodo = true
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(V371.Colors.blue)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("新增待办")
+                .accessibilityIdentifier(V371AccessibilityID.todoAdd)
+            }
+        }
+        .sheet(isPresented: $showNewTodo) {
+            TodoEditorSheet(todo: nil, initialDate: selectedDate)
+        }
         .navigationDestination(isPresented: $showCustomer) { CustomerView() }
         .navigationDestination(isPresented: $showMemo) { MemoView() }
         .navigationDestination(isPresented: $showPerformance) { PerformanceView() }
         .onChange(of: selectedDate) { _, newValue in
             // 周条选中跨月日期时，月历网格跟随到该月（仅视图状态同步，不改计算语义）
             currentMonth = newValue.startOfMonth
+            // 周密度下锚点行变化：重新走一次 ghost 沉降节奏（先展开锚定再收起）。
+            if density == .week { settleWeekGhosts() }
         }
+        .onChange(of: density) { _, newValue in
+            if newValue == .week {
+                settleWeekGhosts()
+            } else {
+                ghostSettleTask?.cancel()
+                weekGhostSettled = false
+            }
+        }
+        .onDisappear { ghostSettleTask?.cancel() }
     }
 
     // MARK: - Editorial 顶部（月标题 + 轻量周日期 strip）
@@ -185,11 +234,7 @@ struct ScheduleView: View {
                 accent: todo.isCompleted ? V371.Colors.gray : V371.Colors.blue,
                 action: { toggleTodo(todo) }
             ) {
-                Image(systemName: todo.isCompleted ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 22, weight: .medium))
-                    .foregroundStyle(todo.isCompleted ? V371.Colors.green : V371.Colors.textTertiary)
-                    .frame(width: 44, height: 44)
-                    .accessibilityHidden(true)
+                scheduleToggleIcon(for: todo)
             }
             .accessibilityHint(todo.isCompleted ? "已完成，轻点标记为未完成" : "轻点标记为完成")
         case .delivery(_, let date):
@@ -226,24 +271,15 @@ struct ScheduleView: View {
             }
 
             if scheduleDay.allDay.isEmpty && scheduleDay.timedEvents.isEmpty {
-                HStack(spacing: 12) {
-                    Image(systemName: "sun.max")
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundStyle(V371.Colors.textTertiary)
-                        .frame(width: 36, height: 36)
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("该日期暂无事项")
-                            .font(.body.weight(.semibold))
-                            .foregroundStyle(V371.Colors.textPrimary)
-                        Text("这一天还没有安排")
-                            .font(.footnote)
-                            .foregroundStyle(V371.Colors.textTertiary)
-                    }
-                }
+                // V3.8 P1-C1：空态统一为 EmptyState（清晰标题 + 一句行动指引），
+                // 与待办/经营页同一组件；行动指引指向本页新增的「+」入口。
+                EmptyState(
+                    icon: "sun.max",
+                    title: "该日期暂无事项",
+                    message: "点右上角 +，把安排放到这一天"
+                )
                 .padding(.vertical, 8)
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("该日期暂无事项")
             } else if !scheduleDay.allDay.isEmpty {
                 GroupSurface {
                     VStack(spacing: 0) {
@@ -385,14 +421,59 @@ struct ScheduleView: View {
         return "\(days) 天后到期"
     }
 
+    /// V3.8 P1-B1：勾选待办复用 TodoView 同款两段式状态机（V38TodoToggleFlow +
+    /// V38PageMotionState，G5：持久化完成前不宣告成功）。
+    /// 保存中 → 行图标转圈；失败 → alert 重试（行内模型态未变，绝不显示已完成）。
+    private func phase(for todo: Todo) -> V38PageTogglePhase {
+        toggleMachines[todo.persistentModelID]?.phase ?? .idle(isDone: todo.isCompleted)
+    }
+
     private func toggleTodo(_ todo: Todo) {
-        let wasCompleted = todo.isCompleted
-        do {
-            try TodoRepository(context: modelContext).toggleComplete(todo)
-            if !wasCompleted { Haptic.success() }
-        } catch {
-            Haptic.error()
-            stateActionError = "事项状态未改变，请重试。"
+        let pid = todo.persistentModelID
+        guard !togglingIDs.contains(pid) else { return }
+        let current = toggleMachines[pid] ?? V38PageMotionState(isDone: todo.isCompleted)
+        guard let saving = V38TodoToggleFlow.begin(from: current) else { return }
+        toggleMachines[pid] = saving
+        togglingIDs.insert(pid)
+        AccessibilityNotification.Announcement("正在保存").post()
+        Task { @MainActor in
+            let resolved = V38TodoToggleFlow.resolve(saving) {
+                try UITestFailureInjection.throwIfRequested(.todoToggle)
+                try TodoRepository(context: modelContext).toggleComplete(todo)
+            }
+            toggleMachines[pid] = resolved
+            if case .failed = resolved.phase {
+                togglingIDs.remove(pid)
+                failedToggleTodo = todo
+                Haptic.error()
+                AccessibilityNotification.Announcement("保存失败，可重试").post()
+                stateActionError = "事项状态未改变，请重试。"
+            } else {
+                failedToggleTodo = nil
+                if todo.isCompleted { Haptic.success() } else { Haptic.light() }
+                AccessibilityNotification.Announcement("已保存").post()
+                // 短暂暂留后清理状态机（行渲染回归已落库的模型态）。
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 700_000_000)
+                    togglingIDs.remove(pid)
+                    toggleMachines[pid] = nil
+                }
+            }
+        }
+    }
+
+    /// V3.8 P1-B1：周密度 ghost 行二次沉降。锚点过渡（contentChange 时序）完成后，
+    /// 再以动画收起选中行上方的透明占位行——过渡期间选中格位置不变量不受影响，
+    /// 稳态下不再留大片空白（月末第 5 周场景约 190pt）。
+    private func settleWeekGhosts() {
+        ghostSettleTask?.cancel()
+        weekGhostSettled = false
+        ghostSettleTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation(V38MotionTokens.animation(for: .contentChange, reduceMotion: reduceMotion)) {
+                weekGhostSettled = true
+            }
         }
     }
 
@@ -549,7 +630,12 @@ struct ScheduleView: View {
 
     @ViewBuilder
     private func weekRowView(_ row: V38ScheduleLayout.WeekRow) -> some View {
-        HStack(spacing: 2) {
+        // V3.8 P1-B1：沉降后的展示形态由纯函数决定（过渡期 ghost 保留高度锚定，
+        // settleWeekGhosts 完成后收起，消除稳态空白）。
+        let presentation = V38ScheduleLayout.settledPresentation(
+            for: row, density: density, weekSettled: weekGhostSettled
+        )
+        return HStack(spacing: 2) {
             ForEach(Array(row.cells.enumerated()), id: \.offset) { _, date in
                 if let date {
                     dayCell(date)
@@ -560,11 +646,40 @@ struct ScheduleView: View {
                 }
             }
         }
-        .frame(height: row.presentation == .collapsed ? 0 : V38ScheduleStyle.cellHeight)
-        .opacity(row.presentation == .full ? 1 : 0)
+        .frame(height: presentation == .collapsed ? 0 : V38ScheduleStyle.cellHeight)
+        .opacity(presentation == .full ? 1 : 0)
         .clipped()
-        .allowsHitTesting(row.presentation == .full)
-        .accessibilityHidden(row.presentation != .full)
+        .allowsHitTesting(presentation == .full)
+        .accessibilityHidden(presentation != .full)
+    }
+
+    /// V3.8 P1-B1：时间线行的勾选图标按相位渲染（与待办页同口径）——
+    /// 保存中转圈（不宣告成功）、已确认完成绿对勾、失败红点角标。
+    @ViewBuilder
+    private func scheduleToggleIcon(for todo: Todo) -> some View {
+        let togglePhase = phase(for: todo)
+        ZStack {
+            if case .saving = togglePhase {
+                ProgressView()
+                    .controlSize(.small)
+            } else if case .idle(let isDone) = togglePhase, isDone {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 22, weight: .medium))
+                    .foregroundStyle(V371.Colors.green)
+            } else {
+                Image(systemName: "circle")
+                    .font(.system(size: 22, weight: .medium))
+                    .foregroundStyle(V371.Colors.textTertiary)
+            }
+            if case .failed = togglePhase {
+                Circle()
+                    .fill(V371.Colors.red)
+                    .frame(width: 10, height: 10)
+                    .offset(x: 13, y: -13)
+            }
+        }
+        .frame(width: 44, height: 44)
+        .accessibilityHidden(true)
     }
 
     /// V3.8 R3 日期格：大日期数字 + 真实事项状态点；
