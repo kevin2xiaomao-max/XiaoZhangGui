@@ -17,37 +17,43 @@ struct V38ChipSelector<Option: Hashable & Identifiable>: View where Option.ID ==
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        HStack(spacing: 8) {
-            ForEach(options, id: \.id) { option in
-                let isSelected = option == selection
-                Button {
-                    withAnimation(V38MotionTokens.animation(for: .expand, reduceMotion: reduceMotion)) {
-                        selection = option
-                    }
-                } label: {
-                    Text(title(option))
-                        .font(V38PerformanceStyle.chipLabel)
-                        .foregroundStyle(isSelected ? .white : .primary)
-                        .padding(.horizontal, 14)
-                        .frame(minHeight: 44)
-                        .background {
-                            if isSelected {
-                                Capsule()
-                                    .fill(V38PerformanceStyle.accent)
-                                    .matchedGeometryEffect(id: "v38.chip.selection", in: chipNamespace)
-                            } else {
-                                Capsule()
-                                    .fill(V371.Colors.groupSecondary)
-                            }
+        // V3.8.1 纠偏 P0-4：窄屏 / 大字号下 chip 文案单行完整显示——
+        // 文本禁止换行与截断（lineLimit(1) + 水平 fixedSize），
+        // 整行放不下时横向滚动，而不是挤压变形或折行错乱。
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(options, id: \.id) { option in
+                    let isSelected = option == selection
+                    Button {
+                        withAnimation(V38MotionTokens.animation(for: .expand, reduceMotion: reduceMotion)) {
+                            selection = option
                         }
-                        .contentShape(Capsule())
+                    } label: {
+                        Text(title(option))
+                            .font(V38PerformanceStyle.chipLabel)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+                            .foregroundStyle(isSelected ? .white : .primary)
+                            .padding(.horizontal, 14)
+                            .frame(minHeight: 44)
+                            .background {
+                                if isSelected {
+                                    Capsule()
+                                        .fill(V38PerformanceStyle.accent)
+                                        .matchedGeometryEffect(id: "v38.chip.selection", in: chipNamespace)
+                                } else {
+                                    Capsule()
+                                        .fill(V371.Colors.groupSecondary)
+                                }
+                            }
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier(identifier(option))
+                    .accessibilityLabel(title(option))
+                    .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : [.isButton])
                 }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier(identifier(option))
-                .accessibilityLabel(title(option))
-                .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : [.isButton])
             }
-            Spacer(minLength: 0)
         }
     }
 }
