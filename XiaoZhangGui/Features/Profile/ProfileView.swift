@@ -444,6 +444,7 @@ private struct ShopEditSheet: View {
 
 private struct GoalEditSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
     private let settings = AppSettings.shared
     @State private var text = ""
 
@@ -478,6 +479,9 @@ private struct GoalEditSheet: View {
                     Button("保存") {
                         if let value = Double(text), value > 0 {
                             settings.monthGoal = value
+                            // V3.8 P0-A2：目标变更立即重算快照并重载 Widget/Live Activity，
+                            // 避免主 App 已保存而小组件长时间按旧目标显示。
+                            SnapshotSyncManager.refreshAll(context: modelContext)
                             Haptic.success()
                             dismiss()
                         }
