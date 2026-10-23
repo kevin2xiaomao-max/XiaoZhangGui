@@ -34,6 +34,7 @@ struct V38HomeAICapsule: View {
                             .foregroundStyle(.tint)
                         Text("问小掌柜")
                             .font(.headline)
+                            .lineLimit(1)
                         Spacer()
                     }
                     // 真实入口：点击打开 AI Sheet（现有 AIChatView，不新建链路）。
@@ -41,6 +42,8 @@ struct V38HomeAICapsule: View {
                         HStack(spacing: 10) {
                             Text("告诉小掌柜你想查询或记录什么…")
                                 .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.85)
                             Spacer()
                             Image(systemName: "arrow.up.circle.fill")
                                 .font(.title2)
@@ -78,8 +81,11 @@ struct V38HomeAICapsule: View {
                     HStack(spacing: 10) {
                         Image(systemName: "sparkles")
                             .foregroundStyle(.tint)
+                        // V3.8.1 P0-4：胶囊标题单行，大字号下等比缩放不换行。
                         Text("问小掌柜…")
                             .foregroundStyle(.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
                         Spacer()
                         Image(systemName: "chevron.up")
                             .font(.caption)

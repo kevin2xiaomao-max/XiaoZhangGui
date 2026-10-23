@@ -68,6 +68,8 @@ struct TodoView: View {
         .scrollIndicators(.hidden)
         .accessibilityIdentifier(V371AccessibilityID.screenTodo)
         .v371Canvas()
+        // V3.8.1 P0-2：共享浮动 Tab 栏底部避让（safeAreaInset，非内容内 Spacer）。
+        .v32PageBottomInset()
         .navigationTitle("待办")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
