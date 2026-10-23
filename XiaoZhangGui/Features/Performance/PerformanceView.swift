@@ -26,6 +26,7 @@ struct PerformanceView: View {
     @Query private var expiryItems: [ExpiryItem]
     @State private var showImport = false
     @State private var showDailyReport = false
+    @State private var showMonthlyReport = false
     @State private var showGoods = false
     @State private var showMemo = false
     @State private var newRecordKind: NewMoneyKind?
@@ -129,6 +130,9 @@ struct PerformanceView: View {
                         .accessibilityIdentifier(V371AccessibilityID.businessAddExpense)
                     Button("扫呗导入", systemImage: "square.and.arrow.down") { showImport = true }
                         .accessibilityIdentifier(V371AccessibilityID.businessImport)
+                    // V3.9 PR-H:月度报表(生成+分享图片)。
+                    Button("月度报表", systemImage: "doc.richtext") { showMonthlyReport = true }
+                        .accessibilityIdentifier("v39.performance.monthlyReport")
                     Divider()
                     Button("记录", systemImage: "note.text") { showMemo = true }
                         .accessibilityIdentifier(V371AccessibilityID.businessMemo)
@@ -144,6 +148,14 @@ struct PerformanceView: View {
         .navigationDestination(isPresented: $showGoods) { GoodsView() }
         .navigationDestination(isPresented: $showMemo) { MemoView() }
         .sheet(isPresented: $showImport) { SaobeiImportSheet() }
+        .sheet(isPresented: $showMonthlyReport) {
+            // V3.9 PR-H:月报数据全部来自当前 @Query,口径与页面一致。
+            MonthlyReportSheet(report: MonthlyReportBuilder.build(
+                performances: performances,
+                expenses: expenses,
+                todos: todos
+            ))
+        }
         .sheet(isPresented: $showDailyReport) {
             DailyReportSheet(
                 report: .build(

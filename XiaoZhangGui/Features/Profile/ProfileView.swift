@@ -44,6 +44,9 @@ struct ProfileView: View {
     @State private var privacyDialog = false
     @State private var clearDialog = false
     @State private var showImporter = false
+    /// V3.9 PR-G:恢复前预览(条数对比)+ 确认后才落库。
+    @State private var pendingRestore: BackupPreview?
+    @State private var pendingRestoreData: Data?
     @State private var shareURL: URL?
     @State private var toast: String?
 
@@ -121,6 +124,18 @@ struct ProfileView: View {
         }
         .fileImporter(isPresented: $showImporter, allowedContentTypes: [.json]) { result in
             restore(from: result)
+        }
+        // V3.9 PR-G:恢复前预览确认(条数对比 + 追加语义声明),确认才落库。
+        .alert("恢复这份备份？", isPresented: Binding(
+            get: { pendingRestore != nil },
+            set: { if !$0 { pendingRestore = nil; pendingRestoreData = nil } }
+        )) {
+            Button("恢复", action: confirmRestore)
+            Button("取消", role: .cancel) { pendingRestore = nil; pendingRestoreData = nil }
+        } message: {
+            if let preview = pendingRestore {
+                Text(Self.restorePreviewMessage(preview))
+            }
         }
         .sheet(isPresented: Binding(
             get: { shareURL != nil },
@@ -276,12 +291,19 @@ struct ProfileView: View {
         // P0-1：备份生成真正的 .json 文件（含状态/时间/图片 base64），经系统面板分享
         WorkRow(icon: "square.and.arrow.down", iconColor: V371.Colors.gray,
                 title: "数据备份", action: { exportBackupFile() }) {
-            valueTrailing("JSON 文件")
+            // V3.9 PR-G:行尾显示最近备份状态(超 7 天提示该备份了)。
+            valueTrailing(BackupReminder.statusText())
+        }
+        V371Divider()
+        // V3.9 PR-G:每周备份提醒开关(本地通知,周一 10:00)。
+        WorkRow(icon: "bell.badge", iconColor: BackupReminder.weeklyReminderEnabled ? V39Style.gold : V371.Colors.gray,
+                title: "每周备份提醒", action: { toggleWeeklyReminder() }) {
+            valueTrailing(BackupReminder.weeklyReminderEnabled ? "已开启" : "已关闭")
         }
         V371Divider()
         WorkRow(icon: "arrow.clockwise", iconColor: V371.Colors.gray,
                 title: "数据恢复", action: { showImporter = true }) {
-            valueTrailing("JSON")
+            valueTrailing("先预览")
         }
         V371Divider()
         WorkRow(icon: "paintbrush", iconColor: V371.Colors.gray,
@@ -315,6 +337,7 @@ struct ProfileView: View {
     private func exportBackupFile() {
         do {
             let url = try BackupService.exportFileURL(context: context)
+            BackupReminder.markBackedUp()
             Haptic.light()
             shareURL = url
         } catch {
@@ -323,20 +346,59 @@ struct ProfileView: View {
         }
     }
 
-    /// P0-1：恢复走 BackupService（字段对称、单次 save、状态/图片不丢失）
+    /// V3.9 PR-G:每周备份提醒开关(本地通知,周一 10:00,重复)。
+    private func toggleWeeklyReminder() {
+        let next = !BackupReminder.weeklyReminderEnabled
+        BackupReminder.setWeeklyReminder(next)
+        Haptic.light()
+        showToast(next ? "每周一上午 10 点提醒你备份" : "已关闭备份提醒")
+    }
+
+    /// V3.9 PR-G:恢复前先解析预览(条数对比),确认后才真正落库;
+    /// 恢复语义仍是「追加合并」,绝不清空现有数据。
     private func restore(from result: Result<URL, Error>) {
         guard case .success(let url) = result else { return }
         let secured = url.startAccessingSecurityScopedResource()
         defer { if secured { url.stopAccessingSecurityScopedResource() } }
         do {
             let raw = try Data(contentsOf: url)
-            let count = try BackupService.restore(context: context, from: raw)
+            pendingRestore = try BackupPreviewService.makePreview(context: context, data: raw)
+            pendingRestoreData = raw
+        } catch {
+            Haptic.error()
+            showToast("读取备份失败：\(error.localizedDescription)")
+        }
+    }
+
+    /// 预览确认后执行真正的恢复。
+    private func confirmRestore() {
+        guard let data = pendingRestoreData else { return }
+        do {
+            let count = try BackupService.restore(context: context, from: data)
             Haptic.success()
             showToast("已恢复 \(count) 条记录")
         } catch {
             Haptic.error()
             showToast("恢复失败：\(error.localizedDescription)")
         }
+        pendingRestore = nil
+        pendingRestoreData = nil
+    }
+
+    /// V3.9 PR-G:预览文案(纯函数,可单测):备份条数 + 当前库对比 + 追加语义。
+    static func restorePreviewMessage(_ preview: BackupPreview) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy年M月d日"
+        let backupDate = formatter.string(from: preview.exportedAt)
+        let parts = ["todo", "performance", "expense", "customer"].compactMap { key in
+            guard let n = preview.backupCounts[key], n > 0 else { return nil }
+            return "\(BackupPreview.displayNames[key] ?? key) \(n) 条"
+        }
+        let summary = parts.isEmpty ? "备份内没有记录" : "备份内含：" + parts.joined(separator: "、")
+        return """
+            \(backupDate) 导出的备份。\(summary)。当前库共 \(preview.currentTotal) 条记录。\
+            恢复为追加合并，不会删除现有数据。
+            """
     }
 }
 
