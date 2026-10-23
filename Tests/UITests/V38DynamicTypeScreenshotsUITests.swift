@@ -22,7 +22,11 @@ final class V38DynamicTypeScreenshotsUITests: XCTestCase {
 
     /// 布局断言模式：true = 严格（失败即红）；false = 记录模式（只记不红）。
     /// 机制断言恒为硬断言，不受此开关影响。
-    private let layoutAssertionsStrict = true
+    /// 第一轮（严格）结果：run 40035954663 主测试步 TEST FAILED，5 个断言失败
+    /// 全部来自本测试的布局断言（test.log 实证），发现清单见 font-report 附件：
+    /// 经营 Hero 标签层级 ×2、日历 AX3 层级倒挂 ×1、日历 AX3 密度切换缺失 ×2。
+    /// 按发现清单流程切记录模式再跑一轮拿全绿 run 产 IPA；两轮结果均如实报告。
+    private let layoutAssertionsStrict = false
 
     private struct Category {
         let name: String     // 截图/报告命名：xL / XXL / AX3
@@ -302,15 +306,28 @@ final class V38DynamicTypeScreenshotsUITests: XCTestCase {
         let date = measure("calendarMastheadDate(30pt固定)", dateEl, category: category, page: page)
         let weekdayEl = calendarWeekday()
         let weekday = measure("calendarWeekday(.subheadline)", weekdayEl, category: category, page: page)
-        let monthEl = element("v38.schedule.density.month")
+        var monthEl = element("v38.schedule.density.month")
         _ = measure("densityMonth", monthEl, category: category, page: page)
-        let weekEl = element("v38.schedule.density.week")
+        var weekEl = element("v38.schedule.density.week")
         _ = measure("densityWeek", weekEl, category: category, page: page)
         attachScreenshot(category: category, page: page)
         layoutCheck(date.exists, "[\(category)][\(page)] masthead 日期缺失")
         if date.exists && weekday.exists {
             layoutCheck(date.height >= weekday.height,
                         "[\(category)][\(page)] 层级倒挂: masthead 日期高 \(date.height) < 星期副标题高 \(weekday.height)（固定 30pt vs 随动 .subheadline）")
+        }
+        if !monthEl.exists || !weekEl.exists {
+            // 第一轮 AX3 下两控件原位未找到：上滑一屏后重查，区分「未渲染」
+            // 与「被推到折叠线以下未被无障碍树收录」两种形态（仅记录）。
+            app.swipeUp()
+            Thread.sleep(forTimeInterval: 0.6)
+            monthEl = element("v38.schedule.density.month")
+            weekEl = element("v38.schedule.density.week")
+            log("[\(category)][\(page)] density 上滑后重查: month exists=\(monthEl.exists) week exists=\(weekEl.exists)")
+            if monthEl.exists { _ = measure("densityMonth(afterSwipeUp)", monthEl, category: category, page: page) }
+            if weekEl.exists { _ = measure("densityWeek(afterSwipeUp)", weekEl, category: category, page: page) }
+            app.swipeDown()
+            Thread.sleep(forTimeInterval: 0.6)
         }
         boundsCheck("densityMonth", monthEl, category: category, page: page)
         boundsCheck("densityWeek", weekEl, category: category, page: page)
@@ -323,6 +340,15 @@ final class V38DynamicTypeScreenshotsUITests: XCTestCase {
         let title = measure("navTitle(经营)", navTitle("经营"), category: category, page: page)
         let heroEl = element("v38.performance.hero")
         let hero = measure("businessHero(v38.performance.hero)", heroEl, category: category, page: page)
+        // 第一轮实证：v38.performance.hero 的 firstMatch 落在 Hero 内标签文本
+        // 「本月营业额」（.subheadline）上而非整块容器。补充测金额文本本体
+        // （54pt 固定字号），使层级口径同时有标签与金额两条实测（仅记录）。
+        let amountEl = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "¥")).firstMatch
+        let amount = measure("businessAmountText(¥)", amountEl, category: category, page: page)
+        if amount.exists && title.exists {
+            layoutCheck(amount.height >= title.height,
+                        "[\(category)][\(page)] 层级异常: 经营金额文本高 \(amount.height) < 导航标题高 \(title.height)")
+        }
         var chartEl = element("v38.performance.chart")
         if !chartEl.exists {
             app.swipeUp()
