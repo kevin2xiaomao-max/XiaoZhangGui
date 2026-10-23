@@ -189,7 +189,7 @@ enum PerformanceTrend {
             let rev = performances
                 .filter { $0.date >= week.start && $0.date < week.end }
                 .reduce(0) { $0 + $1.amount }
-            return TrendPoint(id: index, label: labels[index], value: rev, date: week.start)
+            return TrendPoint(id: index, label: labels[weeksAgo], value: rev, date: week.start)
         }
     }
 

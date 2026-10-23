@@ -84,7 +84,9 @@ final class V38CoreInteractionB1B2Tests: XCTestCase {
     private func mondayStartCalendar() -> Calendar {
         var cal = Calendar.current
         cal.firstWeekday = 2
-        cal.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        // 不钉死时区：与被测实现同用 Calendar.current 的时区，日期分量在
+        // 任意时区下均为当地时间构造（周一 00:00 / 周三 12:00 等事实不变），
+        // 避免 CI 机器时区与钉死时区不一致导致周归属错位（PR-B CI 修复）。
         return cal
     }
 
@@ -105,7 +107,7 @@ final class V38CoreInteractionB1B2Tests: XCTestCase {
 
         let points = PerformanceTrend.last4Weeks(performances: performances, now: now)
         XCTAssertEqual(points.count, 4, "近4周必须有 4 个点")
-        XCTAssertEqual(points.map(\.label), ["前3周", "上周", "前2周", "本周"], "按时间升序：前3周 → 本周")
+        XCTAssertEqual(points.map(\.label), ["前3周", "前2周", "上周", "本周"], "按时间升序：前3周 → 本周")
         XCTAssertEqual(points.last?.value ?? -1, 150, accuracy: 0.001, "本周 = 周一 100 + 周三 50")
         XCTAssertEqual(points[2].value, 70, accuracy: 0.001, "上周 = 70")
         XCTAssertEqual(points[0].value, 30, accuracy: 0.001, "前3周 = 30")
@@ -188,7 +190,7 @@ final class V38CoreInteractionB1B2Tests: XCTestCase {
     func testScheduleViewReusesTwoStageToggleAndHasPlusEntry() throws {
         let source = try source("XiaoZhangGui/Features/Schedule/ScheduleView.swift")
         XCTAssertTrue(
-            source.contains("V38TodoToggleFlow.begin(from:)") && source.contains("V38TodoToggleFlow.resolve"),
+            source.contains("V38TodoToggleFlow.begin(from:") && source.contains("V38TodoToggleFlow.resolve"),
             "日历页勾选必须复用 V38TodoToggleFlow 两段式状态机（G5：持久化前不宣告成功）"
         )
         XCTAssertFalse(

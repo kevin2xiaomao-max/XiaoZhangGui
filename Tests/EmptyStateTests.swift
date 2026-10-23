@@ -28,7 +28,8 @@ final class EmptyStateTests: XCTestCase {
     func testScheduleAndPerformanceEmptyStatesRemainLightweight() throws {
         let schedule = try source("XiaoZhangGui/Features/Schedule/ScheduleView.swift")
         XCTAssertTrue(schedule.contains("该日期暂无事项"))
-        XCTAssertTrue(schedule.contains("这一天还没有安排"))
+        // V3.8 PR-B（C1）：空态统一为 EmptyState 组件，指引文案改为指向日历页「+」入口。
+        XCTAssertTrue(schedule.contains("点右上角 +，把安排放到这一天"))
 
         let performance = try source("XiaoZhangGui/Features/Performance/PerformanceView.swift")
         // 空状态提供记一笔入口（V371 原生 Button）
