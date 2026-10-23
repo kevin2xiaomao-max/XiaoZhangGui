@@ -95,7 +95,7 @@ final class V38PerformanceChartCorrectionUITests: XCTestCase {
         return sum / Double(side * side) / 255.0
     }
 
-    // MARK: - P1-7：拖动选中某日 → 读数行显示日期与金额
+    // MARK: - P1-7：点按选中某日 → 读数行显示日期与金额
 
     func testChartDragSelectionShowsDateAndAmount() {
         XCTAssertTrue(waitForElement("v38.performance.chart", timeout: 10), "趋势图未渲染")
@@ -106,13 +106,10 @@ final class V38PerformanceChartCorrectionUITests: XCTestCase {
         XCTAssertTrue(readout.waitForExistence(timeout: 5), "选中读数行不存在")
         XCTAssertFalse(readout.label.contains("¥"), "未选中时读数行应为提示文案：\(readout.label)")
 
-        // 选中交互多策略尝试（每步后轮询读数行）。
-        // 根因（run 39915121618 活动日志实证）：从 `v38.performance.chart`
-        // 元素派生坐标时 runner 报 "Invalid frame dimension (negative or
-        // non-finite)" —— Charts AX 元素在本 harness 下 frame 无效，
-        // 此前三轮手势（快拖/慢拖/点按/长按）全部落在无效坐标上、根本没
-        // 触到图表。改用 App 窗口级坐标：按 CI 截图实测布局，绘图区中心
-        // 约在窗口 (0.57 高度) 处，横向 0.3→0.8 覆盖大部分日期。
+        // 点按选中（实现为 chartOverlay + SpatialTapGesture，见生产注释中
+        // 五轮 CI 实证：chartXSelection 内置手势在合成事件下从不触发）。
+        // 坐标用 App 窗口级：按 CI 截图实测布局，绘图区中心约在窗口高度
+        // 0.57 处。依次点按右/中/左三个位置，任一命中即进入已选态。
         func isSelected() -> Bool {
             let label = readout.label
             return label.contains("¥") && label.contains("已选")
@@ -129,31 +126,18 @@ final class V38PerformanceChartCorrectionUITests: XCTestCase {
             app.coordinate(withNormalizedOffset: CGVector(dx: dx, dy: dy))
         }
 
-        // 策略 1：慢速横向拖动扫过绘图区（chartXSelection 的标准手势）。
-        appPoint(0.3, 0.57).press(
-            forDuration: 0.4,
-            thenDragTo: appPoint(0.8, 0.57),
-            withVelocity: .slow,
-            thenHoldForDuration: 0.3
-        )
-        var selected = pollSelected(seconds: 8)
-        // 策略 2：长按绘图区右侧（今日柱附近）。
+        appPoint(0.8, 0.57).tap()
+        var selected = pollSelected(seconds: 5)
         if !selected {
-            appPoint(0.8, 0.57).press(forDuration: 1.2)
-            selected = pollSelected(seconds: 4)
+            appPoint(0.5, 0.57).tap()
+            selected = pollSelected(seconds: 5)
         }
-        // 策略 3：反向慢速拖动（自右向左）。
         if !selected {
-            appPoint(0.8, 0.57).press(
-                forDuration: 0.4,
-                thenDragTo: appPoint(0.3, 0.57),
-                withVelocity: .slow,
-                thenHoldForDuration: 0.3
-            )
-            selected = pollSelected(seconds: 8)
+            appPoint(0.35, 0.57).tap()
+            selected = pollSelected(seconds: 5)
         }
         let label = readout.label
-        XCTAssertTrue(label.contains("已选"), "拖动后读数行应进入已选态：\(label)")
+        XCTAssertTrue(label.contains("已选"), "点按后读数行应进入已选态：\(label)")
         XCTAssertTrue(label.contains("¥"), "读数行必须显示该日真实金额：\(label)")
         attachScreenshot(app.screenshot(), named: "v38-performance-chart-month-selected-light")
     }

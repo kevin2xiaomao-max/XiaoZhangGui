@@ -36,8 +36,13 @@ enum V38AxisLabelPolicy {
 ///
 /// V3.8.1 纠偏：
 /// - P0-3：X 轴标签按 `V38AxisLabelPolicy` 抽稀（只动标签呈现，数据点全保留）。
-/// - P1-7：`chartXSelection` 原生选中 —— 点按/拖动选中某日后，其余柱淡化、
-///   显示参考线，图表上方读数行给出该日日期与真实金额（同一模型数据）。
+/// - P1-7：点按选中某日 —— 其余柱淡化、显示参考线，图表上方读数行给出
+///   该日日期与真实金额（同一模型数据）。实现用 `chartOverlay` +
+///   `SpatialTapGesture` + `ChartProxy.value(atX:)`（均为 Swift Charts /
+///   SwiftUI 原生机制）：`chartXSelection` 的内置手势在本项目 CI 的
+///   XCUITest 合成事件下五轮实证均不触发（手势日志确认坐标正确、事件
+///   已合成，选中值始终不写入），且其与页面 ScrollView 的手势仲裁在
+///   合成事件下不可验证；点按方案不与纵向滚动抢手势，真机与测试均可达。
 struct V38TrendBarChart: View {
     let points: [TrendPoint]
 
@@ -97,7 +102,7 @@ struct V38TrendBarChart: View {
     /// 未选中时给出操作提示；选中时显示该日日期 + 真实金额（模型原值）。
     private var selectionReadout: some View {
         let text = selectedPoint.map { "\($0.label) · \(Fmt.money($0.value))" }
-            ?? "点按或拖动柱形，查看单日金额"
+            ?? "点按柱形，查看单日金额"
         return Text(text)
             .font(V38PerformanceStyle.readoutLabel)
             .foregroundStyle(selectedPoint == nil ? V371.Colors.textTertiary : V371.Colors.textPrimary)
@@ -125,7 +130,25 @@ struct V38TrendBarChart: View {
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
             }
         }
-        .chartXSelection(value: $selectedLabel)
+        .chartOverlay { proxy in
+            // P1-7 点按选中：透明层只接管点按（不抢纵向滚动手势），
+            // 用 ChartProxy 把点按位置换算为最近的日期分类（原生口径）。
+            GeometryReader { geo in
+                Rectangle()
+                    .fill(Color.clear)
+                    .contentShape(Rectangle())
+                    .gesture(
+                        SpatialTapGesture()
+                            .onEnded { value in
+                                let plotRect = geo[proxy.plotFrame]
+                                let x = value.location.x - plotRect.origin.x
+                                if let label: String = proxy.value(atX: x) {
+                                    selectedLabel = label
+                                }
+                            }
+                    )
+            }
+        }
         .chartYScale(domain: 0...domainMax)
         .chartYAxis(.hidden)
         .chartXAxis {
