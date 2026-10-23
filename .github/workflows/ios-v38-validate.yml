@@ -138,6 +138,16 @@ jobs:
           # (run 38824029239 flaked exactly this way on the first motion test).
           xcrun simctl bootstatus "$SIM_UDID" -b >/dev/null 2>&1 || true
           sleep 15
+          # Warm-up (2026-10-23 targeted fix): the launch flake hits the FIRST
+          # app launch after boot. Burn that first launch here with a plain
+          # simctl launch/terminate of the already-installed app (installed
+          # by the main test step; the screenshot step below launches it the
+          # same way), so the recorded xcodebuild run's first launch is warm.
+          echo "== warm-up launch (burn the first-launch flake outside the test run) =="
+          xcrun simctl launch "$SIM_UDID" com.xiaozhanggui.ios >/dev/null 2>&1 || true
+          sleep 5
+          xcrun simctl terminate "$SIM_UDID" com.xiaozhanggui.ios >/dev/null 2>&1 || true
+          sleep 2
           echo "== starting simctl screen recording =="
           # CRITICAL: record the EXPLICIT UDID we booted, not "booted".
           # xcodebuild "-destination name=..." can resolve to a DIFFERENT
@@ -150,11 +160,13 @@ jobs:
           set +e
           # The FIRST app launch in a fresh xcodebuild session flakes with
           # "Simulator device failed to launch ... No such process" (~2/3 of
-          # runs; the other 4 tests then pass). Retry once on failure: the
-          # second attempt gets a warm simulator and succeeds.
+          # runs; the other 4 tests then pass). Up to 3 attempts; between
+          # attempts a launch flake triggers a full re-boot + warm-up (see
+          # below) instead of a plain sleep, which has failed BOTH attempts
+          # before (run 39849147357).
           TEST_EXIT=1
-          for ATTEMPT in 1 2; do
-            echo "== motion test attempt $ATTEMPT/2 =="
+          for ATTEMPT in 1 2 3; do
+            echo "== motion test attempt $ATTEMPT/3 =="
             # xcodebuild refuses to overwrite an existing result bundle,
             # so remove the previous attempt's before retrying.
             rm -rf "$RUNNER_TEMP/xzg-ios-v38-motion.xcresult"
@@ -167,8 +179,26 @@ jobs:
               >artifacts/motion-test.log 2>&1
             TEST_EXIT=$?
             [ $TEST_EXIT -eq 0 ] && break
-            echo "attempt $ATTEMPT failed (exit=$TEST_EXIT), retrying after settle..."
-            sleep 10
+            if [ "$ATTEMPT" -lt 3 ]; then
+              echo "attempt $ATTEMPT failed (exit=$TEST_EXIT), recovering before retry..."
+              if grep -a -q "failed to launch" artifacts/motion-test.log; then
+                # Launch flake: retrying on the same wedged device is not
+                # enough. Full re-boot cycle + warm-up launch, mirroring the
+                # pre-recording preparation above.
+                echo "launch flake detected; full re-boot + warm-up before next attempt"
+                xcrun simctl shutdown "$SIM_UDID" >/dev/null 2>&1 || true
+                sleep 5
+                xcrun simctl boot "$SIM_UDID" >/dev/null 2>&1 || true
+                xcrun simctl bootstatus "$SIM_UDID" -b >/dev/null 2>&1 || true
+                sleep 15
+                xcrun simctl launch "$SIM_UDID" com.xiaozhanggui.ios >/dev/null 2>&1 || true
+                sleep 5
+                xcrun simctl terminate "$SIM_UDID" com.xiaozhanggui.ios >/dev/null 2>&1 || true
+                sleep 2
+              else
+                sleep 10
+              fi
+            fi
           done
           set -e
           echo "== stopping screen recording (test exit=$TEST_EXIT) =="
