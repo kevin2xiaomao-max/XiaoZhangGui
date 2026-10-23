@@ -16,10 +16,25 @@ import Observation
 // V3.7.1：仅 presentation 重构（NavigationStack + toolbar、SectionHeader、
 // GroupSurface + 行内 hairline、V371 按钮样式）。解析、语义、写入逻辑原样不动。
 
+/// 保存阶段状态机（V3.8 P0-A3）：防同一次操作重复提交。
+/// idle → saving → saved（成功，等待自动关闭）/ failed（可安全重试）。
+enum QuickRecordSavePhase: Equatable {
+    case idle
+    case saving
+    case saved
+    case failed
+}
+
 /// 保存闸门：唯一条件是「trim 后非空」。类型识别结果不参与能否保存的判断。
 enum QuickRecordSavePolicy {
     static func canSave(_ rawText: String) -> Bool {
         !rawText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// 提交闸门（V3.8 P0-A3）：仅 idle 允许首次提交；failed 允许重试；
+    /// saving（提交中）与 saved（已保存待关闭）一律拒绝——双击 / 连点不会产生重复账目。
+    static func canCommit(text: String, phase: QuickRecordSavePhase) -> Bool {
+        canSave(text) && (phase == .idle || phase == .failed)
     }
 }
 
@@ -33,6 +48,7 @@ struct QuickRecordSheet: View {
     @State private var overriddenKind: QuickRecordKind?
     @State private var savedMessage: String?
     @State private var errorMessage: String?
+    @State private var savePhase: QuickRecordSavePhase = .idle
     @State private var voice = QuickRecordVoiceRecorder()
 
     private let parser = LocalQuickRecordParser()
@@ -42,6 +58,11 @@ struct QuickRecordSheet: View {
     }
 
     private var canSave: Bool { QuickRecordSavePolicy.canSave(text) }
+
+    /// 提交闸门（V3.8 P0-A3）：文本非空且处于可提交阶段（idle / failed）。
+    private var canCommit: Bool {
+        QuickRecordSavePolicy.canCommit(text: text, phase: savePhase)
+    }
 
     private var currentDraft: QuickRecordDraft? {
         guard canSave else { return nil }
@@ -99,6 +120,8 @@ struct QuickRecordSheet: View {
         .onChange(of: text) { _, newValue in
             overriddenKind = nil
             errorMessage = nil
+            // 重新编辑视为新的提交意图：failed 归位 idle（saved 阶段面板即将关闭，无需处理）。
+            if savePhase == .failed { savePhase = .idle }
             let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
             parsedDraft = trimmed.isEmpty ? nil : parser.parse(trimmed)
         }
@@ -348,15 +371,17 @@ struct QuickRecordSheet: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(!canSave)
-        .opacity(canSave ? 1 : 0.5)
+        .disabled(!canCommit)
+        .opacity(canCommit ? 1 : 0.5)
         .accessibilityHint(canSave ? "" : "说一句话或输入内容后即可保存")
     }
 
     private func commit() {
         let trimmed = trimmedText
-        // 非空是唯一闸门；识别不了时 parser 已兜底为备忘，任何一句话都不会丢。
-        guard QuickRecordSavePolicy.canSave(trimmed) else { return }
+        // 非空是唯一内容闸门；识别不了时 parser 已兜底为备忘，任何一句话都不会丢。
+        // V3.8 P0-A3：阶段闸门挡住双击 / 成功后 0.6s 关闭窗口内的重复提交。
+        guard QuickRecordSavePolicy.canCommit(text: trimmed, phase: savePhase) else { return }
+        savePhase = .saving
         var draft = parsedDraft ?? parser.parse(trimmed)
         if let overriddenKind { draft.kind = overriddenKind }
         voice.cancel()
@@ -366,7 +391,10 @@ struct QuickRecordSheet: View {
                 try PerformanceRepository(context: context).add(
                     amount: draft.amount ?? 0,
                     note: draft.note,
-                    date: draft.date ?? Date()
+                    date: draft.date ?? Date(),
+                    // V3.8 P0-A1：按原话派生收入来源（美团→美团、门店/到店→门店、
+                    // 其余→其他）；不再默认落「门店」，微信/支付宝等支付方式不会误判为美团。
+                    incomeSource: IncomeSource.from(note: draft.note)
                 )
             case .todo:
                 try TodoRepository(context: context).add(
@@ -392,10 +420,13 @@ struct QuickRecordSheet: View {
             }
             Haptic.success()
             errorMessage = nil
+            savePhase = .saved
             savedMessage = QuickCaptureSemantic.savedMessage(destination: kindLabel(draft.kind))
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { dismiss() }
         } catch {
             Haptic.error()
+            // 失败允许重试：回到 failed 阶段，按钮恢复可点。
+            savePhase = .failed
             errorMessage = QuickCaptureSemantic.failed
         }
     }

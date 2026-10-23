@@ -127,7 +127,8 @@ final class VoiceViewModel {
 
     /// 保存草稿（真实写库；金额缺失等错误直接报给用户）
     func save() {
-        guard let draft else { return }
+        // V3.8 P0-A3：didSave 后 View 延迟关闭，窗口内的再次点击不产生重复账目。
+        guard let draft, !didSave, phase != .saving else { return }
         phase = .saving
         do {
             switch draft.type {
@@ -136,7 +137,15 @@ final class VoiceViewModel {
                     phase = .error("请补充收入金额")
                     return
                 }
-                try PerformanceRepository(context: context).add(amount: amount, note: "语音记录", date: Date())
+                // V3.8 P0-A1：备注保留语音原句（不再统一写「语音记录」）；
+                // 收入来源按原话派生（美团→美团、门店/到店→门店、其余→其他），
+                // 微信/支付宝等支付方式不会误判为美团。
+                try PerformanceRepository(context: context).add(
+                    amount: amount,
+                    note: draft.original,
+                    date: Date(),
+                    incomeSource: IncomeSource.from(note: draft.original)
+                )
             case .expense:
                 guard let amount = draft.amount, amount > 0 else {
                     phase = .error("请补充支出金额")
@@ -151,7 +160,7 @@ final class VoiceViewModel {
                     quantity: 1,
                     expiryDate: Date().addingTimeInterval(Double(days) * 86400),
                     remindDaysBefore: 7,
-                    note: "语音记录"
+                    note: draft.original
                 )
             case .memo:
                 try MemoRepository(context: context).add(title: draft.title, content: draft.original)
