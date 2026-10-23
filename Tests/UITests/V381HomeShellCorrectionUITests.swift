@@ -115,10 +115,13 @@ final class V381HomeShellCorrectionUITests: XCTestCase {
 
     func testHomeDefaultAndQuickMenuScreenshotsLightDark() {
         // —— Light 默认态 ——
+        // 亮度阈值按 Home 实测校准：深绿 Hero 约占屏 1/4，全图均值 ≈0.68
+        // （run 39906659467 实测 0.684；Todo 页无大色块故其基线 0.93 不适用）。
+        // 与 Dark 实测 0.13–0.17 相比，0.55 阈值仍可决定性区分真 Light/假 Dark。
         XCTAssertTrue(element("v38.home.quick.expand").waitForExistence(timeout: 10))
         let lightDefault = app.screenshot()
         attachScreenshot(lightDefault, named: "v381-home-default-light")
-        XCTAssertGreaterThan(meanLuminance(of: lightDefault), 0.7, "Light 默认截图亮度异常")
+        XCTAssertGreaterThan(meanLuminance(of: lightDefault), 0.55, "Light 默认截图亮度异常")
 
         // —— Light 展开态：深色面板上的菜单项必须存在、可命中、标签正确 ——
         assertQuickMenuReadable(schemeName: "Light")
