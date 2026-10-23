@@ -12,11 +12,11 @@ struct ReleaseNotes: Equatable {
     let sections: [ReleaseNoteSection]
 
     static var marketingVersion: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "3.7.1"
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "3.8.0"
     }
 
     static var build: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "36"
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "38"
     }
 
     static var versionDisplay: String {
@@ -24,33 +24,28 @@ struct ReleaseNotes: Equatable {
     }
 
     static let current = ReleaseNotes(
-        headline: "V3.6 全新升级",
+        headline: "V3.8 全新升级",
         sections: [
-            ReleaseNoteSection(icon: "house", title: "首页与经营数据", items: [
-                "Home 1.4 Compact 最终收口：营业额、趋势与今日重点更清晰",
-                "Performance 2.0 聚焦大数字、趋势和关键经营指标",
-                "保留真实数据展示，不使用装饰性假趋势"
+            ReleaseNoteSection(icon: "house", title: "首页", items: [
+                "全新 Editorial 版式：大日期头与营业额 Hero，今日经营一眼看清",
+                "AI 胶囊入口常驻首页，点开即可语音或文字记一笔",
+                "快捷操作与今日事项改为平面列表，常用功能一步直达"
             ]),
-            ReleaseNoteSection(icon: "sparkles", title: "AI 小掌柜", items: [
-                "General Assistant 普通问答能力接入现有 Provider",
-                "URL Reading 网页阅读保持可用",
-                "AI Provider 设置与外部能力路由进一步完善"
+            ReleaseNoteSection(icon: "checklist", title: "待办", items: [
+                "勾选采用两段式回执：保存成功后才显示完成",
+                "保存失败会明确提示并可以重试，不再出现假完成"
             ]),
-            ReleaseNoteSection(icon: "globe", title: "外部能力框架", items: [
-                "Web Search 已完成 Provider 通用化，支持 Tavily 与自定义 Search adapter",
-                "免费优先仅使用用户明确允许的已配置 Provider，不会静默产生付费调用",
-                "Vision 图片能力框架已完成，相册选图链路已接入",
-                "PDF / TXT / MD 文件提取与分析链路已完成",
-                "Search / Vision / File 代码完成，DEVICE/API SMOKE PENDING"
+            ReleaseNoteSection(icon: "calendar", title: "日历", items: [
+                "日期选中以锚点方式切换，翻看月份时选中日不漂移",
+                "新增日 / 周密度视图，安排松紧由你决定"
             ]),
-            ReleaseNoteSection(icon: "lock.shield", title: "安全与稳定性", items: [
-                "API Key 仅通过本机 Keychain 配置，不写入源码或聊天记录",
-                "外部能力保持只读，业务写入继续经过确认与安全执行链",
-                "完成 P1 cleanup，并通过 405/405 XCTest、10/10 XCUITest 等门禁"
+            ReleaseNoteSection(icon: "chart.bar", title: "经营", items: [
+                "收入按分类口径汇总，分类之和始终等于总额",
+                "趋势图与金额数字过渡，变化过程看得更清楚"
             ]),
-            ReleaseNoteSection(icon: "checkmark.seal", title: "验证状态", items: [
-                "V3.6 UI、Performance 与 AI capability foundation 已保存",
-                "Search / Vision / File 暂不标记为 LIVE，等待真机 API 验证"
+            ReleaseNoteSection(icon: "accessibility", title: "外观与无障碍", items: [
+                "深色模式全面适配，夜间看店不刺眼",
+                "支持动态字体与 VoiceOver，字号与语音播报都照顾到"
             ])
         ]
     )
