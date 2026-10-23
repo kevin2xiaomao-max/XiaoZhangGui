@@ -106,12 +106,13 @@ final class V38PerformanceChartCorrectionUITests: XCTestCase {
         XCTAssertTrue(readout.waitForExistence(timeout: 5), "选中读数行不存在")
         XCTAssertFalse(readout.label.contains("¥"), "未选中时读数行应为提示文案：\(readout.label)")
 
-        // 选中交互多策略尝试（每步后轮询读数行）：
-        // run 39900877406（快速拖动）与 run 39906822973（慢速 press-drag ×2）
-        // 均未触发 chartXSelection —— 合成拖动事件在本 harness 下不被
-        // Charts 连续手势接受；改先试点按与长按（Charts 选中同样响应
-        // 这两类手势），最后才回到拖动。
-        let chart = element("v38.performance.chart")
+        // 选中交互多策略尝试（每步后轮询读数行）。
+        // 根因（run 39915121618 活动日志实证）：从 `v38.performance.chart`
+        // 元素派生坐标时 runner 报 "Invalid frame dimension (negative or
+        // non-finite)" —— Charts AX 元素在本 harness 下 frame 无效，
+        // 此前三轮手势（快拖/慢拖/点按/长按）全部落在无效坐标上、根本没
+        // 触到图表。改用 App 窗口级坐标：按 CI 截图实测布局，绘图区中心
+        // 约在窗口 (0.57 高度) 处，横向 0.3→0.8 覆盖大部分日期。
         func isSelected() -> Bool {
             let label = readout.label
             return label.contains("¥") && label.contains("已选")
@@ -124,21 +125,31 @@ final class V38PerformanceChartCorrectionUITests: XCTestCase {
             }
             return isSelected()
         }
+        func appPoint(_ dx: Double, _ dy: Double) -> XCUICoordinate {
+            app.coordinate(withNormalizedOffset: CGVector(dx: dx, dy: dy))
+        }
 
-        // 策略 1：点按图表右侧（今日柱附近）。
-        chart.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)).tap()
-        var selected = pollSelected(seconds: 4)
-        // 策略 2：长按同一位置。
+        // 策略 1：慢速横向拖动扫过绘图区（chartXSelection 的标准手势）。
+        appPoint(0.3, 0.57).press(
+            forDuration: 0.4,
+            thenDragTo: appPoint(0.8, 0.57),
+            withVelocity: .slow,
+            thenHoldForDuration: 0.3
+        )
+        var selected = pollSelected(seconds: 8)
+        // 策略 2：长按绘图区右侧（今日柱附近）。
         if !selected {
-            chart.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5))
-                .press(forDuration: 1.2)
+            appPoint(0.8, 0.57).press(forDuration: 1.2)
             selected = pollSelected(seconds: 4)
         }
-        // 策略 3：慢速横向拖动（自左向右）。
+        // 策略 3：反向慢速拖动（自右向左）。
         if !selected {
-            let start = chart.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.6))
-            let end = chart.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.6))
-            start.press(forDuration: 0.4, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.3)
+            appPoint(0.8, 0.57).press(
+                forDuration: 0.4,
+                thenDragTo: appPoint(0.3, 0.57),
+                withVelocity: .slow,
+                thenHoldForDuration: 0.3
+            )
             selected = pollSelected(seconds: 8)
         }
         let label = readout.label
