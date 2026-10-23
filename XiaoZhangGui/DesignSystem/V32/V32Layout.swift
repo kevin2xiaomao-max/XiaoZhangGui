@@ -13,7 +13,13 @@ enum V32Layout {
     static let pageBottomBreathing: CGFloat = 12
     /// Shared reservation for the floating system tab bar on iOS 26+.
     /// This is a layout component height, not a device-specific safe-area value.
-    static let floatingTabBarReservation: CGFloat = 72
+    /// V3.8.1 真机纠偏重新校准：iOS 26/27 系统浮动 Tab 栏是覆盖层，其栏体
+    /// 高出系统底部安全区（Home Indicator 区）的部分约 48pt；叠加
+    /// pageBottomBreathing 12pt 后，页面根 ScrollView 经 safeAreaInset
+    /// 获得 60pt 额外底部 inset，内容可完整滚动到栏体上方。
+    /// 由 V381HomeShellCorrectionUITests 的遮挡断言（末尾标记 frame vs
+    /// Tab 栏 frame）实测校验，不是拍脑袋的留白。
+    static let floatingTabBarReservation: CGFloat = 48
 
     // 卡片内边距
     static let cardPad: CGFloat = 16

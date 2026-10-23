@@ -111,6 +111,8 @@ struct ScheduleView: View {
         .scrollIndicators(.hidden)
         .accessibilityIdentifier(V371AccessibilityID.screenCalendar)
         .v371Canvas()
+        // V3.8.1 P0-2：共享浮动 Tab 栏底部避让（safeAreaInset，非内容内 Spacer）。
+        .v32PageBottomInset()
         .alert("操作失败", isPresented: Binding(get: { stateActionError != nil }, set: { if !$0 { stateActionError = nil } })) {
             Button("知道了", role: .cancel) { stateActionError = nil }
         } message: { Text(stateActionError ?? "事项状态未改变，请重试") }
