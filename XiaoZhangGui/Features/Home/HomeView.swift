@@ -5,7 +5,9 @@ import SwiftUI
 //
 // 视觉依据：
 // - `XZG_iOS_V38_UI_Light/Dark.png`：大日期 → 今天的经营（Revenue Hero 深绿卡）
-//   → 问小掌柜（AI 胶囊）→ 快捷操作 → 今日事项（平面列表）
+//   → 问小掌柜（AI 胶囊）→ 今日事项（平面列表）
+// - 2026-10-23 用户确认减法：整行删除「快速记一笔 / 写备忘」快捷操作行，
+//   首页不再设重复入口；快速记录仍由深链（xzg://quickrecord）等原有路径可达。
 // - `02_设计与交互升级说明.md`：Editorial Content + Soft Frosted Controls +
 //   Native Interaction + Time-driven Organization
 //
@@ -34,9 +36,8 @@ struct HomeView: View {
     @State private var weatherModel = WeatherViewModel()
     @State private var stateActionError: String?
 
-    // V3.8：AI 胶囊与快捷菜单展开态（互斥，由 onExpandChange 协调）。
+    // V3.8：AI 胶囊展开态。
     @State private var aiExpanded = false
-    @State private var quickExpanded = false
 
     private var summary: TodaySummary {
         TodaySummary.build(performances: performances, todos: todos, customers: customers, expiryItems: expiryItems)
@@ -62,7 +63,6 @@ struct HomeView: View {
                 dateHeader
                 businessSection
                 aiSection
-                quickActionsRow
                 mattersSection
                 V371ScrollEndMarker(identifier: V371AccessibilityID.scrollEndHome)
             }
@@ -232,51 +232,8 @@ struct HomeView: View {
                     withAnimation(V38MotionTokens.animation(for: .contentChange, reduceMotion: reduceMotion)) {
                         showAI = true
                     }
-                },
-                onExpandChange: { expanded in
-                    if expanded { quickExpanded = false }
                 }
             )
-        }
-    }
-
-    // MARK: - 快捷操作行
-
-    private var quickActionsRow: some View {
-        HStack(spacing: 12) {
-            V38HomeQuickMenu(
-                isExpanded: $quickExpanded,
-                onSelect: { _ in
-                    // 三个选项均走现有 QuickRecordSheet 生产路由；
-                    // 收入/支出/备忘由 Sheet 内 parser 按输入内容识别。
-                    showQuickRecord = true
-                },
-                onExpandChange: { expanded in
-                    if expanded { aiExpanded = false }
-                }
-            )
-            .frame(maxWidth: .infinity)
-            Button { showQuickRecord = true } label: {
-                // V3.8.1 P1-6：与 AI 胶囊 / 快捷菜单统一到共享三档玻璃表面
-                // （RT 实色 / iOS 26 glassEffect / 旧系统材质），不再单独用 thinMaterial。
-                V38HomeGlassSurface(radius: 26) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "note.text")
-                            .font(.subheadline.weight(.semibold))
-                        // V3.8.1 P0-4：半宽胶囊 + 大字号下单行不换行。
-                        Text("写备忘")
-                            .font(.subheadline.weight(.semibold))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.85)
-                    }
-                    .foregroundStyle(.primary)
-                    .frame(maxWidth: .infinity, minHeight: 52)
-                    .contentShape(Capsule())
-                }
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier(V371AccessibilityID.homeQuickRecord)
-            .accessibilityLabel("写备忘，快速记录备忘")
         }
     }
 

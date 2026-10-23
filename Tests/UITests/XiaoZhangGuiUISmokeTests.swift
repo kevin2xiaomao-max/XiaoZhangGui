@@ -72,13 +72,14 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         XCTAssertTrue(element("screen.home").waitForExistence(timeout: 5))
     }
 
-    func testQuickRecordUsesHomeEntryAndReturns() {
-        XCTAssertTrue(element("home.quickRecord").waitForExistence(timeout: 5))
-        tapElement("home.quickRecord")
-        XCTAssertTrue(element("sheet.quickRecord").waitForExistence(timeout: 5))
-        XCTAssertTrue(element("quickRecord.cancel").waitForExistence(timeout: 5))
-        element("quickRecord.cancel").tap()
+    /// 2026-10-23 用户确认减法：首页「写备忘」（home.quickRecord）入口已删除，
+    /// 原「从首页打开 QuickRecord 并返回」冒烟用例随之作废；此处改为断言
+    /// 被删入口在首页不存在。QuickRecordSheet 本体经深链可达，由
+    /// AppDeepLinkTests 与 QuickCaptureSemanticTests 在单元层覆盖。
+    func testHomeHasNoQuickRecordEntryAfterRemoval() {
         XCTAssertTrue(element("screen.home").waitForExistence(timeout: 5))
+        XCTAssertFalse(element("home.quickRecord").exists, "首页不得再有写备忘入口")
+        XCTAssertFalse(element("v38.home.quick.expand").exists, "首页不得再有快捷菜单入口")
     }
 
     func testBusinessRoutesGoodsAndDailyReport() {

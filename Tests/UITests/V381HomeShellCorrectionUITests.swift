@@ -2,18 +2,17 @@ import XCTest
 
 /// V3.8.1 真机 UI 纠偏（线 A：Home + App 壳）UI 回归测试。
 ///
-/// - P0-1：快捷菜单在 Light/Dark 下展开均可读。颜色本身由单元测试的
-///   WCAG 对比度矩阵断言（V381HomeShellCorrectionTests）；本测试负责
-///   真实渲染侧：两 scheme 下菜单项存在、可命中、VoiceOver 标签正确，
-///   并产出四张真实截图（默认/展开 × Light/Dark）供与真机逐项对照。
+/// - P0-1 后续（2026-10-23 用户确认减法）：「快速记一笔 / 写备忘」快捷行
+///   已整行删除。本测试负责真实渲染侧：Light/Dark 两 scheme 下被删
+///   入口均不存在，并产出首页默认态 Light/Dark 真实截图供逐项对照。
 ///   Dark 走 App 生产主题路径（AppSettings.themeMode），禁用
 ///   XCUIDevice.appearance / 启动参数（前序实测均为假 Dark），
 ///   并以像素亮度断言自证 Dark 真生效。
 /// - P0-2：四页滚动到底后，末尾标记必须位于浮动 Tab 栏上方且可命中，
 ///   且底部留白不过量（防过度预留）。frame 数值写进断言消息，
 ///   失败时可从 test.log 直接读到实测缺口。
-/// - P0-4：胶囊标题在默认与 AX 特大字号下保持单行（以胶囊高度与
-///   文本高度为口径），并断言 AX 字号确已生效（防启动参数静默失效）。
+/// - P0-4：保留的 AI 胶囊标题在默认与 AX 特大字号下保持单行（以文本
+///   高度/宽度为口径），并断言 AX 字号确已生效（防启动参数静默失效）。
 final class V381HomeShellCorrectionUITests: XCTestCase {
     private var app: XCUIApplication!
 
@@ -111,61 +110,43 @@ final class V381HomeShellCorrectionUITests: XCTestCase {
         target.tap()
     }
 
-    // MARK: - P0-1 + 截图交付：默认/展开 × Light/Dark
+    // MARK: - 减法回归 + 截图交付：默认态 × Light/Dark（快捷行已删）
 
-    func testHomeDefaultAndQuickMenuScreenshotsLightDark() {
+    func testHomeDefaultScreenshotsLightDarkWithoutQuickRow() {
         // —— Light 默认态 ——
         // 亮度阈值按 Home 实测校准：深绿 Hero 约占屏 1/4，全图均值 ≈0.68
         // （run 39906659467 实测 0.684；Todo 页无大色块故其基线 0.93 不适用）。
         // 与 Dark 实测 0.13–0.17 相比，0.55 阈值仍可决定性区分真 Light/假 Dark。
-        XCTAssertTrue(element("v38.home.quick.expand").waitForExistence(timeout: 10))
+        XCTAssertTrue(element("v38.home.hero").waitForExistence(timeout: 10), "Light 下 Hero 未出现")
+        assertQuickRowAbsent(schemeName: "Light")
         let lightDefault = app.screenshot()
         attachScreenshot(lightDefault, named: "v381-home-default-light")
         XCTAssertGreaterThan(meanLuminance(of: lightDefault), 0.55, "Light 默认截图亮度异常")
 
-        // —— Light 展开态：深色面板上的菜单项必须存在、可命中、标签正确 ——
-        assertQuickMenuReadable(schemeName: "Light")
-        let lightMenu = app.screenshot()
-        attachScreenshot(lightMenu, named: "v381-home-quickmenu-light")
-        element("v38.home.quick.collapse").tap()
-        XCTAssertTrue(element("v38.home.quick.expand").waitForExistence(timeout: 5), "Light 下菜单未收起")
-
         // —— Dark（生产主题路径）默认态 ——
         setDisplayMode("深色模式")
-        XCTAssertTrue(element("v38.home.quick.expand").waitForExistence(timeout: 10))
+        XCTAssertTrue(element("v38.home.hero").waitForExistence(timeout: 10), "Dark 下 Hero 未出现")
+        assertQuickRowAbsent(schemeName: "Dark")
         let darkDefault = app.screenshot()
         attachScreenshot(darkDefault, named: "v381-home-default-dark")
         XCTAssertLessThan(meanLuminance(of: darkDefault), 0.45, "Dark 默认截图未真生效")
-
-        // —— Dark 展开态 ——
-        assertQuickMenuReadable(schemeName: "Dark")
-        let darkMenu = app.screenshot()
-        attachScreenshot(darkMenu, named: "v381-home-quickmenu-dark")
-        XCTAssertLessThan(meanLuminance(of: darkMenu), 0.45, "Dark 展开截图未真生效")
-        element("v38.home.quick.collapse").tap()
 
         // 恢复「跟随系统」，不污染后续测试（themeMode 持久化于 UserDefaults）。
         setDisplayMode("跟随系统")
     }
 
-    /// 展开快捷菜单并断言三行均可读（存在 + 可命中 + VoiceOver 标签 = 标题）。
-    private func assertQuickMenuReadable(schemeName: String) {
-        element("v38.home.quick.expand").tap()
+    /// 2026-10-23 减法回归：被删的快捷入口在任何 scheme 下都不得出现，
+    /// 而保留区块（Hero / AI 胶囊 / 今日事项）必须在位。
+    private func assertQuickRowAbsent(schemeName: String) {
         XCTAssertTrue(
-            element("v38.home.quick.collapse").waitForExistence(timeout: 5),
-            "\(schemeName) 下快捷菜单未展开"
+            element("v38.home.ai.expand").waitForExistence(timeout: 5),
+            "\(schemeName) 下 AI 胶囊（保留入口）未出现"
         )
-        let expected: [(id: String, label: String)] = [
-            ("v38.home.quick.income", "记收入"),
-            ("v38.home.quick.expense", "记支出"),
-            ("v38.home.quick.memo", "写备忘"),
-        ]
-        for item in expected {
-            let row = element(item.id)
-            XCTAssertTrue(row.waitForExistence(timeout: 5), "\(schemeName) 下菜单项缺失：\(item.id)")
-            XCTAssertTrue(row.isHittable, "\(schemeName) 下菜单项不可命中：\(item.id)")
-            XCTAssertEqual(row.label, item.label, "\(schemeName) 下菜单项 VoiceOver 标签不符：\(item.id)")
-        }
+        XCTAssertFalse(element("v38.home.quick.expand").exists, "\(schemeName) 下快捷菜单胶囊不得出现")
+        XCTAssertFalse(element("v38.home.quick.collapse").exists, "\(schemeName) 下快捷菜单面板不得出现")
+        XCTAssertFalse(element("home.quickRecord").exists, "\(schemeName) 下独立写备忘按钮不得出现")
+        XCTAssertFalse(app.staticTexts["快速记一笔"].exists, "\(schemeName) 下「快速记一笔」标题不得出现")
+        XCTAssertFalse(app.staticTexts["快速操作"].exists, "\(schemeName) 下「快速操作」面板不得出现")
     }
 
     // MARK: - P0-2 四页末尾内容不被浮动 Tab 栏遮挡
@@ -218,24 +199,17 @@ final class V381HomeShellCorrectionUITests: XCTestCase {
         }
     }
 
-    // MARK: - P0-4 胶囊标题单行（默认 + AX 特大字号）
+    // MARK: - P0-4 保留胶囊（AI）标题单行（默认 + AX 特大字号）
 
     func testCapsuleTitlesStaySingleLineAtDefaultAndAccessibilitySizes() {
-        // —— 默认字号 ——
-        let quickButton = element("v38.home.quick.expand")
-        XCTAssertTrue(quickButton.waitForExistence(timeout: 10))
-        let quickTitle = app.staticTexts["快速记一笔"].firstMatch
-        XCTAssertTrue(quickTitle.waitForExistence(timeout: 5), "快速记一笔标题不存在")
-        XCTAssertLessThanOrEqual(
-            quickTitle.frame.height, 30,
-            "默认字号下「快速记一笔」应为单行，实际高度 \(quickTitle.frame.height)"
-        )
-        XCTAssertLessThanOrEqual(
-            quickButton.frame.height, 60,
-            "默认字号下快捷胶囊高度异常：\(quickButton.frame.height)"
-        )
+        // —— 默认字号：AI 胶囊标题单行 ——
+        // （「快速记一笔 / 写备忘」胶囊已于 2026-10-23 整行删除，此处只验保留胶囊。）
         let aiTitle = app.staticTexts["问小掌柜…"].firstMatch
-        XCTAssertTrue(aiTitle.waitForExistence(timeout: 5), "AI 胶囊标题不存在")
+        XCTAssertTrue(aiTitle.waitForExistence(timeout: 10), "AI 胶囊标题不存在")
+        XCTAssertLessThanOrEqual(
+            aiTitle.frame.height, 30,
+            "默认字号下 AI 胶囊标题应为单行，实际高度 \(aiTitle.frame.height)"
+        )
         let defaultAITitleHeight = aiTitle.frame.height
 
         // —— AX 特大字号（启动参数设定首选内容尺寸类别）——
@@ -258,30 +232,22 @@ final class V381HomeShellCorrectionUITests: XCTestCase {
             "AX 字号未生效：default=\(defaultAITitleHeight) ax=\(axAITitle.frame.height)"
         )
 
-        // 胶囊本体不得因换行长高；标题保持单行且不溢出胶囊宽度。
-        let axQuickButton = axApp.descendants(matching: .any).matching(identifier: "v38.home.quick.expand").firstMatch
-        XCTAssertTrue(axQuickButton.waitForExistence(timeout: 10), "AX 字号下快捷胶囊不存在")
+        // 标题保持单行且不溢出胶囊宽度（两行将 ≥ 约 100pt，64 上限可决定性区分）。
+        let axAIButton = axApp.descendants(matching: .any).matching(identifier: "v38.home.ai.expand").firstMatch
+        XCTAssertTrue(axAIButton.waitForExistence(timeout: 10), "AX 字号下 AI 胶囊不存在")
         XCTAssertLessThanOrEqual(
-            axQuickButton.frame.height, 64,
-            "AX 字号下快捷胶囊高度异常（疑似标题换行）：\(axQuickButton.frame.height)"
-        )
-        let axQuickTitle = axApp.staticTexts["快速记一笔"].firstMatch
-        XCTAssertTrue(axQuickTitle.waitForExistence(timeout: 5), "AX 字号下快速记一笔标题不存在")
-        XCTAssertLessThanOrEqual(
-            axQuickTitle.frame.height, 56,
-            "AX 字号下「快速记一笔」应保持单行，实际高度 \(axQuickTitle.frame.height)"
+            axAITitle.frame.height, 64,
+            "AX 字号下 AI 胶囊标题应保持单行，实际高度 \(axAITitle.frame.height)"
         )
         XCTAssertLessThanOrEqual(
-            axQuickTitle.frame.width, axQuickButton.frame.width + 1,
-            "AX 字号下「快速记一笔」溢出胶囊宽度"
+            axAITitle.frame.width, axAIButton.frame.width + 1,
+            "AX 字号下 AI 胶囊标题溢出胶囊宽度"
         )
-        // 「写备忘」胶囊同样不得换行长高。
+        // 减法回归：AX 字号下被删入口同样不得出现（防大字号布局分支残留）。
+        let axQuick = axApp.descendants(matching: .any).matching(identifier: "v38.home.quick.expand").firstMatch
+        XCTAssertFalse(axQuick.exists, "AX 字号下快捷菜单胶囊不得出现")
         let axMemo = axApp.descendants(matching: .any).matching(identifier: "home.quickRecord").firstMatch
-        XCTAssertTrue(axMemo.waitForExistence(timeout: 5), "AX 字号下写备忘胶囊不存在")
-        XCTAssertLessThanOrEqual(
-            axMemo.frame.height, 64,
-            "AX 字号下写备忘胶囊高度异常（疑似换行）：\(axMemo.frame.height)"
-        )
+        XCTAssertFalse(axMemo.exists, "AX 字号下独立写备忘按钮不得出现")
         attachScreenshot(axApp.screenshot(), named: "v381-home-accessibility-xxxL")
     }
 }
