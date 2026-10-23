@@ -107,18 +107,32 @@ final class V38PerformanceChartCorrectionUITests: XCTestCase {
         XCTAssertFalse(readout.label.contains("¥"), "未选中时读数行应为提示文案：\(readout.label)")
 
         // 在图表上横向拖动（chartXSelection 原生手势），选中某日。
+        // 用慢速 press-drag + 末端停留：XCUITest 的快速拖动事件会被
+        // Charts 的连续手势识别丢弃（run 39900877406 实证默认速度未选中）。
         let chart = element("v38.performance.chart")
         let start = chart.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.6))
         let end = chart.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.6))
-        start.press(forDuration: 0.1, thenDragTo: end)
+        start.press(forDuration: 0.4, thenDragTo: end, withVelocity: .slow, holdForDuration: 0.3)
 
         // 轮询等待读数行变为「已选日期 M/d · ¥金额」。
-        let deadline = Date().addingTimeInterval(8)
+        let deadline = Date().addingTimeInterval(10)
         var label = readout.label
         while Date() < deadline {
             label = readout.label
             if label.contains("¥") && label.contains("已选") { break }
             Thread.sleep(forTimeInterval: 0.25)
+        }
+        if !(label.contains("¥") && label.contains("已选")) {
+            // 兜底再试一次反向拖动（自右向左）。
+            let start2 = chart.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.6))
+            let end2 = chart.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.6))
+            start2.press(forDuration: 0.4, thenDragTo: end2, withVelocity: .slow, holdForDuration: 0.3)
+            let deadline2 = Date().addingTimeInterval(8)
+            while Date() < deadline2 {
+                label = readout.label
+                if label.contains("¥") && label.contains("已选") { break }
+                Thread.sleep(forTimeInterval: 0.25)
+            }
         }
         XCTAssertTrue(label.contains("已选"), "拖动后读数行应进入已选态：\(label)")
         XCTAssertTrue(label.contains("¥"), "读数行必须显示该日真实金额：\(label)")

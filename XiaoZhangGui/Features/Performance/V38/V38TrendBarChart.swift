@@ -5,11 +5,11 @@ import SwiftUI
 ///
 /// 真机问题：月视图 30 个数据点的日期标签全部渲染，在窄屏上严重重叠。
 /// 口径：**只抽稀轴标签，绝不动数据点** —— 柱子一天不少，统计口径不变。
-/// 点数 ≤ 上限时全部显示（周/日视图 7 个日期完整保留）；
-/// 超过上限时等距抽稀且必含首尾（月视图 30 点 → ≤6 个关键日期）。
+/// 点数 ≤ 上限时全部显示（周/日视图 7 个日期完整保留，上限因此取 7）；
+/// 超过上限时等距抽稀且必含首尾（月视图 30 点 → 7 个关键日期）。
 enum V38AxisLabelPolicy {
-    /// 任意周期下 X 轴最多显示的标签数（月视图上限）。
-    static let maxAxisLabels = 6
+    /// 任意周期下 X 轴最多显示的标签数（月视图上限；不得小于周视图点数 7）。
+    static let maxAxisLabels = 7
 
     /// 返回应显示轴标签的数据点下标（升序、去重、必含首尾）。
     static func labeledIndices(pointCount: Int, maxLabels: Int = maxAxisLabels) -> [Int] {
@@ -129,11 +129,16 @@ struct V38TrendBarChart: View {
         .chartYScale(domain: 0...domainMax)
         .chartYAxis(.hidden)
         .chartXAxis {
-            // P0-3：只给抽稀后的关键日期挂标签，其余数据点照常渲染柱形。
-            AxisMarks(values: axisLabelValues) { _ in
-                AxisValueLabel()
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+            // P0-3：只给抽稀后的关键日期渲染标签文字，其余数据点照常渲染柱形。
+            // 注：分类（String）轴下 `AxisMarks(values:)` 不过滤标签
+            // （run 39900877406 月图截图实证 30 个标签仍全量重叠），
+            // 必须在 mark 内容层按策略放行——未命中的 mark 不产出标签。
+            AxisMarks { value in
+                if let label = value.as(String.self), axisLabelValues.contains(label) {
+                    AxisValueLabel()
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .chartLegend(.hidden)
