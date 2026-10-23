@@ -49,6 +49,7 @@ enum V371AccessibilityID {
     static let expiryToggleReturn = "expiry.toggleReturn"
     static let goodsDelete = "goods.delete"
     static let todoToggle = "todo.toggle"
+    static let todoAdd = "todo.add"
     static let reliabilityRetry = "reliability.retry"
 
     static let scrollEndHome = "scrollEnd.home"

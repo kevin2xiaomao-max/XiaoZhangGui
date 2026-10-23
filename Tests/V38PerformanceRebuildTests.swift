@@ -105,9 +105,10 @@ final class V38PerformanceRebuildTests: XCTestCase {
             "图表全部点值之和 = 区间内总营业额"
         )
 
-        // 周期映射（既有模型语义）：日/周 → 7 点，月 → 30 点。
+        // 周期映射（V3.8 P1-B2 真实口径）：日 → 近7日逐日 7 点；
+        // 周 → 近4周逐周 4 点（不再与日重复）；月 → 近30日 30 点。
         XCTAssertEqual(PerformanceTrend.points(for: .day, performances: performances, now: now).count, 7)
-        XCTAssertEqual(PerformanceTrend.points(for: .week, performances: performances, now: now).count, 7)
+        XCTAssertEqual(PerformanceTrend.points(for: .week, performances: performances, now: now).count, 4)
         XCTAssertEqual(PerformanceTrend.points(for: .month, performances: performances, now: now).count, 30)
     }
 

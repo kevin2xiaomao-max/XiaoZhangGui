@@ -10,6 +10,9 @@ struct TodoEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     let todo: Todo?
+    /// V3.8 P1-B1：新建时的预填日期（日历页「+」带入当前选中日）。
+    /// 默认 nil = 既有行为（默认今天 09:00）；编辑已有待办时忽略。
+    var initialDate: Date? = nil
 
     @State private var title = ""
     @State private var detail = ""
@@ -79,7 +82,9 @@ struct TodoEditorSheet: View {
         guard !isInitialized else { return }
         isInitialized = true
         guard let todo else {
-            dueDate = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date()) ?? Date()
+            // 新建：默认 09:00；日历页入口带入选中日（V3.8 P1-B1）。
+            let base = initialDate ?? Date()
+            dueDate = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: base) ?? base
             return
         }
         title = todo.title

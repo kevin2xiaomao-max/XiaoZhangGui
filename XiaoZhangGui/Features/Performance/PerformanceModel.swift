@@ -155,6 +155,15 @@ enum PerformanceChartPeriod: String, CaseIterable, Identifiable, Hashable {
         case .month: return .month
         }
     }
+
+    /// V3.8 P1-B2：图表合计行文案与周期口径一一对应（周 ≠ 近7日）。
+    var trendTotalLabel: String {
+        switch self {
+        case .day: return "近7日合计"
+        case .week: return "近4周合计"
+        case .month: return "近30日合计"
+        }
+    }
 }
 
 enum PerformanceTrend {
@@ -166,10 +175,34 @@ enum PerformanceTrend {
         points(performances: performances, days: 30, now: now)
     }
 
+    /// V3.8 P1-B2：周口径真实化——近 4 周逐周汇总（周一起始，与日历页一致）。
+    /// 修复前「周」与「日」都返回 last7Days，两档展示完全相同的数据。
+    /// 标签用「本周/上周/前2周/前3周」；value 为该自然周内全部营业额合计。
+    static func last4Weeks(performances: [Performance], now: Date = Date()) -> [TrendPoint] {
+        var cal = Calendar.current
+        cal.firstWeekday = 2 // 周一起始
+        guard let thisWeek = cal.dateInterval(of: .weekOfYear, for: now) else { return [] }
+        let labels = ["本周", "上周", "前2周", "前3周"]
+        return (0..<4).reversed().enumerated().compactMap { index, weeksAgo in
+            guard let weekStart = cal.date(byAdding: .weekOfYear, value: -weeksAgo, to: thisWeek.start),
+                  let week = cal.dateInterval(of: .weekOfYear, for: weekStart) else { return nil }
+            let rev = performances
+                .filter { $0.date >= week.start && $0.date < week.end }
+                .reduce(0) { $0 + $1.amount }
+            return TrendPoint(id: index, label: labels[weeksAgo], value: rev, date: week.start)
+        }
+    }
+
+    /// 各周期唯一且真实的统计口径（V3.8 P1-B2）：
+    /// - 日：近 7 日逐日（日粒度）
+    /// - 周：近 4 周逐周汇总（周粒度）
+    /// - 月：近 30 日逐日（日粒度 · 长窗口）
     static func points(for period: PerformanceChartPeriod, performances: [Performance], now: Date = Date()) -> [TrendPoint] {
         switch period {
-        case .day, .week:
+        case .day:
             return last7Days(performances: performances, now: now)
+        case .week:
+            return last4Weeks(performances: performances, now: now)
         case .month:
             return last30Days(performances: performances, now: now)
         }

@@ -110,6 +110,12 @@ final class V38ScheduleRebuildUITests: XCTestCase {
         let windowBefore = cell.frame
 
         // 20 次切换（周→月 交替，偶数次回到月密度）
+        // V3.8 PR-B 起：周密度在锚点过渡（ghost 行保高）后会二次沉降——
+        // 选中行上方 ghost 行收起，稳态 Y 与月密度不同（预期行为变更，
+        // 消除约 190pt 稳态空白）。故周密度锚点口径改为：X 不漂移 +
+        // 沉降确实发生（Y 上移）+ 两次进入周密度的稳态位置一致（≤1pt）；
+        // 月密度往返锚点仍由循环后断言守 ≤1pt（见下方 after 对比）。
+        var settledWeekCenter: CGPoint?
         for i in 1...20 {
             let target = i % 2 == 1 ? "v38.schedule.density.week" : "v38.schedule.density.month"
             element(target).tap()
@@ -117,14 +123,21 @@ final class V38ScheduleRebuildUITests: XCTestCase {
 
             XCTAssertTrue(cell.isSelected, "第 \(i) 次切换后选中日期漂移（不再是今日）")
             XCTAssertTrue(mastheadShows(today), "第 \(i) 次切换后 masthead 选中日期漂移")
-            if i == 1 {
-                // 周密度下锚点实测：选中格相对地标的位置必须与月密度一致（≤1pt）
+            if i == 1 || i == 3 {
+                // 等待 ghost 沉降完成（锚点过渡 500ms + 收起动画）后测稳态位置
+                Thread.sleep(forTimeInterval: 1.0)
                 let weekCenter = relativeCenter(of: cell, in: grid)
                 XCTAssertLessThanOrEqual(abs(weekCenter.x - before.x), 1.0, "周密度锚点 X 位移超限：\(before.x) → \(weekCenter.x)")
-                XCTAssertLessThanOrEqual(abs(weekCenter.y - before.y), 1.0, "周密度锚点 Y 位移超限：\(before.y) → \(weekCenter.y)")
-                // 周密度下：非选中周的日期格不可达（ghost/collapsed 不拦截点按）
-                if let other = otherWeekDayCell(excludingWeekOf: today) {
-                    XCTAssertFalse(other.isHittable, "周密度下非选中周日期不应可达")
+                if i == 1 {
+                    XCTAssertLessThan(weekCenter.y, before.y, "周密度沉降后选中格应上移（ghost 空白收起）：\(before.y) → \(weekCenter.y)")
+                    settledWeekCenter = weekCenter
+                    // 周密度下：非选中周的日期格不可达（ghost/collapsed 不拦截点按）
+                    if let other = otherWeekDayCell(excludingWeekOf: today) {
+                        XCTAssertFalse(other.isHittable, "周密度下非选中周日期不应可达")
+                    }
+                } else if let settled = settledWeekCenter {
+                    XCTAssertLessThanOrEqual(abs(weekCenter.x - settled.x), 1.0, "周密度稳态锚点 X 不重复：\(settled.x) → \(weekCenter.x)")
+                    XCTAssertLessThanOrEqual(abs(weekCenter.y - settled.y), 1.0, "周密度稳态锚点 Y 不重复：\(settled.y) → \(weekCenter.y)")
                 }
             }
         }

@@ -26,6 +26,25 @@ enum V38AxisLabelPolicy {
     }
 }
 
+/// V3.8 P1-B2：图表点按选中决策（纯逻辑，可单测）。
+///
+/// 修复前一次点按后选中态永远无法退回；修复后：
+/// - 点按落在绘图区外（留白 / 轴区）→ 取消选中；
+/// - 再次点中已选柱 → 取消选中；
+/// - 点中其他柱 → 切换选中。
+enum V38ChartSelectionTapPolicy {
+    /// 点按是否落在绘图区内（区域外点按 = 取消选中）。
+    static func isInsidePlot(x: CGFloat, y: CGFloat, plotRect: CGRect) -> Bool {
+        x >= plotRect.minX && x <= plotRect.maxX && y >= plotRect.minY && y <= plotRect.maxY
+    }
+
+    /// 命中柱后的新选中标签：再次点中已选柱 → nil（取消）；否则切换为该柱。
+    static func selectedLabel(afterTapOn tapped: String?, current: String?) -> String? {
+        guard let tapped else { return current }
+        return tapped == current ? nil : tapped
+    }
+}
+
 /// V3.8 重建 · 经营页收入趋势柱状图（真实数据，Swift Charts）。
 ///
 /// 动效（Worker C 规格 §4）：数据更新时柱高从旧值插值到新值
@@ -131,8 +150,9 @@ struct V38TrendBarChart: View {
             }
         }
         .chartOverlay { proxy in
-            // P1-7 点按选中：透明层只接管点按（不抢纵向滚动手势），
+            // P1-7 点按选中 + P1-B2 取消选中：透明层只接管点按（不抢纵向滚动手势），
             // 用 ChartProxy 把点按位置换算为最近的日期分类（原生口径）。
+            // 点在绘图区外或再次点中已选柱 → 取消选中（决策逻辑在纯函数策略内）。
             GeometryReader { geo in
                 Rectangle()
                     .fill(Color.clear)
@@ -142,9 +162,18 @@ struct V38TrendBarChart: View {
                             .onEnded { value in
                                 guard let plotAnchor = proxy.plotFrame else { return }
                                 let plotRect = geo[plotAnchor]
-                                let x = value.location.x - plotRect.origin.x
+                                let location = value.location
+                                guard V38ChartSelectionTapPolicy.isInsidePlot(
+                                    x: location.x, y: location.y, plotRect: plotRect
+                                ) else {
+                                    selectedLabel = nil
+                                    return
+                                }
+                                let x = location.x - plotRect.origin.x
                                 if let label: String = proxy.value(atX: x) {
-                                    selectedLabel = label
+                                    selectedLabel = V38ChartSelectionTapPolicy.selectedLabel(
+                                        afterTapOn: label, current: selectedLabel
+                                    )
                                 }
                             }
                     )
@@ -179,6 +208,13 @@ struct V38TrendBarChart: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("收入趋势图")
         .accessibilityValue(accessibilitySummary)
+        // V3.8 P1-B2：VoiceOver 可按点遍历每个周期值（原来整图合并成一句话，
+        // 视障用户无法查询某一天/某一周的具体金额）。
+        .accessibilityChildren {
+            ForEach(points) { point in
+                Text("\(point.label)，收入 \(Fmt.money(point.value))")
+            }
+        }
     }
 
     /// 选中反馈：选中柱保持实色，其余柱淡化（Light/Dark 均可辨认）。
