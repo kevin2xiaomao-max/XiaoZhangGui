@@ -59,12 +59,37 @@ struct HomeView: View {
                                expiryItems: summary.pendingExpiry, limit: 3)
     }
 
+    // MARK: V3.9 数据(全部复用既有模型口径,零新增计算规则)
+
+    /// 近7日趋势(既有 PerformanceTrend,与经营页同源)。
+    private var trendPoints: [TrendPoint] {
+        PerformanceTrend.last7Days(performances: performances)
+    }
+
+    /// 本月收入来源占比(既有 IncomeSourceSummary,与经营页同源)。
+    private var sourceSummaries: [IncomeSourceSummary] {
+        IncomeSourceSummary.compute(performances: performances, range: (Date().startOfMonth, Date().endOfDay))
+    }
+
+    /// 逾期未完成数(TodoFilter 同口径)。
+    private var overdueCount: Int {
+        TodoFilter.todos(for: .overdue, in: todos).count
+    }
+
+    /// 今日待办数(含未安排,与首页事项区同一事实源)。
+    private var todayTodoCount: Int {
+        TodoFilter.todos(for: .today, in: todos).count
+    }
+
     var body: some View {
         ScrollView {
-            // V3.8.1 P1-5：垂直节奏收紧（24→20），保留 Editorial 留白，去掉无意义大间隙。
-            VStack(alignment: .leading, spacing: 20) {
+            // V3.9 高级质感版式:日期 → 玻璃Hero(目标环) → 统计chips → 趋势/来源
+            // → AI 胶囊 → 快捷行 → 今日事项。信息密度一屏补齐(用户定稿方向)。
+            VStack(alignment: .leading, spacing: 18) {
                 dateHeader
-                businessSection
+                heroCard
+                statChipsRow
+                trendAndSourceSection
                 aiSection
                 quickActionsRow
                 mattersSection
@@ -76,7 +101,7 @@ struct HomeView: View {
         }
         .scrollIndicators(.hidden)
         .accessibilityIdentifier(V371AccessibilityID.screenHome)
-        .v371Canvas()
+        .v39Canvas()
         // V3.8.1 P0-2：iOS 26/27 浮动 Tab 栏为覆盖层，系统底部安全区不含栏体；
         // 用共享 safeAreaInset 机制让内容可完整滚动到栏上方（禁内容内 Spacer 掩盖）。
         .v32PageBottomInset()
@@ -169,59 +194,72 @@ struct HomeView: View {
         .accessibilityLabel(weatherModel.snapshot.map { "\($0.city)，\($0.roundedTemperature)度" } ?? "天气")
     }
 
-    // MARK: - 今天的经营 · Revenue Hero（深绿卡，唯一主视觉）
+    // MARK: - V3.9 · 本月营业额玻璃大卡（含月目标进度环,替代 V3.8 深绿 Hero）
 
-    private var businessSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            V38HomeSectionHeader(title: "今天的经营")
-            Button { route = .performance } label: {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("今日营业额")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(V38HomeStyle.heroSecondary)
-                    Text("¥" + Fmt.groupedAmount(summary.revenue))
-                        .font(V38HomeStyle.scaledHeroAmount(size: heroAmountSize))
-                        .tracking(-1.5)
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                        .contentTransition(.numericText())
-                    if !heroInfoParts.isEmpty {
-                        HStack(spacing: 8) {
-                            ForEach(Array(heroInfoParts.enumerated()), id: \.offset) { index, part in
-                                if index > 0 {
-                                    Circle()
-                                        .fill(.white.opacity(0.4))
-                                        .frame(width: 3, height: 3)
-                                }
-                                Text(part)
-                                    .font(.footnote.weight(.medium))
-                                    .foregroundStyle(V38HomeStyle.heroSecondary)
-                            }
-                        }
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(18)
-                .background(V38HomeStyle.heroBackground, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("v38.home.hero")
-            .accessibilityLabel("今日营业额 ¥\(Fmt.groupedAmount(summary.revenue))，查看经营详情")
+    private var heroCard: some View {
+        V39HeroCard(
+            monthRevenue: monthRevenue,
+            monthGoal: monthGoal,
+            todayRevenue: summary.revenue,
+            changePercent: summary.changePercent,
+            heroAmountSize: heroAmountSize,
+            onTap: { route = .performance }
+        )
+    }
+
+    // MARK: - V3.9 · 统计 chips（待办 / 逾期 / 临期 / 配送,一眼看全）
+
+    private var statChipsRow: some View {
+        HStack(spacing: 10) {
+            V39StatChip(
+                icon: "checklist",
+                title: "待办",
+                count: todayTodoCount,
+                tint: V39Style.navy,
+                identifier: "v39.home.chips.todo",
+                onTap: { tab = .todo }
+            )
+            V39StatChip(
+                icon: "exclamationmark.circle.fill",
+                title: "逾期",
+                count: overdueCount,
+                tint: V371.Colors.orange,
+                identifier: "v39.home.chips.overdue",
+                onTap: { tab = .todo }
+            )
+            V39StatChip(
+                icon: "hourglass",
+                title: "临期",
+                count: summary.pendingExpiry.count,
+                tint: V371.Colors.red,
+                identifier: V371AccessibilityID.homeExpiry,
+                onTap: { route = .expiry }
+            )
+            V39StatChip(
+                icon: "box.truck.fill",
+                title: "配送",
+                count: summary.deliveries.count,
+                tint: V39Style.gold,
+                identifier: V371AccessibilityID.homeCustomer,
+                onTap: { route = .customer }
+            )
         }
     }
 
-    private var heroInfoParts: [String] {
-        var parts: [String] = []
-        if let change = summary.changePercent {
-            let sign = change >= 0 ? "+" : ""
-            parts.append("较昨日 \(sign)\(String(format: "%.1f", change))%")
+    // MARK: - V3.9 · 近7日趋势 + 本月收入来源（玻璃数据卡）
+
+    private var trendAndSourceSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            V39TrendCard(
+                points: trendPoints,
+                heroAmountSize: heroAmountSize,
+                onTap: { route = .performance }
+            )
+            V39SourceBar(
+                summaries: sourceSummaries,
+                onTap: { route = .performance }
+            )
         }
-        if monthGoal > 0 {
-            parts.append("月目标 \(String(format: "%.0f", monthRevenue / monthGoal * 100))%")
-        }
-        return parts
     }
 
     // MARK: - 问小掌柜 · AI 胶囊（生产）
