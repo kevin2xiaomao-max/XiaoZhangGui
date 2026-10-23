@@ -140,7 +140,8 @@ struct V38TrendBarChart: View {
                     .gesture(
                         SpatialTapGesture()
                             .onEnded { value in
-                                let plotRect = geo[proxy.plotFrame]
+                                guard let plotAnchor = proxy.plotFrame else { return }
+                                let plotRect = geo[plotAnchor]
                                 let x = value.location.x - plotRect.origin.x
                                 if let label: String = proxy.value(atX: x) {
                                     selectedLabel = label
