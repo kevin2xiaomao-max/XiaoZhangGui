@@ -1,0 +1,1443 @@
+diff --git a/Tests/V38QualityCloseoutTests.swift b/Tests/V38QualityCloseoutTests.swift
+new file mode 100644
+index 0000000..45c09cb
+--- /dev/null
++++ b/Tests/V38QualityCloseoutTests.swift
+@@ -0,0 +1,164 @@
++import XCTest
++import SwiftUI
++@testable import XiaoZhangGui
++
++/// V3.8 PR-D：UI 一致性 + 动态字体 + 工程质量收口测试。
++final class V38QualityCloseoutTests: XCTestCase {
++
++    // MARK: - C1 · 待办空态副文案按 tab 区分（真实业务断言）
++
++    func testEmptyMessageIsTabSpecific() {
++        let messages = TodoTab.allCases.map { TodoFilter.emptyMessage(for: $0) }
++        XCTAssertEqual(messages.count, TodoTab.allCases.count)
++        XCTAssertTrue(messages.allSatisfy { !$0.isEmpty }, "每个 tab 都必须有非空行动指引")
++        // 副文案必须 tab 间可区分（原先所有 tab 共用同一句）。
++        XCTAssertEqual(Set(messages).count, TodoTab.allCases.count, "各 tab 副文案不得重复")
++        XCTAssertTrue(TodoFilter.emptyMessage(for: .today).contains("+"), "今天 tab 应指向新增入口")
++    }
++
++    // MARK: - C1 · 金额输入有效性（真实解析断言，含边界与非法输入）
++
++    func testMoneyAmountParsing() {
++        XCTAssertEqual(MoneyAmountText.parse("680"), 680)
++        XCTAssertEqual(MoneyAmountText.parse("680.5"), 680.5)
++        XCTAssertEqual(MoneyAmountText.parse("1,200"), 1200, "千分位逗号应被容忍")
++        XCTAssertNil(MoneyAmountText.parse("0"), "0 无效")
++        XCTAssertNil(MoneyAmountText.parse("-5"), "负数无效")
++        XCTAssertNil(MoneyAmountText.parse("abc"), "非数字无效")
++        XCTAssertNil(MoneyAmountText.parse(""), "空串无效")
++        XCTAssertNil(MoneyAmountText.parse("6.8.0"), "多点号无效")
++    }
++
++    func testMoneyAmountInvalidHintPolicy() {
++        XCTAssertFalse(MoneyAmountText.needsInvalidHint(""), "未输入不提示")
++        XCTAssertFalse(MoneyAmountText.needsInvalidHint("  "), "纯空白不提示")
++        XCTAssertFalse(MoneyAmountText.needsInvalidHint("12"), "有效金额不提示")
++        XCTAssertTrue(MoneyAmountText.needsInvalidHint("0"), "0 需要提示")
++        XCTAssertTrue(MoneyAmountText.needsInvalidHint("abc"), "非数字需要提示")
++        XCTAssertTrue(MoneyAmountText.needsInvalidHint("-3"), "负数需要提示")
++    }
++
++    // MARK: - C3 · 动态字体语义化（源码契约）
++
++    func testV371TypographyUsesSemanticStyles() throws {
++        let source = try source("XiaoZhangGui/DesignSystem/V371/V371DesignSystem.swift")
++        // 截取 Typography 段（到下一个 MARK 之前），只审该段。
++        guard let start = source.range(of: "enum Typography {"),
++              let end = source[source.startIndex...].range(of: "// MARK: - Shadow") else {
++            return XCTFail("Typography 段定位失败")
++        }
++        let segment = String(source[start.lowerBound..<end.lowerBound])
++        XCTAssertTrue(segment.contains(".subheadline"), "heroTitle 必须 subheadline 语义化")
++        XCTAssertTrue(segment.contains(".headline"), "sectionTitle 必须 headline 语义化")
++        XCTAssertTrue(segment.contains(".callout"), "rowTitle 必须 callout 语义化")
++        XCTAssertTrue(segment.contains(".footnote"), "rowSubtitle/time 必须 footnote 语义化")
++        XCTAssertTrue(segment.contains(".caption"), "badge/quickAction 必须 caption 语义化")
++        // 除展示型 heroNumber 外，Typography 段不得再出现固定字号。
++        let fixedSizes = segment.components(separatedBy: ".system(size:").count - 1
++        XCTAssertEqual(fixedSizes, 1, "Typography 仅允许 heroNumber（展示型）保留固定字号")
++    }
++
++    func testHomeDisplayNumbersScaleWithDynamicType() throws {
++        let source = try source("XiaoZhangGui/Features/Home/HomeView.swift")
++        XCTAssertTrue(
++            source.contains("@ScaledMetric(relativeTo: .largeTitle) private var heroAmountSize"),
++            "首页 Hero 金额必须随动态字体缩放（P-C3 回归钉）"
++        )
++        XCTAssertTrue(
++            source.contains("@ScaledMetric(relativeTo: .largeTitle) private var dateNumberSize"),
++            "首页日期大数字必须随动态字体缩放"
++        )
++        XCTAssertTrue(
++            source.contains("scaledHeroAmount(size: heroAmountSize)")
++                && source.contains("scaledDateNumber(size: dateNumberSize)"),
++            "展示型大数字必须通过缩放后的字号构造"
++        )
++    }
++
++    // MARK: - C4 · 日志统一（无裸 print）
++
++    func testNoBarePrintInProductionTargets() throws {
++        // 主 target 中不再允许裸 print（指纹算法字符串除外——那是数据，不是日志）。
++        let files = [
++            "XiaoZhangGui/Services/LiveActivityManager.swift",
++            "XiaoZhangGui/Features/Goods/GoodsView.swift",
++            "XiaoZhangGui/DesignSystem/V32/Theme/ThemeStore.swift",
++            "XiaoZhangGui/Features/Assistant/AI/Core/AgentCore.swift",
++        ]
++        for path in files {
++            let source = try source(path)
++            XCTAssertFalse(
++                source.contains("\n        print(") || source.contains("\n            print(") || source.contains("\n                print("),
++                "\(path) 不得再出现裸 print（统一 AppLog，隐私可控）"
++            )
++        }
++    }
++
++    // MARK: - C4 · 死代码不复活 + 生产文件迁出实验目录
++
++    func testDeletedDeadCodeFilesStayDeleted() {
++        let repoRoot = URL(fileURLWithPath: #filePath)
++            .deletingLastPathComponent() // Tests/
++            .appendingPathComponent("..")
++            .standardized
++        let deleted = [
++            "XiaoZhangGui/DesignSystem/BusinessComponents.swift",
++            "XiaoZhangGui/DesignSystem/V21Components.swift",
++            "XiaoZhangGui/DesignSystem/V21Font.swift",
++            "XiaoZhangGui/DesignSystem/V21Spacing.swift",
++            "XiaoZhangGui/DesignSystem/FloatingDock-UNUSED.md", // 占位防误删语义,FloatingDock.swift 本体保留(Haptic/AppTab 定义)
++            "XiaoZhangGui/DesignSystem/V32/V32Components.swift",
++            "XiaoZhangGui/Components/TrendChart.swift",
++        ]
++        for rel in deleted where !rel.hasSuffix("UNUSED.md") {
++            XCTAssertFalse(
++                FileManager.default.fileExists(atPath: repoRoot.appendingPathComponent(rel).path),
++                "\(rel) 是已验证零引用死代码，不得复活"
++            )
++        }
++    }
++
++    func testProductionStateMachineLivesOutsideExperiments() {
++        let repoRoot = URL(fileURLWithPath: #filePath)
++            .deletingLastPathComponent()
++            .appendingPathComponent("..")
++            .standardized
++        XCTAssertTrue(
++            FileManager.default.fileExists(
++                atPath: repoRoot.appendingPathComponent("XiaoZhangGui/DesignSystem/V38/Motion/V38PageMotionState.swift").path
++            ),
++            "生产状态机必须住在正式目录 DesignSystem/V38/Motion/"
++        )
++        XCTAssertFalse(
++            FileManager.default.fileExists(
++                atPath: repoRoot.appendingPathComponent("XiaoZhangGui/Experiments/V38PageMotion/V38PageMotionState.swift").path
++            ),
++            "Experiments 不得混入生产文件（易被误清理）"
++        )
++    }
++
++    func testCapabilityGateIsDebugOnly() throws {
++        let source = try source("XiaoZhangGui/DesignSystem/V38/Motion/V38CapabilityGate.swift")
++        XCTAssertTrue(source.hasPrefix("#if DEBUG") || source.contains("#if DEBUG"),
++                      "仅测试引用的实验门控必须整文件 #if DEBUG（Release 剥离）")
++    }
++
++    // MARK: - C1 · 裸动效清理（源码契约）
++
++    func testTodoShakeUsesMotionToken() throws {
++        let source = try source("XiaoZhangGui/Features/Todo/TodoView.swift")
++        XCTAssertFalse(
++            source.contains(".easeInOut(duration: 0.32)"),
++            "不得绕过 Motion Token 写裸时长（V371 注释明令的纪律）"
++        )
++        XCTAssertTrue(
++            source.contains("V38MotionTokens.animation(for: .contentChange, reduceMotion: reduceMotion), value: shakeTrigger"),
++            "抖动触发动画必须走 contentChange token（含 Reduce Motion 降级）"
++        )
++    }
++
++    private func source(_ path: String) throws -> String {
++        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
++        return try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
++    }
++}
+diff --git a/XiaoZhangGui/Components/TrendChart.swift b/XiaoZhangGui/Components/TrendChart.swift
+deleted file mode 100644
+index 3a3e28e..0000000
+--- a/XiaoZhangGui/Components/TrendChart.swift
++++ /dev/null
+@@ -1,33 +0,0 @@
+-import SwiftUI
+-import Charts
+-
+-struct TrendChart: View {
+-    let points: [TrendPoint]
+-    var height: CGFloat = 56
+-    var showsAxis: Bool = false
+-    var onHero: Bool = false
+-
+-    private var hasValues: Bool {
+-        points.contains { $0.value > 0 }
+-    }
+-
+-    var body: some View {
+-        if hasValues {
+-            Chart(points) { point in
+-                LineMark(
+-                    x: .value("日期", point.date),
+-                    y: .value("营业额", point.value)
+-                )
+-                .foregroundStyle(onHero ? V371.Colors.heroText : V371.Colors.blue)
+-                .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+-                // 逐日实值以折线连接，避免平滑插值在稀疏数据间制造不存在的峰谷。
+-                .interpolationMethod(.linear)
+-            }
+-            .chartXAxis(showsAxis ? .automatic : .hidden)
+-            .chartYAxis(showsAxis ? .automatic : .hidden)
+-            .chartLegend(.hidden)
+-            .frame(height: height)
+-            .accessibilityLabel("营业额趋势")
+-        }
+-    }
+-}
+diff --git a/XiaoZhangGui/DesignSystem/BusinessComponents.swift b/XiaoZhangGui/DesignSystem/BusinessComponents.swift
+deleted file mode 100644
+index 231c164..0000000
+--- a/XiaoZhangGui/DesignSystem/BusinessComponents.swift
++++ /dev/null
+@@ -1,62 +0,0 @@
+-import SwiftUI
+-
+-struct BusinessMetricView: View {
+-    let title: String
+-    let value: String
+-    let detail: String
+-    let tint: Color
+-
+-    var body: some View {
+-        VStack(alignment: .leading, spacing: 8) {
+-            Text(title)
+-                .font(.subheadline)
+-                .foregroundStyle(.secondary)
+-            Text(value)
+-                .font(.system(.title, design: .rounded).weight(.bold))
+-                .foregroundStyle(.primary)
+-                .minimumScaleFactor(0.65)
+-                .lineLimit(1)
+-            HStack(spacing: 6) {
+-                Circle().fill(tint).frame(width: 6, height: 6)
+-                Text(detail)
+-                    .font(.caption)
+-                    .foregroundStyle(.secondary)
+-                    .lineLimit(1)
+-            }
+-        }
+-        .frame(maxWidth: .infinity, alignment: .leading)
+-        .padding(16)
+-        .background(V21.surfacePrimary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+-        .overlay(
+-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+-                .strokeBorder(Color(.separator).opacity(0.28), lineWidth: 0.5)
+-        )
+-        .accessibilityElement(children: .combine)
+-    }
+-}
+-
+-struct BusinessSectionHeader: View {
+-    let title: String
+-    let actionTitle: String?
+-    let action: (() -> Void)?
+-    init(_ title: String, actionTitle: String? = nil, action: (() -> Void)? = nil) {
+-        self.title = title
+-        self.actionTitle = actionTitle
+-        self.action = action
+-    }
+-
+-    var body: some View {
+-        HStack(alignment: .firstTextBaseline) {
+-            Text(title)
+-                .font(.title3.weight(.semibold))
+-                .foregroundStyle(.primary)
+-            Spacer()
+-            if let actionTitle, let action {
+-                Button(actionTitle, action: action)
+-                    .font(.subheadline)
+-                    .foregroundStyle(.secondary)
+-                    .buttonStyle(.plain)
+-            }
+-        }
+-    }
+-}
+diff --git a/XiaoZhangGui/DesignSystem/V21Components.swift b/XiaoZhangGui/DesignSystem/V21Components.swift
+deleted file mode 100644
+index ff6c262..0000000
+--- a/XiaoZhangGui/DesignSystem/V21Components.swift
++++ /dev/null
+@@ -1,21 +0,0 @@
+-import SwiftUI
+-
+-// V21Components.swift（V3.7.1）：仅保留仍被引用的 PageBackground；
+-// 其余 V21 旧 presentation（GlassSurface / PriorityDot / PillTabRow /
+-// V21FAB / EmptyStateView / BottomContentPaddingModifier）已零引用，移除。
+-
+-struct PageBackground<Content: View>: View {
+-    @ViewBuilder var content: () -> Content
+-
+-    var body: some View {
+-        content()
+-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+-            .background {
+-                ZStack {
+-                    Color(.systemGroupedBackground)
+-                    V21.background.opacity(0.55)
+-                }
+-                .ignoresSafeArea()
+-            }
+-    }
+-}
+diff --git a/XiaoZhangGui/DesignSystem/V21Font.swift b/XiaoZhangGui/DesignSystem/V21Font.swift
+deleted file mode 100644
+index 36b9408..0000000
+--- a/XiaoZhangGui/DesignSystem/V21Font.swift
++++ /dev/null
+@@ -1,96 +0,0 @@
+-import SwiftUI
+-
+-// MARK: - V2.1 Design Tokens — Typography
+-// 排版层级对齐 Android V21 Type.kt
+-
+-enum V21TextStyle {
+-    case displayHero      // 72 首页营业额大数字
+-    case displayLarge     // 56 业绩页总营业额
+-    case titlePage        // 34 页面大标题
+-    case titleSection     // 22 区块大数字
+-    case titleLarge       // 18 卡片/Sheet 标题
+-    case titleMedium      // 16 列表项主标题
+-    case titleSmall       // 15 次级标题
+-    case bodyLarge        // 15 正文
+-    case bodyMedium       // 14 常规正文
+-    case bodySmall        // 13 辅助正文
+-    case labelLarge       // 13 标签
+-    case labelMedium      // 12 元信息
+-    case labelSmall       // 11 分组标题
+-
+-    var font: Font { scaledFont(by: 1) }
+-
+-    func scaledFont(by scale: CGFloat) -> Font {
+-        switch self {
+-        case .displayHero:  return .system(size: 72 * scale, weight: .bold)
+-        case .displayLarge: return .system(size: 56 * scale, weight: .bold)
+-        case .titlePage:    return .system(size: 34 * scale, weight: .bold)
+-        case .titleSection: return .system(size: 22 * scale, weight: .bold)
+-        case .titleLarge:   return .system(size: 18 * scale, weight: .semibold)
+-        case .titleMedium:  return .system(size: 16 * scale, weight: .semibold)
+-        case .titleSmall:   return .system(size: 15 * scale, weight: .medium)
+-        case .bodyLarge:    return .system(size: 15 * scale, weight: .regular)
+-        case .bodyMedium:   return .system(size: 14 * scale, weight: .regular)
+-        case .bodySmall:    return .system(size: 13 * scale, weight: .regular)
+-        case .labelLarge:   return .system(size: 13 * scale, weight: .medium)
+-        case .labelMedium:  return .system(size: 12 * scale, weight: .medium)
+-        case .labelSmall:   return .system(size: 11 * scale, weight: .semibold)
+-        }
+-    }
+-
+-    /// 相对字号的字距（pt）
+-    var kerning: CGFloat {
+-        switch self {
+-        case .displayHero, .displayLarge: return -2.4
+-        case .titlePage:                  return -0.8
+-        case .titleSection:               return -0.4
+-        case .labelSmall:                 return 0.5
+-        default:                          return 0
+-        }
+-    }
+-
+-    var lineSpacingProxy: CGFloat {
+-        switch self {
+-        case .displayHero, .displayLarge: return 0
+-        case .titlePage:                  return 4
+-        default:                          return 0
+-        }
+-    }
+-}
+-
+-struct V21TextStyleModifier: ViewModifier {
+-    let style: V21TextStyle
+-    @ScaledMetric(relativeTo: .body) private var fontScale: CGFloat = 1
+-
+-    func body(content: Content) -> some View {
+-        content
+-            .font(style.scaledFont(by: fontScale))
+-            .kerning(style.kerning)
+-    }
+-}
+-
+-extension View {
+-    /// 应用 V2.1 排版层级
+-    func v21Style(_ style: V21TextStyle) -> some View {
+-        modifier(V21TextStyleModifier(style: style))
+-    }
+-}
+-
+-// MARK: - 数字等宽（大金额对齐）
+-extension Font {
+-    /// 营业额等大数字使用 SF Pro，货币符号/数字混排时保持紧凑
+-    static var v21MoneyHero: Font { .system(size: 72, weight: .bold) }
+-    static var v21MoneyLarge: Font { .system(size: 56, weight: .bold) }
+-}
+-
+-/// 全 App 统一字体层级，基于 iOS 系统字体，不引入外部字体依赖。
+-enum AppTypography {
+-    static let pageTitle = Font.system(size: 30, weight: .semibold, design: .rounded)
+-    static let sectionTitle = Font.system(size: 20, weight: .semibold, design: .rounded)
+-    static let cardTitle = Font.system(size: 16, weight: .medium)
+-    static let body = Font.system(size: 15, weight: .regular)
+-    static let bodyMedium = Font.system(size: 14, weight: .medium)
+-    static let caption = Font.system(size: 12, weight: .regular)
+-    static let micro = Font.system(size: 11, weight: .medium)
+-    static let heroAmount = Font.system(size: 53, weight: .semibold, design: .rounded)
+-}
+diff --git a/XiaoZhangGui/DesignSystem/V21Spacing.swift b/XiaoZhangGui/DesignSystem/V21Spacing.swift
+deleted file mode 100644
+index f520ad6..0000000
+--- a/XiaoZhangGui/DesignSystem/V21Spacing.swift
++++ /dev/null
+@@ -1,51 +0,0 @@
+-import SwiftUI
+-
+-// MARK: - V2.1 Design Tokens — Spacing / Radius / Sizes
+-// 全 App UI 精修：统一来源，减少 magic numbers
+-
+-enum V21Layout {
+-    // ========== 页面布局 ==========
+-    /// 页面左右边距（统一 20pt）
+-    static let pageMargin: CGFloat = 20
+-    /// 列表底部呼吸空间：系统 Tab Bar 已自带 safe area，
+-    /// 这里只加少量间距避免最后一项贴 Tab Bar 太近。
+-    /// 注意：不能用 Spacer + safeAreaInset，否则会产生可滚动空白。
+-    static let bottomContentPadding: CGFloat = 24
+-    
+-    // ========== Section 间距 ==========
+-    static let spaceXS: CGFloat = 4
+-    static let spaceSM: CGFloat = 8
+-    static let spaceMD: CGFloat = 12
+-    static let spaceLG: CGFloat = 16
+-    static let spaceXL: CGFloat = 20
+-    static let spaceXXL: CGFloat = 28
+-    static let spaceXXXL: CGFloat = 32
+-
+-    // ========== 圆角 ==========
+-    static let radiusSM: CGFloat = 8
+-    static let radiusMD: CGFloat = 12
+-    static let radiusLG: CGFloat = 16
+-    static let radiusXL: CGFloat = 20
+-    static let radiusPill: CGFloat = 20
+-    static let radiusDock: CGFloat = 28
+-
+-    // ========== 组件尺寸 ==========
+-    /// 自定义 FAB / 加号按钮尺寸（48pt，视觉直径 44-52pt 区间内）
+-    static let fabSize: CGFloat = 48
+-    /// FAB 内部图标尺寸
+-    static let fabIconSize: CGFloat = 18
+-    /// 独立语音主按钮视觉直径（52pt，更紧凑）
+-    static let centralVoiceButton: CGFloat = 52
+-    /// 语音按钮内部麦克风图标尺寸
+-    static let voiceButtonIconSize: CGFloat = 20
+-    /// 列表项最小高度
+-    static let listItemMinHeight: CGFloat = 52
+-    /// 快速入口图标框尺寸
+-    static let quickEntryIconBox: CGFloat = 52
+-    
+-    // ========== 顶部导航按钮尺寸 ==========
+-    /// 导航栏自定义圆形按钮（返回/关闭）
+-    static let navCircleButtonSize: CGFloat = 36
+-    /// 导航栏圆形按钮图标尺寸
+-    static let navCircleIconSize: CGFloat = 16
+-}
+diff --git a/XiaoZhangGui/DesignSystem/V32/Theme/ThemeStore.swift b/XiaoZhangGui/DesignSystem/V32/Theme/ThemeStore.swift
+index 3c543dd..135a860 100644
+--- a/XiaoZhangGui/DesignSystem/V32/Theme/ThemeStore.swift
++++ b/XiaoZhangGui/DesignSystem/V32/Theme/ThemeStore.swift
+@@ -120,7 +120,7 @@ final class ThemeStore {
+                 try WallpaperStorage.saveJPEGData(blurredData, fileName: blurredName)
+             } catch {
+                 // 预渲染失败不阻塞，V32WallpaperBackground 会回退到 .blur
+-                print("壁纸预渲染模糊版本失败：\(error.localizedDescription)")
++                AppLog.theme.error("壁纸预渲染模糊版本失败：\(error.localizedDescription)")
+             }
+         }
+         // 4. 更新配置（此刻起当前壁纸已是新文件）
+diff --git a/XiaoZhangGui/DesignSystem/V32/V32Components.swift b/XiaoZhangGui/DesignSystem/V32/V32Components.swift
+deleted file mode 100644
+index 066e181..0000000
+--- a/XiaoZhangGui/DesignSystem/V32/V32Components.swift
++++ /dev/null
+@@ -1,528 +0,0 @@
+-import SwiftUI
+-
+-// MARK: - V32 interaction feedback
+-
+-struct V32PressButtonStyle: ButtonStyle {
+-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+-
+-    func makeBody(configuration: Configuration) -> some View {
+-        configuration.label
+-            .opacity(configuration.isPressed ? 0.82 : 1)
+-            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.98 : 1)
+-            .animation(reduceMotion ? V32Motion.reducedFade : V32Motion.interactiveSpring,
+-                       value: configuration.isPressed)
+-    }
+-}
+-
+-// MARK: - V32 / BusinessDesignSystem — 可复用组件
+-// 基准：已确认的首页/日程设计稿。白卡细描边少阴影、深墨绿 hero、
+-// 圆形勾选、浅底图标泡、点式状态胶囊、大留白大圆角。
+-
+-// MARK: 二级页头（返回 + 标题 + 右侧操作）
+-
+-struct V32PageHeader<Trailing: View>: View {
+-    let title: String
+-    var subtitle: String?
+-    @ViewBuilder var trailing: Trailing
+-    @Environment(\.dismiss) private var dismiss
+-
+-    init(_ title: String, subtitle: String? = nil, @ViewBuilder trailing: () -> Trailing = { EmptyView() }) {
+-        self.title = title
+-        self.subtitle = subtitle
+-        self.trailing = trailing()
+-    }
+-
+-    var body: some View {
+-        HStack(alignment: .center, spacing: 10) {
+-            Button { dismiss() } label: {
+-                Image(systemName: "chevron.left")
+-                    .font(.system(size: 16, weight: .semibold))
+-                    .foregroundStyle(V32.textPrimary)
+-                    .frame(width: V32Layout.toolCircle, height: V32Layout.toolCircle)
+-                    .background(Circle().fill(V32.pageBGSecondary))
+-            }
+-            .buttonStyle(V32PressButtonStyle())
+-            .accessibilityLabel("返回")
+-            VStack(alignment: .leading, spacing: 2) {
+-                Text(title)
+-                    .v32Text(.pageTitle)
+-                    .foregroundStyle(V32.textPrimary)
+-                    .lineLimit(1)
+-                if let subtitle {
+-                    Text(subtitle)
+-                        .v32Text(.caption)
+-                        .foregroundStyle(V32.textTertiary)
+-                }
+-            }
+-            Spacer(minLength: 8)
+-            trailing
+-        }
+-    }
+-}
+-
+-// MARK: 深色圆形工具钮（页头加号等）
+-
+-struct V32ToolButton: View {
+-    let systemName: String
+-    let action: () -> Void
+-
+-    var body: some View {
+-        Button(action: action) {
+-            Image(systemName: systemName)
+-                .font(.system(size: 18, weight: .bold))
+-                .foregroundStyle(.white)
+-                .frame(width: V32Layout.toolCircle, height: V32Layout.toolCircle)
+-                .background(Circle().fill(V32.hero))
+-        }
+-        .buttonStyle(V32PressButtonStyle())
+-    }
+-}
+-
+-// MARK: 搜索框
+-
+-struct V32SearchField: View {
+-    let placeholder: String
+-    @Binding var text: String
+-
+-    var body: some View {
+-        V32Card(padding: 0) {
+-            HStack(spacing: 10) {
+-                Image(systemName: "magnifyingglass")
+-                    .font(.system(size: 15, weight: .medium))
+-                    .foregroundStyle(V32.textTertiary)
+-                TextField(placeholder, text: $text)
+-                    .v32Text(.body)
+-                    .foregroundStyle(V32.textPrimary)
+-                    .tint(V32.brand)
+-                if !text.isEmpty {
+-                    Button { text = "" } label: {
+-                        Image(systemName: "xmark.circle.fill")
+-                            .font(.system(size: 15))
+-                            .foregroundStyle(V32.textQuaternary)
+-                    }
+-                    .buttonStyle(.plain)
+-                }
+-            }
+-            .padding(.horizontal, 14)
+-            .frame(minHeight: 46)
+-        }
+-    }
+-}
+-
+-// MARK: 横向分类胶囊条
+-
+-struct V32PillBar: View {
+-    let items: [String]
+-    @Binding var selection: String
+-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+-
+-    var body: some View {
+-        ScrollView(.horizontal, showsIndicators: false) {
+-            HStack(spacing: 8) {
+-                ForEach(items, id: \.self) { item in
+-                    let selected = selection == item
+-                    Button {
+-                        withAnimation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion))) {
+-                            selection = item
+-                        }
+-                        Haptic.light()
+-                    } label: {
+-                        Text(item)
+-                            .v32Text(.caption)
+-                            .fontWeight(selected ? .bold : .regular)
+-                            .foregroundStyle(selected ? V32.brand : V32.textSecondary)
+-                            .padding(.horizontal, 14)
+-                            .padding(.vertical, 8)
+-                            .background(Capsule().fill(selected ? V32.brandSoft : V32.pageBGSecondary))
+-                    }
+-                    .buttonStyle(.plain)
+-                }
+-            }
+-            .padding(.vertical, 2)
+-        }
+-    }
+-}
+-
+-// MARK: 普通卡片
+-
+-@MainActor
+-struct V32Card<Content: View>: View {
+-    var padding: CGFloat = V32Layout.cardPad
+-    var fill: Color = V32.card
+-    @ViewBuilder var content: Content
+-
+-    var body: some View {
+-        content
+-            .padding(padding)
+-            .frame(maxWidth: .infinity, alignment: .leading)
+-            .background(
+-                RoundedRectangle(cornerRadius: V32Radius.card, style: .continuous)
+-                    .fill(fill)
+-            )
+-            .overlay(
+-                RoundedRectangle(cornerRadius: V32Radius.card, style: .continuous)
+-                    .strokeBorder(V32.cardOutline, lineWidth: 1)
+-            )
+-    }
+-}
+-
+-/// Lightweight grouped fields without the full dashboard-card treatment.
+-struct V32FieldGroup<Content: View>: View {
+-    var padding: CGFloat = 0
+-    @ViewBuilder var content: Content
+-
+-    var body: some View {
+-        content
+-            .padding(.vertical, padding == 0 ? 4 : padding)
+-            .frame(maxWidth: .infinity, alignment: .leading)
+-    }
+-}
+-
+-// MARK: 深墨绿主视觉卡
+-
+-struct V32HeroCard<Content: View>: View {
+-    var padding: CGFloat = V32Layout.heroPad
+-    @ViewBuilder var content: Content
+-
+-    var body: some View {
+-        content
+-            .padding(padding)
+-            .frame(maxWidth: .infinity, alignment: .leading)
+-            .foregroundStyle(V32.textOnHero)
+-            .background(
+-                ZStack {
+-                    RoundedRectangle(cornerRadius: V32Radius.cardLarge, style: .continuous)
+-                        .fill(
+-                            LinearGradient(
+-                                colors: [V32.hero, V32.heroGlow],
+-                                startPoint: .topLeading,
+-                                endPoint: .bottomTrailing
+-                            )
+-                        )
+-                    // 克制的微光：右上角柔光，不做复杂渐变堆叠
+-                    RadialGradient(
+-                        colors: [V32.brandOnHero.opacity(0.14), .clear],
+-                        center: .topTrailing,
+-                        startRadius: 0,
+-                        endRadius: 240
+-                    )
+-                    .clipShape(RoundedRectangle(cornerRadius: V32Radius.cardLarge, style: .continuous))
+-                }
+-            )
+-    }
+-}
+-
+-// MARK: 状态胶囊
+-
+-@MainActor
+-enum V32Status {
+-    case pending      // 待处理（中性灰）
+-    case delivering   // 配送中（品牌绿）
+-    case done         // 已完成（弱化灰）
+-    case expiry       // 临期（琥珀）
+-    case info         // 普通进行态（品牌绿）
+-
+-    var text: Color {
+-        switch self {
+-        case .pending, .done: return V32.textSecondary
+-        case .delivering, .info: return V32.brand
+-        case .expiry: return V32.amber
+-        }
+-    }
+-    var background: Color {
+-        switch self {
+-        case .pending, .done: return V32.neutralSoft
+-        case .delivering, .info: return V32.brandSoft
+-        case .expiry: return V32.amberSoft
+-        }
+-    }
+-    var dot: Color {
+-        switch self {
+-        case .pending: return V32.neutral
+-        case .done: return V32.neutral
+-        case .delivering, .info: return V32.brand
+-        case .expiry: return V32.amber
+-        }
+-    }
+-}
+-
+-struct V32StatusPill: View {
+-    let text: String
+-    let status: V32Status
+-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+-
+-    var body: some View {
+-        HStack(spacing: 5) {
+-            Circle()
+-                .fill(status.dot)
+-                .frame(width: 6, height: 6)
+-            Text(text)
+-                .v32Text(.pill)
+-        }
+-        .padding(.horizontal, 9)
+-        .padding(.vertical, 5)
+-        .foregroundStyle(status.text)
+-        .background(Capsule().fill(status.background))
+-        // 状态变化 crossfade + 轻微 scale（0.96→1，quick）；Reduce Motion 仅 crossfade（T19）
+-        .id(status)
+-        .transition(.opacity.combined(with: reduceMotion ? .identity : .scale(scale: 0.96)))
+-        .animation(V32Motion.animation(V32Motion.resolve(.fade, reduceMotion: reduceMotion)), value: status)
+-    }
+-}
+-
+-// MARK: 图标泡
+-
+-@MainActor
+-enum V32BubbleTone {
+-    case brand, amber, danger, info, neutral
+-
+-    var fill: Color {
+-        switch self {
+-        case .brand: return V32.brandSoft
+-        case .amber: return V32.amberSoft
+-        case .danger: return V32.dangerSoft
+-        case .info: return V32.infoSoft
+-        case .neutral: return V32.neutralSoft
+-        }
+-    }
+-    var tint: Color {
+-        switch self {
+-        case .brand: return V32.brand
+-        case .amber: return V32.amber
+-        case .danger: return V32.danger
+-        case .info: return V32.info
+-        case .neutral: return V32.textSecondary
+-        }
+-    }
+-}
+-
+-@MainActor
+-struct V32IconBubble: View {
+-    let systemName: String
+-    var tone: V32BubbleTone = .brand
+-    var size: CGFloat = V32Layout.bubbleRegular
+-    var icon: CGFloat = V32Layout.iconRegular
+-    var circular: Bool = false
+-
+-    var body: some View {
+-        Image(systemName: systemName)
+-            .font(.system(size: icon, weight: .semibold))
+-            .foregroundStyle(tone.tint)
+-            .frame(width: size, height: size)
+-            .background(
+-                (circular ? AnyShape(Circle()) : AnyShape(RoundedRectangle(cornerRadius: V32Radius.bubble, style: .continuous)))
+-                    .fill(tone.fill)
+-            )
+-    }
+-}
+-
+-// MARK: 指标格
+-
+-struct V32MetricCell: View {
+-    let label: String
+-    let value: String
+-    var caption: String?
+-    var onHero: Bool = false
+-
+-    var body: some View {
+-        VStack(alignment: .leading, spacing: 4) {
+-            Text(label)
+-                .v32Text(.caption)
+-                .foregroundStyle(onHero ? V32.textOnHeroSecondary : V32.textTertiary)
+-            Text(value)
+-                .v32Text(.metric)
+-                .foregroundStyle(onHero ? V32.textOnHero : V32.textPrimary)
+-                .lineLimit(1)
+-                .minimumScaleFactor(0.6)
+-            if let caption {
+-                Text(caption)
+-                    .v32Text(.caption)
+-                    .foregroundStyle(onHero ? V32.textOnHeroSecondary : V32.textTertiary)
+-                    .lineLimit(1)
+-            }
+-        }
+-        .frame(maxWidth: .infinity, alignment: .leading)
+-    }
+-}
+-
+-// MARK: 区块标题
+-
+-struct V32SectionHeader<Trailing: View>: View {
+-    let title: String
+-    @ViewBuilder var trailing: Trailing
+-
+-    init(_ title: String, @ViewBuilder trailing: () -> Trailing = { EmptyView() }) {
+-        self.title = title
+-        self.trailing = trailing()
+-    }
+-
+-    var body: some View {
+-        HStack(alignment: .firstTextBaseline) {
+-            Text(title)
+-                .v32Text(.section)
+-                .foregroundStyle(V32.textPrimary)
+-            Spacer(minLength: 8)
+-            trailing
+-        }
+-    }
+-}
+-
+-/// 轻量尾部动作（全部 › / N 项）
+-struct V32SectionAction: View {
+-    let text: String
+-    var chevron: Bool = true
+-    let action: () -> Void
+-
+-    var body: some View {
+-        Button(action: action) {
+-            HStack(spacing: 2) {
+-                Text(text)
+-                    .v32Text(.subhead)
+-                if chevron {
+-                    Image(systemName: "chevron.right")
+-                        .font(.system(size: 11, weight: .semibold))
+-                }
+-            }
+-            .foregroundStyle(V32.textTertiary)
+-        }
+-        .buttonStyle(V32PressButtonStyle())
+-    }
+-}
+-
+-// MARK: 圆形勾选
+-
+-struct V32Checkbox: View {
+-    let checked: Bool
+-    var action: (() -> Void)?
+-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+-
+-    var body: some View {
+-        Button {
+-            action?()
+-        } label: {
+-            ZStack {
+-                Circle()
+-                    .fill(checked ? V32.brand : Color.clear)
+-                Circle()
+-                    .strokeBorder(checked ? Color.clear : V32.textTertiary.opacity(0.55), lineWidth: 1.6)
+-                if checked {
+-                    Image(systemName: "checkmark")
+-                        .font(.system(size: 13, weight: .heavy))
+-                        .foregroundStyle(.white)
+-                        .scaleEffect(reduceMotion ? 1 : 0.85)
+-                        .opacity(checked ? 1 : 0)
+-                }
+-            }
+-            .frame(width: V32Layout.checkbox, height: V32Layout.checkbox)
+-            .contentShape(Circle())
+-        }
+-        .buttonStyle(V32PressButtonStyle())
+-        .disabled(action == nil)
+-        // 圆→勾 quick；Reduce Motion 无 scale，仅短淡入（T21）
+-        .animation(V32Motion.animation(V32Motion.resolve(.spring, reduceMotion: reduceMotion)), value: checked)
+-    }
+-}
+-
+-// MARK: 空状态
+-
+-struct V32EmptyState: View {
+-    let systemName: String
+-    let title: String
+-    var message: String?
+-
+-    var body: some View {
+-        VStack(spacing: 12) {
+-            V32IconBubble(systemName: systemName, tone: .neutral, size: 56, icon: 24, circular: true)
+-            Text(title)
+-                .v32Text(.headline)
+-                .foregroundStyle(V32.textSecondary)
+-            if let message {
+-                Text(message)
+-                    .v32Text(.subhead)
+-                    .foregroundStyle(V32.textTertiary)
+-                    .multilineTextAlignment(.center)
+-            }
+-        }
+-        .frame(maxWidth: .infinity)
+-        .padding(.vertical, 36)
+-        .padding(.horizontal, V32Layout.pageMargin)
+-    }
+-}
+-
+-// MARK: 按钮
+-
+-struct V32PrimaryButton: View {
+-    let title: String
+-    var systemName: String?
+-    let action: () -> Void
+-
+-    var body: some View {
+-        Button(action: action) {
+-            HStack(spacing: 7) {
+-                if let systemName {
+-                    Image(systemName: systemName)
+-                        .font(.system(size: 15, weight: .semibold))
+-                }
+-                Text(title)
+-                    .v32Text(.headline)
+-            }
+-            .foregroundStyle(.white)
+-            .frame(maxWidth: .infinity)
+-            .padding(.vertical, 14)
+-            .background(Capsule().fill(V32.brand))
+-        }
+-        .buttonStyle(V32PressButtonStyle())
+-    }
+-}
+-
+-struct V32SecondaryButton: View {
+-    let title: String
+-    var systemName: String?
+-    let action: () -> Void
+-
+-    var body: some View {
+-        Button(action: action) {
+-            HStack(spacing: 7) {
+-                if let systemName {
+-                    Image(systemName: systemName)
+-                        .font(.system(size: 15, weight: .semibold))
+-                }
+-                Text(title)
+-                    .v32Text(.headline)
+-            }
+-            .foregroundStyle(V32.textPrimary)
+-            .frame(maxWidth: .infinity)
+-            .padding(.vertical, 14)
+-            .background(
+-                Capsule()
+-                    .fill(V32.card)
+-                    .overlay(Capsule().strokeBorder(V32.cardOutline, lineWidth: 1))
+-            )
+-        }
+-        .buttonStyle(V32PressButtonStyle())
+-    }
+-}
+-
+-// MARK: 进度条
+-
+-struct V32ProgressBar: View {
+-    /// 0...1
+-    let progress: Double
+-    var onHero: Bool = false
+-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+-
+-    var body: some View {
+-        GeometryReader { geo in
+-            ZStack(alignment: .leading) {
+-                Capsule()
+-                    .fill(onHero ? V32.dividerOnHero : V32.neutralSoft)
+-                Capsule()
+-                    .fill(onHero ? V32.brandOnHero : V32.brand)
+-                    .frame(width: max(4, geo.size.width * min(max(progress, 0), 1)))
+-                    // 进度变化 softSpring；Reduce Motion 直切（nil），不动 width/scale，组件内建（FR-21.7）
+-                    .animation(V32Motion.progressWidth(reduceMotion: reduceMotion), value: progress)
+-            }
+-        }
+-        .frame(height: 7)
+-    }
+-}
+diff --git a/XiaoZhangGui/DesignSystem/V371/V371DesignSystem.swift b/XiaoZhangGui/DesignSystem/V371/V371DesignSystem.swift
+index ce0f832..679ce4e 100644
+--- a/XiaoZhangGui/DesignSystem/V371/V371DesignSystem.swift
++++ b/XiaoZhangGui/DesignSystem/V371/V371DesignSystem.swift
+@@ -70,25 +70,31 @@ enum V371 {
+         static let rowPadding: CGFloat = 14
+     }
+ 
+-    // MARK: - Typography（系统字体，层级靠 size/weight/spacing）
++    // MARK: - Typography（V3.8 PR-D C3：语义文字样式映射）
++    //
++    // 原 `.system(size:)` 固定字号不响应系统动态字体（Dynamic Type），
++    // 且与同屏系统语义字体（.subheadline 等会缩放）混用导致特大字号层级倒挂。
++    // 现映射到**默认字号完全相同**的语义样式（15=subheadline、17=headline、
++    // 16=callout、13=footnote、12=caption），默认视觉零变化，获得全档缩放；
++    // 展示型大数字（heroNumber 等）保持固定（数据展示用途 + minimumScaleFactor）。
+ 
+     enum Typography {
+-        /// Hero 大数字
++        /// Hero 大数字（展示型：固定 44pt，等宽数字；随动字体见各页 @ScaledMetric 用法）
+         static let heroNumber: Font = .system(size: 44, weight: .bold, design: .rounded).monospacedDigit()
+-        /// Hero 标题
+-        static let heroTitle: Font = .system(size: 15, weight: .semibold)
+-        /// Section 标题
+-        static let sectionTitle: Font = .system(size: 17, weight: .semibold)
+-        /// 行标题
+-        static let rowTitle: Font = .system(size: 16, weight: .medium)
+-        /// 行副标题
+-        static let rowSubtitle: Font = .system(size: 13, weight: .regular)
+-        /// 时间列
+-        static let time: Font = .system(size: 13, weight: .semibold).monospacedDigit()
+-        /// Badge
+-        static let badge: Font = .system(size: 12, weight: .semibold)
+-        /// 快捷入口 label
+-        static let quickAction: Font = .system(size: 12, weight: .medium)
++        /// Hero 标题（15 → subheadline）
++        static let heroTitle: Font = .subheadline.weight(.semibold)
++        /// Section 标题（17 semibold → headline，默认字号一致）
++        static let sectionTitle: Font = .headline
++        /// 行标题（16 → callout）
++        static let rowTitle: Font = .callout.weight(.medium)
++        /// 行副标题（13 → footnote）
++        static let rowSubtitle: Font = .footnote
++        /// 时间列（13 → footnote + 等宽数字）
++        static let time: Font = .footnote.weight(.semibold).monospacedDigit()
++        /// Badge（12 → caption）
++        static let badge: Font = .caption.weight(.semibold)
++        /// 快捷入口 label（12 → caption）
++        static let quickAction: Font = .caption.weight(.medium)
+     }
+ 
+     // MARK: - Shadow（柔软浮层感，不厚重；行不加 shadow）
+diff --git a/XiaoZhangGui/DesignSystem/V38/Motion/V38CapabilityGate.swift b/XiaoZhangGui/DesignSystem/V38/Motion/V38CapabilityGate.swift
+index 77a7eb0..c48b697 100644
+--- a/XiaoZhangGui/DesignSystem/V38/Motion/V38CapabilityGate.swift
++++ b/XiaoZhangGui/DesignSystem/V38/Motion/V38CapabilityGate.swift
+@@ -1,12 +1,15 @@
+ import SwiftUI
+ import UIKit
+ 
++#if DEBUG
+ /// V3.8 三档材质门控（纯函数）。
+ ///
+ /// 隔离声明（Debug-only）：本文件不被任何生产 View 引用；`resolve(_:)` 为纯逻辑，
+ /// 可在 XCTest 中直接覆盖全部 2×2 门控矩阵。实现语义与 MotionLab PoC
+ /// `V38MotionLabSurface` 的三档分支一致（glass → ultraThinMaterial → 不透明回退），
+ /// 只做语义收敛、不修改 PoC 文件。
++/// V3.8 PR-D C4：整文件 #if DEBUG——测试目标按 Debug 配置编译仍可见，
++/// Release 产物不再包含。
+ enum V38CapabilityGate {
+ 
+     /// 材质三档：iOS 26+ glassEffect / 旧系统 ultraThinMaterial / Reduce Transparency 不透明回退。
+@@ -43,3 +46,4 @@ enum V38CapabilityGate {
+         }
+     }
+ }
++#endif
+diff --git a/XiaoZhangGui/Experiments/V38PageMotion/V38PageMotionState.swift b/XiaoZhangGui/DesignSystem/V38/Motion/V38PageMotionState.swift
+similarity index 100%
+rename from XiaoZhangGui/Experiments/V38PageMotion/V38PageMotionState.swift
+rename to XiaoZhangGui/DesignSystem/V38/Motion/V38PageMotionState.swift
+diff --git a/XiaoZhangGui/Features/Goods/GoodsView.swift b/XiaoZhangGui/Features/Goods/GoodsView.swift
+index e2cc103..65024a8 100644
+--- a/XiaoZhangGui/Features/Goods/GoodsView.swift
++++ b/XiaoZhangGui/Features/Goods/GoodsView.swift
+@@ -331,7 +331,7 @@ struct GoodsView: View {
+         if diagOn {
+             // 隔离模式诊断：只记录 ID 哈希与数量，不记录业务数据
+             let idHash = String(describing: targetID).hashValue
+-            print("DIAG-DELETE: targetID_hash=\(idHash) @Query_count=\(allGoods.count)")
++            AppLog.goods.debug("DIAG-DELETE: targetID_hash=\(idHash) @Query_count=\(allGoods.count)")
+         }
+         #endif
+         do {
+@@ -340,7 +340,7 @@ struct GoodsView: View {
+             #if DEBUG
+             if diagOn {
+                 let remaining = (try? context.fetch(FetchDescriptor<Goods>())) ?? []
+-                print("DIAG-DELETE: 删除成功 DB_count=\(remaining.count) @Query_count=\(allGoods.count)")
++                AppLog.goods.debug("DIAG-DELETE: 删除成功 DB_count=\(remaining.count) @Query_count=\(allGoods.count)")
+             }
+             #endif
+             failedDeleteGoodsID = nil
+@@ -351,7 +351,7 @@ struct GoodsView: View {
+             deleteError = "商品未删除，请重试。"
+             #if DEBUG
+             if diagOn {
+-                print("DIAG-DELETE: 删除失败已记录 failedDeleteGoodsID")
++                AppLog.goods.debug("DIAG-DELETE: 删除失败已记录 failedDeleteGoodsID")
+             }
+             #endif
+         }
+@@ -362,7 +362,7 @@ struct GoodsView: View {
+         let diagOn = UITestMode.isEnabled
+         if diagOn {
+             retryCallCount += 1
+-            print("DIAG-RETRY: 调用次数=\(retryCallCount)")
++            AppLog.goods.debug("DIAG-RETRY: 调用次数=\(retryCallCount)")
+         }
+         #endif
+         guard let id = failedDeleteGoodsID else {
+@@ -377,7 +377,7 @@ struct GoodsView: View {
+             #if DEBUG
+             if diagOn {
+                 let idHash = String(describing: id).hashValue
+-                print("DIAG-RETRY: 查找ID_hash=\(idHash) DB_count=\(all.count) @Query_count=\(allGoods.count)")
++                AppLog.goods.debug("DIAG-RETRY: 查找ID_hash=\(idHash) DB_count=\(all.count) @Query_count=\(allGoods.count)")
+             }
+             #endif
+             if let goods = all.first(where: { $0.persistentModelID == id }) {
+@@ -387,7 +387,7 @@ struct GoodsView: View {
+                 deleteError = "商品数据异常，无法重试删除。"
+                 #if DEBUG
+                 if diagOn {
+-                    print("DIAG-RETRY: DB中未找到目标")
++                    AppLog.goods.debug("DIAG-RETRY: DB中未找到目标")
+                 }
+                 #endif
+             }
+diff --git a/XiaoZhangGui/Features/Home/HomeView.swift b/XiaoZhangGui/Features/Home/HomeView.swift
+index c636874..3190b97 100644
+--- a/XiaoZhangGui/Features/Home/HomeView.swift
++++ b/XiaoZhangGui/Features/Home/HomeView.swift
+@@ -38,6 +38,10 @@ struct HomeView: View {
+     @State private var aiExpanded = false
+     @State private var quickExpanded = false
+ 
++    // V3.8 PR-D C3：展示型大数字随系统动态字体档位缩放（基准确认默认视觉不变）。
++    @ScaledMetric(relativeTo: .largeTitle) private var heroAmountSize: CGFloat = 54
++    @ScaledMetric(relativeTo: .largeTitle) private var dateNumberSize: CGFloat = 64
++
+     private var summary: TodaySummary {
+         TodaySummary.build(performances: performances, todos: todos, customers: customers, expiryItems: expiryItems)
+     }
+@@ -103,7 +107,7 @@ struct HomeView: View {
+         HStack(alignment: .top) {
+             HStack(alignment: .top, spacing: 12) {
+                 Text("\(Calendar.current.component(.day, from: Date()))")
+-                    .font(V38HomeStyle.dateNumber)
++                    .font(V38HomeStyle.scaledDateNumber(size: dateNumberSize))
+                     .foregroundStyle(.primary)
+                     .accessibilityLabel("\(Date(), format: .dateTime.month().day().weekday(.wide))")
+                 VStack(alignment: .leading, spacing: 4) {
+@@ -176,7 +180,7 @@ struct HomeView: View {
+                         .font(.subheadline.weight(.medium))
+                         .foregroundStyle(V38HomeStyle.heroSecondary)
+                     Text("¥" + Fmt.groupedAmount(summary.revenue))
+-                        .font(V38HomeStyle.heroAmount)
++                        .font(V38HomeStyle.scaledHeroAmount(size: heroAmountSize))
+                         .tracking(-1.5)
+                         .foregroundStyle(.white)
+                         .lineLimit(1)
+diff --git a/XiaoZhangGui/Features/Home/V38/V38HomeStyle.swift b/XiaoZhangGui/Features/Home/V38/V38HomeStyle.swift
+index 3005d49..86d1a1b 100644
+--- a/XiaoZhangGui/Features/Home/V38/V38HomeStyle.swift
++++ b/XiaoZhangGui/Features/Home/V38/V38HomeStyle.swift
+@@ -22,11 +22,24 @@ enum V38HomeStyle {
+     }
+ 
+     /// Section 标题（"今天的经营" / "问小掌柜" / "今日事项"）。
+-    static let sectionTitle: Font = .system(size: 20, weight: .bold, design: .default)
+-    /// Hero 金额：54pt SF Rounded 等宽。
++    /// V3.8 PR-D C3：20pt == .title3 默认字号，语义样式获得动态字体缩放。
++    static let sectionTitle: Font = .title3.weight(.bold)
++    /// Hero 金额：54pt SF Rounded 等宽（展示型大数字，基准值）。
++    /// V3.8 PR-D C3：调用点（HomeView）用 @ScaledMetric 随动放大，见 scaledHeroAmount(size:)。
+     static let heroAmount: Font = .system(size: 54, weight: .semibold, design: .rounded).monospacedDigit()
+-    /// 日期大数字。
++    /// 日期大数字（展示型基准值，调用点随动见 scaledDateNumber(size:)）。
+     static let dateNumber: Font = .system(size: 64, weight: .bold, design: .default)
++
++    /// V3.8 PR-D C3：随动 Hero 金额——Token 层无法用 @ScaledMetric，
++    /// 展示型大数字由调用点传入 @ScaledMetric 缩放后的字号。
++    static func scaledHeroAmount(size: CGFloat) -> Font {
++        .system(size: size, weight: .semibold, design: .rounded).monospacedDigit()
++    }
++
++    /// V3.8 PR-D C3：随动日期大数字。
++    static func scaledDateNumber(size: CGFloat) -> Font {
++        .system(size: size, weight: .bold, design: .default)
++    }
+ }
+ 
+ /// V3.8 Home Section 标题行（标题 + 可选尾部标签）。
+diff --git a/XiaoZhangGui/Features/Performance/MoneyEditorSheet.swift b/XiaoZhangGui/Features/Performance/MoneyEditorSheet.swift
+index 19ef277..dc581b5 100644
+--- a/XiaoZhangGui/Features/Performance/MoneyEditorSheet.swift
++++ b/XiaoZhangGui/Features/Performance/MoneyEditorSheet.swift
+@@ -4,6 +4,21 @@ import SwiftData
+ // MARK: - 记收入/记支出 编辑器（原生 Form + Mode 三态）
+ // 写入逻辑（Repository add/update）原样保留，只换原生 Form 与 toolbar 样式。
+ 
++/// V3.8 PR-D C1：金额文本解析与有效性（纯函数，可单测）。
++enum MoneyAmountText {
++    /// 解析金额：容忍千分位逗号；非数字 / ≤0 视为无效返回 nil。
++    static func parse(_ text: String) -> Double? {
++        let cleaned = text.replacingOccurrences(of: ",", with: "")
++        guard let value = Double(cleaned), value > 0 else { return nil }
++        return value
++    }
++
++    /// 是否需要「无效金额」行内提示：已输入但解析不出有效金额。
++    static func needsInvalidHint(_ text: String) -> Bool {
++        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && parse(text) == nil
++    }
++}
++
+ struct MoneyEditorSheet: View {
+     enum Mode {
+         case new(NewMoneyKind)
+@@ -22,6 +37,13 @@ struct MoneyEditorSheet: View {
+     @State private var date = Date()
+     @State private var incomeSource: IncomeSource = .store
+     @State private var saveError: String?
++    /// V3.8 PR-D C1：金额输入焦点——decimalPad 无回车键，键盘栏补「完成」收起。
++    @FocusState private var amountFocused: Bool
++
++    /// V3.8 PR-D C1：已输入但无效（非数字 / ≤0）时行内提示，不再静默置灰保存。
++    private var showsInvalidAmountHint: Bool {
++        MoneyAmountText.needsInvalidHint(amountText)
++    }
+ 
+     private let incomeSources: [IncomeSource] = IncomeSource.allCases
+ 
+@@ -45,15 +67,13 @@ struct MoneyEditorSheet: View {
+     }
+ 
+     private var amount: Double? {
+-        let cleaned = amountText.replacingOccurrences(of: ",", with: "")
+-        guard let value = Double(cleaned), value > 0 else { return nil }
+-        return value
++        MoneyAmountText.parse(amountText)
+     }
+ 
+     var body: some View {
+         NavigationStack {
+             Form {
+-                Section(kind == .income ? "收入金额" : "支出金额") {
++                Section {
+                     HStack(alignment: .firstTextBaseline, spacing: 8) {
+                         Text("¥")
+                             .font(.system(size: 22, weight: .semibold, design: .rounded))
+@@ -62,8 +82,17 @@ struct MoneyEditorSheet: View {
+                             .font(.system(size: 34, weight: .bold, design: .rounded).monospacedDigit())
+                             .keyboardType(.decimalPad)
+                             .minimumScaleFactor(0.6)
++                            .focused($amountFocused)
+                             .accessibilityLabel(kind == .income ? "收入金额" : "支出金额")
+                     }
++                } header: {
++                    Text(kind == .income ? "收入金额" : "支出金额")
++                } footer: {
++                    // V3.8 PR-D C1：无效金额行内提示（原先只是保存键静默置灰）。
++                    if showsInvalidAmountHint {
++                        Text("请输入大于 0 的有效金额")
++                            .foregroundStyle(V371.Colors.red)
++                    }
+                 }
+ 
+                 Section("明细") {
+@@ -95,6 +124,7 @@ struct MoneyEditorSheet: View {
+             }
+             .navigationTitle(title)
+             .navigationBarTitleDisplayMode(.inline)
++            .scrollDismissesKeyboard(.interactively)
+             .toolbar {
+                 ToolbarItem(placement: .cancellationAction) {
+                     Button("取消") { dismiss() }
+@@ -103,6 +133,12 @@ struct MoneyEditorSheet: View {
+                     Button("保存") { save() }
+                         .disabled(amount == nil)
+                 }
++                // V3.8 PR-D C1：decimalPad 没有回车键，键盘栏补「完成」收起
++                // （与 VoiceView 输入栏的 Done 同一口径）。
++                ToolbarItemGroup(placement: .keyboard) {
++                    Spacer()
++                    Button("完成") { amountFocused = false }
++                }
+             }
+             .onAppear(perform: loadEditing)
+             .alert("保存失败", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
+diff --git a/XiaoZhangGui/Features/Performance/V38/V38PerformanceStyle.swift b/XiaoZhangGui/Features/Performance/V38/V38PerformanceStyle.swift
+index e244a45..b579318 100644
+--- a/XiaoZhangGui/Features/Performance/V38/V38PerformanceStyle.swift
++++ b/XiaoZhangGui/Features/Performance/V38/V38PerformanceStyle.swift
+@@ -12,16 +12,19 @@ enum V38PerformanceStyle {
+     /// 低饱和经营绿（与 Home 统一，单一来源 V38HomeStyle）。
+     static var accent: Color { V38HomeStyle.businessGreen }
+ 
+-    /// 本月营业额：54pt SF Rounded 等宽（页面最重点金额）。
++    /// 本月营业额：54pt SF Rounded 等宽（页面最重点金额；展示型，保持固定，
++    /// V3.8 PR-D C3 后续可用 @ScaledMetric 随动——本文件与 PR-B 改动文件解耦考虑暂不动调用点）。
+     static let heroAmount: Font = .system(size: 54, weight: .semibold, design: .rounded).monospacedDigit()
+-    /// 分类汇总金额：30pt SF Rounded 等宽。
++    /// 分类汇总金额：30pt SF Rounded 等宽（展示型）。
+     static let summaryAmount: Font = .system(size: 30, weight: .semibold, design: .rounded).monospacedDigit()
+-    /// 次级金额（今日 / 期间合计）：20pt SF Rounded 等宽。
++    /// 次级金额（今日 / 期间合计）：20pt SF Rounded 等宽（展示型）。
+     static let secondaryAmount: Font = .system(size: 20, weight: .semibold, design: .rounded).monospacedDigit()
+-    /// Hero 上方小标签（"本月营业额"）。
+-    static let heroLabel: Font = .system(size: 15, weight: .semibold)
+-    /// Chip 文案。
+-    static let chipLabel: Font = .system(size: 14, weight: .semibold)
+-    /// 图表选中读数行文案（V3.8.1 P1-7）。
++    /// Hero 上方小标签（"本月营业额"）。V3.8 PR-D C3：15 → subheadline 语义缩放。
++    static let heroLabel: Font = .subheadline.weight(.semibold)
++    /// Chip 文案。V3.8 PR-D C3：14 → subheadline（默认 15pt，+1pt；同组 chip 同步缩放，
++    /// 「chip 等高」UI 测试口径不受影响）。
++    static let chipLabel: Font = .subheadline.weight(.semibold)
++    /// 图表选中读数行文案（V3.8.1 P1-7）。保持固定：读数行有固定 18pt 高度防布局跳动
++    /// （V38TrendBarChart，语义缩放在特大字号会截断；随动改造需连读数行一起，见交接说明）。
+     static let readoutLabel: Font = .system(size: 13, weight: .semibold)
+ }
+diff --git a/XiaoZhangGui/Features/Todo/TodoModel.swift b/XiaoZhangGui/Features/Todo/TodoModel.swift
+index 0fff978..d95a8ca 100644
+--- a/XiaoZhangGui/Features/Todo/TodoModel.swift
++++ b/XiaoZhangGui/Features/Todo/TodoModel.swift
+@@ -77,4 +77,16 @@ enum TodoFilter {
+         case .records: return "暂无备忘"
+         }
+     }
++
++    /// V3.8 PR-D C1：空态副文案按 tab 语义区分（原先所有 tab 共用同一句，
++    /// 在「已完成」等 tab 语义错位）。口径与 EmptyState 组件一致：一句行动指引。
++    static func emptyMessage(for tab: TodoTab) -> String {
++        switch tab {
++        case .today: return "点右上角 + 安排今天的事"
++        case .tomorrow: return "提前安排，明天更从容"
++        case .overdue: return "继续保持，安排好截止时间就不怕逾期"
++        case .done: return "完成的事项会留档在这里"
++        case .records: return "记下的备忘会出现在这里"
++        }
++    }
+ }
+diff --git a/XiaoZhangGui/Features/Todo/TodoView.swift b/XiaoZhangGui/Features/Todo/TodoView.swift
+index addcc49..078d792 100644
+--- a/XiaoZhangGui/Features/Todo/TodoView.swift
++++ b/XiaoZhangGui/Features/Todo/TodoView.swift
+@@ -200,7 +200,7 @@ struct TodoView: View {
+             EmptyState(
+                 icon: "checkmark.circle",
+                 title: TodoFilter.emptyText(for: tab),
+-                message: "新的安排会清晰地出现在这里"
++                message: TodoFilter.emptyMessage(for: tab)
+             )
+             .padding(.top, 24)
+         } else {
+@@ -431,7 +431,7 @@ private struct TodoListRow: View {
+             travel: reduceMotion ? 0 : 6,
+             animatableData: CGFloat(shakeTrigger)
+         ))
+-        .animation(.easeInOut(duration: 0.32), value: shakeTrigger)
++        .animation(V38MotionTokens.animation(for: .contentChange, reduceMotion: reduceMotion), value: shakeTrigger)
+         .transition(.opacity.combined(with: reduceMotion ? .identity : .scale(scale: 0.98)))
+     }
+ 
+diff --git a/XiaoZhangGui/Services/LiveActivityManager.swift b/XiaoZhangGui/Services/LiveActivityManager.swift
+index e2a3eb4..9f89f1a 100644
+--- a/XiaoZhangGui/Services/LiveActivityManager.swift
++++ b/XiaoZhangGui/Services/LiveActivityManager.swift
+@@ -11,7 +11,7 @@ enum LiveActivityManager {
+     static func startIfNeeded(snapshot: BusinessSnapshot) {
+         let enabled = ActivityAuthorizationInfo().areActivitiesEnabled
+         #if DEBUG
+-        print("[LiveActivity] areActivitiesEnabled = \(enabled)")
++        AppLog.liveActivity.info("areActivitiesEnabled = \(enabled, privacy: .public)")
+         #endif
+         guard enabled else { return }
+         let attributes = BusinessActivityAttributes(dayStart: Date().startOfDay)
+@@ -31,11 +31,11 @@ enum LiveActivityManager {
+                 content: .init(state: state(from: snapshot), staleDate: Calendar.current.date(byAdding: .day, value: 1, to: Date().startOfDay))
+             )
+             #if DEBUG
+-            print("[LiveActivity] Activity.request 成功, id = \(activity.id)")
++            AppLog.liveActivity.info("Activity.request 成功, id = \(activity.id, privacy: .public)")
+             #endif
+         } catch {
+             #if DEBUG
+-            print("[LiveActivity] Activity.request 失败: \(error.localizedDescription) (\(error))")
++            AppLog.liveActivity.error("Activity.request 失败: \(error.localizedDescription, privacy: .public)")
+             #endif
+         }
+     }
+diff --git a/XiaoZhangGui/Utilities/AppLog.swift b/XiaoZhangGui/Utilities/AppLog.swift
+new file mode 100644
+index 0000000..340896c
+--- /dev/null
++++ b/XiaoZhangGui/Utilities/AppLog.swift
+@@ -0,0 +1,24 @@
++import OSLog
++
++// MARK: - 统一日志入口（V3.8 PR-C4）
++//
++// 约定：
++// - 主 App 与 Widget 共享分类常量，日志进 Console.app 可按 subsystem 过滤；
++// - 插值默认 `private`（客户/营业敏感值不落明文日志）；确需明文的诊断
++//   字段显式标 `privacy: .public`，且只允许非敏感技术字段（id、开关状态、计数）；
++// - 替换散落的 `print(...)`：Release 不再向 stdout 泄漏，DEBUG 依旧可见。
++
++enum AppLog {
++    private static let subsystem = "com.xiaozhanggui.ios"
++
++    /// Live Activity 生命周期
++    static let liveActivity = Logger(subsystem: subsystem, category: "LiveActivity")
++    /// 数据库 / 快照同步
++    static let database = Logger(subsystem: subsystem, category: "Database")
++    /// AI Agent 执行链
++    static let agent = Logger(subsystem: subsystem, category: "Agent")
++    /// 主题 / 壁纸渲染
++    static let theme = Logger(subsystem: subsystem, category: "Theme")
++    /// 商品等业务模块诊断（原 DIAG-* 调试打印）
++    static let goods = Logger(subsystem: subsystem, category: "Goods")
++}

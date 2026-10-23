@@ -1,0 +1,12 @@
+BASE_SHA=750bad39a319dc99367fb5f97ec825c6589b63ed
+HEAD_SHA=9f8db38816542d2bba91fb510b61db94321fb1d2
+BRANCH=ios/v38-pr-c-sync-perf
+BASE_BRANCH=release/v380-rc
+---修改文件---
+A	Tests/SnapshotRefreshDebouncerTests.swift
+M	XiaoZhangGui/App/XiaoZhangGuiApp.swift
+M	XiaoZhangGui/Data/ModelContainer.swift
+M	XiaoZhangGui/Features/Intents/XZGAppIntents.swift
+M	XiaoZhangGui/Repositories/AppRepository.swift
+A	XiaoZhangGui/Services/SnapshotRefreshDebouncer.swift
+M	XiaoZhangGui/Services/SnapshotSyncManager.swift

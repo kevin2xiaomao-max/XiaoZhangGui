@@ -1,0 +1,703 @@
+diff --git a/Tests/V38CoreInteractionB1B2Tests.swift b/Tests/V38CoreInteractionB1B2Tests.swift
+new file mode 100644
+index 0000000..6dae2f9
+--- /dev/null
++++ b/Tests/V38CoreInteractionB1B2Tests.swift
+@@ -0,0 +1,208 @@
++import XCTest
++import SwiftUI
++@testable import XiaoZhangGui
++
++/// V3.8 PR-B：核心交互与图表口径真实业务测试。
++///
++/// 覆盖：
++/// - B1 周密度 ghost 行「二次沉降」纯函数（锚点过渡期不变、沉降后收起）；
++/// - B2 周口径真实化（近4周逐周汇总、周边界归属、空数据）；
++/// - B2 图表点按取消选中策略（绘图区内外、重复点按、切换）；
++/// - B1 日历页两段式勾选复用的源码回归钉（真实状态机已由
++///   V38TodoRebuildTests / V38MotionCoreTests 覆盖，此处只钉复用事实）。
++final class V38CoreInteractionB1B2Tests: XCTestCase {
++
++    // MARK: - B1 · ghost 行沉降（V38ScheduleLayout.settledPresentation）
++
++    private func makeWeekRows(selectedRow: Int, now: Date = Date()) -> [V38ScheduleLayout.WeekRow] {
++        var cal = Calendar.current
++        cal.firstWeekday = 1
++        // 构造一个选中行落在第 5 周的月份（2026-08：31 天、8/1 起始周六 → 6 行网格，
++        // 选中 8/31 位于最后一行），覆盖「月末第 5 周」的真实空白场景。
++        let aug2026 = cal.date(from: DateComponents(year: 2026, month: 8, day: 31))!
++        return V38ScheduleLayout.rows(
++            month: aug2026.startOfMonth,
++            calendar: cal,
++            selectedDate: aug2026,
++            density: .week
++        )
++    }
++
++    func testGhostRowsKeepHeightBeforeSettle() {
++        let rows = makeWeekRows(selectedRow: 5)
++        XCTAssertTrue(rows.contains { $0.presentation == .ghost }, "构造前提：选中行上方必须存在 ghost 行")
++        // 沉降前（锚点过渡期间）：ghost 保持 ghost —— 选中格像素位置不变量不受影响。
++        for row in rows where row.presentation == .ghost {
++            XCTAssertEqual(
++                V38ScheduleLayout.settledPresentation(for: row, density: .week, weekSettled: false),
++                .ghost
++            )
++        }
++    }
++
++    func testGhostRowsCollapseAfterSettle() {
++        let rows = makeWeekRows(selectedRow: 5)
++        // 沉降后：ghost → collapsed，稳态空白消失。
++        for row in rows where row.presentation == .ghost {
++            XCTAssertEqual(
++                V38ScheduleLayout.settledPresentation(for: row, density: .week, weekSettled: true),
++                .collapsed
++            )
++        }
++    }
++
++    func testSelectedAndBelowRowsUnaffectedBySettle() {
++        let rows = makeWeekRows(selectedRow: 5)
++        for row in rows where row.presentation != .ghost {
++            XCTAssertEqual(
++                V38ScheduleLayout.settledPresentation(for: row, density: .week, weekSettled: true),
++                row.presentation,
++                "选中行（full）与下方（collapsed）不受沉降影响"
++            )
++        }
++    }
++
++    func testMonthDensityNeverSettlesAway() {
++        var cal = Calendar.current
++        cal.firstWeekday = 1
++        let aug2026 = cal.date(from: DateComponents(year: 2026, month: 8, day: 31))!
++        let rows = V38ScheduleLayout.rows(
++            month: aug2026.startOfMonth, calendar: cal, selectedDate: aug2026, density: .month
++        )
++        XCTAssertTrue(rows.allSatisfy { $0.presentation == .full }, "月密度下全部行 full")
++        for row in rows {
++            XCTAssertEqual(
++                V38ScheduleLayout.settledPresentation(for: row, density: .month, weekSettled: true),
++                .full,
++                "月密度不受沉降逻辑影响"
++            )
++        }
++    }
++
++    // MARK: - B2 · 周口径真实化（PerformanceTrend.last4Weeks）
++
++    private func mondayStartCalendar() -> Calendar {
++        var cal = Calendar.current
++        cal.firstWeekday = 2
++        cal.timeZone = TimeZone(identifier: "Asia/Shanghai")!
++        return cal
++    }
++
++    func testLast4WeeksBucketsByNaturalWeek() throws {
++        let cal = mondayStartCalendar()
++        // 固定时区构造：2026-10-21 是周三，所在周为 10-19（周一）~ 10-25（周日）。
++        let now = try XCTUnwrap(cal.date(from: DateComponents(year: 2026, month: 10, day: 21, hour: 12)))
++        let thisMonday = try XCTUnwrap(cal.date(from: DateComponents(year: 2026, month: 10, day: 19, hour: 0)))
++        let lastTuesday = try XCTUnwrap(cal.date(from: DateComponents(year: 2026, month: 10, day: 13, hour: 9)))
++        let threeWeeksAgoFriday = try XCTUnwrap(cal.date(from: DateComponents(year: 2026, month: 10, day: 2, hour: 15)))
++
++        let performances = [
++            Performance(amount: 100, note: "本周", date: thisMonday, incomeSource: "门店"),
++            Performance(amount: 50, note: "本周二", date: now, incomeSource: "美团"),
++            Performance(amount: 70, note: "上周", date: lastTuesday, incomeSource: "门店"),
++            Performance(amount: 30, note: "前三周", date: threeWeeksAgoFriday, incomeSource: "其他"),
++        ]
++
++        let points = PerformanceTrend.last4Weeks(performances: performances, now: now)
++        XCTAssertEqual(points.count, 4, "近4周必须有 4 个点")
++        XCTAssertEqual(points.map(\.label), ["前3周", "上周", "前2周", "本周"], "按时间升序：前3周 → 本周")
++        XCTAssertEqual(points.last?.value ?? -1, 150, accuracy: 0.001, "本周 = 周一 100 + 周三 50")
++        XCTAssertEqual(points[2].value, 70, accuracy: 0.001, "上周 = 70")
++        XCTAssertEqual(points[0].value, 30, accuracy: 0.001, "前3周 = 30")
++        XCTAssertEqual(points[1].value, 0, accuracy: 0.001, "前2周无记录 = 0")
++        XCTAssertEqual(points.reduce(0) { $0 + $1.value }, 250, accuracy: 0.001, "周点值之和 = 区间内总营业额")
++    }
++
++    func testLast4WeeksWeekBoundaryAttribution() throws {
++        let cal = mondayStartCalendar()
++        let now = try XCTUnwrap(cal.date(from: DateComponents(year: 2026, month: 10, day: 21, hour: 12)))
++        // 边界 1：本周周一 00:00 整，属本周。
++        let mondayZero = try XCTUnwrap(cal.date(from: DateComponents(year: 2026, month: 10, day: 19, hour: 0, minute: 0)))
++        // 边界 2：本周周日 23:59:59，仍属本周（自然周含尾日全天）。
++        let sundayEnd = try XCTUnwrap(cal.date(from: DateComponents(year: 2026, month: 10, day: 25, hour: 23, minute: 59, second: 59)))
++        // 边界 3：上周周日 23:59，属上周而非本周。
++        let lastSundayEnd = try XCTUnwrap(cal.date(from: DateComponents(year: 2026, month: 10, day: 18, hour: 23, minute: 59)))
++
++        let performances = [
++            Performance(amount: 10, note: "周一零点", date: mondayZero, incomeSource: "门店"),
++            Performance(amount: 20, note: "周日尾", date: sundayEnd, incomeSource: "门店"),
++            Performance(amount: 40, note: "上周日尾", date: lastSundayEnd, incomeSource: "门店"),
++        ]
++        let points = PerformanceTrend.last4Weeks(performances: performances, now: now)
++        XCTAssertEqual(points.last?.value ?? -1, 30, accuracy: 0.001, "周一00:00 与 周日23:59 同属本周")
++        XCTAssertEqual(points[2].value, 40, accuracy: 0.001, "上周日 23:59 属上周")
++    }
++
++    func testLast4WeeksEmptyDataYieldsFourZeroPoints() {
++        let points = PerformanceTrend.last4Weeks(performances: [], now: Date())
++        XCTAssertEqual(points.count, 4)
++        XCTAssertTrue(points.allSatisfy { $0.value == 0 }, "无记录时 4 个零点，图表仍有稳定形态")
++    }
++
++    func testPeriodTotalLabelsMatchRealBasis() {
++        // 合计行文案与真实口径一一对应（周 ≠ 近7日）。
++        XCTAssertEqual(PerformanceChartPeriod.day.trendTotalLabel, "近7日合计")
++        XCTAssertEqual(PerformanceChartPeriod.week.trendTotalLabel, "近4周合计")
++        XCTAssertEqual(PerformanceChartPeriod.month.trendTotalLabel, "近30日合计")
++    }
++
++    // MARK: - B2 · 图表点按取消选中策略
++
++    func testTapOutsidePlotDeselects() {
++        let plot = CGRect(x: 10, y: 0, width: 300, height: 100)
++        // 四周留白 / 轴区的典型落点都视为绘图区外。
++        XCTAssertFalse(V38ChartSelectionTapPolicy.isInsidePlot(x: 5, y: 50, plotRect: plot), "左侧留白")
++        XCTAssertFalse(V38ChartSelectionTapPolicy.isInsidePlot(x: 320, y: 50, plotRect: plot), "右侧轴区")
++        XCTAssertFalse(V38ChartSelectionTapPolicy.isInsidePlot(x: 150, y: -5, plotRect: plot), "上缘外")
++        XCTAssertFalse(V38ChartSelectionTapPolicy.isInsidePlot(x: 150, y: 105, plotRect: plot), "下缘外")
++        // 边界含端点。
++        XCTAssertTrue(V38ChartSelectionTapPolicy.isInsidePlot(x: 10, y: 0, plotRect: plot))
++        XCTAssertTrue(V38ChartSelectionTapPolicy.isInsidePlot(x: 310, y: 100, plotRect: plot))
++    }
++
++    func testTappingSelectedBarDeselects() {
++        XCTAssertNil(
++            V38ChartSelectionTapPolicy.selectedLabel(afterTapOn: "10/21", current: "10/21"),
++            "再次点中已选柱 → 取消选中"
++        )
++    }
++
++    func testTappingOtherBarSwitchesSelection() {
++        XCTAssertEqual(
++            V38ChartSelectionTapPolicy.selectedLabel(afterTapOn: "10/22", current: "10/21"),
++            "10/22"
++        )
++        XCTAssertNil(
++            V38ChartSelectionTapPolicy.selectedLabel(afterTapOn: nil, current: nil),
++            "未命中柱且无选中 → 维持无选中"
++        )
++        XCTAssertEqual(
++            V38ChartSelectionTapPolicy.selectedLabel(afterTapOn: nil, current: "10/21"),
++            "10/21",
++            "未命中柱但有选中 → 维持原选中（由外层区域判断负责取消）"
++        )
++    }
++
++    // MARK: - B1 · 日历页复用两段式 + 新建入口（源码回归钉）
++
++    func testScheduleViewReusesTwoStageToggleAndHasPlusEntry() throws {
++        let source = try source("XiaoZhangGui/Features/Schedule/ScheduleView.swift")
++        XCTAssertTrue(
++            source.contains("V38TodoToggleFlow.begin(from:)") && source.contains("V38TodoToggleFlow.resolve"),
++            "日历页勾选必须复用 V38TodoToggleFlow 两段式状态机（G5：持久化前不宣告成功）"
++        )
++        XCTAssertFalse(
++            source.contains("try TodoRepository(context: modelContext).toggleComplete(todo)\n        } catch {\n            Haptic.error()"),
++            "日历页不得回退为无保存中相位的单段式直写"
++        )
++        XCTAssertTrue(
++            source.contains("TodoEditorSheet(todo: nil, initialDate: selectedDate)"),
++            "日历页「+」必须带入当前选中日期预填（P1-B1 回归钉）"
++        )
++    }
++
++    private func source(_ path: String) throws -> String {
++        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
++        return try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
++    }
++}
+diff --git a/Tests/V38PerformanceRebuildTests.swift b/Tests/V38PerformanceRebuildTests.swift
+index 4cb8162..db12af1 100644
+--- a/Tests/V38PerformanceRebuildTests.swift
++++ b/Tests/V38PerformanceRebuildTests.swift
+@@ -105,9 +105,10 @@ final class V38PerformanceRebuildTests: XCTestCase {
+             "图表全部点值之和 = 区间内总营业额"
+         )
+ 
+-        // 周期映射（既有模型语义）：日/周 → 7 点，月 → 30 点。
++        // 周期映射（V3.8 P1-B2 真实口径）：日 → 近7日逐日 7 点；
++        // 周 → 近4周逐周 4 点（不再与日重复）；月 → 近30日 30 点。
+         XCTAssertEqual(PerformanceTrend.points(for: .day, performances: performances, now: now).count, 7)
+-        XCTAssertEqual(PerformanceTrend.points(for: .week, performances: performances, now: now).count, 7)
++        XCTAssertEqual(PerformanceTrend.points(for: .week, performances: performances, now: now).count, 4)
+         XCTAssertEqual(PerformanceTrend.points(for: .month, performances: performances, now: now).count, 30)
+     }
+ 
+diff --git a/XiaoZhangGui/DesignSystem/V371/V371AccessibilityID.swift b/XiaoZhangGui/DesignSystem/V371/V371AccessibilityID.swift
+index efd0912..d794b0f 100644
+--- a/XiaoZhangGui/DesignSystem/V371/V371AccessibilityID.swift
++++ b/XiaoZhangGui/DesignSystem/V371/V371AccessibilityID.swift
+@@ -49,6 +49,7 @@ enum V371AccessibilityID {
+     static let expiryToggleReturn = "expiry.toggleReturn"
+     static let goodsDelete = "goods.delete"
+     static let todoToggle = "todo.toggle"
++    static let todoAdd = "todo.add"
+     static let reliabilityRetry = "reliability.retry"
+ 
+     static let scrollEndHome = "scrollEnd.home"
+diff --git a/XiaoZhangGui/Features/Performance/PerformanceModel.swift b/XiaoZhangGui/Features/Performance/PerformanceModel.swift
+index df09cf7..ca7703a 100644
+--- a/XiaoZhangGui/Features/Performance/PerformanceModel.swift
++++ b/XiaoZhangGui/Features/Performance/PerformanceModel.swift
+@@ -155,6 +155,15 @@ enum PerformanceChartPeriod: String, CaseIterable, Identifiable, Hashable {
+         case .month: return .month
+         }
+     }
++
++    /// V3.8 P1-B2：图表合计行文案与周期口径一一对应（周 ≠ 近7日）。
++    var trendTotalLabel: String {
++        switch self {
++        case .day: return "近7日合计"
++        case .week: return "近4周合计"
++        case .month: return "近30日合计"
++        }
++    }
+ }
+ 
+ enum PerformanceTrend {
+@@ -166,10 +175,34 @@ enum PerformanceTrend {
+         points(performances: performances, days: 30, now: now)
+     }
+ 
++    /// V3.8 P1-B2：周口径真实化——近 4 周逐周汇总（周一起始，与日历页一致）。
++    /// 修复前「周」与「日」都返回 last7Days，两档展示完全相同的数据。
++    /// 标签用「本周/上周/前2周/前3周」；value 为该自然周内全部营业额合计。
++    static func last4Weeks(performances: [Performance], now: Date = Date()) -> [TrendPoint] {
++        var cal = Calendar.current
++        cal.firstWeekday = 2 // 周一起始
++        guard let thisWeek = cal.dateInterval(of: .weekOfYear, for: now) else { return [] }
++        let labels = ["本周", "上周", "前2周", "前3周"]
++        return (0..<4).reversed().enumerated().compactMap { index, weeksAgo in
++            guard let weekStart = cal.date(byAdding: .weekOfYear, value: -weeksAgo, to: thisWeek.start),
++                  let week = cal.dateInterval(of: .weekOfYear, for: weekStart) else { return nil }
++            let rev = performances
++                .filter { $0.date >= week.start && $0.date < week.end }
++                .reduce(0) { $0 + $1.amount }
++            return TrendPoint(id: index, label: labels[index], value: rev, date: week.start)
++        }
++    }
++
++    /// 各周期唯一且真实的统计口径（V3.8 P1-B2）：
++    /// - 日：近 7 日逐日（日粒度）
++    /// - 周：近 4 周逐周汇总（周粒度）
++    /// - 月：近 30 日逐日（日粒度 · 长窗口）
+     static func points(for period: PerformanceChartPeriod, performances: [Performance], now: Date = Date()) -> [TrendPoint] {
+         switch period {
+-        case .day, .week:
++        case .day:
+             return last7Days(performances: performances, now: now)
++        case .week:
++            return last4Weeks(performances: performances, now: now)
+         case .month:
+             return last30Days(performances: performances, now: now)
+         }
+diff --git a/XiaoZhangGui/Features/Performance/PerformanceView.swift b/XiaoZhangGui/Features/Performance/PerformanceView.swift
+index 8164c7e..b72b7cf 100644
+--- a/XiaoZhangGui/Features/Performance/PerformanceView.swift
++++ b/XiaoZhangGui/Features/Performance/PerformanceView.swift
+@@ -111,7 +111,8 @@ struct PerformanceView: View {
+         .v371Canvas()
+         // V3.8.1 P0-2：共享浮动 Tab 栏底部避让（safeAreaInset，非内容内 Spacer）。
+         .v32PageBottomInset()
+-        .navigationTitle("经营数据")
++        // V3.8 P1-B2：标题与 Tab 口径统一为「经营」（Tab/首页入口/页面标题三处一致）。
++        .navigationTitle("经营")
+         .navigationBarTitleDisplayMode(.inline)
+         .toolbar {
+             ToolbarItemGroup(placement: .navigationBarTrailing) {
+@@ -263,7 +264,7 @@ struct PerformanceView: View {
+                         .accessibilityIdentifier("v38.performance.chart")
+                     V371Divider(leading: 0)
+                     HStack(alignment: .firstTextBaseline) {
+-                        Text(chartPeriod == .month ? "近30日合计" : "近7日合计")
++                        Text(chartPeriod.trendTotalLabel)
+                             .font(V371.Typography.rowSubtitle)
+                             .foregroundStyle(V371.Colors.textTertiary)
+                         Spacer(minLength: 8)
+@@ -530,7 +531,8 @@ private struct PerformanceRecordRow: View {
+                 Image(systemName: "trash")
+                     .font(.system(size: 14))
+                     .foregroundStyle(V371.Colors.textTertiary)
+-                    .frame(width: 32, height: 44)
++                    // V3.8 P1-B2：删除命中区提到 44×44pt 最低触控标准（原 32×44 易误触漏触）。
++                    .frame(width: 44, height: 44)
+                     .contentShape(Rectangle())
+             }
+             .buttonStyle(.plain)
+diff --git a/XiaoZhangGui/Features/Performance/V38/V38TrendBarChart.swift b/XiaoZhangGui/Features/Performance/V38/V38TrendBarChart.swift
+index d98ea24..be5bf3c 100644
+--- a/XiaoZhangGui/Features/Performance/V38/V38TrendBarChart.swift
++++ b/XiaoZhangGui/Features/Performance/V38/V38TrendBarChart.swift
+@@ -26,6 +26,25 @@ enum V38AxisLabelPolicy {
+     }
+ }
+ 
++/// V3.8 P1-B2：图表点按选中决策（纯逻辑，可单测）。
++///
++/// 修复前一次点按后选中态永远无法退回；修复后：
++/// - 点按落在绘图区外（留白 / 轴区）→ 取消选中；
++/// - 再次点中已选柱 → 取消选中；
++/// - 点中其他柱 → 切换选中。
++enum V38ChartSelectionTapPolicy {
++    /// 点按是否落在绘图区内（区域外点按 = 取消选中）。
++    static func isInsidePlot(x: CGFloat, y: CGFloat, plotRect: CGRect) -> Bool {
++        x >= plotRect.minX && x <= plotRect.maxX && y >= plotRect.minY && y <= plotRect.maxY
++    }
++
++    /// 命中柱后的新选中标签：再次点中已选柱 → nil（取消）；否则切换为该柱。
++    static func selectedLabel(afterTapOn tapped: String?, current: String?) -> String? {
++        guard let tapped else { return current }
++        return tapped == current ? nil : tapped
++    }
++}
++
+ /// V3.8 重建 · 经营页收入趋势柱状图（真实数据，Swift Charts）。
+ ///
+ /// 动效（Worker C 规格 §4）：数据更新时柱高从旧值插值到新值
+@@ -131,8 +150,9 @@ struct V38TrendBarChart: View {
+             }
+         }
+         .chartOverlay { proxy in
+-            // P1-7 点按选中：透明层只接管点按（不抢纵向滚动手势），
++            // P1-7 点按选中 + P1-B2 取消选中：透明层只接管点按（不抢纵向滚动手势），
+             // 用 ChartProxy 把点按位置换算为最近的日期分类（原生口径）。
++            // 点在绘图区外或再次点中已选柱 → 取消选中（决策逻辑在纯函数策略内）。
+             GeometryReader { geo in
+                 Rectangle()
+                     .fill(Color.clear)
+@@ -142,9 +162,18 @@ struct V38TrendBarChart: View {
+                             .onEnded { value in
+                                 guard let plotAnchor = proxy.plotFrame else { return }
+                                 let plotRect = geo[plotAnchor]
+-                                let x = value.location.x - plotRect.origin.x
++                                let location = value.location
++                                guard V38ChartSelectionTapPolicy.isInsidePlot(
++                                    x: location.x, y: location.y, plotRect: plotRect
++                                ) else {
++                                    selectedLabel = nil
++                                    return
++                                }
++                                let x = location.x - plotRect.origin.x
+                                 if let label: String = proxy.value(atX: x) {
+-                                    selectedLabel = label
++                                    selectedLabel = V38ChartSelectionTapPolicy.selectedLabel(
++                                        afterTapOn: label, current: selectedLabel
++                                    )
+                                 }
+                             }
+                     )
+@@ -179,6 +208,13 @@ struct V38TrendBarChart: View {
+         .accessibilityElement(children: .ignore)
+         .accessibilityLabel("收入趋势图")
+         .accessibilityValue(accessibilitySummary)
++        // V3.8 P1-B2：VoiceOver 可按点遍历每个周期值（原来整图合并成一句话，
++        // 视障用户无法查询某一天/某一周的具体金额）。
++        .accessibilityChildren {
++            ForEach(points) { point in
++                Text("\(point.label)，收入 \(Fmt.money(point.value))")
++            }
++        }
+     }
+ 
+     /// 选中反馈：选中柱保持实色，其余柱淡化（Light/Dark 均可辨认）。
+diff --git a/XiaoZhangGui/Features/Schedule/ScheduleView.swift b/XiaoZhangGui/Features/Schedule/ScheduleView.swift
+index 600770f..291e000 100644
+--- a/XiaoZhangGui/Features/Schedule/ScheduleView.swift
++++ b/XiaoZhangGui/Features/Schedule/ScheduleView.swift
+@@ -36,6 +36,16 @@ struct ScheduleView: View {
+     @State private var showCustomer = false
+     @State private var showMemo = false
+     @State private var showPerformance = false
++    /// V3.8 P1-B1：日历页原生「+」新建待办，预填当前选中日期。
++    @State private var showNewTodo = false
++    /// V3.8 P1-B1：勾选待办复用 TodoView 的两段式持久化状态机（G5：持久化前不宣告成功）。
++    @State private var toggleMachines: [PersistentIdentifier: V38PageMotionState] = [:]
++    @State private var togglingIDs: Set<PersistentIdentifier> = []
++    @State private var failedToggleTodo: Todo?
++    /// V3.8 P1-B1：周密度 ghost 行「二次沉降」——锚点过渡完成后收起选中行上方的
++    /// 透明占位行，消除月末第 5 周约 190pt 的稳态空白；过渡期间锚点不变量不受影响。
++    @State private var weekGhostSettled = false
++    @State private var ghostSettleTask: Task<Void, Never>?
+ 
+     /// 周一起始（日程周条用）
+     private var calendar: Calendar {
+@@ -114,17 +124,56 @@ struct ScheduleView: View {
+         // V3.8.1 P0-2：共享浮动 Tab 栏底部避让（safeAreaInset，非内容内 Spacer）。
+         .v32PageBottomInset()
+         .alert("操作失败", isPresented: Binding(get: { stateActionError != nil }, set: { if !$0 { stateActionError = nil } })) {
+-            Button("知道了", role: .cancel) { stateActionError = nil }
++            Button("重试") {
++                stateActionError = nil
++                if let todo = failedToggleTodo { toggleTodo(todo) }
++            }
++            .accessibilityIdentifier(V371AccessibilityID.reliabilityRetry)
++            Button("知道了", role: .cancel) {
++                stateActionError = nil
++                failedToggleTodo = nil
++            }
+         } message: { Text(stateActionError ?? "事项状态未改变，请重试") }
+         .navigationTitle("日历")
+         .navigationBarTitleDisplayMode(.inline)
++        // V3.8 P1-B1：原生「+」新建待办（预填选中日期），与待办页同款 44pt 触点。
++        .toolbar {
++            ToolbarItem(placement: .topBarTrailing) {
++                Button {
++                    showNewTodo = true
++                } label: {
++                    Image(systemName: "plus")
++                        .font(.system(size: 16, weight: .semibold))
++                        .foregroundStyle(V371.Colors.blue)
++                        .frame(width: 44, height: 44)
++                        .contentShape(Rectangle())
++                }
++                .buttonStyle(.plain)
++                .accessibilityLabel("新增待办")
++                .accessibilityIdentifier(V371AccessibilityID.todoAdd)
++            }
++        }
++        .sheet(isPresented: $showNewTodo) {
++            TodoEditorSheet(todo: nil, initialDate: selectedDate)
++        }
+         .navigationDestination(isPresented: $showCustomer) { CustomerView() }
+         .navigationDestination(isPresented: $showMemo) { MemoView() }
+         .navigationDestination(isPresented: $showPerformance) { PerformanceView() }
+         .onChange(of: selectedDate) { _, newValue in
+             // 周条选中跨月日期时，月历网格跟随到该月（仅视图状态同步，不改计算语义）
+             currentMonth = newValue.startOfMonth
++            // 周密度下锚点行变化：重新走一次 ghost 沉降节奏（先展开锚定再收起）。
++            if density == .week { settleWeekGhosts() }
++        }
++        .onChange(of: density) { _, newValue in
++            if newValue == .week {
++                settleWeekGhosts()
++            } else {
++                ghostSettleTask?.cancel()
++                weekGhostSettled = false
++            }
+         }
++        .onDisappear { ghostSettleTask?.cancel() }
+     }
+ 
+     // MARK: - Editorial 顶部（月标题 + 轻量周日期 strip）
+@@ -185,11 +234,7 @@ struct ScheduleView: View {
+                 accent: todo.isCompleted ? V371.Colors.gray : V371.Colors.blue,
+                 action: { toggleTodo(todo) }
+             ) {
+-                Image(systemName: todo.isCompleted ? "checkmark.circle.fill" : "circle")
+-                    .font(.system(size: 22, weight: .medium))
+-                    .foregroundStyle(todo.isCompleted ? V371.Colors.green : V371.Colors.textTertiary)
+-                    .frame(width: 44, height: 44)
+-                    .accessibilityHidden(true)
++                scheduleToggleIcon(for: todo)
+             }
+             .accessibilityHint(todo.isCompleted ? "已完成，轻点标记为未完成" : "轻点标记为完成")
+         case .delivery(_, let date):
+@@ -226,24 +271,15 @@ struct ScheduleView: View {
+             }
+ 
+             if scheduleDay.allDay.isEmpty && scheduleDay.timedEvents.isEmpty {
+-                HStack(spacing: 12) {
+-                    Image(systemName: "sun.max")
+-                        .font(.system(size: 20, weight: .medium))
+-                        .foregroundStyle(V371.Colors.textTertiary)
+-                        .frame(width: 36, height: 36)
+-                        .accessibilityHidden(true)
+-                    VStack(alignment: .leading, spacing: 2) {
+-                        Text("该日期暂无事项")
+-                            .font(.body.weight(.semibold))
+-                            .foregroundStyle(V371.Colors.textPrimary)
+-                        Text("这一天还没有安排")
+-                            .font(.footnote)
+-                            .foregroundStyle(V371.Colors.textTertiary)
+-                    }
+-                }
++                // V3.8 P1-C1：空态统一为 EmptyState（清晰标题 + 一句行动指引），
++                // 与待办/经营页同一组件；行动指引指向本页新增的「+」入口。
++                EmptyState(
++                    icon: "sun.max",
++                    title: "该日期暂无事项",
++                    message: "点右上角 +，把安排放到这一天"
++                )
+                 .padding(.vertical, 8)
+                 .accessibilityElement(children: .combine)
+-                .accessibilityLabel("该日期暂无事项")
+             } else if !scheduleDay.allDay.isEmpty {
+                 GroupSurface {
+                     VStack(spacing: 0) {
+@@ -385,14 +421,59 @@ struct ScheduleView: View {
+         return "\(days) 天后到期"
+     }
+ 
++    /// V3.8 P1-B1：勾选待办复用 TodoView 同款两段式状态机（V38TodoToggleFlow +
++    /// V38PageMotionState，G5：持久化完成前不宣告成功）。
++    /// 保存中 → 行图标转圈；失败 → alert 重试（行内模型态未变，绝不显示已完成）。
++    private func phase(for todo: Todo) -> V38PageTogglePhase {
++        toggleMachines[todo.persistentModelID]?.phase ?? .idle(isDone: todo.isCompleted)
++    }
++
+     private func toggleTodo(_ todo: Todo) {
+-        let wasCompleted = todo.isCompleted
+-        do {
+-            try TodoRepository(context: modelContext).toggleComplete(todo)
+-            if !wasCompleted { Haptic.success() }
+-        } catch {
+-            Haptic.error()
+-            stateActionError = "事项状态未改变，请重试。"
++        let pid = todo.persistentModelID
++        guard !togglingIDs.contains(pid) else { return }
++        let current = toggleMachines[pid] ?? V38PageMotionState(isDone: todo.isCompleted)
++        guard let saving = V38TodoToggleFlow.begin(from: current) else { return }
++        toggleMachines[pid] = saving
++        togglingIDs.insert(pid)
++        AccessibilityNotification.Announcement("正在保存").post()
++        Task { @MainActor in
++            let resolved = V38TodoToggleFlow.resolve(saving) {
++                try UITestFailureInjection.throwIfRequested(.todoToggle)
++                try TodoRepository(context: modelContext).toggleComplete(todo)
++            }
++            toggleMachines[pid] = resolved
++            if case .failed = resolved.phase {
++                togglingIDs.remove(pid)
++                failedToggleTodo = todo
++                Haptic.error()
++                AccessibilityNotification.Announcement("保存失败，可重试").post()
++                stateActionError = "事项状态未改变，请重试。"
++            } else {
++                failedToggleTodo = nil
++                if todo.isCompleted { Haptic.success() } else { Haptic.light() }
++                AccessibilityNotification.Announcement("已保存").post()
++                // 短暂暂留后清理状态机（行渲染回归已落库的模型态）。
++                Task { @MainActor in
++                    try? await Task.sleep(nanoseconds: 700_000_000)
++                    togglingIDs.remove(pid)
++                    toggleMachines[pid] = nil
++                }
++            }
++        }
++    }
++
++    /// V3.8 P1-B1：周密度 ghost 行二次沉降。锚点过渡（contentChange 时序）完成后，
++    /// 再以动画收起选中行上方的透明占位行——过渡期间选中格位置不变量不受影响，
++    /// 稳态下不再留大片空白（月末第 5 周场景约 190pt）。
++    private func settleWeekGhosts() {
++        ghostSettleTask?.cancel()
++        weekGhostSettled = false
++        ghostSettleTask = Task { @MainActor in
++            try? await Task.sleep(nanoseconds: 500_000_000)
++            guard !Task.isCancelled else { return }
++            withAnimation(V38MotionTokens.animation(for: .contentChange, reduceMotion: reduceMotion)) {
++                weekGhostSettled = true
++            }
+         }
+     }
+ 
+@@ -549,7 +630,12 @@ struct ScheduleView: View {
+ 
+     @ViewBuilder
+     private func weekRowView(_ row: V38ScheduleLayout.WeekRow) -> some View {
+-        HStack(spacing: 2) {
++        // V3.8 P1-B1：沉降后的展示形态由纯函数决定（过渡期 ghost 保留高度锚定，
++        // settleWeekGhosts 完成后收起，消除稳态空白）。
++        let presentation = V38ScheduleLayout.settledPresentation(
++            for: row, density: density, weekSettled: weekGhostSettled
++        )
++        return HStack(spacing: 2) {
+             ForEach(Array(row.cells.enumerated()), id: \.offset) { _, date in
+                 if let date {
+                     dayCell(date)
+@@ -560,11 +646,40 @@ struct ScheduleView: View {
+                 }
+             }
+         }
+-        .frame(height: row.presentation == .collapsed ? 0 : V38ScheduleStyle.cellHeight)
+-        .opacity(row.presentation == .full ? 1 : 0)
++        .frame(height: presentation == .collapsed ? 0 : V38ScheduleStyle.cellHeight)
++        .opacity(presentation == .full ? 1 : 0)
+         .clipped()
+-        .allowsHitTesting(row.presentation == .full)
+-        .accessibilityHidden(row.presentation != .full)
++        .allowsHitTesting(presentation == .full)
++        .accessibilityHidden(presentation != .full)
++    }
++
++    /// V3.8 P1-B1：时间线行的勾选图标按相位渲染（与待办页同口径）——
++    /// 保存中转圈（不宣告成功）、已确认完成绿对勾、失败红点角标。
++    @ViewBuilder
++    private func scheduleToggleIcon(for todo: Todo) -> some View {
++        let togglePhase = phase(for: todo)
++        ZStack {
++            if case .saving = togglePhase {
++                ProgressView()
++                    .controlSize(.small)
++            } else if case .idle(let isDone) = togglePhase, isDone {
++                Image(systemName: "checkmark.circle.fill")
++                    .font(.system(size: 22, weight: .medium))
++                    .foregroundStyle(V371.Colors.green)
++            } else {
++                Image(systemName: "circle")
++                    .font(.system(size: 22, weight: .medium))
++                    .foregroundStyle(V371.Colors.textTertiary)
++            }
++            if case .failed = togglePhase {
++                Circle()
++                    .fill(V371.Colors.red)
++                    .frame(width: 10, height: 10)
++                    .offset(x: 13, y: -13)
++            }
++        }
++        .frame(width: 44, height: 44)
++        .accessibilityHidden(true)
+     }
+ 
+     /// V3.8 R3 日期格：大日期数字 + 真实事项状态点；
+diff --git a/XiaoZhangGui/Features/Schedule/V38/V38ScheduleLayout.swift b/XiaoZhangGui/Features/Schedule/V38/V38ScheduleLayout.swift
+index e5e0cad..8dc5c6e 100644
+--- a/XiaoZhangGui/Features/Schedule/V38/V38ScheduleLayout.swift
++++ b/XiaoZhangGui/Features/Schedule/V38/V38ScheduleLayout.swift
+@@ -105,4 +105,15 @@ enum V38ScheduleLayout {
+         rows(month: month, calendar: calendar, selectedDate: selectedDate, density: .week)
+             .first { $0.containsSelectedDate }
+     }
++
++    /// V3.8 P1-B1：ghost 行「二次沉降」的最终展示形态（纯函数，可单测）。
++    ///
++    /// 锚点过渡期间 ghost 行保留高度（保证选中格像素位置不变）；
++    /// 过渡完成（`weekSettled == true`）后 ghost 行按 collapsed 收起，
++    /// 消除周密度稳态下选中行上方的大片透明空白。
++    /// 月密度不受影响（本来全为 full）。
++    static func settledPresentation(for row: WeekRow, density: V38ScheduleDensity, weekSettled: Bool) -> RowPresentation {
++        guard density == .week, weekSettled, row.presentation == .ghost else { return row.presentation }
++        return .collapsed
++    }
+ }
+diff --git a/XiaoZhangGui/Features/Todo/TodoEditorSheet.swift b/XiaoZhangGui/Features/Todo/TodoEditorSheet.swift
+index 4e276e8..6011636 100644
+--- a/XiaoZhangGui/Features/Todo/TodoEditorSheet.swift
++++ b/XiaoZhangGui/Features/Todo/TodoEditorSheet.swift
+@@ -10,6 +10,9 @@ struct TodoEditorSheet: View {
+     @Environment(\.dismiss) private var dismiss
+ 
+     let todo: Todo?
++    /// V3.8 P1-B1：新建时的预填日期（日历页「+」带入当前选中日）。
++    /// 默认 nil = 既有行为（默认今天 09:00）；编辑已有待办时忽略。
++    var initialDate: Date? = nil
+ 
+     @State private var title = ""
+     @State private var detail = ""
+@@ -79,7 +82,9 @@ struct TodoEditorSheet: View {
+         guard !isInitialized else { return }
+         isInitialized = true
+         guard let todo else {
+-            dueDate = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date()) ?? Date()
++            // 新建：默认 09:00；日历页入口带入选中日（V3.8 P1-B1）。
++            let base = initialDate ?? Date()
++            dueDate = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: base) ?? base
+             return
+         }
+         title = todo.title

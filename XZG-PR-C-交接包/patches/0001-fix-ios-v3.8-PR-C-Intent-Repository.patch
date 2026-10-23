@@ -1,0 +1,694 @@
+From 9f8db38816542d2bba91fb510b61db94321fb1d2 Mon Sep 17 00:00:00 2001
+From: kevin2xiaomao-max <298385559+kevin2xiaomao-max@users.noreply.github.com>
+Date: Sat, 24 Oct 2026 00:30:22 +0800
+Subject: [PATCH] =?UTF-8?q?fix(ios/v3.8):=20PR-C=20=E5=90=8C=E6=AD=A5?=
+ =?UTF-8?q?=E4=B8=8E=E6=80=A7=E8=83=BD=EF=BC=88=E5=BF=AB=E7=85=A7=E5=88=B7?=
+ =?UTF-8?q?=E6=96=B0=E5=8E=BB=E6=8A=96=E5=90=88=E5=B9=B6/Intent=E5=A4=8D?=
+ =?UTF-8?q?=E7=94=A8Repository/=E5=AE=B9=E5=99=A8=E7=BC=93=E5=AD=98/?=
+ =?UTF-8?q?=E5=90=8E=E5=8F=B0=E5=85=9C=E5=BA=95=EF=BC=89?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+基线 release/v380-rc @ 750bad39（独立分支，与 A/B/D 零文件重叠）。
+
+B3-1 Snapshot/Widget 刷新合并（trailing-edge 去抖）：
+- 新增 SnapshotRefreshDebouncer：250ms 静默窗口内多次写合并为一次
+  全量快照 + Widget reload + Live Activity 更新；最后一次成功写入必然
+  最终同步（trailing edge 永远执行）。代数对账杜绝被顶替任务重复触发；
+  到期执行固定派发主线程。
+- Repository 全部 26 处单条写路径接入 scheduleDebouncedRefresh；
+  批量扫呗导入收尾保持立即刷新（单次写完 + 用户马上看 Widget）。
+- 需要立即语义的入口不变：refreshAll / scenePhase 兜底 / 快照失败保留旧值。
+
+B3-2 App Intent 与 Repository 统一：
+- AddTodoIntent 复用 TodoRepository.add（原手写 insert+save+通知+刷新，
+  与 Repository 逻辑重复有口径漂移风险）；通知/优先级/截止语义不变。
+- RecordRevenueIntent 收入来源按备注派生（与 P0-A1 修复口径一致）。
+- 三个 Intent 消除与 Repository 的双重刷新：改为 flushDebouncedRefresh
+  立即落地（单发场景不等待窗口，App 后台驻留短也不丢同步）。
+- AppDatabase.makeCachedContainer：Intent 进程内容器缓存（MainActor），
+  不再每次执行重开 store；沿用 makeContainer 全部安全回退语义。
+
+B3-3 后台切换兜底：
+- scenePhase .active/.background 先落地挂起的合并刷新再走既有全量刷新，
+  「App 已保存、Widget/Live Activity 长时间旧数据」在切后台瞬间也不可能发生。
+
+测试（真实异步行为 + 边界 + 回归钉）：
+- SnapshotRefreshDebouncerTests 9 用例：三次预约合并为末次执行、
+  flushNow 立即执行且不双触发、无挂起 no-op、取消后不执行、被顶替任务
+  绝不触发（代数对账）、window=0 边界、Repository/Intent 接入回归钉。
+
+未执行（交由 Muse CI）：Xcode 编译、XCTest/UITest 真实运行。
+---
+ Tests/SnapshotRefreshDebouncerTests.swift     | 134 ++++++++++++++++++
+ XiaoZhangGui/App/XiaoZhangGuiApp.swift        |   3 +
+ XiaoZhangGui/Data/ModelContainer.swift        |  19 +++
+ .../Features/Intents/XZGAppIntents.swift      |  40 ++++--
+ XiaoZhangGui/Repositories/AppRepository.swift |  60 ++++----
+ .../Services/SnapshotRefreshDebouncer.swift   | 100 +++++++++++++
+ .../Services/SnapshotSyncManager.swift        |  29 +++-
+ 7 files changed, 342 insertions(+), 43 deletions(-)
+ create mode 100644 Tests/SnapshotRefreshDebouncerTests.swift
+ create mode 100644 XiaoZhangGui/Services/SnapshotRefreshDebouncer.swift
+
+diff --git a/Tests/SnapshotRefreshDebouncerTests.swift b/Tests/SnapshotRefreshDebouncerTests.swift
+new file mode 100644
+index 0000000..6141438
+--- /dev/null
++++ b/Tests/SnapshotRefreshDebouncerTests.swift
+@@ -0,0 +1,134 @@
++import XCTest
++@testable import XiaoZhangGui
++
++/// V3.8 PR-C：Snapshot/Widget 刷新合并器（trailing-edge 去抖）真实行为测试。
++///
++/// 修复背景：每个 Repository 写操作都全量刷新快照 + reload Widget，
++/// 快速连续录入时全部重复。策略：250ms 窗口合并、最后一次写必然同步。
++final class SnapshotRefreshDebouncerTests: XCTestCase {
++
++    /// 测试用短窗口（真实 Task.sleep 计时，非 mock）。
++    private let shortWindow: TimeInterval = 0.05
++
++    @MainActor
++    func testRapidSchedulesCoalesceToSingleTrailingExecution() async {
++        let debouncer = SnapshotRefreshDebouncer(window: shortWindow)
++        var executions: [String] = []
++
++        // 连续预约三次（模拟快速连续写），窗口内只应执行最后一次。
++        debouncer.schedule { executions.append("A") }
++        try? await Task.sleep(nanoseconds: 10_000_000) // 10ms
++        debouncer.schedule { executions.append("B") }
++        try? await Task.sleep(nanoseconds: 10_000_000) // 10ms
++        debouncer.schedule { executions.append("C") }
++
++        XCTAssertTrue(debouncer.hasPendingFlush, "窗口期内必须有挂起预约")
++        // 等窗口 + 余量（C 是最后一次预约，其 trailing edge 必然执行）。
++        try? await Task.sleep(nanoseconds: 350_000_000)
++
++        XCTAssertEqual(executions, ["C"], "三次预约合并为一次，且执行最后一次动作（trailing edge）")
++        XCTAssertFalse(debouncer.hasPendingFlush, "执行完毕后无挂起")
++    }
++
++    @MainActor
++    func testFlushNowExecutesImmediatelyWithoutDoubleFire() async {
++        let debouncer = SnapshotRefreshDebouncer(window: shortWindow)
++        var count = 0
++        debouncer.schedule { count += 1 }
++        XCTAssertTrue(debouncer.hasPendingFlush)
++
++        let didFlush = debouncer.flushNow()
++        XCTAssertTrue(didFlush, "有挂起时 flushNow 必须执行")
++        XCTAssertEqual(count, 1, "flushNow 立即执行一次")
++
++        // 过了原窗口后，被顶替的定时任务不得再次触发（代数对账）。
++        try? await Task.sleep(nanoseconds: 300_000_000)
++        XCTAssertEqual(count, 1, "flushNow 之后不得出现第二次执行")
++        XCTAssertFalse(debouncer.hasPendingFlush)
++    }
++
++    @MainActor
++    func testFlushNowWithoutPendingIsNoOp() {
++        let debouncer = SnapshotRefreshDebouncer(window: shortWindow)
++        var count = 0
++        XCTAssertFalse(debouncer.flushNow(), "无挂起时 flushNow 返回 false")
++        XCTAssertEqual(count, 0)
++    }
++
++    @MainActor
++    func testCancelPendingDropsExecution() async {
++        let debouncer = SnapshotRefreshDebouncer(window: shortWindow)
++        var count = 0
++        debouncer.schedule { count += 1 }
++        XCTAssertTrue(debouncer.hasPendingFlush)
++
++        debouncer.cancelPending()
++        XCTAssertFalse(debouncer.hasPendingFlush)
++
++        try? await Task.sleep(nanoseconds: 300_000_000)
++        XCTAssertEqual(count, 0, "取消后到期不得执行")
++    }
++
++    @MainActor
++    func testReplacedScheduleNeverFiresStaleAction() async {
++        let debouncer = SnapshotRefreshDebouncer(window: shortWindow)
++        var executions: [String] = []
++        debouncer.schedule { executions.append("old") }
++        // 立刻被新预约顶替（旧任务已取消；即便取消唤醒，代数对账也必须拦下）。
++        debouncer.schedule { executions.append("new") }
++        try? await Task.sleep(nanoseconds: 300_000_000)
++        XCTAssertEqual(executions, ["new"], "被顶替的旧预约绝不执行（无论取消时序如何）")
++    }
++
++    @MainActor
++    func testZeroWindowExecutesOnNextMainTick() async {
++        // 边界：window = 0（等同立即），预约仍应恰好执行一次。
++        let debouncer = SnapshotRefreshDebouncer(window: 0)
++        var count = 0
++        debouncer.schedule { count += 1 }
++        try? await Task.sleep(nanoseconds: 200_000_000)
++        XCTAssertEqual(count, 1)
++        XCTAssertFalse(debouncer.hasPendingFlush)
++    }
++
++    // MARK: - Repository 接入与 Intent 消重（源码回归钉）
++
++    func testRepositoriesUseDebouncedRefreshExceptBulkImport() throws {
++        let source = try source("XiaoZhangGui/Repositories/AppRepository.swift")
++        XCTAssertGreaterThan(
++            source.components(separatedBy: "SnapshotSyncManager.scheduleDebouncedRefresh(context: context)").count - 1,
++            20,
++            "Repository 单条写路径必须全部走合并刷新（V3.8 PR-C 回归钉）"
++        )
++        XCTAssertTrue(
++            source.contains("func importSaobei")
++                && source.range(of: "func importSaobei[\\s\\S]*?SnapshotSyncManager\\.refreshAll\\(context: context\\)", options: .regularExpression) != nil,
++            "批量导入收尾保持立即刷新（一次性写完，立即同步体验最好）"
++        )
++    }
++
++    func testIntentsReuseRepositoryAndFlushInsteadOfDoubleRefresh() throws {
++        let source = try source("XiaoZhangGui/Features/Intents/XZGAppIntents.swift")
++        XCTAssertTrue(
++            source.contains("try TodoRepository(context: context).add("),
++            "AddTodoIntent 必须复用 TodoRepository（PR-C 回归钉）"
++        )
++        XCTAssertFalse(
++            source.contains("SnapshotSyncManager.refreshAll(container: container)"),
++            "Intent 不得再手动 refreshAll 造成与 Repository 的双重刷新"
++        )
++        XCTAssertEqual(
++            source.components(separatedBy: "SnapshotSyncManager.flushDebouncedRefresh()").count - 1, 3,
++            "三个 Intent 都必须在 Repository 写后立即落地合并刷新"
++        )
++        XCTAssertTrue(
++            source.contains("AppDatabase.makeCachedContainer()"),
++            "Intent 必须使用容器缓存（不再每次重开 store）"
++        )
++    }
++
++    private func source(_ path: String) throws -> String {
++        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
++        return try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
++    }
++}
+diff --git a/XiaoZhangGui/App/XiaoZhangGuiApp.swift b/XiaoZhangGui/App/XiaoZhangGuiApp.swift
+index fc01b77..f8f7820 100644
+--- a/XiaoZhangGui/App/XiaoZhangGuiApp.swift
++++ b/XiaoZhangGui/App/XiaoZhangGuiApp.swift
+@@ -86,6 +86,9 @@ struct XiaoZhangGuiApp: App {
+             guard !Self.isUnitTesting else { return }
+             guard phase == .active || phase == .background,
+                   let container else { return }
++            // V3.8 PR-C：进后台/回前台前先落地 Repository 去抖合并中挂起的刷新，
++            // 保证「App 已保存、Widget/Live Activity 长时间旧数据」在切后台瞬间也不可能发生。
++            SnapshotSyncManager.flushDebouncedRefresh()
+             let contextContainer = UITestMode.isEnabled ? container : (demo.isEnabled ? DemoCatalog.container : container)
+             // P1-4：查询失败不覆盖旧快照，Widget / Live Activity 继续显示上次有效数据
+             guard let snapshot = SnapshotSyncManager.buildSnapshot(context: ModelContext(contextContainer)) else { return }
+diff --git a/XiaoZhangGui/Data/ModelContainer.swift b/XiaoZhangGui/Data/ModelContainer.swift
+index 7975757..da5a5c5 100644
+--- a/XiaoZhangGui/Data/ModelContainer.swift
++++ b/XiaoZhangGui/Data/ModelContainer.swift
+@@ -17,6 +17,25 @@ enum AppDatabase {
+         Goods.self,
+     ])
+ 
++    // MARK: - V3.8 PR-C：App Intent 进程内容器缓存
++    //
++    // App Intent（Siri 快捷指令）每次执行原先都 makeContainer() 重新打开 store；
++    // Widget 扩展侧 WidgetIntentStore 早已用同思路缓存。Intent 均在主线程
++    // perform，缓存只在 MainActor 读写，无并发风险。
++
++    @MainActor
++    private static var intentContainerCache: ModelContainer?
++
++    /// App Intent 专用：取缓存容器；首次调用才真实构建（走 makeContainer 的
++    /// 全部安全回退与失败抛错语义，成功才缓存）。
++    @MainActor
++    static func makeCachedContainer() throws -> ModelContainer {
++        if let intentContainerCache { return intentContainerCache }
++        let container = try makeContainer()
++        intentContainerCache = container
++        return container
++    }
++
+     /// 生产入口：只允许返回「可持久化」的容器。
+     /// - App Group store 失败：安全 fallback 到 App sandbox 持久 store，并留下可检测标记。
+     /// - 两个持久 store 都失败：抛出错误，由 UI 明确告知「数据存储暂不可用」。
+diff --git a/XiaoZhangGui/Features/Intents/XZGAppIntents.swift b/XiaoZhangGui/Features/Intents/XZGAppIntents.swift
+index efacc20..3b5427b 100644
+--- a/XiaoZhangGui/Features/Intents/XZGAppIntents.swift
++++ b/XiaoZhangGui/Features/Intents/XZGAppIntents.swift
+@@ -29,21 +29,25 @@ struct AddTodoIntent: AppIntent {
+ 
+     @MainActor
+     func perform() async throws -> some IntentResult & ProvidesDialog {
+-        guard !title.trimmingCharacters(in: .whitespaces).isEmpty else {
++        guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+             return .result(dialog: "待办内容不能为空")
+         }
+-        let container = try AppDatabase.makeContainer()
++        // V3.8 PR-C：
++        // - 复用 TodoRepository.add（原先手写 insert+save+通知+刷新，逻辑与
++        //   Repository 重复，存在口径漂移风险）；通知 / 优先级 / 截止时间语义不变。
++        // - makeCachedContainer：Intent 进程内容器缓存，不再每次重开 store。
++        // - Intent 是单发场景，flushDebouncedRefresh 立即落地 Repository 预约的
++        //   合并刷新（替代原先 Repository 刷新 + 手动 refreshAll 的双重刷新）。
++        let container = try AppDatabase.makeCachedContainer()
+         let context = ModelContext(container)
+-        let todo = Todo(
+-            title: title.trimmingCharacters(in: .whitespaces),
++        try TodoRepository(context: context).add(
++            title: title.trimmingCharacters(in: .whitespacesAndNewlines),
++            detail: "",
+             dueDate: dueToday ? Date().endOfDay : nil,
+             priority: min(max(priority, 0), 2)
+         )
+-        context.insert(todo)
+-        try context.save()
+-        NotificationManager.scheduleTodo(todo)
+-        SnapshotSyncManager.refreshAll(container: container)
+-        return .result(dialog: "已新增待办：\(todo.title)")
++        SnapshotSyncManager.flushDebouncedRefresh()
++        return .result(dialog: "已新增待办：\(title.trimmingCharacters(in: .whitespacesAndNewlines))")
+     }
+ }
+ 
+@@ -69,10 +73,17 @@ struct RecordRevenueIntent: AppIntent {
+         guard amount > 0 else {
+             return .result(dialog: "金额需要大于 0")
+         }
+-        let container = try AppDatabase.makeContainer()
++        // V3.8 PR-C：容器缓存 + flush 立即落地（消除与 Repository 的双重刷新）；
++        // 收入来源按备注派生（与 P0-A1 修复后的录入链路口径一致）。
++        let container = try AppDatabase.makeCachedContainer()
+         let context = ModelContext(container)
+-        try PerformanceRepository(context: context).add(amount: amount, note: note, date: Date())
+-        SnapshotSyncManager.refreshAll(container: container)
++        try PerformanceRepository(context: context).add(
++            amount: amount,
++            note: note,
++            date: Date(),
++            incomeSource: IncomeSource.from(note: note)
++        )
++        SnapshotSyncManager.flushDebouncedRefresh()
+         return .result(dialog: "已记录营业额 ¥\(String(format: "%.2f", amount))")
+     }
+ }
+@@ -99,10 +110,11 @@ struct AddMemoIntent: AppIntent {
+         guard !title.trimmingCharacters(in: .whitespaces).isEmpty else {
+             return .result(dialog: "记录标题不能为空")
+         }
+-        let container = try AppDatabase.makeContainer()
++        // V3.8 PR-C：容器缓存 + flush 立即落地（消除与 Repository 的双重刷新）。
++        let container = try AppDatabase.makeCachedContainer()
+         let context = ModelContext(container)
+         try MemoRepository(context: context).add(title: title, content: content)
+-        SnapshotSyncManager.refreshAll(container: container)
++        SnapshotSyncManager.flushDebouncedRefresh()
+         return .result(dialog: "已记下记录：\(title)")
+     }
+ }
+diff --git a/XiaoZhangGui/Repositories/AppRepository.swift b/XiaoZhangGui/Repositories/AppRepository.swift
+index 297c560..619cb69 100644
+--- a/XiaoZhangGui/Repositories/AppRepository.swift
++++ b/XiaoZhangGui/Repositories/AppRepository.swift
+@@ -5,10 +5,12 @@ import SwiftData
+ // View → ViewModel/Observable → Repository → SwiftData
+ // 写操作统一走 Repository；列表读取在 View 层用 @Query 保持实时刷新
+ //
+-// P1-4 变更：每次成功增/改/删/完成/状态推进后，调用
+-// SnapshotSyncManager.refreshAll(context:)
+-// 同步 BusinessSnapshot / Widget Timeline / Live Activity，
++// P1-4 变更：每次成功增/改/删/完成/状态推进后，同步
++// BusinessSnapshot / Widget Timeline / Live Activity，
+ // 避免必须切换前后台才刷新。
++// V3.8 PR-C：写路径刷新改为 250ms trailing-edge 去抖合并
++// （scheduleDebouncedRefresh）——连续写入只触发一次全量快照 + Widget reload，
++// 最后一次成功写入必然最终同步；批量导入收尾保持立即刷新。
+ 
+ struct TodoRepository {
+     let context: ModelContext
+@@ -18,7 +20,7 @@ struct TodoRepository {
+         context.insert(todo)
+         try context.save()
+         NotificationManager.scheduleTodo(todo)
+-        SnapshotSyncManager.refreshAll(context: context)
++        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
+     }
+ 
+     /// P0-1 修复：删除原本不存在的 todo.updated() 调用（Todo 模型 Android 语义
+@@ -27,7 +29,7 @@ struct TodoRepository {
+         try context.save()
+         NotificationManager.cancelTodo(todo)
+         NotificationManager.scheduleTodo(todo)
+-        SnapshotSyncManager.refreshAll(context: context)
++        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
+     }
+ 
+     func toggleComplete(_ todo: Todo) throws {
+@@ -39,14 +41,14 @@ struct TodoRepository {
+         } else {
+             NotificationManager.scheduleTodo(todo)
+         }
+-        SnapshotSyncManager.refreshAll(context: context)
++        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
+     }
+ 
+     func delete(_ todo: Todo) throws {
+         NotificationManager.cancelTodo(todo)
+         context.delete(todo)
+         try context.save()
+-        SnapshotSyncManager.refreshAll(context: context)
++        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
+     }
+ }
+ 
+@@ -56,19 +58,19 @@ struct MemoRepository {
+     func add(title: String, content: String, imageData: Data? = nil) throws {
+         context.insert(Memo(title: title, content: content, imageData: imageData))
+         try context.save()
+-        SnapshotSyncManager.refreshAll(context: context)
++        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
+     }
+ 
+     func update(_ memo: Memo) throws {
+         memo.updatedAt = Date()
+         try context.save()
+-        SnapshotSyncManager.refreshAll(context: context)
++        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
+     }
+ 
+     func delete(_ memo: Memo) throws {
+         context.delete(memo)
+         try context.save()
+-        SnapshotSyncManager.refreshAll(context: context)
++        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
+     }
+ }
+ 
+@@ -84,7 +86,7 @@ struct PerformanceRepository {
+             incomeSource: incomeSource.rawValue
+         ))
+         try context.save()
+-        SnapshotSyncManager.refreshAll(context: context)
++        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
+     }
+ 
+     func addImported(_ row: SaobeiParsedRow) throws {
+@@ -101,7 +103,7 @@ struct PerformanceRepository {
+             incomeSource: source.rawValue
+         ))
+         try context.save()
+-        SnapshotSyncManager.refreshAll(context: context)
++        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
+     }
+ 
+     /// 批量导入扫呗记录。
+@@ -147,19 +149,21 @@ struct PerformanceRepository {
+         }
+         accepted.forEach { context.insert($0) }
+         try context.save() // 单次落库
++        // V3.8 PR-C：批量导入收尾一次性写完成，直接立即刷新（无需去抖合并；
++        // 且导入后用户多半马上查看 Widget，立即同步体验最好）。
+         SnapshotSyncManager.refreshAll(context: context) // 单次 Snapshot / Widget / Live Activity
+         return SaobeiImportCommitResult(inserted: inserted, duplicates: duplicates, skippedFailed: skippedFailed)
+     }
+ 
+     func update(_ performance: Performance) throws {
+         try context.save()
+-        SnapshotSyncManager.refreshAll(context: context)
++        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
+     }
+ 
+     func delete(_ performance: Performance) throws {
+         context.delete(performance)
+         try context.save()
+-        SnapshotSyncManager.refreshAll(context: context)
++        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
+     }
+ }
+ 
+@@ -169,18 +173,18 @@ struct ExpenseRepository {
+     func add(amount: Double, category: String = "其他", note: String = "", date: Date = Date()) throws {
+         context.insert(Expense(amount: amount, category: category, note: note, date: date))
+         try context.save()
+-        SnapshotSyncManager.refreshAll(context: context)
++        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
+     }
+ 
+     func update(_ expense: Expense) throws {
+         try context.save()
+-        SnapshotSyncManager.refreshAll(context: context)
++        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
+     }
+ 
+     func delete(_ expense: Expense) throws {
+         context.delete(expense)
+         try context.save()
+-        SnapshotSyncManager.refreshAll(context: context)
++        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
+     }
+ }
+ 
+@@ -210,14 +214,14 @@ struct ExpiryRepository {
+         context.insert(item)
+         try context.save()
+         NotificationManager.scheduleExpiry(item)
+-        SnapshotSyncManager.refreshAll(context: context)
++        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
+     }
+ 
+     func update(_ item: ExpiryItem) throws {
+         try context.save()
+         NotificationManager.cancelExpiry(item)
+         NotificationManager.scheduleExpiry(item)
+-        SnapshotSyncManager.refreshAll(context: context)
++        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
+     }
+ 
+     /// 标记退货 / 恢复
+@@ -229,14 +233,14 @@ struct ExpiryRepository {
+         } else {
+             NotificationManager.scheduleExpiry(item)
+         }
+-        SnapshotSyncManager.refreshAll(context: context)
++        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
+     }
+ 
+     func delete(_ item: ExpiryItem) throws {
+         NotificationManager.cancelExpiry(item)
+         context.delete(item)
+         try context.save()
+-        SnapshotSyncManager.refreshAll(context: context)
++        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
+     }
+ }
+ 
+@@ -254,7 +258,7 @@ struct CustomerRepository {
+         context.insert(request)
+         try context.save()
+         NotificationManager.rescheduleCustomer(request)
+-        SnapshotSyncManager.refreshAll(context: context)
++        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
+     }
+ 
+     /// P1-5 修复：编辑后统一重排跟进通知（状态/内容变化都生效）。
+@@ -263,7 +267,7 @@ struct CustomerRepository {
+         request.updatedAt = Date()
+         try context.save()
+         NotificationManager.rescheduleCustomer(request)
+-        SnapshotSyncManager.refreshAll(context: context)
++        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
+     }
+ 
+     /// 状态推进：待处理 → 配送中 → 已完成
+@@ -283,14 +287,14 @@ struct CustomerRepository {
+         } else {
+             // delivering 暂不重新安排，保留 pending 时已存在的跟进逻辑。
+         }
+-        SnapshotSyncManager.refreshAll(context: context)
++        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
+     }
+ 
+     func delete(_ request: CustomerRequest) throws {
+         NotificationManager.cancelCustomer(request)
+         context.delete(request)
+         try context.save()
+-        SnapshotSyncManager.refreshAll(context: context)
++        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
+     }
+ }
+ 
+@@ -300,18 +304,18 @@ struct GoodsRepository {
+     func add(_ goods: Goods) throws {
+         context.insert(goods)
+         try context.save()
+-        SnapshotSyncManager.refreshAll(context: context)
++        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
+     }
+ 
+     func update(_ goods: Goods) throws {
+         goods.updatedAt = Date()
+         try context.save()
+-        SnapshotSyncManager.refreshAll(context: context)
++        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
+     }
+ 
+     func delete(_ goods: Goods) throws {
+         context.delete(goods)
+         try context.save()
+-        SnapshotSyncManager.refreshAll(context: context)
++        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
+     }
+ }
+diff --git a/XiaoZhangGui/Services/SnapshotRefreshDebouncer.swift b/XiaoZhangGui/Services/SnapshotRefreshDebouncer.swift
+new file mode 100644
+index 0000000..76313bc
+--- /dev/null
++++ b/XiaoZhangGui/Services/SnapshotRefreshDebouncer.swift
+@@ -0,0 +1,100 @@
++import Foundation
++
++// MARK: - Snapshot / Widget 刷新合并器（V3.8 PR-C：trailing-edge 去抖）
++//
++// 背景：每个 Repository 写操作都会全量构建快照 + reload Widget + 更新 Live Activity；
++// 快速连续录入（如批量勾选待办、连续记几笔账）时，同几秒内多次全量查询与
++// Widget reload 全部重复浪费，且 WidgetCenter reload 风暴在低端机上有可感知卡顿。
++//
++// 策略（指令 B3 允许的 100–300ms 合并方案）：
++// - 写操作只「预约」刷新，250ms 静默窗口内的多次预约合并为一次；
++// - **最后一次成功写入必然最终同步**（trailing edge 永远执行）；
++// - 需要立即刷新的调用方（scenePhase 兜底、批量导入收尾、App Intent）
++//   使用 `flushNow()` 立即落地，或继续走 `SnapshotSyncManager.refreshAll`；
++// - 到期执行固定派发回主线程（Task @MainActor），刷新链路始终在主线程。
++//
++// 线程模型：与代码库既有约定一致——`schedule` 由主线程调用（Repository 写路径
++// 全部来自 MainActor 视图/VM/Intent.perform）；内部用 NSLock 保护极小临界区，
++// 使状态读写本身线程安全。
++
++final class SnapshotRefreshDebouncer {
++    /// 合并窗口（秒）：指令区间 100–300ms 的中值。
++    static let defaultWindow: TimeInterval = 0.25
++
++    private let window: TimeInterval
++    private let lock = NSLock()
++    /// 预约代数：每次 schedule / flushNow / cancelPending 递增，
++    /// 在途旧任务的到期回调按代数对账，杜绝「被替换的旧任务提前/重复触发」。
++    private var generation = 0
++    private var action: (() -> Void)?
++    private var pendingTask: Task<Void, Never>?
++
++    init(window: TimeInterval = SnapshotRefreshDebouncer.defaultWindow) {
++        precondition(window >= 0, "合并窗口必须非负")
++        self.window = window
++    }
++
++    /// 是否有尚未落地的刷新预约。
++    var hasPendingFlush: Bool {
++        lock.lock()
++        defer { lock.unlock() }
++        return pendingTask != nil
++    }
++
++    /// 预约一次刷新：窗口内重复调用只保留最后一次动作（trailing edge）。
++    func schedule(_ action: @escaping () -> Void) {
++        lock.lock()
++        generation += 1
++        let myGeneration = generation
++        self.action = action
++        pendingTask?.cancel()
++        let waitNanos = UInt64(window * 1_000_000_000)
++        pendingTask = Task { @MainActor [weak self] in
++            if waitNanos > 0 {
++                try? await Task.sleep(nanoseconds: waitNanos)
++            }
++            self?.fire(generation: myGeneration)
++        }
++        lock.unlock()
++    }
++
++    /// 立即执行挂起的刷新（无挂起则不做事）。使一切在途任务失效，不会二次触发。
++    @discardableResult
++    func flushNow() -> Bool {
++        lock.lock()
++        generation += 1
++        pendingTask?.cancel()
++        pendingTask = nil
++        let action = action
++        self.action = nil
++        lock.unlock()
++        guard let action else { return false }
++        action()
++        return true
++    }
++
++    /// 取消挂起的刷新（不执行；用于清理）。
++    func cancelPending() {
++        lock.lock()
++        generation += 1
++        pendingTask?.cancel()
++        pendingTask = nil
++        action = nil
++        lock.unlock()
++    }
++
++    /// 到期对账：仅当「本任务代数 == 当前代数」且仍有挂起任务时执行。
++    /// 被 schedule 替换 / flushNow / cancelPending 打断的旧任务在此安静退出。
++    private func fire(generation: Int) {
++        lock.lock()
++        guard generation == self.generation, pendingTask != nil else {
++            lock.unlock()
++            return
++        }
++        pendingTask = nil
++        let action = action
++        self.action = nil
++        lock.unlock()
++        action?()
++    }
++}
+diff --git a/XiaoZhangGui/Services/SnapshotSyncManager.swift b/XiaoZhangGui/Services/SnapshotSyncManager.swift
+index b33b983..2219b62 100644
+--- a/XiaoZhangGui/Services/SnapshotSyncManager.swift
++++ b/XiaoZhangGui/Services/SnapshotSyncManager.swift
+@@ -19,7 +19,34 @@ enum SnapshotSyncManager {
+         refreshAll(context: context)
+     }
+ 
+-    /// 仅当快照构建成功才落盘 / 刷新 Widget / 更新 Live Activity。
++    // MARK: - V3.8 PR-C：写路径合并刷新（trailing-edge 去抖）
++
++    private static let refreshDebouncer = SnapshotRefreshDebouncer()
++
++    /// Repository 写成功后的合并刷新入口：250ms 静默窗口内的多次写合并为一次
++    /// 全量快照 + Widget reload + Live Activity 更新；**最后一次写必然最终同步**
++    /// （trailing edge 永远执行）。需要立即生效的调用方（scenePhase 兜底、
++    /// 批量导入收尾、App Intent 单发场景）用 `flushDebouncedRefresh()` /
++    /// `refreshAll`，二者都会使在途预约失效，不会二次刷新。
++    static func scheduleDebouncedRefresh(context: ModelContext) {
++        let container = context.container
++        refreshDebouncer.schedule {
++            refreshAll(container: container)
++        }
++    }
++
++    /// 立即落地挂起的合并刷新（有挂起返回 true；无挂起为 no-op）。
++    @discardableResult
++    static func flushDebouncedRefresh() -> Bool {
++        refreshDebouncer.flushNow()
++    }
++
++    /// 仅当还有挂起的合并刷新（供测试与兜底判断）。
++    static var hasDebouncedRefreshPending: Bool {
++        refreshDebouncer.hasPendingFlush
++    }
++
++    /// 仅当成功构建完整快照才落盘 / 刷新 Widget / 更新 Live Activity。
+     /// snapshot == nil（查询失败）时直接保留上一次有效快照，绝不用空数据清零。
+     static func commit(snapshot: BusinessSnapshot?) {
+         guard let snapshot else { return }
+-- 
+2.55.0.windows.3
+

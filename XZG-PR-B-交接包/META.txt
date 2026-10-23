@@ -1,0 +1,14 @@
+BASE_SHA=750bad39a319dc99367fb5f97ec825c6589b63ed
+HEAD_SHA=0a52d99569fb454bb98a01c9703855ddf0132dc2
+BRANCH=ios/v38-pr-b-core-interaction
+BASE_BRANCH=release/v380-rc
+---修改文件---
+A	Tests/V38CoreInteractionB1B2Tests.swift
+M	Tests/V38PerformanceRebuildTests.swift
+M	XiaoZhangGui/DesignSystem/V371/V371AccessibilityID.swift
+M	XiaoZhangGui/Features/Performance/PerformanceModel.swift
+M	XiaoZhangGui/Features/Performance/PerformanceView.swift
+M	XiaoZhangGui/Features/Performance/V38/V38TrendBarChart.swift
+M	XiaoZhangGui/Features/Schedule/ScheduleView.swift
+M	XiaoZhangGui/Features/Schedule/V38/V38ScheduleLayout.swift
+M	XiaoZhangGui/Features/Todo/TodoEditorSheet.swift

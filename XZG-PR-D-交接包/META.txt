@@ -1,0 +1,25 @@
+BASE_SHA=750bad39a319dc99367fb5f97ec825c6589b63ed
+HEAD_SHA=3351576859ff6f2ef1c697274d43e3b7fd0c1db6
+BRANCH=ios/v38-pr-d-quality-closeout
+BASE_BRANCH=release/v380-rc
+---修改文件---
+A	Tests/V38QualityCloseoutTests.swift
+D	XiaoZhangGui/Components/TrendChart.swift
+D	XiaoZhangGui/DesignSystem/BusinessComponents.swift
+D	XiaoZhangGui/DesignSystem/V21Components.swift
+D	XiaoZhangGui/DesignSystem/V21Font.swift
+D	XiaoZhangGui/DesignSystem/V21Spacing.swift
+M	XiaoZhangGui/DesignSystem/V32/Theme/ThemeStore.swift
+D	XiaoZhangGui/DesignSystem/V32/V32Components.swift
+M	XiaoZhangGui/DesignSystem/V371/V371DesignSystem.swift
+M	XiaoZhangGui/DesignSystem/V38/Motion/V38CapabilityGate.swift
+R100	XiaoZhangGui/Experiments/V38PageMotion/V38PageMotionState.swift	XiaoZhangGui/DesignSystem/V38/Motion/V38PageMotionState.swift
+M	XiaoZhangGui/Features/Goods/GoodsView.swift
+M	XiaoZhangGui/Features/Home/HomeView.swift
+M	XiaoZhangGui/Features/Home/V38/V38HomeStyle.swift
+M	XiaoZhangGui/Features/Performance/MoneyEditorSheet.swift
+M	XiaoZhangGui/Features/Performance/V38/V38PerformanceStyle.swift
+M	XiaoZhangGui/Features/Todo/TodoModel.swift
+M	XiaoZhangGui/Features/Todo/TodoView.swift
+M	XiaoZhangGui/Services/LiveActivityManager.swift
+A	XiaoZhangGui/Utilities/AppLog.swift
