@@ -112,7 +112,7 @@ final class V38PerformanceChartCorrectionUITests: XCTestCase {
         let chart = element("v38.performance.chart")
         let start = chart.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.6))
         let end = chart.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.6))
-        start.press(forDuration: 0.4, thenDragTo: end, withVelocity: .slow, holdForDuration: 0.3)
+        start.press(forDuration: 0.4, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.3)
 
         // 轮询等待读数行变为「已选日期 M/d · ¥金额」。
         let deadline = Date().addingTimeInterval(10)
@@ -126,7 +126,7 @@ final class V38PerformanceChartCorrectionUITests: XCTestCase {
             // 兜底再试一次反向拖动（自右向左）。
             let start2 = chart.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.6))
             let end2 = chart.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.6))
-            start2.press(forDuration: 0.4, thenDragTo: end2, withVelocity: .slow, holdForDuration: 0.3)
+            start2.press(forDuration: 0.4, thenDragTo: end2, withVelocity: .slow, thenHoldForDuration: 0.3)
             let deadline2 = Date().addingTimeInterval(8)
             while Date() < deadline2 {
                 label = readout.label
