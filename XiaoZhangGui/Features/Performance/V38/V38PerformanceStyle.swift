@@ -22,4 +22,6 @@ enum V38PerformanceStyle {
     static let heroLabel: Font = .system(size: 15, weight: .semibold)
     /// Chip 文案。
     static let chipLabel: Font = .system(size: 14, weight: .semibold)
+    /// 图表选中读数行文案（V3.8.1 P1-7）。
+    static let readoutLabel: Font = .system(size: 13, weight: .semibold)
 }

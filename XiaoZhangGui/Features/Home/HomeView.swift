@@ -57,7 +57,8 @@ struct HomeView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            // V3.8.1 P1-5：垂直节奏收紧（24→20），保留 Editorial 留白，去掉无意义大间隙。
+            VStack(alignment: .leading, spacing: 20) {
                 dateHeader
                 businessSection
                 aiSection
@@ -72,6 +73,9 @@ struct HomeView: View {
         .scrollIndicators(.hidden)
         .accessibilityIdentifier(V371AccessibilityID.screenHome)
         .v371Canvas()
+        // V3.8.1 P0-2：iOS 26/27 浮动 Tab 栏为覆盖层，系统底部安全区不含栏体；
+        // 用共享 safeAreaInset 机制让内容可完整滚动到栏上方（禁内容内 Spacer 掩盖）。
+        .v32PageBottomInset()
         .alert("操作失败", isPresented: Binding(get: { stateActionError != nil }, set: { if !$0 { stateActionError = nil } })) {
             Button("知道了", role: .cancel) { stateActionError = nil }
         } message: { Text(stateActionError ?? "待办状态未改变，请重试") }
@@ -164,7 +168,7 @@ struct HomeView: View {
     // MARK: - 今天的经营 · Revenue Hero（深绿卡，唯一主视觉）
 
     private var businessSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             V38HomeSectionHeader(title: "今天的经营")
             Button { route = .performance } label: {
                 VStack(alignment: .leading, spacing: 8) {
@@ -194,7 +198,7 @@ struct HomeView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(20)
+                .padding(18)
                 .background(V38HomeStyle.heroBackground, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                 .contentShape(Rectangle())
             }
@@ -219,7 +223,7 @@ struct HomeView: View {
     // MARK: - 问小掌柜 · AI 胶囊（生产）
 
     private var aiSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             V38HomeSectionHeader(title: "问小掌柜", trailing: "AI 入口")
             V38HomeAICapsule(
                 isExpanded: $aiExpanded,
@@ -253,19 +257,22 @@ struct HomeView: View {
             )
             .frame(maxWidth: .infinity)
             Button { showQuickRecord = true } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "note.text")
-                        .font(.subheadline.weight(.semibold))
-                    Text("写备忘")
-                        .font(.subheadline.weight(.semibold))
+                // V3.8.1 P1-6：与 AI 胶囊 / 快捷菜单统一到共享三档玻璃表面
+                // （RT 实色 / iOS 26 glassEffect / 旧系统材质），不再单独用 thinMaterial。
+                V38HomeGlassSurface(radius: 26) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "note.text")
+                            .font(.subheadline.weight(.semibold))
+                        // V3.8.1 P0-4：半宽胶囊 + 大字号下单行不换行。
+                        Text("写备忘")
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                    }
+                    .foregroundStyle(.primary)
+                    .frame(maxWidth: .infinity, minHeight: 52)
+                    .contentShape(Capsule())
                 }
-                .foregroundStyle(.primary)
-                .frame(maxWidth: .infinity, minHeight: 52)
-                .background(.thinMaterial, in: Capsule())
-                .overlay {
-                    Capsule().strokeBorder(Color(.separator).opacity(0.35), lineWidth: 0.5)
-                }
-                .contentShape(Capsule())
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier(V371AccessibilityID.homeQuickRecord)
@@ -276,7 +283,7 @@ struct HomeView: View {
     // MARK: - 今日事项（平面列表）
 
     private var mattersSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             V38HomeSectionHeader(title: "今日事项")
             if handlingItems.isEmpty {
                 Text("今天暂无安排")
