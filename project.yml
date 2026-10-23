@@ -89,6 +89,8 @@ targets:
       - path: XiaoZhangGui/Services/NotificationManager.swift
       - path: XiaoZhangGui/Services/LiveActivityManager.swift
       - path: XiaoZhangGui/Services/WidgetTodoCompletion.swift
+      # V3.8 PR-D：LiveActivityManager 改用 AppLog 记日志，AppLog 需随之双 target 编译（同上复用模式）。
+      - path: XiaoZhangGui/Utilities/AppLog.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.xiaozhanggui.ios.widget

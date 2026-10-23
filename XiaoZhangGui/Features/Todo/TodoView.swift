@@ -200,7 +200,7 @@ struct TodoView: View {
             EmptyState(
                 icon: "checkmark.circle",
                 title: TodoFilter.emptyText(for: tab),
-                message: "新的安排会清晰地出现在这里"
+                message: TodoFilter.emptyMessage(for: tab)
             )
             .padding(.top, 24)
         } else {
@@ -431,7 +431,7 @@ private struct TodoListRow: View {
             travel: reduceMotion ? 0 : 6,
             animatableData: CGFloat(shakeTrigger)
         ))
-        .animation(.easeInOut(duration: 0.32), value: shakeTrigger)
+        .animation(V38MotionTokens.animation(for: .contentChange, reduceMotion: reduceMotion), value: shakeTrigger)
         .transition(.opacity.combined(with: reduceMotion ? .identity : .scale(scale: 0.98)))
     }
 

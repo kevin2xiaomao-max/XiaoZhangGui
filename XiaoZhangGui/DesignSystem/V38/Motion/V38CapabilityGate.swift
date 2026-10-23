@@ -1,12 +1,15 @@
 import SwiftUI
 import UIKit
 
+#if DEBUG
 /// V3.8 三档材质门控（纯函数）。
 ///
 /// 隔离声明（Debug-only）：本文件不被任何生产 View 引用；`resolve(_:)` 为纯逻辑，
 /// 可在 XCTest 中直接覆盖全部 2×2 门控矩阵。实现语义与 MotionLab PoC
 /// `V38MotionLabSurface` 的三档分支一致（glass → ultraThinMaterial → 不透明回退），
 /// 只做语义收敛、不修改 PoC 文件。
+/// V3.8 PR-D C4：整文件 #if DEBUG——测试目标按 Debug 配置编译仍可见，
+/// Release 产物不再包含。
 enum V38CapabilityGate {
 
     /// 材质三档：iOS 26+ glassEffect / 旧系统 ultraThinMaterial / Reduce Transparency 不透明回退。
@@ -43,3 +46,4 @@ enum V38CapabilityGate {
         }
     }
 }
+#endif
