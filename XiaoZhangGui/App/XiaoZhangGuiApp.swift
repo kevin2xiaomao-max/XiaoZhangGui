@@ -86,6 +86,9 @@ struct XiaoZhangGuiApp: App {
             guard !Self.isUnitTesting else { return }
             guard phase == .active || phase == .background,
                   let container else { return }
+            // V3.8 PR-C：进后台/回前台前先落地 Repository 去抖合并中挂起的刷新，
+            // 保证「App 已保存、Widget/Live Activity 长时间旧数据」在切后台瞬间也不可能发生。
+            SnapshotSyncManager.flushDebouncedRefresh()
             let contextContainer = UITestMode.isEnabled ? container : (demo.isEnabled ? DemoCatalog.container : container)
             // P1-4：查询失败不覆盖旧快照，Widget / Live Activity 继续显示上次有效数据
             guard let snapshot = SnapshotSyncManager.buildSnapshot(context: ModelContext(contextContainer)) else { return }

@@ -5,10 +5,12 @@ import SwiftData
 // View → ViewModel/Observable → Repository → SwiftData
 // 写操作统一走 Repository；列表读取在 View 层用 @Query 保持实时刷新
 //
-// P1-4 变更：每次成功增/改/删/完成/状态推进后，调用
-// SnapshotSyncManager.refreshAll(context:)
-// 同步 BusinessSnapshot / Widget Timeline / Live Activity，
+// P1-4 变更：每次成功增/改/删/完成/状态推进后，同步
+// BusinessSnapshot / Widget Timeline / Live Activity，
 // 避免必须切换前后台才刷新。
+// V3.8 PR-C：写路径刷新改为 250ms trailing-edge 去抖合并
+// （scheduleDebouncedRefresh）——连续写入只触发一次全量快照 + Widget reload，
+// 最后一次成功写入必然最终同步；批量导入收尾保持立即刷新。
 
 struct TodoRepository {
     let context: ModelContext
@@ -18,7 +20,7 @@ struct TodoRepository {
         context.insert(todo)
         try context.save()
         NotificationManager.scheduleTodo(todo)
-        SnapshotSyncManager.refreshAll(context: context)
+        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
     }
 
     /// P0-1 修复：删除原本不存在的 todo.updated() 调用（Todo 模型 Android 语义
@@ -27,7 +29,7 @@ struct TodoRepository {
         try context.save()
         NotificationManager.cancelTodo(todo)
         NotificationManager.scheduleTodo(todo)
-        SnapshotSyncManager.refreshAll(context: context)
+        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
     }
 
     func toggleComplete(_ todo: Todo) throws {
@@ -39,14 +41,14 @@ struct TodoRepository {
         } else {
             NotificationManager.scheduleTodo(todo)
         }
-        SnapshotSyncManager.refreshAll(context: context)
+        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
     }
 
     func delete(_ todo: Todo) throws {
         NotificationManager.cancelTodo(todo)
         context.delete(todo)
         try context.save()
-        SnapshotSyncManager.refreshAll(context: context)
+        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
     }
 }
 
@@ -56,19 +58,19 @@ struct MemoRepository {
     func add(title: String, content: String, imageData: Data? = nil) throws {
         context.insert(Memo(title: title, content: content, imageData: imageData))
         try context.save()
-        SnapshotSyncManager.refreshAll(context: context)
+        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
     }
 
     func update(_ memo: Memo) throws {
         memo.updatedAt = Date()
         try context.save()
-        SnapshotSyncManager.refreshAll(context: context)
+        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
     }
 
     func delete(_ memo: Memo) throws {
         context.delete(memo)
         try context.save()
-        SnapshotSyncManager.refreshAll(context: context)
+        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
     }
 }
 
@@ -84,7 +86,7 @@ struct PerformanceRepository {
             incomeSource: incomeSource.rawValue
         ))
         try context.save()
-        SnapshotSyncManager.refreshAll(context: context)
+        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
     }
 
     func addImported(_ row: SaobeiParsedRow) throws {
@@ -101,7 +103,7 @@ struct PerformanceRepository {
             incomeSource: source.rawValue
         ))
         try context.save()
-        SnapshotSyncManager.refreshAll(context: context)
+        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
     }
 
     /// 批量导入扫呗记录。
@@ -147,19 +149,21 @@ struct PerformanceRepository {
         }
         accepted.forEach { context.insert($0) }
         try context.save() // 单次落库
+        // V3.8 PR-C：批量导入收尾一次性写完成，直接立即刷新（无需去抖合并；
+        // 且导入后用户多半马上查看 Widget，立即同步体验最好）。
         SnapshotSyncManager.refreshAll(context: context) // 单次 Snapshot / Widget / Live Activity
         return SaobeiImportCommitResult(inserted: inserted, duplicates: duplicates, skippedFailed: skippedFailed)
     }
 
     func update(_ performance: Performance) throws {
         try context.save()
-        SnapshotSyncManager.refreshAll(context: context)
+        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
     }
 
     func delete(_ performance: Performance) throws {
         context.delete(performance)
         try context.save()
-        SnapshotSyncManager.refreshAll(context: context)
+        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
     }
 }
 
@@ -169,18 +173,18 @@ struct ExpenseRepository {
     func add(amount: Double, category: String = "其他", note: String = "", date: Date = Date()) throws {
         context.insert(Expense(amount: amount, category: category, note: note, date: date))
         try context.save()
-        SnapshotSyncManager.refreshAll(context: context)
+        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
     }
 
     func update(_ expense: Expense) throws {
         try context.save()
-        SnapshotSyncManager.refreshAll(context: context)
+        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
     }
 
     func delete(_ expense: Expense) throws {
         context.delete(expense)
         try context.save()
-        SnapshotSyncManager.refreshAll(context: context)
+        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
     }
 }
 
@@ -210,14 +214,14 @@ struct ExpiryRepository {
         context.insert(item)
         try context.save()
         NotificationManager.scheduleExpiry(item)
-        SnapshotSyncManager.refreshAll(context: context)
+        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
     }
 
     func update(_ item: ExpiryItem) throws {
         try context.save()
         NotificationManager.cancelExpiry(item)
         NotificationManager.scheduleExpiry(item)
-        SnapshotSyncManager.refreshAll(context: context)
+        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
     }
 
     /// 标记退货 / 恢复
@@ -229,14 +233,14 @@ struct ExpiryRepository {
         } else {
             NotificationManager.scheduleExpiry(item)
         }
-        SnapshotSyncManager.refreshAll(context: context)
+        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
     }
 
     func delete(_ item: ExpiryItem) throws {
         NotificationManager.cancelExpiry(item)
         context.delete(item)
         try context.save()
-        SnapshotSyncManager.refreshAll(context: context)
+        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
     }
 }
 
@@ -254,7 +258,7 @@ struct CustomerRepository {
         context.insert(request)
         try context.save()
         NotificationManager.rescheduleCustomer(request)
-        SnapshotSyncManager.refreshAll(context: context)
+        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
     }
 
     /// P1-5 修复：编辑后统一重排跟进通知（状态/内容变化都生效）。
@@ -263,7 +267,7 @@ struct CustomerRepository {
         request.updatedAt = Date()
         try context.save()
         NotificationManager.rescheduleCustomer(request)
-        SnapshotSyncManager.refreshAll(context: context)
+        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
     }
 
     /// 状态推进：待处理 → 配送中 → 已完成
@@ -283,14 +287,14 @@ struct CustomerRepository {
         } else {
             // delivering 暂不重新安排，保留 pending 时已存在的跟进逻辑。
         }
-        SnapshotSyncManager.refreshAll(context: context)
+        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
     }
 
     func delete(_ request: CustomerRequest) throws {
         NotificationManager.cancelCustomer(request)
         context.delete(request)
         try context.save()
-        SnapshotSyncManager.refreshAll(context: context)
+        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
     }
 }
 
@@ -300,18 +304,18 @@ struct GoodsRepository {
     func add(_ goods: Goods) throws {
         context.insert(goods)
         try context.save()
-        SnapshotSyncManager.refreshAll(context: context)
+        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
     }
 
     func update(_ goods: Goods) throws {
         goods.updatedAt = Date()
         try context.save()
-        SnapshotSyncManager.refreshAll(context: context)
+        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
     }
 
     func delete(_ goods: Goods) throws {
         context.delete(goods)
         try context.save()
-        SnapshotSyncManager.refreshAll(context: context)
+        SnapshotSyncManager.scheduleDebouncedRefresh(context: context)
     }
 }
