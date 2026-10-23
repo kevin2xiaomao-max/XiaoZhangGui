@@ -71,6 +71,35 @@ jobs:
             -derivedDataPath "$RUNNER_TEMP/xzg-ios-v38-derived" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             >artifacts/build.log 2>&1 || { tail -n 120 artifacts/build.log; exit 1; }
+      # V3.8 RC: read-only proof that the BUILT products carry the release
+      # version — the app's generated Info.plist and the embedded widget
+      # appex's Info.plist must both resolve to 3.8.0 (38). This verifies
+      # the version bump; it does not change the test gate below.
+      - name: Verify app and widget versions (3.8.0 / 38)
+        shell: bash
+        run: |
+          set -euo pipefail
+          PRODUCTS="$RUNNER_TEMP/xzg-ios-v38-derived/Build/Products"
+          APP_PATH=$(find "$PRODUCTS" -name "XiaoZhangGui.app" -maxdepth 2 | head -1)
+          if [ -z "$APP_PATH" ]; then echo "built XiaoZhangGui.app not found under $PRODUCTS" >&2; exit 1; fi
+          APPEX_PATH=$(find "$APP_PATH" -name "*.appex" -maxdepth 3 | head -1)
+          if [ -z "$APPEX_PATH" ]; then echo "embedded widget appex not found in $APP_PATH" >&2; exit 1; fi
+          check_plist() {
+            local label="$1"
+            local plist="$2"
+            local ver
+            local build
+            ver=$(plutil -extract CFBundleShortVersionString raw -o - "$plist")
+            build=$(plutil -extract CFBundleVersion raw -o - "$plist")
+            echo "$label: CFBundleShortVersionString=$ver CFBundleVersion=$build ($plist)"
+            if [ "$ver" != "3.8.0" ] || [ "$build" != "38" ]; then
+              echo "VERSION MISMATCH for $label: expected 3.8.0 (38)" >&2
+              exit 1
+            fi
+          }
+          check_plist "App" "$APP_PATH/Info.plist"
+          check_plist "Widget" "$APPEX_PATH/Info.plist"
+          echo "version check OK: App and Widget are both 3.8.0 (38)"
       - name: XCTest and UITest
         shell: bash
         run: |
