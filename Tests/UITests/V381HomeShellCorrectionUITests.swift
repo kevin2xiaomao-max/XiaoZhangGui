@@ -183,6 +183,12 @@ final class V381HomeShellCorrectionUITests: XCTestCase {
             app.tabBars.buttons[tabLabel].tap()
             let marker = element(markerID)
             XCTAssertTrue(marker.waitForExistence(timeout: 10), "\(tabLabel) 末尾标记不存在")
+            // 内容是否溢出视口：未滚动时末尾已可命中 = 内容未溢出，其末尾
+            // 停在内容自然高度、距栏较远属正常排版（run 39901163760 待办页
+            // 实测 gap=375 即此情形）；「留白上限」只对溢出页生效——那类
+            // 页面必须靠滚动才能够到末尾，静止间隙才反映预留是否过量。
+            // 遮挡双断言（可命中 + frame 在栏上方）对所有页无条件执行。
+            let overflowsViewport = !marker.isHittable
             // 滑到静止：连续两次 frame 不变且可命中视为到达最大滚动位。
             var lastFrame: CGRect = .null
             for _ in 0..<15 {
@@ -200,10 +206,12 @@ final class V381HomeShellCorrectionUITests: XCTestCase {
                 marker.frame.maxY, capsuleTop + 2,
                 "\(tabLabel) 末尾被浮动 Tab 栏遮挡：marker.maxY=\(marker.frame.maxY) capsuleTop≈\(capsuleTop)"
             )
-            XCTAssertLessThanOrEqual(
-                capsuleTop - marker.frame.maxY, 90,
-                "\(tabLabel) 底部留白过量：gap=\(capsuleTop - marker.frame.maxY)"
-            )
+            if overflowsViewport {
+                XCTAssertLessThanOrEqual(
+                    capsuleTop - marker.frame.maxY, 90,
+                    "\(tabLabel) 底部留白过量：gap=\(capsuleTop - marker.frame.maxY)"
+                )
+            }
         }
     }
 
