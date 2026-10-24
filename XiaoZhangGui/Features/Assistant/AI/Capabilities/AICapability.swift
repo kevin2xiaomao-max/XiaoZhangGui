@@ -70,6 +70,14 @@ enum AICapabilityError: LocalizedError, Equatable, Sendable {
     case timeout
     case cancelled
     case unavailable
+    /// 服务端明确拒绝这次输入：多半是当前模型不支持图片/长文件。
+    case unsupportedModel(AICapability)
+    /// Key 无效或没有该模型权限。
+    case credentialRejected
+    /// 单次请求体太大（图片/文件超过 4 MB）。
+    case payloadTooLarge
+    case rateLimited
+    case serverUnavailable
 
     var errorDescription: String? {
         switch self {
@@ -83,6 +91,19 @@ enum AICapabilityError: LocalizedError, Equatable, Sendable {
         case .timeout: return "读取链接超时，请稍后重试。"
         case .cancelled: return "读取已取消。"
         case .unavailable: return "暂时无法读取这个链接，请稍后重试。"
+        case let .unsupportedModel(capability):
+            switch capability {
+            case .vision:
+                return "当前模型不支持图片理解，请到「AI 设置」换一个支持图片输入的模型。"
+            case .documentUnderstanding:
+                return "当前模型无法处理这个文件，请换一个上下文更长的模型再试。"
+            default:
+                return "当前模型不支持这项输入，请到「AI 设置」更换模型。"
+            }
+        case .credentialRejected: return "API Key 无效或没有该模型权限，请到「AI 设置」重新填写。"
+        case .payloadTooLarge: return "图片或文件太大，请压缩后再试（单次上限 4 MB）。"
+        case .rateLimited: return "请求太频繁，请等几秒再试。"
+        case .serverUnavailable: return "AI 服务暂时不可用，请稍后重试。"
         }
     }
 }

@@ -129,6 +129,11 @@ final class AISettings {
     var customSearchFreeFirstEnabled: Bool {
         didSet { ud.set(customSearchFreeFirstEnabled, forKey: Keys.customSearchFreeFirstEnabled) }
     }
+    /// 图片整张外发前的二次确认。默认开：图片里常有客户姓名、电话、单据金额，
+    /// 一次误选就是不可撤回的外发，值得多一次点击。
+    var imageUploadNeedsConfirmation: Bool {
+        didSet { ud.set(imageUploadNeedsConfirmation, forKey: Keys.imageUploadNeedsConfirmation) }
+    }
 
     var tavilySearchAPIKey: String { AIKeychain.read(Keys.tavilySearchKey) ?? "" }
     var customSearchAPIKey: String { AIKeychain.read(Keys.customSearchKey) ?? "" }
@@ -211,6 +216,8 @@ final class AISettings {
         customSearchBaseURL = defaults.string(forKey: Keys.customSearchBaseURL) ?? ""
         tavilySearchFreeFirstEnabled = defaults.bool(forKey: Keys.tavilySearchFreeFirstEnabled)
         customSearchFreeFirstEnabled = defaults.bool(forKey: Keys.customSearchFreeFirstEnabled)
+        // 缺省为开：老用户没有这个键，也应该先看到一次外发确认。
+        imageUploadNeedsConfirmation = (defaults.object(forKey: Keys.imageUploadNeedsConfirmation) as? Bool) ?? true
 
         migrateLegacySearchCredentialIfNeeded()
     }
@@ -264,6 +271,7 @@ final class AISettings {
         static let customSearchBaseURL = "ai_search_custom_json_base_url"
         static let tavilySearchFreeFirstEnabled = "ai_search_tavily_free_first_enabled"
         static let customSearchFreeFirstEnabled = "ai_search_custom_free_first_enabled"
+        static let imageUploadNeedsConfirmation = "ai_image_upload_needs_confirmation"
         static let tavilySearchKey = "ai.search.tavily.apiKey"
         static let customSearchKey = "ai.search.customJSON.apiKey"
         static let legacySearchKey = "ai.search.apiKey"
@@ -289,6 +297,7 @@ final class AISettingsDraft {
     var customSearchBaseURL: String
     var tavilySearchFreeFirstEnabled: Bool
     var customSearchFreeFirstEnabled: Bool
+    var imageUploadNeedsConfirmation: Bool
 
     /// 新粘贴的 Key；空表示「不动已保存的 Key」
     var stagedPrimaryKey = ""
@@ -316,6 +325,7 @@ final class AISettingsDraft {
         customSearchBaseURL = settings.customSearchBaseURL
         tavilySearchFreeFirstEnabled = settings.tavilySearchFreeFirstEnabled
         customSearchFreeFirstEnabled = settings.customSearchFreeFirstEnabled
+        imageUploadNeedsConfirmation = settings.imageUploadNeedsConfirmation
         primaryKeySaved = settings.isPrimaryKeySaved
         fallbackKeySaved = settings.isFallbackConfigured || !settings.fallbackAPIKey.isEmpty
         tavilySearchKeySaved = settings.isTavilySearchKeySaved
@@ -344,6 +354,7 @@ final class AISettingsDraft {
         settings.customSearchBaseURL = customSearchBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         settings.tavilySearchFreeFirstEnabled = tavilySearchFreeFirstEnabled
         settings.customSearchFreeFirstEnabled = customSearchFreeFirstEnabled
+        settings.imageUploadNeedsConfirmation = imageUploadNeedsConfirmation
 
     }
 

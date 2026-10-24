@@ -27,6 +27,7 @@ struct AIProviderSettingsSheet: View {
                     primaryCard
                     searchCard
                     advancedCard
+                    imageConsentCard
                     privacyNote
                 }
                 .padding(.horizontal, V371.Space.page)
@@ -360,6 +361,20 @@ struct AIProviderSettingsSheet: View {
                     }
                     .buttonStyle(.plain)
                 }
+            }
+            .padding(V371.Space.rowPadding)
+        }
+    }
+
+    private var imageConsentCard: some View {
+        GroupSurface {
+            VStack(alignment: .leading, spacing: 8) {
+                SectionHeader("图片与文件")
+                Toggle("发送图片前先确认", isOn: $draft.imageUploadNeedsConfirmation)
+                    .font(.subheadline)
+                Text("开启时，每次选完图片都会先弹一次确认，说明这张图会整张上传给你配置的服务商；关闭后选完直接发送。文件只上传在本地提取出的文字，不上传原文件。")
+                    .font(.caption)
+                    .foregroundStyle(V371.Colors.textSecondary)
             }
             .padding(V371.Space.rowPadding)
         }
