@@ -164,10 +164,11 @@ jobs:
           # runs; the other 4 tests then pass). Up to 3 attempts; between
           # attempts a launch flake triggers a full re-boot + warm-up (see
           # below) instead of a plain sleep, which has failed BOTH attempts
-          # before (run 39849147357).
+          # before (run 39849147357). V3.9: 3 attempts still all flaked with
+          # exit 65 launch failures (run 40072658221), so 4 attempts.
           TEST_EXIT=1
-          for ATTEMPT in 1 2 3; do
-            echo "== motion test attempt $ATTEMPT/3 =="
+          for ATTEMPT in 1 2 3 4; do
+            echo "== motion test attempt $ATTEMPT/4 =="
             # xcodebuild refuses to overwrite an existing result bundle,
             # so remove the previous attempt's before retrying.
             rm -rf "$RUNNER_TEMP/xzg-ios-v38-motion.xcresult"
@@ -180,7 +181,7 @@ jobs:
               >artifacts/motion-test.log 2>&1
             TEST_EXIT=$?
             [ $TEST_EXIT -eq 0 ] && break
-            if [ "$ATTEMPT" -lt 3 ]; then
+            if [ "$ATTEMPT" -lt 4 ]; then
               echo "attempt $ATTEMPT failed (exit=$TEST_EXIT), recovering before retry..."
               if grep -a -q "failed to launch" artifacts/motion-test.log; then
                 # Launch flake: retrying on the same wedged device is not

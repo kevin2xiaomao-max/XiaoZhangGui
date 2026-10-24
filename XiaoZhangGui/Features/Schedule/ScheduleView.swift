@@ -24,6 +24,9 @@ struct ScheduleView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    /// V3.9 F1 修复：masthead 日期固定 30pt 在 AX3 下被星期副标题（.subheadline 随动）
+    /// 反超致层级倒挂；改与首页日期数字同范式的 @ScaledMetric（relativeTo: .largeTitle）。
+    @ScaledMetric(relativeTo: .largeTitle) private var mastheadDateSize: CGFloat = 30
     @State private var selectedDate = Date()
     @State private var currentMonth: Date = Date().startOfMonth
     /// V3.8 R3：月/周展示密度（纯视图状态；周密度只取月网格中选中日期
@@ -182,7 +185,7 @@ struct ScheduleView: View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(selectedDate, format: .dateTime.month(.wide).day().locale(Locale(identifier: "zh_CN")))
-                    .font(.system(size: 30, weight: .bold, design: .default))
+                    .font(.system(size: mastheadDateSize, weight: .bold, design: .default))
                     .foregroundStyle(V371.Colors.textPrimary)
                 Text(scheduleWeekdayText(selectedDate))
                     .font(.subheadline)
@@ -485,12 +488,14 @@ struct ScheduleView: View {
             VStack(spacing: 0) {
                 monthNavigator
                     .padding(.bottom, 4)
+                // V3.9 F1 修复：密度切换在无障碍字号下此前整段缺失（AX3 下根本找不到），
+                // 现两档均渲染；无障碍列表同步响应 density（周档只列选中周行，与网格同模型）。
+                densityChips
+                    .padding(.bottom, 2)
                 if dynamicTypeSize.isAccessibilitySize {
                     accessibleMonthList
                         .padding(.vertical, 6)
                 } else {
-                    densityChips
-                        .padding(.bottom, 2)
                     weekdayHeader
                     monthGrid
                         .padding(.vertical, 6)
@@ -743,10 +748,24 @@ struct ScheduleView: View {
         return f.string(from: date)
     }
 
+    /// 无障碍列表的日期范围：月档列整月；周档只列选中日期所在周行
+    ///（与网格同取 V38ScheduleLayout.rows 的选中行，保证两档口径一致）。
+    private var accessibleListDates: [Date] {
+        guard density == .week else { return monthDates(for: currentMonth) }
+        let rows = V38ScheduleLayout.rows(
+            month: selectedDate, calendar: monthCalendar,
+            selectedDate: selectedDate, density: .week
+        )
+        if let selectedRow = rows.first(where: \.containsSelectedDate) {
+            return selectedRow.cells.compactMap { $0 }
+        }
+        return monthDates(for: currentMonth)
+    }
+
     /// 辅助功能字号改用纵向日期列表，避免七列网格挤压；日期选择与详情仍复用同一状态。
     private var accessibleMonthList: some View {
         LazyVStack(spacing: 0) {
-            ForEach(monthDates(for: currentMonth), id: \.self) { date in
+            ForEach(accessibleListDates, id: \.self) { date in
                 let flags = eventFlags(for: date)
                 Button {
                     withAnimation(V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: reduceMotion))) {
@@ -780,7 +799,7 @@ struct ScheduleView: View {
                 .accessibilityLabel(calendarAccessibilityLabel(date: date, flags: flags))
                 .accessibilityAddTraits(date.isSameDay(as: selectedDate) ? .isSelected : [])
 
-                if date != monthDates(for: currentMonth).last { V371Divider() }
+                if date != accessibleListDates.last { V371Divider() }
             }
         }
     }

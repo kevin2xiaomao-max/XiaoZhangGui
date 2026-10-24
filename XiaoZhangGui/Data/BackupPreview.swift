@@ -84,13 +84,47 @@ enum BackupReminder {
     private static let weeklyEnabledKey = "xzg.backup.weeklyReminderEnabled"
     private static let notificationID = "xzg.backup.weekly"
 
-    /// 每周一 10:00 的重复本地提醒。
-    static func setWeeklyReminder(_ enabled: Bool) {
+    /// 每周一 10:00 的重复本地提醒。开启时先核查通知授权：
+    /// 未授权（被拒）则不挂提醒、不置开关位，并经 completion 报告 false，
+    /// 调用方据此提示用户去系统设置开启；避免“开关显示已开启但永远收不到提醒”。
+    static func setWeeklyReminder(_ enabled: Bool, completion: ((Bool) -> Void)? = nil) {
         let defaults = UserDefaults.standard
-        defaults.set(enabled, forKey: weeklyEnabledKey)
         let center = UNUserNotificationCenter.current()
         center.removePendingNotificationRequests(withIdentifiers: [notificationID])
-        guard enabled else { return }
+        func done(_ ok: Bool) {
+            DispatchQueue.main.async { completion?(ok) }
+        }
+        guard enabled else {
+            defaults.set(false, forKey: weeklyEnabledKey)
+            done(true)
+            return
+        }
+        center.getNotificationSettings { settings in
+            switch settings.authorizationStatus {
+            case .authorized, .provisional, .ephemeral:
+                self.scheduleWeekly(center: center)
+                defaults.set(true, forKey: weeklyEnabledKey)
+                done(true)
+            case .notDetermined:
+                center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+                    if granted {
+                        self.scheduleWeekly(center: center)
+                        defaults.set(true, forKey: weeklyEnabledKey)
+                        done(true)
+                    } else {
+                        defaults.set(false, forKey: weeklyEnabledKey)
+                        done(false)
+                    }
+                }
+            default: // .denied：不挂提醒、不置开关位，调用方提示去设置。
+                defaults.set(false, forKey: weeklyEnabledKey)
+                done(false)
+            }
+        }
+    }
+
+    /// 实际挂提醒（已授权时调用）。
+    private static func scheduleWeekly(center: UNUserNotificationCenter = .current()) {
         let content = UNMutableNotificationContent()
         content.title = "该给账本备份啦"
         content.body = "花十秒导出一份备份,生意记录再也不怕丢。"
@@ -104,14 +138,30 @@ enum BackupReminder {
         center.add(request)
     }
 
+    /// 导出成功后静默重挂提醒（仅已授权时；未授权不改开关位，
+    /// 等用户下次手动开关时再走授权流程并提示）。
+    static func rescheduleIfNeeded() {
+        guard weeklyReminderEnabled else { return }
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            switch settings.authorizationStatus {
+            case .authorized, .provisional, .ephemeral:
+                self.scheduleWeekly()
+            default:
+                break
+            }
+        }
+    }
+
     static var weeklyReminderEnabled: Bool {
         UserDefaults.standard.bool(forKey: weeklyEnabledKey)
     }
 
     /// 导出成功后记录时间(顺带在超期且开关开启时,重挂提醒确保在位)。
+    /// 注意：调用方必须在用户真正完成分享（ShareSheet completed）后才调本函数；
+    /// 仅生成文件不算备份成功。
     static func markBackedUp(now: Date = Date()) {
         UserDefaults.standard.set(now.timeIntervalSince1970, forKey: lastBackupKey)
-        if weeklyReminderEnabled { setWeeklyReminder(true) }
+        rescheduleIfNeeded()
     }
 
     static var lastBackupDate: Date? {

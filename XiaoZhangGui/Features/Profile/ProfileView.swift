@@ -44,6 +44,7 @@ struct ProfileView: View {
     @State private var privacyDialog = false
     @State private var clearDialog = false
     @State private var showImporter = false
+    @State private var showNotificationDeniedAlert = false
     /// V3.9 PR-G:恢复前预览(条数对比)+ 确认后才落库。
     @State private var pendingRestore: BackupPreview?
     @State private var pendingRestoreData: Data?
@@ -137,14 +138,31 @@ struct ProfileView: View {
                 Text(Self.restorePreviewMessage(preview))
             }
         }
+        // V3.9：通知授权被拒时不假装“已开启”，给出去设置的路。
+        .alert("通知未开启", isPresented: $showNotificationDeniedAlert) {
+            Button("去设置") {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+            Button("知道了", role: .cancel) {}
+        } message: {
+            Text("备份提醒需要通知权限。请到“设置 → 通知 → 你的小掌柜”开启，否则每周一的提醒无法送达。")
+        }
         .sheet(isPresented: Binding(
             get: { shareURL != nil },
             set: { presenting in if !presenting { shareURL = nil } }
         )) {
-            // P0-1：以真正的 .json 文件形式分享（系统面板可保存到文件/邮件/IM）
+            // P0-1：以真正的 .json 文件形式分享（系统面板可保存到文件/邮件/IM）。
+            // 用户完成分享才记“已备份”；取消分享不记。
             if let shareURL {
-                ShareSheet(activityItems: [shareURL])
-                    .ignoresSafeArea(edges: .bottom)
+                ShareSheet(activityItems: [shareURL]) { completed in
+                    if completed {
+                        BackupReminder.markBackedUp()
+                        Haptic.light()
+                    }
+                }
+                .ignoresSafeArea(edges: .bottom)
             }
         }
     }
@@ -333,11 +351,12 @@ struct ProfileView: View {
         }
     }
 
-    /// P0-1：生成真正的 .json 备份文件并弹出系统分享面板
+    /// P0-1：生成真正的 .json 备份文件并弹出系统分享面板。
+    /// 注意：此处只生成文件不记“已备份”；用户真正完成分享后才由 ShareSheet
+    /// 回调记 markBackedUp（文件生成 ≠ 保存成功，取消分享不算备份）。
     private func exportBackupFile() {
         do {
             let url = try BackupService.exportFileURL(context: context)
-            BackupReminder.markBackedUp()
             Haptic.light()
             shareURL = url
         } catch {
@@ -347,11 +366,17 @@ struct ProfileView: View {
     }
 
     /// V3.9 PR-G:每周备份提醒开关(本地通知,周一 10:00,重复)。
+    /// 授权被拒时开关不置位，并弹“去设置”提示，不做“已开启却永远不提醒”的假承诺。
     private func toggleWeeklyReminder() {
         let next = !BackupReminder.weeklyReminderEnabled
-        BackupReminder.setWeeklyReminder(next)
-        Haptic.light()
-        showToast(next ? "每周一上午 10 点提醒你备份" : "已关闭备份提醒")
+        BackupReminder.setWeeklyReminder(next) { ok in
+            if next, !ok {
+                showNotificationDeniedAlert = true
+            } else {
+                Haptic.light()
+                showToast(next ? "每周一上午 10 点提醒你备份" : "已关闭备份提醒")
+            }
+        }
     }
 
     /// V3.9 PR-G:恢复前先解析预览(条数对比),确认后才真正落库;
@@ -406,9 +431,14 @@ struct ProfileView: View {
 
 struct ShareSheet: UIViewControllerRepresentable {
     let activityItems: [Any]
+    var onComplete: ((Bool) -> Void)? = nil
 
     func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+        let controller = UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+        controller.completionWithItemsHandler = { _, completed, _, _ in
+            onComplete?(completed)
+        }
+        return controller
     }
 
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
