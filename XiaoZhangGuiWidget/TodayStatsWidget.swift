@@ -77,11 +77,12 @@ private extension Date {
     }
 }
 
-// MARK: - 品牌色（Widget target 内联定义，与主 App V21Color 对齐）
+// MARK: - 品牌色（Widget target 内联定义，与主 App V3.9 夜蓝 + 香槟金对齐）
 
 private enum WidgetBrand {
-    // Restrained Ocean fallback until signed App Group theme propagation is verified.
-    static let green = Color(red: 0x3A / 255, green: 0x70 / 255, blue: 0xB7 / 255)
+    // V3.9.1 P1-13:旧海洋绿与 V3.9 视觉语言脱节,锁屏点改用固定香槟金;
+    // 不强迫用户自选主题色失效(Widget 底仍为系统材质,主题色只用于点缀)。
+    static let gold = Color(red: 0.906, green: 0.788, blue: 0.514)
     static let warning = Color(red: 0xFF / 255, green: 0x9F / 255, blue: 0x0A / 255)
     static let danger = Color(red: 0xFF / 255, green: 0x6B / 255, blue: 0x6B / 255)
 }
