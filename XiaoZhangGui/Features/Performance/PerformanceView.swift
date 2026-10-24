@@ -476,9 +476,11 @@ struct PerformanceView: View {
     // MARK: 近期记录
 
     private var recordsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        // 取一次：records 内含两次 Date() 与一次全表合并，原来 isEmpty 与 prefix(12) 各算一遍。
+        let items = records
+        return VStack(alignment: .leading, spacing: 12) {
             V38HomeSectionHeader(title: "近期记录")
-            if records.isEmpty {
+            if items.isEmpty {
                 GroupSurface {
                     VStack(spacing: 12) {
                         EmptyState(icon: "tray", title: "暂无交易记录", message: "记录第一笔交易开始统计")
@@ -495,7 +497,7 @@ struct PerformanceView: View {
                 }
             } else {
                 GroupSurface {
-                    ForEach(Array(records.prefix(12).enumerated()), id: \.element.id) { index, record in
+                    ForEach(Array(items.prefix(12).enumerated()), id: \.element.id) { index, record in
                         if index > 0 { V371Divider() }
                         PerformanceRecordRow(
                             record: record,

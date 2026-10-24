@@ -193,14 +193,18 @@ struct LocalQuickRecordParser: QuickRecordParsing {
 
 enum AmountPhraseParser {
     static func parse(_ text: String) -> Double? {
+        // V3.9.2：口语说法优先。否则「6块5」会被下面的纯数字规则截成 6、
+        // 「六百八」会被按位解析成 608、「六毛五」直接认不出。
+        if let spoken = SpokenAmount.parse(text), spoken > 0 { return spoken }
         if let regex = try? NSRegularExpression(pattern: #"(\d+(?:\.\d+)?)(?:元|块|块钱)?"#),
            let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
            let range = Range(match.range(at: 1), in: text) {
             if let value = Double(text[range]), value > 0 { return value }
         }
         if let chinese = text.range(of: #"[一二三四五六七八九十百千万两零]+"# , options: .regularExpression) {
-            if let value = ChineseNumber.parse(String(text[chinese])), value > 0 {
-                return Double(value)
+            // 中文串也走口语归一，才能把「六百八」读成 680 而不是 608。
+            if let value = SpokenAmount.parseNumerals(String(text[chinese])), value > 0 {
+                return value
             }
         }
         return nil

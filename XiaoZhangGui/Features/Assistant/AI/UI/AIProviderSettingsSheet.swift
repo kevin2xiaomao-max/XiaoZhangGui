@@ -27,6 +27,7 @@ struct AIProviderSettingsSheet: View {
                     primaryCard
                     searchCard
                     advancedCard
+                    imageConsentCard
                     privacyNote
                 }
                 .padding(.horizontal, V371.Space.page)
@@ -240,6 +241,9 @@ struct AIProviderSettingsSheet: View {
                 Text("本地能听懂的记账 / 查询不消耗 Token；只有本地没把握时才联网。")
                     .font(.caption)
                     .foregroundStyle(V371.Colors.textSecondary)
+                Text("「高质量」改用备用 Provider 的模型；没有配备用 Provider 时仍走主 Provider。")
+                    .font(.caption)
+                    .foregroundStyle(V371.Colors.textSecondary)
             }
             .padding(V371.Space.rowPadding)
         }
@@ -362,10 +366,25 @@ struct AIProviderSettingsSheet: View {
         }
     }
 
+    private var imageConsentCard: some View {
+        GroupSurface {
+            VStack(alignment: .leading, spacing: 8) {
+                SectionHeader("图片与文件")
+                Toggle("发送图片前先确认", isOn: $draft.imageUploadNeedsConfirmation)
+                    .font(.subheadline)
+                Text("开启时，每次选完图片都会先弹一次确认，说明这张图会整张上传给你配置的服务商；关闭后选完直接发送。文件只上传在本地提取出的文字，不上传原文件。")
+                    .font(.caption)
+                    .foregroundStyle(V371.Colors.textSecondary)
+            }
+            .padding(V371.Space.rowPadding)
+        }
+    }
+
     private var privacyNote: some View {
         VStack(alignment: .leading, spacing: 6) {
             Label("Key 只存在本机 Keychain，不会进入聊天记录、日志或备份。", systemImage: "lock.shield")
-            Label("普通聊天与记账默认不上传经营数据；查询结果在本机汇总。", systemImage: "hand.raised")
+            Label("记账与查询在本机完成，聊天只发送你的原话；只有主动要经营建议时，才会上送脱敏摘要。", systemImage: "hand.raised")
+            Label("图片整张发送给所配置的模型服务商用于识别；文件只上传本地提取出的文字，不上传原文件。请勿上传证件、银行卡等敏感图片。", systemImage: "photo.badge.exclamationmark")
         }
         .font(.caption)
         .foregroundStyle(V371.Colors.textSecondary)

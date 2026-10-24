@@ -20,6 +20,10 @@ struct AIChatView: View {
     @State private var showPhotoPicker = false
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var showFileImporter = false
+    // V3.9.2：图片整张外发前的二次确认（图片里常有客户姓名、电话、单据金额）。
+    @State private var showImageConsent = false
+    @State private var pendingImageData: Data?
+    @State private var pendingImageMimeType = "image/jpeg"
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let examples = [
@@ -136,10 +140,28 @@ struct AIChatView: View {
             let mimeType = item.supportedContentTypes.first?.preferredMIMEType ?? "image/jpeg"
             Task {
                 if let data = try? await item.loadTransferable(type: Data.self) {
-                    model.analyzeImage(data: data, mimeType: mimeType)
+                    // 默认先问一句：图片会整张上传，误选一次就收不回来。
+                    if AISettings.shared.imageUploadNeedsConfirmation {
+                        pendingImageData = data
+                        pendingImageMimeType = mimeType
+                        showImageConsent = true
+                    } else {
+                        model.analyzeImage(data: data, mimeType: mimeType)
+                    }
                 }
                 selectedPhoto = nil
             }
+        }
+        .confirmationDialog(
+            "把这张图片发给 AI 分析？",
+            isPresented: $showImageConsent,
+            titleVisibility: .visible
+        ) {
+            Button("发送") { sendPendingImage(rememberChoice: false) }
+            Button("以后直接发送") { sendPendingImage(rememberChoice: true) }
+            Button("取消", role: .cancel) { clearPendingImage() }
+        } message: {
+            Text("图片会整张上传给你配置的 AI 服务。请勿发送证件、银行卡、客户身份证等敏感照片。")
         }
         .fileImporter(
             isPresented: $showFileImporter,
@@ -160,6 +182,24 @@ struct AIChatView: View {
         } message: {
             Text("只删除聊天记录，不会删除已经保存的营业额、待办、备忘或配送记录。")
         }
+    }
+
+    // MARK: 图片外发确认
+
+    private func sendPendingImage(rememberChoice: Bool) {
+        if rememberChoice {
+            // 记住「以后直接发送」；想改回来去「AI 设置 → 图片与文件」。
+            AISettings.shared.imageUploadNeedsConfirmation = false
+        }
+        if let data = pendingImageData {
+            model.analyzeImage(data: data, mimeType: pendingImageMimeType)
+        }
+        clearPendingImage()
+    }
+
+    private func clearPendingImage() {
+        pendingImageData = nil
+        showImageConsent = false
     }
 
     // MARK: 头部说明

@@ -220,23 +220,27 @@ final class AgentCore {
         }
     }
 
-    /// Multimodal read-only lane. It appends only a safe textual placeholder
-    /// to the conversation; image/file bytes never enter SwiftData or the chat
-    /// store. No ActionCard is created by these capabilities.
+    /// 图片车道：字节只在内存里交给能力层，绝不写入 SwiftData / 聊天存储；
+    /// 会话里只留一条「[图片] 提示词」的占位消息。
+    /// V3.9.2：识别结果若能被本地规则读成业务动作，就直接产出**待确认**卡片
+    /// （与聊天链共用 propose），否则照旧只回文字。
     func analyzeImage(data: Data, mimeType: String, prompt: String = "请描述这张图片") async -> AgentTurnResult {
         let userMessage = AIMessage(role: .user, content: "[图片] \(prompt)")
         await env.conversation.append(userMessage)
         do {
             let result = try await env.visionCapability.execute(
                 imageData: data, mimeType: mimeType, prompt: prompt)
+            if let call = VisionDraftParser.draftToolCall(from: result.userFacingText) {
+                return await propose(call, userMessage: userMessage)
+            }
             return try await appendAssistant(result.userFacingText, userMessage: userMessage)
         } catch let error as AICapabilityError {
-            return try! await appendAssistant(
+            return await appendAssistantUnchecked(
                 error.errorDescription ?? "图片分析失败，请稍后重试。",
                 userMessage: userMessage,
                 isError: true)
         } catch {
-            return try! await appendAssistant("图片分析失败，请稍后重试。", userMessage: userMessage, isError: true)
+            return await appendAssistantUnchecked("图片分析失败，请稍后重试。", userMessage: userMessage, isError: true)
         }
     }
 
@@ -248,12 +252,12 @@ final class AgentCore {
                 data: data, fileName: fileName, mimeType: mimeType, prompt: prompt)
             return try await appendAssistant(result.userFacingText, userMessage: userMessage)
         } catch let error as AICapabilityError {
-            return try! await appendAssistant(
+            return await appendAssistantUnchecked(
                 error.errorDescription ?? "文件分析失败，请稍后重试。",
                 userMessage: userMessage,
                 isError: true)
         } catch {
-            return try! await appendAssistant("文件分析失败，请稍后重试。", userMessage: userMessage, isError: true)
+            return await appendAssistantUnchecked("文件分析失败，请稍后重试。", userMessage: userMessage, isError: true)
         }
     }
 
@@ -465,7 +469,8 @@ final class AgentCore {
             }
         }()
         let route = env.modelRouter.route(task: task, intent: intent, tier: env.tier)
-        let history = await env.conversation.load().messages
+        // V3.9.2 成本守卫：只带最近若干轮进模型上下文，失败回执不进（ConversationBudget）。
+        let history = ConversationBudget.trimmed(await env.conversation.load().messages)
         // 把最后一条用户原文替换成清洗后的业务内容，纠正话术不外发、不污染抽取
         var cloudMessages = history
         if let lastUserIndex = cloudMessages.lastIndex(where: { $0.role == .user }),
@@ -505,6 +510,15 @@ final class AgentCore {
         return AgentTurnResult(userMessage: userMessage, assistantMessage: message, proposal: nil)
     }
 
+    /// 非抛错变体：会话落盘本身不抛错（ConversationStoring.append 是 async 无 throws），
+    /// 能力层失败回执不该用 `try!` 顶着——将来 appendAssistant 内新增抛错调用会直接崩溃。
+    private func appendAssistantUnchecked(_ content: String, userMessage: AIMessage, isError: Bool = false)
+        async -> AgentTurnResult {
+        let message = AIMessage(role: .assistant, content: content, isError: isError)
+        await env.conversation.append(message)
+        return AgentTurnResult(userMessage: userMessage, assistantMessage: message, proposal: nil)
+    }
+
     private func handleToolCall(_ call: ToolCall, userMessage: AIMessage) async throws -> AgentTurnResult {
         guard ToolCatalog.isRegistered(call.name) else {
             throw AgentError.unsupportedTool(call.name.rawValue)
@@ -528,21 +542,26 @@ final class AgentCore {
                 userMessage: userMessage)
         }
 
+        return await propose(call, userMessage: userMessage)
+    }
+
+    /// 把结构化调用变成确认卡：参数校验 → 幂等检查 → 落 pending + 助手提示。
+    /// 聊天链（provider 返回 ToolCall）与图片链（识别文字过本地规则）共用同一条路：
+    /// 只出待确认草稿，不写库、不猜参数，任何一项不过就不出卡。
+    private func propose(_ call: ToolCall, userMessage: AIMessage) async -> AgentTurnResult {
         let validationErrors = ToolArgumentValidator.validate(call)
         guard validationErrors.isEmpty else {
-            let message = AIMessage(
-                role: .assistant,
-                content: "信息还不完整：\(validationErrors.joined(separator: "、"))。你可以补充后再发一次。",
+            return await appendAssistantUnchecked(
+                "信息还不完整：\(validationErrors.joined(separator: "、"))。你可以补充后再发一次。",
+                userMessage: userMessage,
                 isError: true)
-            await env.conversation.append(message)
-            return AgentTurnResult(userMessage: userMessage, assistantMessage: message, proposal: nil)
         }
 
         let fingerprint = ToolIdempotency.fingerprint(for: call)
         if await env.journal.isFingerprintUsed(fingerprint) {
-            let message = AIMessage(role: .assistant, content: "这条记录已经处理过，不会重复保存。")
-            await env.conversation.append(message)
-            return AgentTurnResult(userMessage: userMessage, assistantMessage: message, proposal: nil)
+            return await appendAssistantUnchecked(
+                "这条记录已经处理过，不会重复保存。",
+                userMessage: userMessage)
         }
 
         let proposal = ActionProposal(call: call, isPreviewOnly: env.gate == .preview)

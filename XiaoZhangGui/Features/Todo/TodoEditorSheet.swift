@@ -46,10 +46,17 @@ struct TodoEditorSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("标题") {
+                Section {
                     TextField("要做什么？", text: $title)
                     TextField("补充说明（可选）", text: $detail, axis: .vertical)
                         .lineLimit(3...6)
+                } header: {
+                    Text("标题")
+                } footer: {
+                    // 保存键置灰时给出原因（原来只有禁用，没有说明为什么不能存）。
+                    if !canSave {
+                        Text("填写标题后即可保存。")
+                    }
                 }
                 Section("时间") {
                     Toggle("设置截止时间", isOn: $hasDue)
@@ -88,7 +95,8 @@ struct TodoEditorSheet: View {
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .interactiveDismissDisabled(isDirty)
-        .onAppear(perform: initializeIfNeeded)        .alert("放弃未保存的修改？", isPresented: $showDiscardAlert) {
+        .onAppear(perform: initializeIfNeeded)
+        .alert("放弃未保存的修改？", isPresented: $showDiscardAlert) {
             Button("放弃修改", role: .destructive) { dismiss() }
             Button("继续编辑", role: .cancel) {}
         } message: { Text("已输入的内容将丢失。") }

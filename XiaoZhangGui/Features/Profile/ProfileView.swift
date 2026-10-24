@@ -552,7 +552,7 @@ private struct ShopEditSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .onAppear { shopName = settings.shopName; ownerName = settings.ownerName }
     }
@@ -618,7 +618,7 @@ private struct GoalEditSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .onAppear { text = String(Int(settings.monthGoal)) }
     }
@@ -655,7 +655,7 @@ private struct ReminderSettingsSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .v371Canvas()
     }
@@ -709,7 +709,7 @@ private struct ThemeChoiceSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .v371Canvas()
     }
@@ -1207,7 +1207,7 @@ private struct VoiceSettingsSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
     }
 }
@@ -1399,7 +1399,7 @@ private struct InfoSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .v371Canvas()
     }

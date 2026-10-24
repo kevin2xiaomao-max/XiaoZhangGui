@@ -143,7 +143,16 @@ struct OpenAICompatibleVisionProvider: AICapabilityVisionProvider {
     let apiKey: String
     let model: String
 
+    /// 单张内联图片上限。base64 会膨胀约 4/3，再大基本必撞服务端 413，
+    /// 不如在本地就说清楚，省一次无谓上传。
+    static let maxInlineImageBytes = 4 * 1024 * 1024
+
+    static func validateImageSize(_ data: Data) throws {
+        guard data.count <= maxInlineImageBytes else { throw AICapabilityError.payloadTooLarge }
+    }
+
     func analyze(_ input: AICapabilityImageInput, timeout: TimeInterval) async throws -> String {
+        try Self.validateImageSize(input.data)
         let content: [[String: Any]] = [
             ["type": "text", "text": input.prompt],
             ["type": "image_url", "image_url": [
@@ -173,11 +182,33 @@ struct OpenAICompatibleDocumentProvider: AICapabilityDocumentProvider {
     }
 }
 
-private struct OpenAICompatibleMultimodalRequest: Sendable {
+/// 多模态请求的最小实现（vision / document 共用）。内部可见以便状态映射可单测。
+struct OpenAICompatibleMultimodalRequest: Sendable {
     let endpoint: URL
     let apiKey: String
     let model: String
     let capability: AICapability
+
+    /// 把 HTTP 状态翻成能让人照着改的错误文案。
+    /// 之前所有非 2xx 一律 `.networkFailure`（「联网服务暂时不可用」），
+    /// 选到不支持图片的模型时用户只会看到「网络问题」，永远猜不到要换模型。
+    static func capabilityError(forHTTPStatus status: Int, capability: AICapability) -> AICapabilityError {
+        switch status {
+        case 400, 422:
+            // 服务端表示「这个输入我不接」：多模态能力缺失最常见。
+            return .unsupportedModel(capability)
+        case 401, 403:
+            return .credentialRejected
+        case 413:
+            return .payloadTooLarge
+        case 429:
+            return .rateLimited
+        case 500...599:
+            return .serverUnavailable
+        default:
+            return .networkFailure
+        }
+    }
 
     func complete(content: [[String: Any]], timeout: TimeInterval) async throws -> String {
         guard !apiKey.isEmpty, !model.isEmpty else { throw AICapabilityError.notConfigured(capability) }
@@ -193,8 +224,11 @@ private struct OpenAICompatibleMultimodalRequest: Sendable {
         ])
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
-            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            guard let http = response as? HTTPURLResponse else {
                 throw AICapabilityError.networkFailure
+            }
+            guard (200..<300).contains(http.statusCode) else {
+                throw Self.capabilityError(forHTTPStatus: http.statusCode, capability: capability)
             }
             struct Payload: Decodable {
                 struct Choice: Decodable { struct Message: Decodable { let content: String? }; let message: Message }
