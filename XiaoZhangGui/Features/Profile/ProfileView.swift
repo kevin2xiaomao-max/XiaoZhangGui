@@ -390,7 +390,7 @@ struct ProfileView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy年M月d日"
         let backupDate = formatter.string(from: preview.exportedAt)
-        let parts = ["todo", "performance", "expense", "customer"].compactMap { key in
+        let parts: [String] = ["todo", "performance", "expense", "customer"].compactMap { key in
             guard let n = preview.backupCounts[key], n > 0 else { return nil }
             return "\(BackupPreview.displayNames[key] ?? key) \(n) 条"
         }
