@@ -83,8 +83,7 @@ final class V39FeaturesBackupReportTests: XCTestCase {
     func testMonthlyReportComputesFromSampleData() throws {
         let cal = Calendar.current
         let now = Date()
-        let thisMonth10th = try XCTUnwrap(cal.date(from: cal.dateComponents([.year, .month], from: now))
-            .appending(TimeInterval(9 * 24 * 3600)))
+        let thisMonth10th = try XCTUnwrap(cal.date(from: cal.dateComponents([.year, .month], from: now))).addingTimeInterval(9 * 24 * 3600)
         let lastMonth15th = try XCTUnwrap(cal.date(byAdding: .month, value: -1, to: now))
             .addingTimeInterval(14 * 24 * 3600)
 
