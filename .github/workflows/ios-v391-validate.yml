@@ -76,9 +76,9 @@ jobs:
             >artifacts/build.log 2>&1 || { tail -n 120 artifacts/build.log; exit 1; }
       # V3.8 RC: read-only proof that the BUILT products carry the release
       # version — the app's generated Info.plist and the embedded widget
-      # appex's Info.plist must both resolve to 3.9.0 (39). This verifies
+      # appex's Info.plist must both resolve to 3.9.1 (40). This verifies
       # the version bump; it does not change the test gate below.
-      - name: Verify app and widget versions (3.9.0 / 39)
+      - name: Verify app and widget versions (3.9.1 / 40)
         shell: bash
         run: |
           set -euo pipefail
@@ -95,14 +95,14 @@ jobs:
             ver=$(plutil -extract CFBundleShortVersionString raw -o - "$plist")
             build=$(plutil -extract CFBundleVersion raw -o - "$plist")
             echo "$label: CFBundleShortVersionString=$ver CFBundleVersion=$build ($plist)"
-            if [ "$ver" != "3.9.0" ] || [ "$build" != "39" ]; then
-              echo "VERSION MISMATCH for $label: expected 3.9.0 (39)" >&2
+            if [ "$ver" != "3.9.1" ] || [ "$build" != "40" ]; then
+              echo "VERSION MISMATCH for $label: expected 3.9.1 (40)" >&2
               exit 1
             fi
           }
           check_plist "App" "$APP_PATH/Info.plist"
           check_plist "Widget" "$APPEX_PATH/Info.plist"
-          echo "version check OK: App and Widget are both 3.9.0 (39)"
+          echo "version check OK: App and Widget are both 3.9.1 (40)"
       - name: XCTest and UITest
         shell: bash
         run: |

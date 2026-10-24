@@ -12,11 +12,11 @@ struct ReleaseNotes: Equatable {
     let sections: [ReleaseNoteSection]
 
     static var marketingVersion: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "3.9.0"
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "3.9.1"
     }
 
     static var build: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "38"
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "40"
     }
 
     static var versionDisplay: String {
