@@ -78,12 +78,13 @@ final class V371Phase0ReliabilityTests: XCTestCase {
             aiCapsule.contains("v38.home.ai.expand"),
             "V38HomeAICapsule 必须定义稳定的 v38.home.ai.* identifiers"
         )
-        XCTAssertTrue(home.contains("V371AccessibilityID.homeQuickRecord"))
-        XCTAssertTrue(
-            home.contains("Label(\"记一笔\", systemImage: \"square.and.pencil\")") ||
-            home.contains("V38HomeQuickMenu") ||
-            home.contains("\"快速记一笔\""),
-            "Home 必须有可发现的快速记录入口"
+        // 2026-10-23 用户确认减法：首页「快速记一笔 / 写备忘」快捷行整行删除，
+        // 原「Home 必须有快速记录入口」口径作废，改为断言被删入口不得回归；
+        // QuickRecord 经深链可达性由 HomeQuickEntryAuditTests 把守。
+        XCTAssertFalse(home.contains("V371AccessibilityID.homeQuickRecord"))
+        XCTAssertFalse(
+            home.contains("V38HomeQuickMenu") || home.contains("\"快速记一笔\""),
+            "Home 不得再有已被用户确认删除的快捷记录入口"
         )
         XCTAssertTrue(business.contains("V371AccessibilityID.businessGoods"))
         XCTAssertTrue(business.contains("Label(\"商品\", systemImage: \"shippingbox\")"))

@@ -4,8 +4,10 @@ import Foundation
 /// V3.7.1（2026-09-23 重写，原 V3.3 hotfix 审计已按 MD STEP 7 标记过时）：
 /// - V3.7.1 冻结 IA：AI 不再是底部 Tab，首页保留**唯一紧凑入口**
 ///   （AICommandEntry，「✦ 问小掌柜…」），不得内嵌完整 AI 对话 UI；
-/// - 右上角必须保留清晰的「记一笔」入口并继续弹出 QuickRecord；
 /// - 小掌柜短语音面板展示时必须隐藏底部 Tab 栏（Dock）。
+/// - 2026-10-23 用户确认减法（取代旧「首页须保留记一笔入口」口径）：
+///   首页「快速记一笔 / 写备忘」快捷行整行删除、不得再有重复入口；
+///   QuickRecord 改由深链（xzg://quickrecord）等原有路径可达。
 ///
 /// 说明：纯 SwiftUI 视图层级在逻辑测试中不做渲染比对，这里直接审计被测源码
 /// （xcodebuild test 在同一工作区运行，#filePath 可定位到仓库内源文件）。
@@ -57,17 +59,30 @@ final class HomeQuickEntryAuditTests: XCTestCase {
         )
     }
 
-    func testHomeHeaderKeepsDiscoverableQuickRecordEntry() throws {
+    /// 2026-10-23 减法回归：首页不得再有「快速记一笔 / 写备忘」重复入口；
+    /// QuickRecordSheet 本体与深链可达性必须完好（RootView 呈现 + 路由）。
+    func testHomeHasNoDuplicateQuickEntriesAndQuickRecordStaysReachable() throws {
         let home = try source("XiaoZhangGui/Features/Home/HomeView.swift")
-        // V3.8：快捷操作生产化为 V38HomeQuickMenu（"快速记一笔"）+ "写备忘"按钮；
-        // 两者均经 showQuickRecord 打开现有 QuickRecord Sheet。
+        XCTAssertFalse(
+            home.contains("quickActionsRow"),
+            "首页快捷操作行已被用户确认整行删除，不得回归"
+        )
+        XCTAssertFalse(
+            home.contains("V38HomeQuickMenu"),
+            "首页不得再引用已删除的快捷菜单组件"
+        )
+        XCTAssertFalse(
+            home.contains("homeQuickRecord"),
+            "首页不得再有独立「写备忘」按钮（home.quickRecord）"
+        )
+        let rootView = try source("XiaoZhangGui/App/RootView.swift")
         XCTAssertTrue(
-            home.contains("V38HomeQuickMenu") || home.contains("\"快速记一笔\""),
-            "首页必须保留清晰的快速记录入口"
+            rootView.contains("QuickRecordSheet()"),
+            "QuickRecordSheet 必须继续由 RootView 呈现"
         )
         XCTAssertTrue(
-            home.contains("showQuickRecord = true"),
-            "快速记录入口必须继续弹出 QuickRecord 面板"
+            rootView.contains("case .quickRecord"),
+            "xzg://quickrecord 深链路由必须保留，删除首页入口后仍可达"
         )
     }
 
