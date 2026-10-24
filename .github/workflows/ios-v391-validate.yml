@@ -11,6 +11,7 @@ on:
       - 'ios/v38-*'
       - 'ios/v39-*'
       - 'ios/v391-*'
+      - 'ios/v392-*'
       - 'fix/v391-*'
   workflow_dispatch:
 
@@ -76,13 +77,22 @@ jobs:
             >artifacts/build.log 2>&1 || { tail -n 120 artifacts/build.log; exit 1; }
       # V3.8 RC: read-only proof that the BUILT products carry the release
       # version — the app's generated Info.plist and the embedded widget
-      # appex's Info.plist must both resolve to 3.9.1 (40). This verifies
-      # the version bump; it does not change the test gate below.
-      - name: Verify app and widget versions (3.9.1 / 40)
+      # appex's Info.plist must both resolve to the version declared in
+      # project.yml. V3.9.2: expectations are READ from project.yml instead of
+      # being hardcoded, so a version bump is a one-file change and can never
+      # drift out of sync with this gate.
+      - name: Verify app and widget versions (from project.yml)
         shell: bash
         run: |
           set -euo pipefail
           PRODUCTS="$RUNNER_TEMP/xzg-ios-v391-derived/Build/Products"
+          EXPECTED_VERSION=$(sed -n 's/^ *MARKETING_VERSION: "\([^"]*\)".*/\1/p' project.yml | head -1)
+          EXPECTED_BUILD=$(sed -n 's/^ *CURRENT_PROJECT_VERSION: "\([^"]*\)".*/\1/p' project.yml | head -1)
+          if [ -z "$EXPECTED_VERSION" ] || [ -z "$EXPECTED_BUILD" ]; then
+            echo "cannot read MARKETING_VERSION / CURRENT_PROJECT_VERSION from project.yml" >&2
+            exit 1
+          fi
+          echo "expected from project.yml: $EXPECTED_VERSION ($EXPECTED_BUILD)"
           APP_PATH=$(find "$PRODUCTS" -name "XiaoZhangGui.app" -maxdepth 2 | head -1)
           if [ -z "$APP_PATH" ]; then echo "built XiaoZhangGui.app not found under $PRODUCTS" >&2; exit 1; fi
           APPEX_PATH=$(find "$APP_PATH" -name "*.appex" -maxdepth 3 | head -1)
@@ -95,14 +105,14 @@ jobs:
             ver=$(plutil -extract CFBundleShortVersionString raw -o - "$plist")
             build=$(plutil -extract CFBundleVersion raw -o - "$plist")
             echo "$label: CFBundleShortVersionString=$ver CFBundleVersion=$build ($plist)"
-            if [ "$ver" != "3.9.1" ] || [ "$build" != "40" ]; then
-              echo "VERSION MISMATCH for $label: expected 3.9.1 (40)" >&2
+            if [ "$ver" != "$EXPECTED_VERSION" ] || [ "$build" != "$EXPECTED_BUILD" ]; then
+              echo "VERSION MISMATCH for $label: expected $EXPECTED_VERSION ($EXPECTED_BUILD)" >&2
               exit 1
             fi
           }
           check_plist "App" "$APP_PATH/Info.plist"
           check_plist "Widget" "$APPEX_PATH/Info.plist"
-          echo "version check OK: App and Widget are both 3.9.1 (40)"
+          echo "version check OK: App and Widget are both $EXPECTED_VERSION ($EXPECTED_BUILD)"
       - name: XCTest and UITest
         shell: bash
         run: |
