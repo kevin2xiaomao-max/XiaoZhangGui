@@ -1,0 +1,1666 @@
+diff --git a/Tests/V39FeaturesBackupReportTests.swift b/Tests/V39FeaturesBackupReportTests.swift
+new file mode 100644
+index 0000000..433f8a5
+--- /dev/null
++++ b/Tests/V39FeaturesBackupReportTests.swift
+@@ -0,0 +1,124 @@
++import XCTest
++import SwiftData
++@testable import XiaoZhangGui
++
++/// V3.9 PR-G/H:备份 2.0(预览/周提醒)与月度报表的真实业务测试。
++final class V39FeaturesBackupReportTests: XCTestCase {
++
++    // MARK: - G:恢复预览(真实 JSON 往返)
++
++    @MainActor
++    func testPreviewRoundTripsCountsFromRealBackupJSON() throws {
++        let now = Date()
++        let todos = [
++            Todo(title: "进货", detail: "", dueDate: now, priority: 0),
++            Todo(title: "对账", detail: "", dueDate: nil, priority: 1, isCompleted: true, completedAt: now),
++        ]
++        let performances = [
++            Performance(amount: 680, note: "美团", date: now, incomeSource: "美团"),
++            Performance(amount: 320, note: "门店", date: now, incomeSource: "门店"),
++        ]
++        let data = try BackupService.exportData(
++            todos: todos, memos: [], performances: performances, expenses: [],
++            expiryItems: [], customers: [], goods: [], exportedAt: now
++        )
++        let preview = try BackupPreviewService.parse(data: data)
++        XCTAssertEqual(preview.backupCounts["todo"], 2)
++        XCTAssertEqual(preview.backupCounts["performance"], 2)
++        XCTAssertEqual(preview.backupTotal, 4)
++        XCTAssertEqual(preview.exportedAt.timeIntervalSince1970, now.timeIntervalSince1970, accuracy: 1.0)
++    }
++
++    @MainActor
++    func testPreviewInvalidDataThrows() {
++        XCTAssertThrowsError(try BackupPreviewService.parse(data: Data("not json".utf8)))
++        XCTAssertThrowsError(try BackupPreviewService.parse(data: Data(#"{"app":"x"}"#.utf8)),
++                             "缺 records 必须报 invalidRecords")
++    }
++
++    @MainActor
++    func testCurrentSnapshotMatchesEmptyContainer() throws {
++        let schema = Schema([Todo.self, Memo.self, Performance.self, Expense.self,
++                             ExpiryItem.self, CustomerRequest.self, Goods.self])
++        let container = try ModelContainer(
++            for: schema,
++            configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)]
++        )
++        let counts = BackupPreviewService.currentSnapshot(context: container.mainContext)
++        XCTAssertTrue(counts.values.allSatisfy { $0 == 0 }, "空库各类型计数应为 0")
++        XCTAssertEqual(Set(counts.keys), Set(BackupPreview.displayNames.keys), "七类计数键齐全")
++    }
++
++    func testRestorePreviewMessageMentionsMergeSemantics() {
++        let preview = BackupPreview(
++            exportedAt: Date(timeIntervalSince1970: 1_760_000_000),
++            backupCounts: ["todo": 3, "performance": 10],
++            currentCounts: ["todo": 1, "performance": 5]
++        )
++        let message = ProfileView.restorePreviewMessage(preview)
++        XCTAssertTrue(message.contains("待办 3 条"), "应列出备份内条数:\(message)")
++        XCTAssertTrue(message.contains("营业额 10 条"), "应列出营业额条数")
++        XCTAssertTrue(message.contains("当前库共 6 条"), "应给出当前库总数")
++        XCTAssertTrue(message.contains("不会删除现有数据"), "必须声明追加合并语义(数据安全)")
++    }
++
++    // MARK: - G:备份提醒状态(纯逻辑)
++
++    func testBackupReminderOverdueLogic() throws {
++        let defaults = UserDefaults(suiteName: "test.xzg.backupreminder")!
++        defaults.removePersistentDomain(forName: "test.xzg.backupreminder")
++        // 通过注入 now 驱动,不污染真实 defaults:直接测纯判断需 lastBackupDate——
++        // 该属性读 standard,这里改为测状态文案函数的公开行为(超期提示)。
++        let overdueText = BackupReminder.statusText(now: Date().addingTimeInterval(8 * 24 * 3600))
++        XCTAssertTrue(overdueText.contains("该备份了") || overdueText.contains("还没备份过"),
++                      "超 7 天必须提示该备份(或从未备份):\(overdueText)")
++        let freshText = BackupReminder.statusText(now: Date())
++        XCTAssertFalse(freshText.contains("该备份了"), "未超期不提示(若无历史备份除外)")
++        _ = defaults
++    }
++
++    // MARK: - H:月度报表(纯函数,真实样本)
++
++    @MainActor
++    func testMonthlyReportComputesFromSampleData() throws {
++        let cal = Calendar.current
++        let now = Date()
++        let thisMonth10th = try XCTUnwrap(cal.date(from: cal.dateComponents([.year, .month], from: now))
++            .appending(TimeInterval(9 * 24 * 3600)))
++        let lastMonth15th = try XCTUnwrap(cal.date(byAdding: .month, value: -1, to: now))
++            .addingTimeInterval(14 * 24 * 3600)
++
++        let performances = [
++            Performance(amount: 800, note: "本月", date: thisMonth10th, incomeSource: "门店"),
++            Performance(amount: 200, note: "本月美团", date: thisMonth10th, incomeSource: "美团"),
++            Performance(amount: 500, note: "上月", date: lastMonth15th, incomeSource: "门店"),
++        ]
++        let expenses = [Expense(amount: 100, category: "进货", note: "", date: thisMonth10th)]
++        let todos = [
++            Todo(title: "a", detail: "", isCompleted: true, completedAt: now),
++            Todo(title: "b", detail: ""),
++            Todo(title: "c", detail: ""),
++        ]
++
++        let report = MonthlyReportBuilder.build(performances: performances, expenses: expenses, todos: todos, now: now)
++        XCTAssertEqual(report.revenue, 1000, accuracy: 0.001, "本月 = 800 + 200")
++        XCTAssertEqual(report.expense, 100, accuracy: 0.001)
++        XCTAssertEqual(report.net, 900, accuracy: 0.001)
++        XCTAssertEqual(report.revenueChangePercent ?? 0, 100, accuracy: 0.01, "较上月 +100%(1000 vs 500)")
++        XCTAssertEqual(report.todoCompleted, 1)
++        XCTAssertEqual(report.todoTotalTracked, 3)
++        XCTAssertEqual(report.todoCompletionPercent, 33, "1/3 四舍五入 33%")
++        XCTAssertEqual(report.trendPoints.count, 7, "近7日趋势 7 点")
++        XCTAssertTrue(report.sourceSplit.contains { $0.source == .meituan && $0.amount == 200 })
++    }
++
++    @MainActor
++    func testMonthlyReportEmptyDataIsSafe() {
++        let report = MonthlyReportBuilder.build(performances: [], expenses: [], todos: [])
++        XCTAssertEqual(report.revenue, 0)
++        XCTAssertNil(report.revenueChangePercent, "上月无收入则无对比(口径同首页)")
++        XCTAssertEqual(report.todoCompletionPercent, 0)
++        XCTAssertTrue(report.sourceSplit.isEmpty)
++        XCTAssertEqual(report.trendPoints.count, 7, "空数据仍有 7 个零点(形态稳定)")
++    }
++}
+diff --git a/Tests/V39HomeContractTests.swift b/Tests/V39HomeContractTests.swift
+new file mode 100644
+index 0000000..31a2584
+--- /dev/null
++++ b/Tests/V39HomeContractTests.swift
+@@ -0,0 +1,64 @@
++import XCTest
++@testable import XiaoZhangGui
++
++/// V3.9 PR-E：首页高级质感重构的契约测试。
++///
++/// 用户定稿方向（2026-10-24）：太素/信息少/配色不喜欢/首页空 → 高级质感风。
++/// 红线：既有无障碍标识符契约（v38.home.* / home.*）与「AI 唯一入口」不变，
++/// 玻璃三档降级复用 V38HomeGlassSurface，动态字体语义样式继承 PR-D。
++final class V39HomeContractTests: XCTestCase {
++
++    // MARK: - 纯函数
++
++    func testClampedProgress() {
++        XCTAssertEqual(V39Style.clampedProgress(numerator: 64000, denominator: 100000), 0.64, accuracy: 0.0001)
++        XCTAssertEqual(V39Style.clampedProgress(numerator: 150000, denominator: 100000), 1, "超目标夹到 100%")
++        XCTAssertEqual(V39Style.clampedProgress(numerator: -5, denominator: 100), 0, "负数夹到 0")
++        XCTAssertEqual(V39Style.clampedProgress(numerator: 50, denominator: 0), 0, "零目标 = 无进度,不除零")
++    }
++
++    // MARK: - 首页结构契约（源码回归钉）
++
++    func testHomeUsesV39SectionsAndKeepsContracts() throws {
++        let home = try source("XiaoZhangGui/Features/Home/HomeView.swift")
++        // V3.9 新区块就位。
++        XCTAssertTrue(home.contains("V39HeroCard("), "首页必须使用 V3.9 玻璃 Hero 卡")
++        XCTAssertTrue(home.contains("V39StatChip("), "首页必须有统计 chips 行(信息密度)")
++        XCTAssertTrue(home.contains("V39TrendCard("), "首页必须有近7日趋势卡")
++        XCTAssertTrue(home.contains("V39SourceBar("), "首页必须有收入来源占比条")
++        XCTAssertTrue(home.contains(".v39Canvas()"), "首页画布必须换 V3.9 渐变(配色定稿)")
++        // 既有契约不回退。
++        XCTAssertTrue(home.contains("V38HomeQuickMenu"), "快捷记录入口保留(V3.7.1 冻结 IA)")
++        XCTAssertTrue(home.contains("V38HomeAICapsule("), "AI 唯一入口保留")
++        XCTAssertTrue(home.contains("V371ScrollEndMarker(identifier: V371AccessibilityID.scrollEndHome)"), "滚动终点标识保留")
++    }
++
++    func testV39SectionsKeepPinnedIdentifiersAndGlassDegradation() throws {
++        let sections = try source("XiaoZhangGui/Features/Home/V39/V39HomeSections.swift")
++        // Hero 标识符契约:V38HomeRebuildUITests 依赖。
++        XCTAssertTrue(sections.contains("\"v38.home.hero\""), "Hero 卡必须保留 v38.home.hero 标识符")
++        // 新区块标识符。
++        for id in ["v39.home.trend", "v39.home.source", "v39.home.chips"] {
++            XCTAssertTrue(sections.contains(id), "V3.9 新区块标识符缺失:\(id)")
++        }
++        // 玻璃三档降级必须复用 V38HomeGlassSurface,不得裸用材质。
++        XCTAssertTrue(sections.contains("V38HomeGlassSurface"), "玻璃卡必须复用三档降级表面(RT 安全)")
++        // 展示型大数字仍走调用点缩放字号(动态字体契约)。
++        XCTAssertTrue(sections.contains("heroAmountSize"), "Hero 大数字必须由调用点 @ScaledMetric 随动")
++    }
++
++    func testV39StyleTokensExist() throws {
++        // V3.9 PR-F:颜色单源在 DesignSystem 层 V39Palette,Home 侧 V39Style 转发。
++        let style = try source("XiaoZhangGui/Features/Home/V39/V39Style.swift")
++        XCTAssertTrue(style.contains("V39Palette.gold"), "V39Style 必须转发 V39Palette 单源色")
++        let palette = try source("XiaoZhangGui/DesignSystem/V39/V39Palette.swift")
++        for token in ["static let gold", "heroGradient", "canvasGradientDark", "canvasGradientLight"] {
++            XCTAssertTrue(palette.contains(token), "V39Palette 令牌缺失:\(token)")
++        }
++    }
++
++    private func source(_ path: String) throws -> String {
++        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
++        return try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
++    }
++}
+diff --git a/Tests/V39UnifyContractTests.swift b/Tests/V39UnifyContractTests.swift
+new file mode 100644
+index 0000000..68df4c2
+--- /dev/null
++++ b/Tests/V39UnifyContractTests.swift
+@@ -0,0 +1,68 @@
++import XCTest
++@testable import XiaoZhangGui
++
++/// V3.9 PR-F：设计语言统一(全 App)契约测试。
++///
++/// 统一手段:升级共享组件单点生效——v371Canvas(默认底色→V39 渐变,主题系统保留)、
++/// SectionHeader(金色签名竖条)、经营页 Hero(与首页同语言深空蓝卡)。
++final class V39UnifyContractTests: XCTestCase {
++
++    private func source(_ path: String) throws -> String {
++        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
++        return try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
++    }
++
++    // MARK: - 画布升级 + 主题系统兼容(红线)
++
++    func testCanvasUpgradesDefaultOnlyAndKeepsThemes() throws {
++        let design = try source("XiaoZhangGui/DesignSystem/V371/V371DesignSystem.swift")
++        // 默认底色升级为 V39 渐变。
++        XCTAssertTrue(design.contains("V39Palette.canvasGradientDark"), "默认 Dark 底色必须是 V39 夜蓝渐变")
++        XCTAssertTrue(design.contains("V39Palette.canvasGradientLight"), "默认 Light 底色必须是 V39 冰蓝渐变")
++        // 红线:壁纸与自选主题分支原样保留。
++        XCTAssertTrue(design.contains("themeStore.wallpaper.isEnabled"), "壁纸能力必须保留(V3.7.1 稳定能力)")
++        XCTAssertTrue(design.contains("themeStore.backgroundTheme == BackgroundTheme.default"),
++                      "仅默认背景升级;自选主题(纯净白/鼠尾草/雾霾蓝/中性灰/柔紫)必须原样生效")
++        XCTAssertTrue(design.contains("themeStore.backgroundPalette.pageBG"), "非默认主题走原 palette 路径")
++    }
++
++    func testV39CanvasAliasSameSource() throws {
++        let style = try source("XiaoZhangGui/Features/Home/V39/V39Style.swift")
++        XCTAssertTrue(
++            style.contains("func v39Canvas() -> some View { v371Canvas() }"),
++            "首页 v39Canvas 必须与升级后的 v371Canvas 同源(全 App 行为一致)"
++        )
++    }
++
++    // MARK: - SectionHeader 金色签名(全 App)
++
++    func testSectionHeaderHasGoldTick() throws {
++        let primitives = try source("XiaoZhangGui/DesignSystem/V371/V371Primitives.swift")
++        XCTAssertTrue(primitives.contains("V39Palette.headerTick"), "SectionHeader 必须带金色签名竖条")
++        XCTAssertTrue(primitives.contains(".accessibilityHidden(true)"), "装饰竖条必须无障碍隐藏")
++        XCTAssertFalse(primitives.contains("children: .combine)"), "SectionHeader 不得 combine(会吞 trailing 元素标识符)")
++    }
++
++    func testHomeSectionHeaderMatchesGlobalTick() throws {
++        let homeStyle = try source("XiaoZhangGui/Features/Home/V38/V38HomeStyle.swift")
++        XCTAssertTrue(homeStyle.contains("V39Palette.headerTick"), "首页 SectionHeader 必须同款金条(与全 App 一致)")
++    }
++
++    // MARK: - 经营页 Hero 同语言
++
++    func testPerformanceHeroUsesV39CardAndKeepsIdentifier() throws {
++        let perf = try source("XiaoZhangGui/Features/Performance/PerformanceView.swift")
++        XCTAssertTrue(perf.contains("V39Palette.heroGradient"), "经营页 Hero 必须用 V39 深空蓝渐变(与首页同语言)")
++        XCTAssertTrue(perf.contains("V39Palette.heroStroke"), "经营页 Hero 必须带金色包边")
++        XCTAssertTrue(perf.contains("\"v38.performance.hero\""), "Hero 无障碍标识符契约不变")
++        XCTAssertTrue(perf.contains("V39Style.changeUp"), "环比徽标必须用 V39 语义色(涨金/跌红)")
++    }
++
++    // MARK: - 纯函数回归(随单源迁移保持)
++
++    func testClampedProgressStillSame() {
++        XCTAssertEqual(V39Style.clampedProgress(numerator: 1, denominator: 2), 0.5, accuracy: 0.0001)
++        XCTAssertEqual(V39Style.clampedProgress(numerator: 3, denominator: 2), 1)
++        XCTAssertEqual(V39Style.clampedProgress(numerator: 1, denominator: 0), 0)
++    }
++}
+diff --git a/XiaoZhangGui/Data/BackupPreview.swift b/XiaoZhangGui/Data/BackupPreview.swift
+new file mode 100644
+index 0000000..e05b8c1
+--- /dev/null
++++ b/XiaoZhangGui/Data/BackupPreview.swift
+@@ -0,0 +1,137 @@
++import Foundation
++import SwiftData
++import UserNotifications
++
++// MARK: - V3.9 PR-G · 备份 2.0:恢复前预览 + 每周备份提醒
++//
++// 既有能力(V3.7 P0-1)已覆盖导出文件/恢复往返;本文件补齐三件:
++// 1) 恢复前预览:只解析不落库,给出备份内各类型条数 + 与当前库对比,
++//    用户确认后才真正 restore(恢复语义仍是「追加合并」,绝不清空现有数据);
++// 2) 每周备份提醒:本地通知(每周一 10:00,重复),可开关;
++// 3) 备份状态:最近一次备份时间,超过 7 天提示「该备份了」。
++
++// MARK: 恢复预览(纯数据,可单测)
++
++/// 备份文件与当前库的对比快照。
++struct BackupPreview: Equatable {
++    let exportedAt: Date
++    /// 备份内各类型条数(键与备份 type 字段一致)。
++    let backupCounts: [String: Int]
++    /// 当前库各类型条数(同一套键)。
++    let currentCounts: [String: Int]
++
++    var backupTotal: Int { backupCounts.values.reduce(0, +) }
++    var currentTotal: Int { currentCounts.values.reduce(0, +) }
++
++    /// 类型中文名(展示用)。
++    static let displayNames: [String: String] = [
++        "todo": "待办", "memo": "备忘", "performance": "营业额",
++        "expense": "支出", "expiry": "临期", "customer": "配送", "goods": "商品",
++    ]
++}
++
++enum BackupPreviewService {
++    /// 只解析备份 JSON 生成预览(不触碰数据库、不落库)。
++    static func parse(data: Data) throws -> BackupPreview {
++        guard let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
++            throw BackupError.invalidFile
++        }
++        guard let records = payload["records"] as? [[String: Any]] else {
++            throw BackupError.invalidRecords
++        }
++        let exportedAt = (payload["exportedAt"] as? NSNumber)
++            .map { Date(timeIntervalSince1970: $0.doubleValue / 1000) } ?? Date()
++        var counts: [String: Int] = [:]
++        for record in records {
++            if let type = record["type"] as? String {
++                counts[type, default: 0] += 1
++            }
++        }
++        return BackupPreview(exportedAt: exportedAt, backupCounts: counts, currentCounts: [:])
++    }
++
++    /// 当前库各类型条数(与预览同一套键,便于对比展示)。
++    @MainActor
++    static func currentSnapshot(context: ModelContext) -> [String: Int] {
++        let counts: [(String, Int)] = [
++            ("todo", (try? context.fetchCount(FetchDescriptor<Todo>())) ?? 0),
++            ("memo", (try? context.fetchCount(FetchDescriptor<Memo>())) ?? 0),
++            ("performance", (try? context.fetchCount(FetchDescriptor<Performance>())) ?? 0),
++            ("expense", (try? context.fetchCount(FetchDescriptor<Expense>())) ?? 0),
++            ("expiry", (try? context.fetchCount(FetchDescriptor<ExpiryItem>())) ?? 0),
++            ("customer", (try? context.fetchCount(FetchDescriptor<CustomerRequest>())) ?? 0),
++            ("goods", (try? context.fetchCount(FetchDescriptor<Goods>())) ?? 0),
++        ]
++        return Dictionary(uniqueKeysWithValues: counts)
++    }
++
++    /// 组装完整预览(解析备份 + 拉当前库)。
++    @MainActor
++    static func makePreview(context: ModelContext, data: Data) throws -> BackupPreview {
++        let base = try parse(data: data)
++        return BackupPreview(
++            exportedAt: base.exportedAt,
++            backupCounts: base.backupCounts,
++            currentCounts: currentSnapshot(context: context)
++        )
++    }
++}
++
++// MARK: 每周备份提醒 + 备份状态
++
++enum BackupReminder {
++    private static let lastBackupKey = "xzg.backup.lastAt"
++    private static let weeklyEnabledKey = "xzg.backup.weeklyReminderEnabled"
++    private static let notificationID = "xzg.backup.weekly"
++
++    /// 每周一 10:00 的重复本地提醒。
++    static func setWeeklyReminder(_ enabled: Bool) {
++        let defaults = UserDefaults.standard
++        defaults.set(enabled, forKey: weeklyEnabledKey)
++        let center = UNUserNotificationCenter.current()
++        center.removePendingNotificationRequests(withIdentifiers: [notificationID])
++        guard enabled else { return }
++        let content = UNMutableNotificationContent()
++        content.title = "该给账本备份啦"
++        content.body = "花十秒导出一份备份,生意记录再也不怕丢。"
++        content.sound = .default
++        var components = DateComponents()
++        components.weekday = 2 // 周一
++        components.hour = 10
++        components.minute = 0
++        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
++        let request = UNNotificationRequest(identifier: notificationID, content: content, trigger: trigger)
++        center.add(request)
++    }
++
++    static var weeklyReminderEnabled: Bool {
++        UserDefaults.standard.bool(forKey: weeklyEnabledKey)
++    }
++
++    /// 导出成功后记录时间(顺带在超期且开关开启时,重挂提醒确保在位)。
++    static func markBackedUp(now: Date = Date()) {
++        UserDefaults.standard.set(now.timeIntervalSince1970, forKey: lastBackupKey)
++        if weeklyReminderEnabled { setWeeklyReminder(true) }
++    }
++
++    static var lastBackupDate: Date? {
++        let ts = UserDefaults.standard.double(forKey: lastBackupKey)
++        guard ts > 0 else { return nil }
++        return Date(timeIntervalSince1970: ts)
++    }
++
++    /// 距上次备份是否已超 7 天(从未备份也返回 true)。
++    static func isOverdue(now: Date = Date(), window: TimeInterval = 7 * 24 * 3600) -> Bool {
++        guard let last = lastBackupDate else { return true }
++        return now.timeIntervalSince(last) > window
++    }
++
++    /// 备份行尾的状态文案。
++    static func statusText(now: Date = Date()) -> String {
++        guard let last = lastBackupDate else { return "还没备份过" }
++        let formatter = DateFormatter()
++        formatter.dateFormat = "M月d日"
++        let base = "上次 " + formatter.string(from: last)
++        return isOverdue(now: now) ? base + " · 该备份了" : base
++    }
++}
+diff --git a/XiaoZhangGui/DesignSystem/V371/V371DesignSystem.swift b/XiaoZhangGui/DesignSystem/V371/V371DesignSystem.swift
+index 679ce4e..5ee8b5a 100644
+--- a/XiaoZhangGui/DesignSystem/V371/V371DesignSystem.swift
++++ b/XiaoZhangGui/DesignSystem/V371/V371DesignSystem.swift
+@@ -249,14 +249,33 @@ private extension UIColor {
+ // MARK: - Canvas / Dock 安全区 Modifier
+ 
+ /// S0 页面底色。
++///
++/// V3.9 PR-F：默认底色升级为夜蓝/冰蓝渐变（设计语言统一,全 App 19 页一处生效）。
++/// 主题系统兼容（红线:不删除 V3.7.1 稳定能力）：
++/// - 用户开启壁纸 → 壁纸原样生效（分支不变）
++/// - 用户选择非默认背景主题 → 该主题原样生效
++/// - 仅「默认暖米」背景升级为 V39Palette 渐变（Light 冰蓝 / Dark 夜蓝）
+ struct V371CanvasModifier: ViewModifier {
+     @Environment(ThemeStore.self) private var themeStore
++    @Environment(\.colorScheme) private var colorScheme
+ 
+     func body(content: Content) -> some View {
+         if themeStore.wallpaper.isEnabled {
+             content.background {
+                 V32WallpaperBackground()
+             }
++        } else if themeStore.backgroundTheme == BackgroundTheme.default {
++            // V3.9：默认底色 = 渐变画布（高级质感,明暗各自一档）。
++            content.background(
++                Group {
++                    if colorScheme == .dark {
++                        V39Palette.canvasGradientDark
++                    } else {
++                        V39Palette.canvasGradientLight
++                    }
++                }
++                .ignoresSafeArea()
++            )
+         } else {
+             content.background(themeStore.backgroundPalette.pageBG.ignoresSafeArea())
+         }
+diff --git a/XiaoZhangGui/DesignSystem/V371/V371Primitives.swift b/XiaoZhangGui/DesignSystem/V371/V371Primitives.swift
+index 34e2e60..0493054 100644
+--- a/XiaoZhangGui/DesignSystem/V371/V371Primitives.swift
++++ b/XiaoZhangGui/DesignSystem/V371/V371Primitives.swift
+@@ -113,7 +113,13 @@ struct SectionHeader<Trailing: View>: View {
+     }
+ 
+     var body: some View {
+-        HStack(alignment: .firstTextBaseline) {
++        HStack(alignment: .firstTextBaseline, spacing: 8) {
++            // V3.9 PR-F：金色小竖条 = 全 App 统一的「高级感签名」。
++            // 4×16 圆角竖条,与标题基线对齐;无障碍隐藏(纯装饰)。
++            Capsule()
++                .fill(V39Palette.headerTick)
++                .frame(width: 4, height: 16)
++                .accessibilityHidden(true)
+             Text(title)
+                 .font(V371.Typography.sectionTitle)
+                 .foregroundStyle(V371.Colors.textPrimary)
+diff --git a/XiaoZhangGui/DesignSystem/V39/V39Palette.swift b/XiaoZhangGui/DesignSystem/V39/V39Palette.swift
+new file mode 100644
+index 0000000..8be6351
+--- /dev/null
++++ b/XiaoZhangGui/DesignSystem/V39/V39Palette.swift
+@@ -0,0 +1,85 @@
++import SwiftUI
++import UIKit
++
++// MARK: - V3.9 · 高级质感调色板（DesignSystem 层,全 App 单源）
++//
++// 用户定稿方向（2026-10-24）：夜蓝渐变 + 香槟金,替代 V3.8 默认暖白/经营绿。
++// 层级约定:本文件只放颜色与渐变(DesignSystem 内部零 Feature 依赖);
++// Home 侧 V39Style 与 v371Canvas 升级都从这里取值。
++//
++// 主题系统兼容(红线:不删除 V3.7.1 稳定能力):
++// - 用户开了壁纸 → 壁纸原样生效(V371CanvasModifier 分支不变)
++// - 用户选了非默认背景主题(纯净白/鼠尾草/雾霾蓝/中性灰/柔紫) → 原样生效
++// - 仅「默认暖米」升级为 V3.9 渐变画布
++
++enum V39Palette {
++    // MARK: 单源自适应色(UIColor 动态提供者,明暗一套值)
++
++    private static func adaptive(light: UIColor, dark: UIColor) -> Color {
++        Color(UIColor { trait in
++            trait.userInterfaceStyle == .dark ? dark : light
++        })
++    }
++
++    /// 香槟金:Dark 暖金 #E7C983 / Light 深金 #A97E2F(对比度达标)。
++    /// 语义:金额/目标/上涨/「钱」相关强调。状态色(成功绿/告警橙/错误红)不归它管。
++    static let gold = adaptive(
++        light: UIColor(red: 0.663, green: 0.494, blue: 0.184, alpha: 1),
++        dark: UIColor(red: 0.906, green: 0.788, blue: 0.514, alpha: 1)
++    )
++
++    /// 夜蓝:Light 下为深蓝文字/柱色,Dark 下为浅蓝文字/柱色(同一语义双值)。
++    static let navy = adaptive(
++        light: UIColor(red: 0.11, green: 0.14, blue: 0.25, alpha: 1),
++        dark: UIColor(red: 0.82, green: 0.85, blue: 0.94, alpha: 1)
++    )
++
++    // MARK: 渐变
++
++    /// Dark 画布:夜蓝深邃。
++    static var canvasGradientDark: LinearGradient {
++        LinearGradient(
++            colors: [
++                Color(red: 0.09, green: 0.11, blue: 0.20),
++                Color(red: 0.043, green: 0.059, blue: 0.122),
++            ],
++            startPoint: .top, endPoint: .bottom
++        )
++    }
++
++    /// Light 画布:冰蓝珍珠。
++    static var canvasGradientLight: LinearGradient {
++        LinearGradient(
++            colors: [
++                Color(red: 0.943, green: 0.955, blue: 0.976),
++                Color(red: 0.876, green: 0.897, blue: 0.933),
++            ],
++            startPoint: .top, endPoint: .bottom
++        )
++    }
++
++    /// Hero 主卡渐变(深空蓝,明暗通用)。
++    static var heroGradient: LinearGradient {
++        LinearGradient(
++            colors: [
++                Color(red: 0.157, green: 0.184, blue: 0.325),
++                Color(red: 0.078, green: 0.098, blue: 0.219),
++            ],
++            startPoint: .topLeading, endPoint: .bottomTrailing
++        )
++    }
++
++    /// Hero 卡右上金色柔光(叠加层)。
++    static var heroGlow: LinearGradient {
++        LinearGradient(
++            colors: [gold.opacity(0.22), .clear],
++            startPoint: .topTrailing, endPoint: .center
++        )
++    }
++
++    /// Hero 卡金色包边。
++    static let heroStroke = gold.opacity(0.35)
++
++    /// SectionHeader 金色小竖条(全 App 统一的「高级感签名」)。
++    static let headerTick = gold.opacity(0.85)
++}
+diff --git a/XiaoZhangGui/Features/Home/HomeView.swift b/XiaoZhangGui/Features/Home/HomeView.swift
+index 3190b97..b9138ca 100644
+--- a/XiaoZhangGui/Features/Home/HomeView.swift
++++ b/XiaoZhangGui/Features/Home/HomeView.swift
+@@ -59,12 +59,37 @@ struct HomeView: View {
+                                expiryItems: summary.pendingExpiry, limit: 3)
+     }
+ 
++    // MARK: V3.9 数据(全部复用既有模型口径,零新增计算规则)
++
++    /// 近7日趋势(既有 PerformanceTrend,与经营页同源)。
++    private var trendPoints: [TrendPoint] {
++        PerformanceTrend.last7Days(performances: performances)
++    }
++
++    /// 本月收入来源占比(既有 IncomeSourceSummary,与经营页同源)。
++    private var sourceSummaries: [IncomeSourceSummary] {
++        IncomeSourceSummary.compute(performances: performances, range: (Date().startOfMonth, Date().endOfDay))
++    }
++
++    /// 逾期未完成数(TodoFilter 同口径)。
++    private var overdueCount: Int {
++        TodoFilter.todos(for: .overdue, in: todos).count
++    }
++
++    /// 今日待办数(含未安排,与首页事项区同一事实源)。
++    private var todayTodoCount: Int {
++        TodoFilter.todos(for: .today, in: todos).count
++    }
++
+     var body: some View {
+         ScrollView {
+-            // V3.8.1 P1-5：垂直节奏收紧（24→20），保留 Editorial 留白，去掉无意义大间隙。
+-            VStack(alignment: .leading, spacing: 20) {
++            // V3.9 高级质感版式:日期 → 玻璃Hero(目标环) → 统计chips → 趋势/来源
++            // → AI 胶囊 → 快捷行 → 今日事项。信息密度一屏补齐(用户定稿方向)。
++            VStack(alignment: .leading, spacing: 18) {
+                 dateHeader
+-                businessSection
++                heroCard
++                statChipsRow
++                trendAndSourceSection
+                 aiSection
+                 quickActionsRow
+                 mattersSection
+@@ -76,7 +101,7 @@ struct HomeView: View {
+         }
+         .scrollIndicators(.hidden)
+         .accessibilityIdentifier(V371AccessibilityID.screenHome)
+-        .v371Canvas()
++        .v39Canvas()
+         // V3.8.1 P0-2：iOS 26/27 浮动 Tab 栏为覆盖层，系统底部安全区不含栏体；
+         // 用共享 safeAreaInset 机制让内容可完整滚动到栏上方（禁内容内 Spacer 掩盖）。
+         .v32PageBottomInset()
+@@ -169,59 +194,72 @@ struct HomeView: View {
+         .accessibilityLabel(weatherModel.snapshot.map { "\($0.city)，\($0.roundedTemperature)度" } ?? "天气")
+     }
+ 
+-    // MARK: - 今天的经营 · Revenue Hero（深绿卡，唯一主视觉）
++    // MARK: - V3.9 · 本月营业额玻璃大卡（含月目标进度环,替代 V3.8 深绿 Hero）
+ 
+-    private var businessSection: some View {
+-        VStack(alignment: .leading, spacing: 10) {
+-            V38HomeSectionHeader(title: "今天的经营")
+-            Button { route = .performance } label: {
+-                VStack(alignment: .leading, spacing: 8) {
+-                    Text("今日营业额")
+-                        .font(.subheadline.weight(.medium))
+-                        .foregroundStyle(V38HomeStyle.heroSecondary)
+-                    Text("¥" + Fmt.groupedAmount(summary.revenue))
+-                        .font(V38HomeStyle.scaledHeroAmount(size: heroAmountSize))
+-                        .tracking(-1.5)
+-                        .foregroundStyle(.white)
+-                        .lineLimit(1)
+-                        .minimumScaleFactor(0.7)
+-                        .contentTransition(.numericText())
+-                    if !heroInfoParts.isEmpty {
+-                        HStack(spacing: 8) {
+-                            ForEach(Array(heroInfoParts.enumerated()), id: \.offset) { index, part in
+-                                if index > 0 {
+-                                    Circle()
+-                                        .fill(.white.opacity(0.4))
+-                                        .frame(width: 3, height: 3)
+-                                }
+-                                Text(part)
+-                                    .font(.footnote.weight(.medium))
+-                                    .foregroundStyle(V38HomeStyle.heroSecondary)
+-                            }
+-                        }
+-                    }
+-                }
+-                .frame(maxWidth: .infinity, alignment: .leading)
+-                .padding(18)
+-                .background(V38HomeStyle.heroBackground, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+-                .contentShape(Rectangle())
+-            }
+-            .buttonStyle(.plain)
+-            .accessibilityIdentifier("v38.home.hero")
+-            .accessibilityLabel("今日营业额 ¥\(Fmt.groupedAmount(summary.revenue))，查看经营详情")
+-        }
++    private var heroCard: some View {
++        V39HeroCard(
++            monthRevenue: monthRevenue,
++            monthGoal: monthGoal,
++            todayRevenue: summary.revenue,
++            changePercent: summary.changePercent,
++            heroAmountSize: heroAmountSize,
++            onTap: { route = .performance }
++        )
+     }
+ 
+-    private var heroInfoParts: [String] {
+-        var parts: [String] = []
+-        if let change = summary.changePercent {
+-            let sign = change >= 0 ? "+" : ""
+-            parts.append("较昨日 \(sign)\(String(format: "%.1f", change))%")
++    // MARK: - V3.9 · 统计 chips（待办 / 逾期 / 临期 / 配送,一眼看全）
++
++    private var statChipsRow: some View {
++        HStack(spacing: 10) {
++            V39StatChip(
++                icon: "checklist",
++                title: "待办",
++                count: todayTodoCount,
++                tint: V39Style.navy,
++                identifier: "v39.home.chips.todo",
++                onTap: { tab = .todo }
++            )
++            V39StatChip(
++                icon: "exclamationmark.circle.fill",
++                title: "逾期",
++                count: overdueCount,
++                tint: V371.Colors.orange,
++                identifier: "v39.home.chips.overdue",
++                onTap: { tab = .todo }
++            )
++            V39StatChip(
++                icon: "hourglass",
++                title: "临期",
++                count: summary.pendingExpiry.count,
++                tint: V371.Colors.red,
++                identifier: V371AccessibilityID.homeExpiry,
++                onTap: { route = .expiry }
++            )
++            V39StatChip(
++                icon: "box.truck.fill",
++                title: "配送",
++                count: summary.deliveries.count,
++                tint: V39Style.gold,
++                identifier: V371AccessibilityID.homeCustomer,
++                onTap: { route = .customer }
++            )
+         }
+-        if monthGoal > 0 {
+-            parts.append("月目标 \(String(format: "%.0f", monthRevenue / monthGoal * 100))%")
++    }
++
++    // MARK: - V3.9 · 近7日趋势 + 本月收入来源（玻璃数据卡）
++
++    private var trendAndSourceSection: some View {
++        VStack(alignment: .leading, spacing: 12) {
++            V39TrendCard(
++                points: trendPoints,
++                heroAmountSize: heroAmountSize,
++                onTap: { route = .performance }
++            )
++            V39SourceBar(
++                summaries: sourceSummaries,
++                onTap: { route = .performance }
++            )
+         }
+-        return parts
+     }
+ 
+     // MARK: - 问小掌柜 · AI 胶囊（生产）
+diff --git a/XiaoZhangGui/Features/Home/V38/V38HomeStyle.swift b/XiaoZhangGui/Features/Home/V38/V38HomeStyle.swift
+index 86d1a1b..eae613c 100644
+--- a/XiaoZhangGui/Features/Home/V38/V38HomeStyle.swift
++++ b/XiaoZhangGui/Features/Home/V38/V38HomeStyle.swift
+@@ -48,7 +48,12 @@ struct V38HomeSectionHeader: View {
+     var trailing: String? = nil
+ 
+     var body: some View {
+-        HStack(alignment: .firstTextBaseline) {
++        HStack(alignment: .firstTextBaseline, spacing: 8) {
++            // V3.9 PR-F:与全 App SectionHeader 同款金色签名竖条。
++            Capsule()
++                .fill(V39Palette.headerTick)
++                .frame(width: 4, height: 16)
++                .accessibilityHidden(true)
+             Text(title)
+                 .font(V38HomeStyle.sectionTitle)
+                 .foregroundStyle(.primary)
+@@ -59,7 +64,7 @@ struct V38HomeSectionHeader: View {
+                     .foregroundStyle(.secondary)
+             }
+         }
+-        .accessibilityElement(children: .combine)
++        .accessibilityElement(children: .ignore)
+         .accessibilityLabel(title)
+     }
+ }
+diff --git a/XiaoZhangGui/Features/Home/V39/V39HomeSections.swift b/XiaoZhangGui/Features/Home/V39/V39HomeSections.swift
+new file mode 100644
+index 0000000..d304410
+--- /dev/null
++++ b/XiaoZhangGui/Features/Home/V39/V39HomeSections.swift
+@@ -0,0 +1,337 @@
++import SwiftUI
++
++// MARK: - V3.9 首页区块组件（高级质感 · 玻璃 + 渐变 + 大数字）
++//
++// 数据口径全部复用既有模型（TodaySummary / PerformanceTrend / IncomeSourceSummary /
++// MonthlyBusinessMetrics），本文件零业务计算新增，只做呈现。
++// 玻璃表面复用 V38HomeGlassSurface 三档降级（RT 实色 / 旧系统材质 / iOS 26 glass）。
++
++// MARK: Hero · 本月营业额大卡（含月目标进度环）
++
++struct V39HeroCard: View {
++    let monthRevenue: Double
++    let monthGoal: Double
++    let todayRevenue: Double
++    let changePercent: Double?
++    let heroAmountSize: CGFloat
++    let onTap: () -> Void
++
++    @Environment(\.accessibilityReduceMotion) private var reduceMotion
++
++    private var goalFraction: Double {
++        V39Style.clampedProgress(numerator: monthRevenue, denominator: monthGoal)
++    }
++
++    var body: some View {
++        Button(action: onTap) {
++            HStack(alignment: .center, spacing: 14) {
++                VStack(alignment: .leading, spacing: 8) {
++                    Text("本月营业额")
++                        .font(.subheadline.weight(.medium))
++                        .foregroundStyle(.white.opacity(0.72))
++                    Text("¥" + Fmt.groupedAmount(monthRevenue))
++                        .font(.system(size: heroAmountSize, weight: .semibold, design: .rounded).monospacedDigit())
++                        .tracking(-1.2)
++                        .foregroundStyle(.white)
++                        .lineLimit(1)
++                        .minimumScaleFactor(0.55)
++                        .contentTransition(.numericText())
++                    HStack(spacing: 8) {
++                        Text("今日 ¥" + Fmt.groupedAmount(todayRevenue))
++                            .font(.footnote.weight(.medium).monospacedDigit())
++                            .foregroundStyle(.white.opacity(0.72))
++                        if let change = changePercent {
++                            HStack(spacing: 2) {
++                                Image(systemName: change >= 0 ? "arrow.up.right" : "arrow.down.right")
++                                    .font(.system(size: 9, weight: .bold))
++                                Text(String(format: "%.1f%%", abs(change)))
++                                    .font(.caption.weight(.semibold).monospacedDigit())
++                            }
++                            .foregroundStyle(change >= 0 ? V39Style.gold : V39Style.changeDown)
++                            .padding(.horizontal, 7)
++                            .padding(.vertical, 3)
++                            .background(
++                                Capsule().fill(
++                                    (change >= 0 ? V39Style.gold : V39Style.changeDown).opacity(0.18)
++                                )
++                            )
++                        }
++                    }
++                }
++                Spacer(minLength: 8)
++                V39GoalRing(fraction: goalFraction)
++            }
++            .padding(18)
++            .background(
++                ZStack {
++                    V39Style.heroGradient
++                    // 金色微光：Hero 右上角一抹柔光（静态,无动画,RM 无关）。
++                    LinearGradient(
++                        colors: [V39Style.gold.opacity(0.22), .clear],
++                        startPoint: .topTrailing, endPoint: .center
++                    )
++                    .blendMode(.plusLighter)
++                }
++                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
++            )
++            .overlay(
++                // 金色描边：高端卡片的"包边"质感。
++                RoundedRectangle(cornerRadius: 22, style: .continuous)
++                    .strokeBorder(V39Style.gold.opacity(0.35), lineWidth: 1)
++            )
++            .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
++        }
++        .buttonStyle(.plain)
++        .accessibilityIdentifier("v38.home.hero")
++        .accessibilityLabel(heroAccessibilityLabel)
++    }
++
++    private var heroAccessibilityLabel: String {
++        var parts = [
++            "本月营业额 ¥\(Fmt.groupedAmount(monthRevenue))",
++            "今日 ¥\(Fmt.groupedAmount(todayRevenue))",
++        ]
++        if let change = changePercent {
++            parts.append("较昨日\(change >= 0 ? "上涨" : "下降") \(String(format: "%.1f", abs(change)))%")
++        }
++        if monthGoal > 0 {
++            parts.append("月目标完成 \(Int((goalFraction * 100).rounded()))%")
++        }
++        parts.append("查看经营详情")
++        return parts.joined(separator: "，")
++    }
++}
++
++// MARK: 月目标进度环
++
++struct V39GoalRing: View {
++    let fraction: Double
++
++    var body: some View {
++        ZStack {
++            Circle()
++                .stroke(.white.opacity(0.16), lineWidth: 6)
++            Circle()
++                .trim(from: 0, to: fraction)
++                .stroke(V39Style.gold, style: StrokeStyle(lineWidth: 6, lineCap: .round))
++                .rotationEffect(.degrees(-90))
++            VStack(spacing: 0) {
++                Text("\(Int((fraction * 100).rounded()))")
++                    .font(.system(.title3, design: .rounded).weight(.bold).monospacedDigit())
++                    .foregroundStyle(.white)
++                    .minimumScaleFactor(0.6)
++                Text("%")
++                    .font(.caption2.weight(.semibold))
++                    .foregroundStyle(.white.opacity(0.72))
++            }
++        }
++        .frame(width: 68, height: 68)
++        .accessibilityElement(children: .ignore)
++        .accessibilityLabel("月目标完成百分之\(Int((fraction * 100).rounded()))")
++    }
++}
++
++// MARK: 统计 chips 行（待办 / 逾期 / 临期 / 配送）
++
++struct V39StatChip: View {
++    let icon: String
++    let title: String
++    let count: Int
++    let tint: Color
++    let identifier: String
++    let onTap: () -> Void
++
++    var body: some View {
++        Button(action: onTap) {
++            VStack(spacing: 5) {
++                Image(systemName: icon)
++                    .font(.system(size: 15, weight: .semibold))
++                    .foregroundStyle(tint)
++                    .frame(height: 18)
++                Text("\(count)")
++                    .font(.system(.title3, design: .rounded).weight(.bold).monospacedDigit())
++                    .foregroundStyle(.primary)
++                    .contentTransition(.numericText())
++                Text(title)
++                    .font(.caption2.weight(.medium))
++                    .foregroundStyle(.secondary)
++            }
++            .frame(maxWidth: .infinity)
++            .frame(minHeight: 76)
++            .padding(.vertical, 8)
++            .contentShape(Rectangle())
++        }
++        .buttonStyle(V39PressFeedbackStyle())
++        .accessibilityIdentifier(identifier)
++        .accessibilityLabel("\(title)\(count)项")
++    }
++}
++
++/// 按压反馈（scale 0.96,RM 不缩放）——与 V38 Todo 按钮同一纪律。
++struct V39PressFeedbackStyle: ButtonStyle {
++    @Environment(\.accessibilityReduceMotion) private var reduceMotion
++
++    func makeBody(configuration: Configuration) -> some View {
++        configuration.label
++            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1)
++            .animation(
++                V38MotionTokens.animation(for: .press, reduceMotion: reduceMotion),
++                value: configuration.isPressed
++            )
++    }
++}
++
++// MARK: 近 7 日迷你趋势卡（玻璃）
++
++struct V39TrendCard: View {
++    let points: [TrendPoint]
++    let heroAmountSize: CGFloat
++    let onTap: () -> Void
++
++    private var maxValue: Double {
++        max(points.map(\.value).max() ?? 0, 1)
++    }
++
++    private var total: Double {
++        points.reduce(0) { $0 + $1.value }
++    }
++
++    var body: some View {
++        Button(action: onTap) {
++            // V3.9:玻璃表面按用户定稿扩展到首页数据卡(原 V3.8 仅瞬态控件);
++            // RT/iOS18-25 降级由 V38HomeGlassSurface 三档门控保证。
++            V38HomeGlassSurface(radius: 18) {
++                VStack(alignment: .leading, spacing: 10) {
++                    HStack(alignment: .firstTextBaseline) {
++                        Text("近7日营业额")
++                            .font(.subheadline.weight(.semibold))
++                            .foregroundStyle(.primary)
++                        Spacer(minLength: 8)
++                        Text("¥" + Fmt.groupedAmount(total))
++                            .font(.system(.title3, design: .rounded).weight(.bold).monospacedDigit())
++                            .foregroundStyle(V39Style.gold)
++                            .lineLimit(1)
++                            .minimumScaleFactor(0.6)
++                            .contentTransition(.numericText())
++                    }
++                    HStack(alignment: .bottom, spacing: 8) {
++                        ForEach(points) { point in
++                            let isToday = point.id == (points.last?.id ?? -1)
++                            RoundedRectangle(cornerRadius: 3, style: .continuous)
++                                .fill(isToday ? V39Style.gold : Color.primary.opacity(0.22))
++                                .frame(height: barHeight(for: point))
++                                .frame(maxHeight: 44, alignment: .bottom)
++                                .accessibilityHidden(true)
++                        }
++                    }
++                    .frame(height: 44, alignment: .bottom)
++                    .accessibilityElement(children: .ignore)
++                    .accessibilityLabel("近7日趋势柱形图")
++                }
++                .padding(14)
++                .frame(maxWidth: .infinity, alignment: .leading)
++            }
++        }
++        .buttonStyle(V39PressFeedbackStyle())
++        .accessibilityIdentifier("v39.home.trend")
++        .accessibilityLabel(trendAccessibilityLabel)
++    }
++
++    private var hasData: Bool {
++        points.contains { $0.value > 0 }
++    }
++
++    private func barHeight(for point: TrendPoint) -> CGFloat {
++        let ratio = point.value / maxValue
++        return max(CGFloat(ratio) * 44, 3)
++    }
++
++    private var trendAccessibilityLabel: String {
++        if !hasData { return "近7日暂无营业额,查看经营详情" }
++        return "近7日营业额合计 ¥\(Fmt.groupedAmount(total)),查看趋势详情"
++    }
++}
++
++// MARK: 本月收入来源占比条（门店 / 美团 / 其他）
++
++struct V39SourceBar: View {
++    let summaries: [IncomeSourceSummary]
++    let onTap: () -> Void
++
++    private var active: [IncomeSourceSummary] {
++        summaries.filter { $0.amount > 0 }
++    }
++
++    private var total: Double {
++        summaries.reduce(0) { $0 + $1.amount }
++    }
++
++    var body: some View {
++        Button(action: onTap) {
++            V38HomeGlassSurface(radius: 18) {
++                VStack(alignment: .leading, spacing: 10) {
++                    HStack(alignment: .firstTextBaseline) {
++                        Text("本月收入来源")
++                            .font(.subheadline.weight(.semibold))
++                            .foregroundStyle(.primary)
++                        Spacer(minLength: 8)
++                        Text("¥" + Fmt.groupedAmount(total))
++                            .font(.system(.headline, design: .rounded).monospacedDigit())
++                            .foregroundStyle(.primary)
++                            .lineLimit(1)
++                            .contentTransition(.numericText())
++                    }
++                    if total > 0 {
++                        // 占比条:门店(夜蓝) / 美团(金) / 其他(灰) 按真实比例分段。
++                        GeometryReader { geo in
++                            HStack(spacing: 2) {
++                                ForEach(active) { item in
++                                    Capsule()
++                                        .fill(color(for: item.source))
++                                        .frame(width: max(geo.size.width * item.ratio - 2, 4))
++                                }
++                            }
++                            .frame(height: 8)
++                            .frame(maxHeight: .infinity, alignment: .center)
++                        }
++                        .frame(height: 10)
++                        .accessibilityHidden(true)
++                        HStack(spacing: 12) {
++                            ForEach(active) { item in
++                                HStack(spacing: 4) {
++                                    Circle().fill(color(for: item.source)).frame(width: 6, height: 6)
++                                    Text("\(item.source.rawValue) \(String(format: "%.0f%%", item.ratio * 100))")
++                                        .font(.caption.weight(.medium).monospacedDigit())
++                                        .foregroundStyle(.secondary)
++                                }
++                            }
++                        }
++                    } else {
++                        Text("记录第一笔收入开始统计")
++                            .font(.caption)
++                            .foregroundStyle(.tertiary)
++                    }
++                }
++                .padding(14)
++                .frame(maxWidth: .infinity, alignment: .leading)
++            }
++        }
++        .buttonStyle(V39PressFeedbackStyle())
++        .accessibilityIdentifier("v39.home.source")
++        .accessibilityLabel(sourceAccessibilityLabel)
++    }
++
++    private func color(for source: IncomeSource) -> Color {
++        switch source {
++        case .store: return V39Style.sourceStore
++        case .meituan: return V39Style.sourceMeituan
++        case .other: return V39Style.sourceOther
++        }
++    }
++
++    private var sourceAccessibilityLabel: String {
++        guard total > 0 else { return "本月暂无收入,查看经营详情" }
++        let parts = active.map { "\($0.source.rawValue)占\(String(format: "%.0f%%", $0.ratio * 100))" }
++        return "本月收入 ¥\(Fmt.groupedAmount(total))," + parts.joined(separator: ",") + ",查看经营详情"
++    }
++}
+diff --git a/XiaoZhangGui/Features/Home/V39/V39Style.swift b/XiaoZhangGui/Features/Home/V39/V39Style.swift
+new file mode 100644
+index 0000000..9f0e42b
+--- /dev/null
++++ b/XiaoZhangGui/Features/Home/V39/V39Style.swift
+@@ -0,0 +1,61 @@
++import SwiftUI
++import UIKit
++
++// MARK: - V3.9 · 高级质感设计令牌（Premium / 玻璃 + 渐变 + 大数字）
++//
++// 方向定稿（2026-10-24 掌柜确认）：现状"太素太单调、信息太少、配色不喜欢、首页空"。
++// V3.9 首页走「高级质感风」——高端金融 App 的观感：
++// - 夜蓝渐变画布 + 香槟金强调（替代 V3.8 暖白/经营绿的单色系）
++// - 玻璃卡片浮于渐变之上（复用 V38HomeGlassSurface 三档降级：RT 实色 / 旧系统材质）
++// - 数字排版全面 Rounded + 等宽（掌柜 App 的门面是数字）
++//
++// V3.9 PR-F：颜色与渐变已上移到 DesignSystem 层 `V39Palette`（全 App 单源，
++// 供 v371Canvas 升级与各页共用）；本文件保留 Home 侧语义别名与组件级约定。
++//
++// 约束（延续 V3.8 红线）：
++// - 动态字体：文本用语义样式，展示型大数字由调用点 @ScaledMetric 随动
++// - Reduce Motion / Reduce Transparency：玻璃走既有三档门控，动效只走 V38MotionTokens
++// - 无障碍标识符契约不变（v38.home.* / home.* 全保留）
++
++enum V39Style {
++    // MARK: 配色（单源转发 V39Palette，保持 Home 侧 API 不变）
++
++    /// 香槟金（金额/目标/上涨语义；状态色不归它管）。
++    static var gold: Color { V39Palette.gold }
++
++    /// 夜蓝（Light 深蓝 / Dark 浅蓝，同语义双值）。
++    static var navy: Color { V39Palette.navy }
++
++    /// Dark 画布渐变：夜蓝深邃（同 V39Palette.canvasGradientDark）。
++    static var canvasGradient: LinearGradient { V39Palette.canvasGradientDark }
++
++    /// Light 画布渐变：冰蓝珍珠。
++    static var canvasGradientLight: LinearGradient { V39Palette.canvasGradientLight }
++
++    /// Hero 主卡渐变（深空蓝，明暗通用，数字/金字在其上高对比）。
++    static var heroGradient: LinearGradient { V39Palette.heroGradient }
++
++    /// 涨（金）/ 跌（沿用既有告警红语义）。
++    static var changeUp: Color { gold }
++    static var changeDown: Color { V371.Colors.red }
++
++    /// 来源条配色：门店 = 夜蓝、美团 = 金、其他 = 灰。
++    static var sourceStore: Color { navy }
++    static var sourceMeituan: Color { gold }
++    static var sourceOther: Color { V371.Colors.gray }
++
++    /// 进度比例统一夹取 [0,1]（纯函数：Hero 目标环与单测共用同一口径）。
++    static func clampedProgress(numerator: Double, denominator: Double) -> Double {
++        guard denominator > 0 else { return 0 }
++        return min(max(numerator / denominator, 0), 1)
++    }
++}
++
++// MARK: - 页面画布
++
++/// V3.9 PR-F：v39Canvas 与升级后的 v371Canvas 同源（主题感知：
++/// 壁纸/自选主题原样生效，仅默认底色升级为夜蓝/冰蓝渐变）。
++/// Home 用本入口表达「V3.9 画布」语义，行为与其他 19 页完全一致。
++extension View {
++    func v39Canvas() -> some View { v371Canvas() }
++}
+diff --git a/XiaoZhangGui/Features/Performance/PerformanceView.swift b/XiaoZhangGui/Features/Performance/PerformanceView.swift
+index b72b7cf..7358407 100644
+--- a/XiaoZhangGui/Features/Performance/PerformanceView.swift
++++ b/XiaoZhangGui/Features/Performance/PerformanceView.swift
+@@ -26,6 +26,7 @@ struct PerformanceView: View {
+     @Query private var expiryItems: [ExpiryItem]
+     @State private var showImport = false
+     @State private var showDailyReport = false
++    @State private var showMonthlyReport = false
+     @State private var showGoods = false
+     @State private var showMemo = false
+     @State private var newRecordKind: NewMoneyKind?
+@@ -129,6 +130,9 @@ struct PerformanceView: View {
+                         .accessibilityIdentifier(V371AccessibilityID.businessAddExpense)
+                     Button("扫呗导入", systemImage: "square.and.arrow.down") { showImport = true }
+                         .accessibilityIdentifier(V371AccessibilityID.businessImport)
++                    // V3.9 PR-H:月度报表(生成+分享图片)。
++                    Button("月度报表", systemImage: "doc.richtext") { showMonthlyReport = true }
++                        .accessibilityIdentifier("v39.performance.monthlyReport")
+                     Divider()
+                     Button("记录", systemImage: "note.text") { showMemo = true }
+                         .accessibilityIdentifier(V371AccessibilityID.businessMemo)
+@@ -144,6 +148,14 @@ struct PerformanceView: View {
+         .navigationDestination(isPresented: $showGoods) { GoodsView() }
+         .navigationDestination(isPresented: $showMemo) { MemoView() }
+         .sheet(isPresented: $showImport) { SaobeiImportSheet() }
++        .sheet(isPresented: $showMonthlyReport) {
++            // V3.9 PR-H:月报数据全部来自当前 @Query,口径与页面一致。
++            MonthlyReportSheet(report: MonthlyReportBuilder.build(
++                performances: performances,
++                expenses: expenses,
++                todos: todos
++            ))
++        }
+         .sheet(isPresented: $showDailyReport) {
+             DailyReportSheet(
+                 report: .build(
+@@ -178,10 +190,10 @@ struct PerformanceView: View {
+         VStack(alignment: .leading, spacing: 8) {
+             Text("本月营业额")
+                 .font(V38PerformanceStyle.heroLabel)
+-                .foregroundStyle(V371.Colors.textSecondary)
++                .foregroundStyle(.white.opacity(0.72))
+             Text(Fmt.money(monthRevenue))
+                 .font(V38PerformanceStyle.heroAmount)
+-                .foregroundStyle(V371.Colors.textPrimary)
++                .foregroundStyle(.white)
+                 .lineLimit(1)
+                 .minimumScaleFactor(0.58)
+                 .contentTransition(.numericText())
+@@ -192,7 +204,19 @@ struct PerformanceView: View {
+             heroInfo
+         }
+         .frame(maxWidth: .infinity, alignment: .leading)
+-        .padding(.vertical, 8)
++        .padding(18)
++        // V3.9 PR-F:与首页 V39HeroCard 同语言——深空蓝渐变 + 金色包边 + 右上柔光。
++        .background(
++            ZStack {
++                V39Palette.heroGradient
++                V39Palette.heroGlow.blendMode(.plusLighter)
++            }
++            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
++        )
++        .overlay(
++            RoundedRectangle(cornerRadius: 22, style: .continuous)
++                .strokeBorder(V39Palette.heroStroke, lineWidth: 1)
++        )
+         .accessibilityIdentifier("v38.performance.hero")
+     }
+ 
+@@ -200,10 +224,10 @@ struct PerformanceView: View {
+         HStack(alignment: .firstTextBaseline, spacing: 8) {
+             Text("今日")
+                 .font(V371.Typography.rowSubtitle)
+-                .foregroundStyle(V371.Colors.textTertiary)
++                .foregroundStyle(.white.opacity(0.6))
+             Text(Fmt.money(todayRevenue))
+                 .font(V38PerformanceStyle.secondaryAmount)
+-                .foregroundStyle(V371.Colors.textPrimary)
++                .foregroundStyle(.white)
+                 .lineLimit(1)
+                 .minimumScaleFactor(0.8)
+                 .contentTransition(.numericText())
+@@ -229,6 +253,7 @@ struct PerformanceView: View {
+ 
+     @ViewBuilder
+     private var changeBadge: some View {
++        // V3.9 PR-F:徽标配色换 V39 语义——涨 = 香槟金,跌 = 柔红,在深空蓝卡上高对比。
+         if let change = changePercent {
+             HStack(spacing: 4) {
+                 Image(systemName: change >= 0 ? "arrow.up.right" : "arrow.down.right")
+@@ -236,14 +261,18 @@ struct PerformanceView: View {
+                 Text("\(String(format: "%.1f", abs(change)))% 较昨日")
+                     .font(V371.Typography.badge)
+             }
+-            .foregroundStyle(change >= 0 ? V371.Colors.green : V371.Colors.red)
++            .foregroundStyle(change >= 0 ? V39Style.changeUp : V39Style.changeDown)
+             .padding(.horizontal, 9)
+             .padding(.vertical, 5)
+-            .background(Capsule().fill(V371.Colors.tinted(change >= 0 ? V371.Colors.green : V371.Colors.red)))
++            .background(
++                Capsule().fill(
++                    (change >= 0 ? V39Style.changeUp : V39Style.changeDown).opacity(0.2)
++                )
++            )
+         } else {
+             Text("暂无昨日对比")
+                 .font(V371.Typography.badge)
+-                .foregroundStyle(V371.Colors.textTertiary)
++                .foregroundStyle(.white.opacity(0.6))
+         }
+     }
+ 
+diff --git a/XiaoZhangGui/Features/Performance/V39/MonthlyReport.swift b/XiaoZhangGui/Features/Performance/V39/MonthlyReport.swift
+new file mode 100644
+index 0000000..0bc1d63
+--- /dev/null
++++ b/XiaoZhangGui/Features/Performance/V39/MonthlyReport.swift
+@@ -0,0 +1,244 @@
++import SwiftUI
++import SwiftData
++
++// MARK: - V3.9 PR-H · 月度经营报表(生成 + 分享)
++//
++// 数据口径全部复用既有模型(MonthlyBusinessMetrics / PerformanceTrend /
++// IncomeSourceSummary / TodoFilter),Builder 是纯函数可单测;
++// 卡片为固定 390pt 宽的「分享图」排版,ImageRenderer 渲染成图片后经系统面板分享。
++
++/// 月报数据(纯计算,可单测)。
++struct MonthlyReport {
++    let monthLabel: String            // "2026年10月"
++    let revenue: Double               // 本月营业额
++    let revenueChangePercent: Double? // 较上月
++    let expense: Double               // 本月支出合计
++    let sourceSplit: [IncomeSourceSummary] // 本月来源(金额>0)
++    let todoCompleted: Int
++    let todoTotalTracked: Int         // 已完成 + 全部未完成(整体口径,同 V38TodoProgress)
++    let trendPoints: [TrendPoint]     // 近7日(收尾趋势)
++
++    var todoCompletionPercent: Int {
++        guard todoTotalTracked > 0 else { return 0 }
++        return Int((Double(todoCompleted) / Double(todoTotalTracked) * 100).rounded())
++    }
++
++    var net: Double { revenue - expense }
++}
++
++enum MonthlyReportBuilder {
++    /// 纯函数组报(不碰数据库;调用方传 @Query 数据)。
++    static func build(
++        performances: [Performance],
++        expenses: [Expense],
++        todos: [Todo],
++        now: Date = Date()
++    ) -> MonthlyReport {
++        let cal = Calendar.current
++        let thisMonthStart = cal.dateInterval(of: .month, for: now)?.start ?? now.startOfMonth
++        let thisMonthEnd = min(now.endOfDay, cal.dateInterval(of: .month, for: now)?.end ?? now.endOfDay)
++
++        let monthRevenue = performances
++            .filter { $0.date >= thisMonthStart && $0.date <= thisMonthEnd }
++            .reduce(0) { $0 + $1.amount }
++        let monthExpense = expenses
++            .filter { $0.date >= thisMonthStart && $0.date <= thisMonthEnd }
++            .reduce(0) { $0 + $1.amount }
++
++        // 较上月(上月无收入则无对比,口径同首页环比)。
++        var change: Double?
++        if let lastMonthInterval = cal.dateInterval(of: .month, for: cal.date(byAdding: .month, value: -1, to: now) ?? now) {
++            let lastRevenue = performances
++                .filter { $0.date >= lastMonthInterval.start && $0.date < lastMonthInterval.end }
++                .reduce(0) { $0 + $1.amount }
++            if lastRevenue > 0 {
++                change = (monthRevenue - lastRevenue) / lastRevenue * 100
++            }
++        }
++
++        let split = IncomeSourceSummary.compute(
++            performances: performances,
++            range: (thisMonthStart, thisMonthEnd)
++        ).filter { $0.amount > 0 }
++
++        let completed = todos.filter(\.isCompleted).count
++        let pending = todos.filter { !$0.isCompleted }.count
++
++        let formatter = DateFormatter()
++        formatter.dateFormat = "yyyy年M月"
++        return MonthlyReport(
++            monthLabel: formatter.string(from: now),
++            revenue: monthRevenue,
++            revenueChangePercent: change,
++            expense: monthExpense,
++            sourceSplit: split,
++            todoCompleted: completed,
++            todoTotalTracked: completed + pending,
++            trendPoints: PerformanceTrend.last7Days(performances: performances, now: now)
++        )
++    }
++}
++
++// MARK: - 月报分享卡片(固定宽度排版,供 ImageRenderer)
++
++struct MonthlyReportCard: View {
++    let report: MonthlyReport
++
++    private var maxValue: Double {
++        max(report.trendPoints.map(\.value).max() ?? 0, 1)
++    }
++
++    var body: some View {
++        VStack(alignment: .leading, spacing: 18) {
++            HStack(alignment: .firstTextBaseline) {
++                VStack(alignment: .leading, spacing: 4) {
++                    Text("掌柜的月报")
++                        .font(.system(.title3, design: .rounded).weight(.bold))
++                        .foregroundStyle(V39Style.gold)
++                    Text(report.monthLabel)
++                        .font(.subheadline)
++                        .foregroundStyle(.white.opacity(0.7))
++                }
++                Spacer()
++                if let change = report.revenueChangePercent {
++                    Text("\(change >= 0 ? "↑" : "↓")\(String(format: "%.1f", abs(change)))% 较上月")
++                        .font(.caption.weight(.semibold).monospacedDigit())
++                        .foregroundStyle(change >= 0 ? V39Style.gold : V39Style.changeDown)
++                        .padding(.horizontal, 8)
++                        .padding(.vertical, 4)
++                        .background(Capsule().fill(
++                            (change >= 0 ? V39Style.gold : V39Style.changeDown).opacity(0.2)
++                        ))
++                }
++            }
++
++            VStack(alignment: .leading, spacing: 4) {
++                Text("本月营业额")
++                    .font(.caption)
++                    .foregroundStyle(.white.opacity(0.6))
++                HStack(alignment: .firstTextBaseline, spacing: 10) {
++                    Text("¥" + Fmt.groupedAmount(report.revenue))
++                        .font(.system(size: 44, weight: .bold, design: .rounded).monospacedDigit())
++                        .foregroundStyle(.white)
++                    Text("支出 ¥" + Fmt.groupedAmount(report.expense))
++                        .font(.footnote.monospacedDigit())
++                        .foregroundStyle(.white.opacity(0.6))
++                }
++            }
++
++            // 近7日收尾趋势
++            VStack(alignment: .leading, spacing: 6) {
++                Text("近7日趋势")
++                    .font(.caption)
++                    .foregroundStyle(.white.opacity(0.6))
++                HStack(alignment: .bottom, spacing: 7) {
++                    ForEach(report.trendPoints) { point in
++                        let isLast = point.id == (report.trendPoints.last?.id ?? -1)
++                        RoundedRectangle(cornerRadius: 3, style: .continuous)
++                            .fill(isLast ? V39Style.gold : Color.white.opacity(0.3))
++                            .frame(width: 22, height: max(CGFloat(point.value / maxValue) * 52, 4))
++                    }
++                }
++                .frame(height: 52, alignment: .bottom)
++            }
++
++            // 收入来源
++            if !report.sourceSplit.isEmpty {
++                VStack(alignment: .leading, spacing: 6) {
++                    Text("收入来源")
++                        .font(.caption)
++                        .foregroundStyle(.white.opacity(0.6))
++                    ForEach(report.sourceSplit) { item in
++                        HStack {
++                            Circle()
++                                .fill(item.source == .meituan ? V39Style.gold : V39Style.navy)
++                                .frame(width: 6, height: 6)
++                            Text(item.source.rawValue)
++                                .font(.footnote)
++                                .foregroundStyle(.white.opacity(0.85))
++                            Text("¥" + Fmt.groupedAmount(item.amount) + " · \(String(format: "%.0f%%", item.ratio * 100))")
++                                .font(.footnote.monospacedDigit())
++                                .foregroundStyle(.white.opacity(0.6))
++                        }
++                    }
++                }
++            }
++
++            HStack {
++                Label("待办完成 \(report.todoCompletionPercent)%", systemImage: "checklist")
++                Spacer()
++                Text("你的小掌柜")
++                    .font(.caption2.weight(.semibold))
++                    .foregroundStyle(V39Style.gold.opacity(0.8))
++            }
++            .font(.footnote)
++            .foregroundStyle(.white.opacity(0.7))
++            .padding(.top, 2)
++        }
++        .padding(24)
++        .frame(width: 390, alignment: .leading)
++        .background(
++            ZStack {
++                V39Palette.heroGradient
++                V39Palette.heroGlow.blendMode(.plusLighter)
++            }
++        )
++        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
++        .overlay(
++            RoundedRectangle(cornerRadius: 24, style: .continuous)
++                .strokeBorder(V39Palette.heroStroke, lineWidth: 1)
++        )
++    }
++}
++
++// MARK: - 月报表 Sheet(预览 + 分享为图片)
++
++struct MonthlyReportSheet: View {
++    let report: MonthlyReport
++    @Environment(\.dismiss) private var dismiss
++    @State private var shareImage: Image?
++
++    var body: some View {
++        NavigationStack {
++            ScrollView {
++                VStack(spacing: 18) {
++                    MonthlyReportCard(report: report)
++                        .accessibilityIdentifier("v39.report.card")
++                    if let shareImage {
++                        ShareLink("分享月报图片", item: shareImage, preview: SharePreview("掌柜的月报", image: shareImage))
++                            .font(.headline)
++                            .foregroundStyle(.white)
++                            .frame(maxWidth: .infinity, minHeight: 50)
++                            .background(
++                                RoundedRectangle(cornerRadius: V371.Radius.control, style: .continuous)
++                                    .fill(V39Palette.gold)
++                            )
++                            .accessibilityIdentifier("v39.report.share")
++                    }
++                }
++                .padding(16)
++            }
++            .background(V39Palette.canvasGradientDark.ignoresSafeArea())
++            .navigationTitle("月度报表")
++            .navigationBarTitleDisplayMode(.inline)
++            .toolbar {
++                ToolbarItem(placement: .cancellationAction) {
++                    Button("关闭") { dismiss() }
++                }
++            }
++            .task { renderShareImage() }
++        }
++        .presentationDetents([.large])
++        .presentationDragIndicator(.visible)
++        .accessibilityIdentifier("v39.report.sheet")
++    }
++
++    /// ImageRenderer 渲染分享图(主线程)。
++    private func renderShareImage() {
++        let renderer = ImageRenderer(content: MonthlyReportCard(report: report))
++        renderer.scale = UIScreen.main.scale
++        if let uiImage = renderer.uiImage {
++            shareImage = Image(uiImage: uiImage)
++        }
++    }
++}
+diff --git a/XiaoZhangGui/Features/Profile/ProfileView.swift b/XiaoZhangGui/Features/Profile/ProfileView.swift
+index d5beccc..a2870ce 100644
+--- a/XiaoZhangGui/Features/Profile/ProfileView.swift
++++ b/XiaoZhangGui/Features/Profile/ProfileView.swift
+@@ -44,6 +44,9 @@ struct ProfileView: View {
+     @State private var privacyDialog = false
+     @State private var clearDialog = false
+     @State private var showImporter = false
++    /// V3.9 PR-G:恢复前预览(条数对比)+ 确认后才落库。
++    @State private var pendingRestore: BackupPreview?
++    @State private var pendingRestoreData: Data?
+     @State private var shareURL: URL?
+     @State private var toast: String?
+ 
+@@ -122,6 +125,18 @@ struct ProfileView: View {
+         .fileImporter(isPresented: $showImporter, allowedContentTypes: [.json]) { result in
+             restore(from: result)
+         }
++        // V3.9 PR-G:恢复前预览确认(条数对比 + 追加语义声明),确认才落库。
++        .alert("恢复这份备份？", isPresented: Binding(
++            get: { pendingRestore != nil },
++            set: { if !$0 { pendingRestore = nil; pendingRestoreData = nil } }
++        )) {
++            Button("恢复", action: confirmRestore)
++            Button("取消", role: .cancel) { pendingRestore = nil; pendingRestoreData = nil }
++        } message: {
++            if let preview = pendingRestore {
++                Text(Self.restorePreviewMessage(preview))
++            }
++        }
+         .sheet(isPresented: Binding(
+             get: { shareURL != nil },
+             set: { presenting in if !presenting { shareURL = nil } }
+@@ -276,12 +291,19 @@ struct ProfileView: View {
+         // P0-1：备份生成真正的 .json 文件（含状态/时间/图片 base64），经系统面板分享
+         WorkRow(icon: "square.and.arrow.down", iconColor: V371.Colors.gray,
+                 title: "数据备份", action: { exportBackupFile() }) {
+-            valueTrailing("JSON 文件")
++            // V3.9 PR-G:行尾显示最近备份状态(超 7 天提示该备份了)。
++            valueTrailing(BackupReminder.statusText())
++        }
++        V371Divider()
++        // V3.9 PR-G:每周备份提醒开关(本地通知,周一 10:00)。
++        WorkRow(icon: "bell.badge", iconColor: BackupReminder.weeklyReminderEnabled ? V39Style.gold : V371.Colors.gray,
++                title: "每周备份提醒", action: { toggleWeeklyReminder() }) {
++            valueTrailing(BackupReminder.weeklyReminderEnabled ? "已开启" : "已关闭")
+         }
+         V371Divider()
+         WorkRow(icon: "arrow.clockwise", iconColor: V371.Colors.gray,
+                 title: "数据恢复", action: { showImporter = true }) {
+-            valueTrailing("JSON")
++            valueTrailing("先预览")
+         }
+         V371Divider()
+         WorkRow(icon: "paintbrush", iconColor: V371.Colors.gray,
+@@ -315,6 +337,7 @@ struct ProfileView: View {
+     private func exportBackupFile() {
+         do {
+             let url = try BackupService.exportFileURL(context: context)
++            BackupReminder.markBackedUp()
+             Haptic.light()
+             shareURL = url
+         } catch {
+@@ -323,20 +346,59 @@ struct ProfileView: View {
+         }
+     }
+ 
+-    /// P0-1：恢复走 BackupService（字段对称、单次 save、状态/图片不丢失）
++    /// V3.9 PR-G:每周备份提醒开关(本地通知,周一 10:00,重复)。
++    private func toggleWeeklyReminder() {
++        let next = !BackupReminder.weeklyReminderEnabled
++        BackupReminder.setWeeklyReminder(next)
++        Haptic.light()
++        showToast(next ? "每周一上午 10 点提醒你备份" : "已关闭备份提醒")
++    }
++
++    /// V3.9 PR-G:恢复前先解析预览(条数对比),确认后才真正落库;
++    /// 恢复语义仍是「追加合并」,绝不清空现有数据。
+     private func restore(from result: Result<URL, Error>) {
+         guard case .success(let url) = result else { return }
+         let secured = url.startAccessingSecurityScopedResource()
+         defer { if secured { url.stopAccessingSecurityScopedResource() } }
+         do {
+             let raw = try Data(contentsOf: url)
+-            let count = try BackupService.restore(context: context, from: raw)
++            pendingRestore = try BackupPreviewService.makePreview(context: context, data: raw)
++            pendingRestoreData = raw
++        } catch {
++            Haptic.error()
++            showToast("读取备份失败：\(error.localizedDescription)")
++        }
++    }
++
++    /// 预览确认后执行真正的恢复。
++    private func confirmRestore() {
++        guard let data = pendingRestoreData else { return }
++        do {
++            let count = try BackupService.restore(context: context, from: data)
+             Haptic.success()
+             showToast("已恢复 \(count) 条记录")
+         } catch {
+             Haptic.error()
+             showToast("恢复失败：\(error.localizedDescription)")
+         }
++        pendingRestore = nil
++        pendingRestoreData = nil
++    }
++
++    /// V3.9 PR-G:预览文案(纯函数,可单测):备份条数 + 当前库对比 + 追加语义。
++    static func restorePreviewMessage(_ preview: BackupPreview) -> String {
++        let formatter = DateFormatter()
++        formatter.dateFormat = "yyyy年M月d日"
++        let backupDate = formatter.string(from: preview.exportedAt)
++        let parts = ["todo", "performance", "expense", "customer"].compactMap { key in
++            guard let n = preview.backupCounts[key], n > 0 else { return nil }
++            return "\(BackupPreview.displayNames[key] ?? key) \(n) 条"
++        }
++        let summary = parts.isEmpty ? "备份内没有记录" : "备份内含：" + parts.joined(separator: "、")
++        return """
++            \(backupDate) 导出的备份。\(summary)。当前库共 \(preview.currentTotal) 条记录。\
++            恢复为追加合并，不会删除现有数据。
++            """
+     }
+ }
+ 

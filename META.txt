@@ -1,0 +1,21 @@
+BASE_SHA=118c89a(V3.8合并后RC头)
+HEAD_SHA=2cf711e1df301d6cecf45e7dd13568b7f8f4bf71
+BRANCH=ios/v39-pr-e-home-premium(四条按序:E→F→G→H)
+2cf711e feat(ios/v3.9): PR-G 备份2.0 + PR-H 月度报表分享
+ad83b89 feat(ios/v3.9): PR-F 设计语言统一（v371Canvas 升级/SectionHeader 金条/经营页 Hero 同语言）
+ef0423e feat(ios/v3.9): PR-E 首页高级质感重构（玻璃+夜蓝香槟金+信息密度）
+---文件---
+Tests/V39FeaturesBackupReportTests.swift
+Tests/V39HomeContractTests.swift
+Tests/V39UnifyContractTests.swift
+XiaoZhangGui/Data/BackupPreview.swift
+XiaoZhangGui/DesignSystem/V371/V371DesignSystem.swift
+XiaoZhangGui/DesignSystem/V371/V371Primitives.swift
+XiaoZhangGui/DesignSystem/V39/V39Palette.swift
+XiaoZhangGui/Features/Home/HomeView.swift
+XiaoZhangGui/Features/Home/V38/V38HomeStyle.swift
+XiaoZhangGui/Features/Home/V39/V39HomeSections.swift
+XiaoZhangGui/Features/Home/V39/V39Style.swift
+XiaoZhangGui/Features/Performance/PerformanceView.swift
+XiaoZhangGui/Features/Performance/V39/MonthlyReport.swift
+XiaoZhangGui/Features/Profile/ProfileView.swift

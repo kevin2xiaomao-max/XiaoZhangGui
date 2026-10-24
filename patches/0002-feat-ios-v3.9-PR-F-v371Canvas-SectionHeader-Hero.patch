@@ -1,0 +1,517 @@
+From ad83b89f3638d2a997538e1a1be8c39a874e61c5 Mon Sep 17 00:00:00 2001
+From: kevin2xiaomao-max <298385559+kevin2xiaomao-max@users.noreply.github.com>
+Date: Sat, 24 Oct 2026 05:56:13 +0800
+Subject: [PATCH 2/3] =?UTF-8?q?feat(ios/v3.9):=20PR-F=20=E8=AE=BE=E8=AE=A1?=
+ =?UTF-8?q?=E8=AF=AD=E8=A8=80=E7=BB=9F=E4=B8=80=EF=BC=88v371Canvas=20?=
+ =?UTF-8?q?=E5=8D=87=E7=BA=A7/SectionHeader=20=E9=87=91=E6=9D=A1/=E7=BB=8F?=
+ =?UTF-8?q?=E8=90=A5=E9=A1=B5=20Hero=20=E5=90=8C=E8=AF=AD=E8=A8=80?=
+ =?UTF-8?q?=EF=BC=89?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+依赖:叠于 PR-E(ef0423e)之上,共用 V39 设计系统。
+
+统一手段(共享组件单点生效,避免逐页改):
+- V39Palette 上移 DesignSystem 层(V39/):香槟金/夜蓝自适应单源 +
+  夜蓝/冰蓝画布渐变 + Hero 渐变/柔光/包边 + headerTick。Home 侧 V39Style
+  改为转发,PR-E 组件零改动。
+- v371Canvas 升级:仅「默认暖米」底色换 V39 渐变画布(Dark 夜蓝/Light 冰蓝),
+  全 App 19 页一处生效;壁纸与五套自选背景主题分支原样保留(V3.7.1 红线)。
+  首页 v39Canvas 与其同源。
+- SectionHeader(全 App)+ V38HomeSectionHeader(首页):金色 4×16 签名竖条,
+  无障碍隐藏,不 combine(保护 trailing 元素标识符)。
+- 经营页 Hero:换 V39 深空蓝卡(金边+柔光+白字),环比徽标涨金/跌红;
+  v38.performance.hero 标识符与 heroAccessibilityLabel 不变。
+
+交互方案统一约定(组件已就位):可点数据卡 = 玻璃表面(V38HomeGlassSurface
+三档降级)+ V39PressFeedbackStyle 按压缩放 0.96(RM 不缩放);状态色语义
+不变(成功绿/告警橙/错误红),金只属「钱/目标/上涨」。
+
+测试:V39UnifyContractTests 6 用例(画布升级与主题兼容红线钉/同源钉/
+金条钉/Hero 同语言与标识符钉/纯函数回归);更新 V39HomeContractTests
+令牌断言适配单源迁移。
+
+未执行(交由 Muse CI):Xcode 编译、XCTest/UITest、全页 Light/Dark 截图验收。
+---
+ Tests/V39HomeContractTests.swift              |  7 +-
+ Tests/V39UnifyContractTests.swift             | 68 +++++++++++++++
+ .../DesignSystem/V371/V371DesignSystem.swift  | 19 ++++
+ .../DesignSystem/V371/V371Primitives.swift    |  8 +-
+ .../DesignSystem/V39/V39Palette.swift         | 85 ++++++++++++++++++
+ .../Features/Home/V38/V38HomeStyle.swift      |  9 +-
+ XiaoZhangGui/Features/Home/V39/V39Style.swift | 86 ++++---------------
+ .../Performance/PerformanceView.swift         | 33 +++++--
+ 8 files changed, 234 insertions(+), 81 deletions(-)
+ create mode 100644 Tests/V39UnifyContractTests.swift
+ create mode 100644 XiaoZhangGui/DesignSystem/V39/V39Palette.swift
+
+diff --git a/Tests/V39HomeContractTests.swift b/Tests/V39HomeContractTests.swift
+index dd37fd2..31a2584 100644
+--- a/Tests/V39HomeContractTests.swift
++++ b/Tests/V39HomeContractTests.swift
+@@ -48,9 +48,12 @@ final class V39HomeContractTests: XCTestCase {
+     }
+ 
+     func testV39StyleTokensExist() throws {
++        // V3.9 PR-F:颜色单源在 DesignSystem 层 V39Palette,Home 侧 V39Style 转发。
+         let style = try source("XiaoZhangGui/Features/Home/V39/V39Style.swift")
+-        for token in ["static let gold", "heroGradient", "canvasGradient", "clampedProgress"] {
+-            XCTAssertTrue(style.contains(token), "V39 令牌缺失:\(token)")
++        XCTAssertTrue(style.contains("V39Palette.gold"), "V39Style 必须转发 V39Palette 单源色")
++        let palette = try source("XiaoZhangGui/DesignSystem/V39/V39Palette.swift")
++        for token in ["static let gold", "heroGradient", "canvasGradientDark", "canvasGradientLight"] {
++            XCTAssertTrue(palette.contains(token), "V39Palette 令牌缺失:\(token)")
+         }
+     }
+ 
+diff --git a/Tests/V39UnifyContractTests.swift b/Tests/V39UnifyContractTests.swift
+new file mode 100644
+index 0000000..68df4c2
+--- /dev/null
++++ b/Tests/V39UnifyContractTests.swift
+@@ -0,0 +1,68 @@
++import XCTest
++@testable import XiaoZhangGui
++
++/// V3.9 PR-F：设计语言统一(全 App)契约测试。
++///
++/// 统一手段:升级共享组件单点生效——v371Canvas(默认底色→V39 渐变,主题系统保留)、
++/// SectionHeader(金色签名竖条)、经营页 Hero(与首页同语言深空蓝卡)。
++final class V39UnifyContractTests: XCTestCase {
++
++    private func source(_ path: String) throws -> String {
++        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
++        return try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
++    }
++
++    // MARK: - 画布升级 + 主题系统兼容(红线)
++
++    func testCanvasUpgradesDefaultOnlyAndKeepsThemes() throws {
++        let design = try source("XiaoZhangGui/DesignSystem/V371/V371DesignSystem.swift")
++        // 默认底色升级为 V39 渐变。
++        XCTAssertTrue(design.contains("V39Palette.canvasGradientDark"), "默认 Dark 底色必须是 V39 夜蓝渐变")
++        XCTAssertTrue(design.contains("V39Palette.canvasGradientLight"), "默认 Light 底色必须是 V39 冰蓝渐变")
++        // 红线:壁纸与自选主题分支原样保留。
++        XCTAssertTrue(design.contains("themeStore.wallpaper.isEnabled"), "壁纸能力必须保留(V3.7.1 稳定能力)")
++        XCTAssertTrue(design.contains("themeStore.backgroundTheme == BackgroundTheme.default"),
++                      "仅默认背景升级;自选主题(纯净白/鼠尾草/雾霾蓝/中性灰/柔紫)必须原样生效")
++        XCTAssertTrue(design.contains("themeStore.backgroundPalette.pageBG"), "非默认主题走原 palette 路径")
++    }
++
++    func testV39CanvasAliasSameSource() throws {
++        let style = try source("XiaoZhangGui/Features/Home/V39/V39Style.swift")
++        XCTAssertTrue(
++            style.contains("func v39Canvas() -> some View { v371Canvas() }"),
++            "首页 v39Canvas 必须与升级后的 v371Canvas 同源(全 App 行为一致)"
++        )
++    }
++
++    // MARK: - SectionHeader 金色签名(全 App)
++
++    func testSectionHeaderHasGoldTick() throws {
++        let primitives = try source("XiaoZhangGui/DesignSystem/V371/V371Primitives.swift")
++        XCTAssertTrue(primitives.contains("V39Palette.headerTick"), "SectionHeader 必须带金色签名竖条")
++        XCTAssertTrue(primitives.contains(".accessibilityHidden(true)"), "装饰竖条必须无障碍隐藏")
++        XCTAssertFalse(primitives.contains("children: .combine)"), "SectionHeader 不得 combine(会吞 trailing 元素标识符)")
++    }
++
++    func testHomeSectionHeaderMatchesGlobalTick() throws {
++        let homeStyle = try source("XiaoZhangGui/Features/Home/V38/V38HomeStyle.swift")
++        XCTAssertTrue(homeStyle.contains("V39Palette.headerTick"), "首页 SectionHeader 必须同款金条(与全 App 一致)")
++    }
++
++    // MARK: - 经营页 Hero 同语言
++
++    func testPerformanceHeroUsesV39CardAndKeepsIdentifier() throws {
++        let perf = try source("XiaoZhangGui/Features/Performance/PerformanceView.swift")
++        XCTAssertTrue(perf.contains("V39Palette.heroGradient"), "经营页 Hero 必须用 V39 深空蓝渐变(与首页同语言)")
++        XCTAssertTrue(perf.contains("V39Palette.heroStroke"), "经营页 Hero 必须带金色包边")
++        XCTAssertTrue(perf.contains("\"v38.performance.hero\""), "Hero 无障碍标识符契约不变")
++        XCTAssertTrue(perf.contains("V39Style.changeUp"), "环比徽标必须用 V39 语义色(涨金/跌红)")
++    }
++
++    // MARK: - 纯函数回归(随单源迁移保持)
++
++    func testClampedProgressStillSame() {
++        XCTAssertEqual(V39Style.clampedProgress(numerator: 1, denominator: 2), 0.5, accuracy: 0.0001)
++        XCTAssertEqual(V39Style.clampedProgress(numerator: 3, denominator: 2), 1)
++        XCTAssertEqual(V39Style.clampedProgress(numerator: 1, denominator: 0), 0)
++    }
++}
+diff --git a/XiaoZhangGui/DesignSystem/V371/V371DesignSystem.swift b/XiaoZhangGui/DesignSystem/V371/V371DesignSystem.swift
+index 679ce4e..5ee8b5a 100644
+--- a/XiaoZhangGui/DesignSystem/V371/V371DesignSystem.swift
++++ b/XiaoZhangGui/DesignSystem/V371/V371DesignSystem.swift
+@@ -249,14 +249,33 @@ private extension UIColor {
+ // MARK: - Canvas / Dock 安全区 Modifier
+ 
+ /// S0 页面底色。
++///
++/// V3.9 PR-F：默认底色升级为夜蓝/冰蓝渐变（设计语言统一,全 App 19 页一处生效）。
++/// 主题系统兼容（红线:不删除 V3.7.1 稳定能力）：
++/// - 用户开启壁纸 → 壁纸原样生效（分支不变）
++/// - 用户选择非默认背景主题 → 该主题原样生效
++/// - 仅「默认暖米」背景升级为 V39Palette 渐变（Light 冰蓝 / Dark 夜蓝）
+ struct V371CanvasModifier: ViewModifier {
+     @Environment(ThemeStore.self) private var themeStore
++    @Environment(\.colorScheme) private var colorScheme
+ 
+     func body(content: Content) -> some View {
+         if themeStore.wallpaper.isEnabled {
+             content.background {
+                 V32WallpaperBackground()
+             }
++        } else if themeStore.backgroundTheme == BackgroundTheme.default {
++            // V3.9：默认底色 = 渐变画布（高级质感,明暗各自一档）。
++            content.background(
++                Group {
++                    if colorScheme == .dark {
++                        V39Palette.canvasGradientDark
++                    } else {
++                        V39Palette.canvasGradientLight
++                    }
++                }
++                .ignoresSafeArea()
++            )
+         } else {
+             content.background(themeStore.backgroundPalette.pageBG.ignoresSafeArea())
+         }
+diff --git a/XiaoZhangGui/DesignSystem/V371/V371Primitives.swift b/XiaoZhangGui/DesignSystem/V371/V371Primitives.swift
+index 34e2e60..0493054 100644
+--- a/XiaoZhangGui/DesignSystem/V371/V371Primitives.swift
++++ b/XiaoZhangGui/DesignSystem/V371/V371Primitives.swift
+@@ -113,7 +113,13 @@ struct SectionHeader<Trailing: View>: View {
+     }
+ 
+     var body: some View {
+-        HStack(alignment: .firstTextBaseline) {
++        HStack(alignment: .firstTextBaseline, spacing: 8) {
++            // V3.9 PR-F：金色小竖条 = 全 App 统一的「高级感签名」。
++            // 4×16 圆角竖条,与标题基线对齐;无障碍隐藏(纯装饰)。
++            Capsule()
++                .fill(V39Palette.headerTick)
++                .frame(width: 4, height: 16)
++                .accessibilityHidden(true)
+             Text(title)
+                 .font(V371.Typography.sectionTitle)
+                 .foregroundStyle(V371.Colors.textPrimary)
+diff --git a/XiaoZhangGui/DesignSystem/V39/V39Palette.swift b/XiaoZhangGui/DesignSystem/V39/V39Palette.swift
+new file mode 100644
+index 0000000..8be6351
+--- /dev/null
++++ b/XiaoZhangGui/DesignSystem/V39/V39Palette.swift
+@@ -0,0 +1,85 @@
++import SwiftUI
++import UIKit
++
++// MARK: - V3.9 · 高级质感调色板（DesignSystem 层,全 App 单源）
++//
++// 用户定稿方向（2026-10-24）：夜蓝渐变 + 香槟金,替代 V3.8 默认暖白/经营绿。
++// 层级约定:本文件只放颜色与渐变(DesignSystem 内部零 Feature 依赖);
++// Home 侧 V39Style 与 v371Canvas 升级都从这里取值。
++//
++// 主题系统兼容(红线:不删除 V3.7.1 稳定能力):
++// - 用户开了壁纸 → 壁纸原样生效(V371CanvasModifier 分支不变)
++// - 用户选了非默认背景主题(纯净白/鼠尾草/雾霾蓝/中性灰/柔紫) → 原样生效
++// - 仅「默认暖米」升级为 V3.9 渐变画布
++
++enum V39Palette {
++    // MARK: 单源自适应色(UIColor 动态提供者,明暗一套值)
++
++    private static func adaptive(light: UIColor, dark: UIColor) -> Color {
++        Color(UIColor { trait in
++            trait.userInterfaceStyle == .dark ? dark : light
++        })
++    }
++
++    /// 香槟金:Dark 暖金 #E7C983 / Light 深金 #A97E2F(对比度达标)。
++    /// 语义:金额/目标/上涨/「钱」相关强调。状态色(成功绿/告警橙/错误红)不归它管。
++    static let gold = adaptive(
++        light: UIColor(red: 0.663, green: 0.494, blue: 0.184, alpha: 1),
++        dark: UIColor(red: 0.906, green: 0.788, blue: 0.514, alpha: 1)
++    )
++
++    /// 夜蓝:Light 下为深蓝文字/柱色,Dark 下为浅蓝文字/柱色(同一语义双值)。
++    static let navy = adaptive(
++        light: UIColor(red: 0.11, green: 0.14, blue: 0.25, alpha: 1),
++        dark: UIColor(red: 0.82, green: 0.85, blue: 0.94, alpha: 1)
++    )
++
++    // MARK: 渐变
++
++    /// Dark 画布:夜蓝深邃。
++    static var canvasGradientDark: LinearGradient {
++        LinearGradient(
++            colors: [
++                Color(red: 0.09, green: 0.11, blue: 0.20),
++                Color(red: 0.043, green: 0.059, blue: 0.122),
++            ],
++            startPoint: .top, endPoint: .bottom
++        )
++    }
++
++    /// Light 画布:冰蓝珍珠。
++    static var canvasGradientLight: LinearGradient {
++        LinearGradient(
++            colors: [
++                Color(red: 0.943, green: 0.955, blue: 0.976),
++                Color(red: 0.876, green: 0.897, blue: 0.933),
++            ],
++            startPoint: .top, endPoint: .bottom
++        )
++    }
++
++    /// Hero 主卡渐变(深空蓝,明暗通用)。
++    static var heroGradient: LinearGradient {
++        LinearGradient(
++            colors: [
++                Color(red: 0.157, green: 0.184, blue: 0.325),
++                Color(red: 0.078, green: 0.098, blue: 0.219),
++            ],
++            startPoint: .topLeading, endPoint: .bottomTrailing
++        )
++    }
++
++    /// Hero 卡右上金色柔光(叠加层)。
++    static var heroGlow: LinearGradient {
++        LinearGradient(
++            colors: [gold.opacity(0.22), .clear],
++            startPoint: .topTrailing, endPoint: .center
++        )
++    }
++
++    /// Hero 卡金色包边。
++    static let heroStroke = gold.opacity(0.35)
++
++    /// SectionHeader 金色小竖条(全 App 统一的「高级感签名」)。
++    static let headerTick = gold.opacity(0.85)
++}
+diff --git a/XiaoZhangGui/Features/Home/V38/V38HomeStyle.swift b/XiaoZhangGui/Features/Home/V38/V38HomeStyle.swift
+index 86d1a1b..eae613c 100644
+--- a/XiaoZhangGui/Features/Home/V38/V38HomeStyle.swift
++++ b/XiaoZhangGui/Features/Home/V38/V38HomeStyle.swift
+@@ -48,7 +48,12 @@ struct V38HomeSectionHeader: View {
+     var trailing: String? = nil
+ 
+     var body: some View {
+-        HStack(alignment: .firstTextBaseline) {
++        HStack(alignment: .firstTextBaseline, spacing: 8) {
++            // V3.9 PR-F:与全 App SectionHeader 同款金色签名竖条。
++            Capsule()
++                .fill(V39Palette.headerTick)
++                .frame(width: 4, height: 16)
++                .accessibilityHidden(true)
+             Text(title)
+                 .font(V38HomeStyle.sectionTitle)
+                 .foregroundStyle(.primary)
+@@ -59,7 +64,7 @@ struct V38HomeSectionHeader: View {
+                     .foregroundStyle(.secondary)
+             }
+         }
+-        .accessibilityElement(children: .combine)
++        .accessibilityElement(children: .ignore)
+         .accessibilityLabel(title)
+     }
+ }
+diff --git a/XiaoZhangGui/Features/Home/V39/V39Style.swift b/XiaoZhangGui/Features/Home/V39/V39Style.swift
+index 1df4ce1..9f0e42b 100644
+--- a/XiaoZhangGui/Features/Home/V39/V39Style.swift
++++ b/XiaoZhangGui/Features/Home/V39/V39Style.swift
+@@ -8,7 +8,9 @@ import UIKit
+ // - 夜蓝渐变画布 + 香槟金强调（替代 V3.8 暖白/经营绿的单色系）
+ // - 玻璃卡片浮于渐变之上（复用 V38HomeGlassSurface 三档降级：RT 实色 / 旧系统材质）
+ // - 数字排版全面 Rounded + 等宽（掌柜 App 的门面是数字）
+-// - 信息密度补齐：目标环 / 统计 chips / 近7日趋势 / 收入来源 一屏可见
++//
++// V3.9 PR-F：颜色与渐变已上移到 DesignSystem 层 `V39Palette`（全 App 单源，
++// 供 v371Canvas 升级与各页共用）；本文件保留 Home 侧语义别名与组件级约定。
+ //
+ // 约束（延续 V3.8 红线）：
+ // - 动态字体：文本用语义样式，展示型大数字由调用点 @ScaledMetric 随动
+@@ -16,59 +18,22 @@ import UIKit
+ // - 无障碍标识符契约不变（v38.home.* / home.* 全保留）
+ 
+ enum V39Style {
+-    // MARK: 配色（跨明暗单源：UIColor 动态提供者）
++    // MARK: 配色（单源转发 V39Palette，保持 Home 侧 API 不变）
+ 
+-    private static func adaptive(light: UIColor, dark: UIColor) -> Color {
+-        Color(UIColor { trait in
+-            trait.userInterfaceStyle == .dark ? dark : light
+-        })
+-    }
++    /// 香槟金（金额/目标/上涨语义；状态色不归它管）。
++    static var gold: Color { V39Palette.gold }
+ 
+-    /// 香槟金：Dark #E7C983（暖金）/ Light #A97E2F（深金，保证对比度）。
+-    static let gold = adaptive(
+-        light: UIColor(red: 0.663, green: 0.494, blue: 0.184, alpha: 1),
+-        dark: UIColor(red: 0.906, green: 0.788, blue: 0.514, alpha: 1)
+-    )
++    /// 夜蓝（Light 深蓝 / Dark 浅蓝，同语义双值）。
++    static var navy: Color { V39Palette.navy }
+ 
+-    /// 夜蓝（Light 模式下作为主要文字/柱形色）。
+-    static let navy = adaptive(
+-        light: UIColor(red: 0.11, green: 0.14, blue: 0.25, alpha: 1),
+-        dark: UIColor(red: 0.82, green: 0.85, blue: 0.94, alpha: 1)
+-    )
++    /// Dark 画布渐变：夜蓝深邃（同 V39Palette.canvasGradientDark）。
++    static var canvasGradient: LinearGradient { V39Palette.canvasGradientDark }
+ 
+-    /// 画布渐变（页面背景）：Dark 夜蓝深邃 / Light 冰蓝珍珠。
+-    static var canvasGradient: LinearGradient {
+-        let dark = Color(red: 0.09, green: 0.11, blue: 0.20)
+-        let darkDeep = Color(red: 0.043, green: 0.059, blue: 0.122)
+-        let light = Color(red: 0.943, green: 0.955, blue: 0.976)
+-        let lightDeep = Color(red: 0.876, green: 0.897, blue: 0.933)
+-        return LinearGradient(
+-            colors: [dark, darkDeep],
+-            startPoint: .top, endPoint: .bottom
+-        )
+-    }
+-
+-    /// Light 画布渐变（与 canvasGradient 按环境选择，见 V39Canvas）。
+-    static var canvasGradientLight: LinearGradient {
+-        LinearGradient(
+-            colors: [
+-                Color(red: 0.943, green: 0.955, blue: 0.976),
+-                Color(red: 0.876, green: 0.897, blue: 0.933),
+-            ],
+-            startPoint: .top, endPoint: .bottom
+-        )
+-    }
++    /// Light 画布渐变：冰蓝珍珠。
++    static var canvasGradientLight: LinearGradient { V39Palette.canvasGradientLight }
+ 
+     /// Hero 主卡渐变（深空蓝，明暗通用，数字/金字在其上高对比）。
+-    static var heroGradient: LinearGradient {
+-        LinearGradient(
+-            colors: [
+-                Color(red: 0.157, green: 0.184, blue: 0.325),
+-                Color(red: 0.078, green: 0.098, blue: 0.219),
+-            ],
+-            startPoint: .topLeading, endPoint: .bottomTrailing
+-        )
+-    }
++    static var heroGradient: LinearGradient { V39Palette.heroGradient }
+ 
+     /// 涨（金）/ 跌（沿用既有告警红语义）。
+     static var changeUp: Color { gold }
+@@ -86,26 +51,11 @@ enum V39Style {
+     }
+ }
+ 
+-// MARK: - 页面画布（替换首页的 v371Canvas）
+-
+-/// V3.9 首页画布：按明暗铺夜蓝/冰蓝渐变（等效 v371Canvas 的忽略安全区铺底）。
+-struct V39Canvas: ViewModifier {
+-    @Environment(\.colorScheme) private var colorScheme
+-
+-    func body(content: Content) -> some View {
+-        content.background(
+-            Group {
+-                if colorScheme == .dark {
+-                    V39Style.canvasGradient
+-                } else {
+-                    V39Style.canvasGradientLight
+-                }
+-            }
+-            .ignoresSafeArea()
+-        )
+-    }
+-}
++// MARK: - 页面画布
+ 
++/// V3.9 PR-F：v39Canvas 与升级后的 v371Canvas 同源（主题感知：
++/// 壁纸/自选主题原样生效，仅默认底色升级为夜蓝/冰蓝渐变）。
++/// Home 用本入口表达「V3.9 画布」语义，行为与其他 19 页完全一致。
+ extension View {
+-    func v39Canvas() -> some View { modifier(V39Canvas()) }
++    func v39Canvas() -> some View { v371Canvas() }
+ }
+diff --git a/XiaoZhangGui/Features/Performance/PerformanceView.swift b/XiaoZhangGui/Features/Performance/PerformanceView.swift
+index b72b7cf..8153788 100644
+--- a/XiaoZhangGui/Features/Performance/PerformanceView.swift
++++ b/XiaoZhangGui/Features/Performance/PerformanceView.swift
+@@ -178,10 +178,10 @@ struct PerformanceView: View {
+         VStack(alignment: .leading, spacing: 8) {
+             Text("本月营业额")
+                 .font(V38PerformanceStyle.heroLabel)
+-                .foregroundStyle(V371.Colors.textSecondary)
++                .foregroundStyle(.white.opacity(0.72))
+             Text(Fmt.money(monthRevenue))
+                 .font(V38PerformanceStyle.heroAmount)
+-                .foregroundStyle(V371.Colors.textPrimary)
++                .foregroundStyle(.white)
+                 .lineLimit(1)
+                 .minimumScaleFactor(0.58)
+                 .contentTransition(.numericText())
+@@ -192,7 +192,19 @@ struct PerformanceView: View {
+             heroInfo
+         }
+         .frame(maxWidth: .infinity, alignment: .leading)
+-        .padding(.vertical, 8)
++        .padding(18)
++        // V3.9 PR-F:与首页 V39HeroCard 同语言——深空蓝渐变 + 金色包边 + 右上柔光。
++        .background(
++            ZStack {
++                V39Palette.heroGradient
++                V39Palette.heroGlow.blendMode(.plusLighter)
++            }
++            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
++        )
++        .overlay(
++            RoundedRectangle(cornerRadius: 22, style: .continuous)
++                .strokeBorder(V39Palette.heroStroke, lineWidth: 1)
++        )
+         .accessibilityIdentifier("v38.performance.hero")
+     }
+ 
+@@ -200,10 +212,10 @@ struct PerformanceView: View {
+         HStack(alignment: .firstTextBaseline, spacing: 8) {
+             Text("今日")
+                 .font(V371.Typography.rowSubtitle)
+-                .foregroundStyle(V371.Colors.textTertiary)
++                .foregroundStyle(.white.opacity(0.6))
+             Text(Fmt.money(todayRevenue))
+                 .font(V38PerformanceStyle.secondaryAmount)
+-                .foregroundStyle(V371.Colors.textPrimary)
++                .foregroundStyle(.white)
+                 .lineLimit(1)
+                 .minimumScaleFactor(0.8)
+                 .contentTransition(.numericText())
+@@ -229,6 +241,7 @@ struct PerformanceView: View {
+ 
+     @ViewBuilder
+     private var changeBadge: some View {
++        // V3.9 PR-F:徽标配色换 V39 语义——涨 = 香槟金,跌 = 柔红,在深空蓝卡上高对比。
+         if let change = changePercent {
+             HStack(spacing: 4) {
+                 Image(systemName: change >= 0 ? "arrow.up.right" : "arrow.down.right")
+@@ -236,14 +249,18 @@ struct PerformanceView: View {
+                 Text("\(String(format: "%.1f", abs(change)))% 较昨日")
+                     .font(V371.Typography.badge)
+             }
+-            .foregroundStyle(change >= 0 ? V371.Colors.green : V371.Colors.red)
++            .foregroundStyle(change >= 0 ? V39Style.changeUp : V39Style.changeDown)
+             .padding(.horizontal, 9)
+             .padding(.vertical, 5)
+-            .background(Capsule().fill(V371.Colors.tinted(change >= 0 ? V371.Colors.green : V371.Colors.red)))
++            .background(
++                Capsule().fill(
++                    (change >= 0 ? V39Style.changeUp : V39Style.changeDown).opacity(0.2)
++                )
++            )
+         } else {
+             Text("暂无昨日对比")
+                 .font(V371.Typography.badge)
+-                .foregroundStyle(V371.Colors.textTertiary)
++                .foregroundStyle(.white.opacity(0.6))
+         }
+     }
+ 
+-- 
+2.55.0.windows.3
+

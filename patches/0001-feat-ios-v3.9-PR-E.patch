@@ -1,0 +1,757 @@
+From ef0423ea96aeb7960ac2213a00ccb9a32f0d08e9 Mon Sep 17 00:00:00 2001
+From: kevin2xiaomao-max <298385559+kevin2xiaomao-max@users.noreply.github.com>
+Date: Sat, 24 Oct 2026 05:45:25 +0800
+Subject: [PATCH 1/3] =?UTF-8?q?feat(ios/v3.9):=20PR-E=20=E9=A6=96=E9=A1=B5?=
+ =?UTF-8?q?=E9=AB=98=E7=BA=A7=E8=B4=A8=E6=84=9F=E9=87=8D=E6=9E=84=EF=BC=88?=
+ =?UTF-8?q?=E7=8E=BB=E7=92=83+=E5=A4=9C=E8=93=9D=E9=A6=99=E6=A7=9F?=
+ =?UTF-8?q?=E9=87=91+=E4=BF=A1=E6=81=AF=E5=AF=86=E5=BA=A6=EF=BC=89?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+基线 release/v380-rc @ 118c89a（已含 V3.8 四条 PR）。方向为掌柜定稿：
+现状不满意点 = 太素太单调 / 信息太少一眼看不全 / 配色不喜欢 / 首页空。
+
+设计令牌 V39Style：
+- 配色换代：暖白/经营绿 → 夜蓝渐变画布（Dark 深邃 / Light 冰蓝珍珠）
+  + 香槟金强调（明暗双值，UIColor 动态提供者单源）
+- Hero 主卡：深空蓝渐变 + 金色包边 + 右上柔光（静态，无动画，RM 无关）
+- clampedProgress 纯函数（目标环比例夹取，可单测）
+
+首页版式（信息密度一屏补齐）：
+日期头 → 玻璃 Hero 大卡（本月营业额 + 今日 + 环比徽标 + 月目标进度环）
+→ 统计 chips 行（待办/逾期/临期/配送，四路跳转）→ 近7日趋势卡（迷你柱，
+今日金色）→ 本月收入来源占比条（门店夜蓝/美团金/其他灰）→ AI 胶囊
+→ 快捷行 → 今日事项。
+
+契约保留（测试钉住，不回退）：
+- v38.home.hero / home.expiry / home.customer / scrollEnd.home 标识符不变
+- AI 唯一入口 V38HomeAICapsule、快捷入口 V38HomeQuickMenu 保留
+  （V3.7.1 冻结 IA；fix/v380-remove-home-quick-row 分支由此废弃）
+- 玻璃卡全部复用 V38HomeGlassSurface 三档降级（RT 实色/旧系统材质/iOS26 glass）
+- 数据口径零新增：TodaySummary / PerformanceTrend.last7Days /
+  IncomeSourceSummary / TodoFilter / MonthlyBusinessMetrics 全部既有模型
+- 动态字体：语义样式 + heroAmountSize @ScaledMetric 随动继承 PR-D
+
+测试：V39HomeContractTests 5 用例（clampedProgress 四边界 / 新区块与
+契约共存回归钉 / 标识符与玻璃降级钉 / 令牌存在钉）。
+
+未执行（交由 Muse CI）：Xcode 编译、XCTest/UITest、真机视觉验收。
+已知预期影响：V381HomeShellCorrectionUITests 首页亮度断言（新画布明暗
+两端均应满足，如 Light 阈值不满足按实测调整）；建议 Muse 补
+v39.home.* 三标识符的 UI 冒烟 + Light/Dark 截图产物。
+---
+ Tests/V39HomeContractTests.swift              |  61 ++++
+ XiaoZhangGui/Features/Home/HomeView.swift     | 142 +++++---
+ .../Features/Home/V39/V39HomeSections.swift   | 337 ++++++++++++++++++
+ XiaoZhangGui/Features/Home/V39/V39Style.swift | 111 ++++++
+ 4 files changed, 599 insertions(+), 52 deletions(-)
+ create mode 100644 Tests/V39HomeContractTests.swift
+ create mode 100644 XiaoZhangGui/Features/Home/V39/V39HomeSections.swift
+ create mode 100644 XiaoZhangGui/Features/Home/V39/V39Style.swift
+
+diff --git a/Tests/V39HomeContractTests.swift b/Tests/V39HomeContractTests.swift
+new file mode 100644
+index 0000000..dd37fd2
+--- /dev/null
++++ b/Tests/V39HomeContractTests.swift
+@@ -0,0 +1,61 @@
++import XCTest
++@testable import XiaoZhangGui
++
++/// V3.9 PR-E：首页高级质感重构的契约测试。
++///
++/// 用户定稿方向（2026-10-24）：太素/信息少/配色不喜欢/首页空 → 高级质感风。
++/// 红线：既有无障碍标识符契约（v38.home.* / home.*）与「AI 唯一入口」不变，
++/// 玻璃三档降级复用 V38HomeGlassSurface，动态字体语义样式继承 PR-D。
++final class V39HomeContractTests: XCTestCase {
++
++    // MARK: - 纯函数
++
++    func testClampedProgress() {
++        XCTAssertEqual(V39Style.clampedProgress(numerator: 64000, denominator: 100000), 0.64, accuracy: 0.0001)
++        XCTAssertEqual(V39Style.clampedProgress(numerator: 150000, denominator: 100000), 1, "超目标夹到 100%")
++        XCTAssertEqual(V39Style.clampedProgress(numerator: -5, denominator: 100), 0, "负数夹到 0")
++        XCTAssertEqual(V39Style.clampedProgress(numerator: 50, denominator: 0), 0, "零目标 = 无进度,不除零")
++    }
++
++    // MARK: - 首页结构契约（源码回归钉）
++
++    func testHomeUsesV39SectionsAndKeepsContracts() throws {
++        let home = try source("XiaoZhangGui/Features/Home/HomeView.swift")
++        // V3.9 新区块就位。
++        XCTAssertTrue(home.contains("V39HeroCard("), "首页必须使用 V3.9 玻璃 Hero 卡")
++        XCTAssertTrue(home.contains("V39StatChip("), "首页必须有统计 chips 行(信息密度)")
++        XCTAssertTrue(home.contains("V39TrendCard("), "首页必须有近7日趋势卡")
++        XCTAssertTrue(home.contains("V39SourceBar("), "首页必须有收入来源占比条")
++        XCTAssertTrue(home.contains(".v39Canvas()"), "首页画布必须换 V3.9 渐变(配色定稿)")
++        // 既有契约不回退。
++        XCTAssertTrue(home.contains("V38HomeQuickMenu"), "快捷记录入口保留(V3.7.1 冻结 IA)")
++        XCTAssertTrue(home.contains("V38HomeAICapsule("), "AI 唯一入口保留")
++        XCTAssertTrue(home.contains("V371ScrollEndMarker(identifier: V371AccessibilityID.scrollEndHome)"), "滚动终点标识保留")
++    }
++
++    func testV39SectionsKeepPinnedIdentifiersAndGlassDegradation() throws {
++        let sections = try source("XiaoZhangGui/Features/Home/V39/V39HomeSections.swift")
++        // Hero 标识符契约:V38HomeRebuildUITests 依赖。
++        XCTAssertTrue(sections.contains("\"v38.home.hero\""), "Hero 卡必须保留 v38.home.hero 标识符")
++        // 新区块标识符。
++        for id in ["v39.home.trend", "v39.home.source", "v39.home.chips"] {
++            XCTAssertTrue(sections.contains(id), "V3.9 新区块标识符缺失:\(id)")
++        }
++        // 玻璃三档降级必须复用 V38HomeGlassSurface,不得裸用材质。
++        XCTAssertTrue(sections.contains("V38HomeGlassSurface"), "玻璃卡必须复用三档降级表面(RT 安全)")
++        // 展示型大数字仍走调用点缩放字号(动态字体契约)。
++        XCTAssertTrue(sections.contains("heroAmountSize"), "Hero 大数字必须由调用点 @ScaledMetric 随动")
++    }
++
++    func testV39StyleTokensExist() throws {
++        let style = try source("XiaoZhangGui/Features/Home/V39/V39Style.swift")
++        for token in ["static let gold", "heroGradient", "canvasGradient", "clampedProgress"] {
++            XCTAssertTrue(style.contains(token), "V39 令牌缺失:\(token)")
++        }
++    }
++
++    private func source(_ path: String) throws -> String {
++        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
++        return try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
++    }
++}
+diff --git a/XiaoZhangGui/Features/Home/HomeView.swift b/XiaoZhangGui/Features/Home/HomeView.swift
+index 3190b97..b9138ca 100644
+--- a/XiaoZhangGui/Features/Home/HomeView.swift
++++ b/XiaoZhangGui/Features/Home/HomeView.swift
+@@ -59,12 +59,37 @@ struct HomeView: View {
+                                expiryItems: summary.pendingExpiry, limit: 3)
+     }
+ 
++    // MARK: V3.9 数据(全部复用既有模型口径,零新增计算规则)
++
++    /// 近7日趋势(既有 PerformanceTrend,与经营页同源)。
++    private var trendPoints: [TrendPoint] {
++        PerformanceTrend.last7Days(performances: performances)
++    }
++
++    /// 本月收入来源占比(既有 IncomeSourceSummary,与经营页同源)。
++    private var sourceSummaries: [IncomeSourceSummary] {
++        IncomeSourceSummary.compute(performances: performances, range: (Date().startOfMonth, Date().endOfDay))
++    }
++
++    /// 逾期未完成数(TodoFilter 同口径)。
++    private var overdueCount: Int {
++        TodoFilter.todos(for: .overdue, in: todos).count
++    }
++
++    /// 今日待办数(含未安排,与首页事项区同一事实源)。
++    private var todayTodoCount: Int {
++        TodoFilter.todos(for: .today, in: todos).count
++    }
++
+     var body: some View {
+         ScrollView {
+-            // V3.8.1 P1-5：垂直节奏收紧（24→20），保留 Editorial 留白，去掉无意义大间隙。
+-            VStack(alignment: .leading, spacing: 20) {
++            // V3.9 高级质感版式:日期 → 玻璃Hero(目标环) → 统计chips → 趋势/来源
++            // → AI 胶囊 → 快捷行 → 今日事项。信息密度一屏补齐(用户定稿方向)。
++            VStack(alignment: .leading, spacing: 18) {
+                 dateHeader
+-                businessSection
++                heroCard
++                statChipsRow
++                trendAndSourceSection
+                 aiSection
+                 quickActionsRow
+                 mattersSection
+@@ -76,7 +101,7 @@ struct HomeView: View {
+         }
+         .scrollIndicators(.hidden)
+         .accessibilityIdentifier(V371AccessibilityID.screenHome)
+-        .v371Canvas()
++        .v39Canvas()
+         // V3.8.1 P0-2：iOS 26/27 浮动 Tab 栏为覆盖层，系统底部安全区不含栏体；
+         // 用共享 safeAreaInset 机制让内容可完整滚动到栏上方（禁内容内 Spacer 掩盖）。
+         .v32PageBottomInset()
+@@ -169,59 +194,72 @@ struct HomeView: View {
+         .accessibilityLabel(weatherModel.snapshot.map { "\($0.city)，\($0.roundedTemperature)度" } ?? "天气")
+     }
+ 
+-    // MARK: - 今天的经营 · Revenue Hero（深绿卡，唯一主视觉）
++    // MARK: - V3.9 · 本月营业额玻璃大卡（含月目标进度环,替代 V3.8 深绿 Hero）
+ 
+-    private var businessSection: some View {
+-        VStack(alignment: .leading, spacing: 10) {
+-            V38HomeSectionHeader(title: "今天的经营")
+-            Button { route = .performance } label: {
+-                VStack(alignment: .leading, spacing: 8) {
+-                    Text("今日营业额")
+-                        .font(.subheadline.weight(.medium))
+-                        .foregroundStyle(V38HomeStyle.heroSecondary)
+-                    Text("¥" + Fmt.groupedAmount(summary.revenue))
+-                        .font(V38HomeStyle.scaledHeroAmount(size: heroAmountSize))
+-                        .tracking(-1.5)
+-                        .foregroundStyle(.white)
+-                        .lineLimit(1)
+-                        .minimumScaleFactor(0.7)
+-                        .contentTransition(.numericText())
+-                    if !heroInfoParts.isEmpty {
+-                        HStack(spacing: 8) {
+-                            ForEach(Array(heroInfoParts.enumerated()), id: \.offset) { index, part in
+-                                if index > 0 {
+-                                    Circle()
+-                                        .fill(.white.opacity(0.4))
+-                                        .frame(width: 3, height: 3)
+-                                }
+-                                Text(part)
+-                                    .font(.footnote.weight(.medium))
+-                                    .foregroundStyle(V38HomeStyle.heroSecondary)
+-                            }
+-                        }
+-                    }
+-                }
+-                .frame(maxWidth: .infinity, alignment: .leading)
+-                .padding(18)
+-                .background(V38HomeStyle.heroBackground, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+-                .contentShape(Rectangle())
+-            }
+-            .buttonStyle(.plain)
+-            .accessibilityIdentifier("v38.home.hero")
+-            .accessibilityLabel("今日营业额 ¥\(Fmt.groupedAmount(summary.revenue))，查看经营详情")
+-        }
++    private var heroCard: some View {
++        V39HeroCard(
++            monthRevenue: monthRevenue,
++            monthGoal: monthGoal,
++            todayRevenue: summary.revenue,
++            changePercent: summary.changePercent,
++            heroAmountSize: heroAmountSize,
++            onTap: { route = .performance }
++        )
+     }
+ 
+-    private var heroInfoParts: [String] {
+-        var parts: [String] = []
+-        if let change = summary.changePercent {
+-            let sign = change >= 0 ? "+" : ""
+-            parts.append("较昨日 \(sign)\(String(format: "%.1f", change))%")
++    // MARK: - V3.9 · 统计 chips（待办 / 逾期 / 临期 / 配送,一眼看全）
++
++    private var statChipsRow: some View {
++        HStack(spacing: 10) {
++            V39StatChip(
++                icon: "checklist",
++                title: "待办",
++                count: todayTodoCount,
++                tint: V39Style.navy,
++                identifier: "v39.home.chips.todo",
++                onTap: { tab = .todo }
++            )
++            V39StatChip(
++                icon: "exclamationmark.circle.fill",
++                title: "逾期",
++                count: overdueCount,
++                tint: V371.Colors.orange,
++                identifier: "v39.home.chips.overdue",
++                onTap: { tab = .todo }
++            )
++            V39StatChip(
++                icon: "hourglass",
++                title: "临期",
++                count: summary.pendingExpiry.count,
++                tint: V371.Colors.red,
++                identifier: V371AccessibilityID.homeExpiry,
++                onTap: { route = .expiry }
++            )
++            V39StatChip(
++                icon: "box.truck.fill",
++                title: "配送",
++                count: summary.deliveries.count,
++                tint: V39Style.gold,
++                identifier: V371AccessibilityID.homeCustomer,
++                onTap: { route = .customer }
++            )
+         }
+-        if monthGoal > 0 {
+-            parts.append("月目标 \(String(format: "%.0f", monthRevenue / monthGoal * 100))%")
++    }
++
++    // MARK: - V3.9 · 近7日趋势 + 本月收入来源（玻璃数据卡）
++
++    private var trendAndSourceSection: some View {
++        VStack(alignment: .leading, spacing: 12) {
++            V39TrendCard(
++                points: trendPoints,
++                heroAmountSize: heroAmountSize,
++                onTap: { route = .performance }
++            )
++            V39SourceBar(
++                summaries: sourceSummaries,
++                onTap: { route = .performance }
++            )
+         }
+-        return parts
+     }
+ 
+     // MARK: - 问小掌柜 · AI 胶囊（生产）
+diff --git a/XiaoZhangGui/Features/Home/V39/V39HomeSections.swift b/XiaoZhangGui/Features/Home/V39/V39HomeSections.swift
+new file mode 100644
+index 0000000..d304410
+--- /dev/null
++++ b/XiaoZhangGui/Features/Home/V39/V39HomeSections.swift
+@@ -0,0 +1,337 @@
++import SwiftUI
++
++// MARK: - V3.9 首页区块组件（高级质感 · 玻璃 + 渐变 + 大数字）
++//
++// 数据口径全部复用既有模型（TodaySummary / PerformanceTrend / IncomeSourceSummary /
++// MonthlyBusinessMetrics），本文件零业务计算新增，只做呈现。
++// 玻璃表面复用 V38HomeGlassSurface 三档降级（RT 实色 / 旧系统材质 / iOS 26 glass）。
++
++// MARK: Hero · 本月营业额大卡（含月目标进度环）
++
++struct V39HeroCard: View {
++    let monthRevenue: Double
++    let monthGoal: Double
++    let todayRevenue: Double
++    let changePercent: Double?
++    let heroAmountSize: CGFloat
++    let onTap: () -> Void
++
++    @Environment(\.accessibilityReduceMotion) private var reduceMotion
++
++    private var goalFraction: Double {
++        V39Style.clampedProgress(numerator: monthRevenue, denominator: monthGoal)
++    }
++
++    var body: some View {
++        Button(action: onTap) {
++            HStack(alignment: .center, spacing: 14) {
++                VStack(alignment: .leading, spacing: 8) {
++                    Text("本月营业额")
++                        .font(.subheadline.weight(.medium))
++                        .foregroundStyle(.white.opacity(0.72))
++                    Text("¥" + Fmt.groupedAmount(monthRevenue))
++                        .font(.system(size: heroAmountSize, weight: .semibold, design: .rounded).monospacedDigit())
++                        .tracking(-1.2)
++                        .foregroundStyle(.white)
++                        .lineLimit(1)
++                        .minimumScaleFactor(0.55)
++                        .contentTransition(.numericText())
++                    HStack(spacing: 8) {
++                        Text("今日 ¥" + Fmt.groupedAmount(todayRevenue))
++                            .font(.footnote.weight(.medium).monospacedDigit())
++                            .foregroundStyle(.white.opacity(0.72))
++                        if let change = changePercent {
++                            HStack(spacing: 2) {
++                                Image(systemName: change >= 0 ? "arrow.up.right" : "arrow.down.right")
++                                    .font(.system(size: 9, weight: .bold))
++                                Text(String(format: "%.1f%%", abs(change)))
++                                    .font(.caption.weight(.semibold).monospacedDigit())
++                            }
++                            .foregroundStyle(change >= 0 ? V39Style.gold : V39Style.changeDown)
++                            .padding(.horizontal, 7)
++                            .padding(.vertical, 3)
++                            .background(
++                                Capsule().fill(
++                                    (change >= 0 ? V39Style.gold : V39Style.changeDown).opacity(0.18)
++                                )
++                            )
++                        }
++                    }
++                }
++                Spacer(minLength: 8)
++                V39GoalRing(fraction: goalFraction)
++            }
++            .padding(18)
++            .background(
++                ZStack {
++                    V39Style.heroGradient
++                    // 金色微光：Hero 右上角一抹柔光（静态,无动画,RM 无关）。
++                    LinearGradient(
++                        colors: [V39Style.gold.opacity(0.22), .clear],
++                        startPoint: .topTrailing, endPoint: .center
++                    )
++                    .blendMode(.plusLighter)
++                }
++                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
++            )
++            .overlay(
++                // 金色描边：高端卡片的"包边"质感。
++                RoundedRectangle(cornerRadius: 22, style: .continuous)
++                    .strokeBorder(V39Style.gold.opacity(0.35), lineWidth: 1)
++            )
++            .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
++        }
++        .buttonStyle(.plain)
++        .accessibilityIdentifier("v38.home.hero")
++        .accessibilityLabel(heroAccessibilityLabel)
++    }
++
++    private var heroAccessibilityLabel: String {
++        var parts = [
++            "本月营业额 ¥\(Fmt.groupedAmount(monthRevenue))",
++            "今日 ¥\(Fmt.groupedAmount(todayRevenue))",
++        ]
++        if let change = changePercent {
++            parts.append("较昨日\(change >= 0 ? "上涨" : "下降") \(String(format: "%.1f", abs(change)))%")
++        }
++        if monthGoal > 0 {
++            parts.append("月目标完成 \(Int((goalFraction * 100).rounded()))%")
++        }
++        parts.append("查看经营详情")
++        return parts.joined(separator: "，")
++    }
++}
++
++// MARK: 月目标进度环
++
++struct V39GoalRing: View {
++    let fraction: Double
++
++    var body: some View {
++        ZStack {
++            Circle()
++                .stroke(.white.opacity(0.16), lineWidth: 6)
++            Circle()
++                .trim(from: 0, to: fraction)
++                .stroke(V39Style.gold, style: StrokeStyle(lineWidth: 6, lineCap: .round))
++                .rotationEffect(.degrees(-90))
++            VStack(spacing: 0) {
++                Text("\(Int((fraction * 100).rounded()))")
++                    .font(.system(.title3, design: .rounded).weight(.bold).monospacedDigit())
++                    .foregroundStyle(.white)
++                    .minimumScaleFactor(0.6)
++                Text("%")
++                    .font(.caption2.weight(.semibold))
++                    .foregroundStyle(.white.opacity(0.72))
++            }
++        }
++        .frame(width: 68, height: 68)
++        .accessibilityElement(children: .ignore)
++        .accessibilityLabel("月目标完成百分之\(Int((fraction * 100).rounded()))")
++    }
++}
++
++// MARK: 统计 chips 行（待办 / 逾期 / 临期 / 配送）
++
++struct V39StatChip: View {
++    let icon: String
++    let title: String
++    let count: Int
++    let tint: Color
++    let identifier: String
++    let onTap: () -> Void
++
++    var body: some View {
++        Button(action: onTap) {
++            VStack(spacing: 5) {
++                Image(systemName: icon)
++                    .font(.system(size: 15, weight: .semibold))
++                    .foregroundStyle(tint)
++                    .frame(height: 18)
++                Text("\(count)")
++                    .font(.system(.title3, design: .rounded).weight(.bold).monospacedDigit())
++                    .foregroundStyle(.primary)
++                    .contentTransition(.numericText())
++                Text(title)
++                    .font(.caption2.weight(.medium))
++                    .foregroundStyle(.secondary)
++            }
++            .frame(maxWidth: .infinity)
++            .frame(minHeight: 76)
++            .padding(.vertical, 8)
++            .contentShape(Rectangle())
++        }
++        .buttonStyle(V39PressFeedbackStyle())
++        .accessibilityIdentifier(identifier)
++        .accessibilityLabel("\(title)\(count)项")
++    }
++}
++
++/// 按压反馈（scale 0.96,RM 不缩放）——与 V38 Todo 按钮同一纪律。
++struct V39PressFeedbackStyle: ButtonStyle {
++    @Environment(\.accessibilityReduceMotion) private var reduceMotion
++
++    func makeBody(configuration: Configuration) -> some View {
++        configuration.label
++            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1)
++            .animation(
++                V38MotionTokens.animation(for: .press, reduceMotion: reduceMotion),
++                value: configuration.isPressed
++            )
++    }
++}
++
++// MARK: 近 7 日迷你趋势卡（玻璃）
++
++struct V39TrendCard: View {
++    let points: [TrendPoint]
++    let heroAmountSize: CGFloat
++    let onTap: () -> Void
++
++    private var maxValue: Double {
++        max(points.map(\.value).max() ?? 0, 1)
++    }
++
++    private var total: Double {
++        points.reduce(0) { $0 + $1.value }
++    }
++
++    var body: some View {
++        Button(action: onTap) {
++            // V3.9:玻璃表面按用户定稿扩展到首页数据卡(原 V3.8 仅瞬态控件);
++            // RT/iOS18-25 降级由 V38HomeGlassSurface 三档门控保证。
++            V38HomeGlassSurface(radius: 18) {
++                VStack(alignment: .leading, spacing: 10) {
++                    HStack(alignment: .firstTextBaseline) {
++                        Text("近7日营业额")
++                            .font(.subheadline.weight(.semibold))
++                            .foregroundStyle(.primary)
++                        Spacer(minLength: 8)
++                        Text("¥" + Fmt.groupedAmount(total))
++                            .font(.system(.title3, design: .rounded).weight(.bold).monospacedDigit())
++                            .foregroundStyle(V39Style.gold)
++                            .lineLimit(1)
++                            .minimumScaleFactor(0.6)
++                            .contentTransition(.numericText())
++                    }
++                    HStack(alignment: .bottom, spacing: 8) {
++                        ForEach(points) { point in
++                            let isToday = point.id == (points.last?.id ?? -1)
++                            RoundedRectangle(cornerRadius: 3, style: .continuous)
++                                .fill(isToday ? V39Style.gold : Color.primary.opacity(0.22))
++                                .frame(height: barHeight(for: point))
++                                .frame(maxHeight: 44, alignment: .bottom)
++                                .accessibilityHidden(true)
++                        }
++                    }
++                    .frame(height: 44, alignment: .bottom)
++                    .accessibilityElement(children: .ignore)
++                    .accessibilityLabel("近7日趋势柱形图")
++                }
++                .padding(14)
++                .frame(maxWidth: .infinity, alignment: .leading)
++            }
++        }
++        .buttonStyle(V39PressFeedbackStyle())
++        .accessibilityIdentifier("v39.home.trend")
++        .accessibilityLabel(trendAccessibilityLabel)
++    }
++
++    private var hasData: Bool {
++        points.contains { $0.value > 0 }
++    }
++
++    private func barHeight(for point: TrendPoint) -> CGFloat {
++        let ratio = point.value / maxValue
++        return max(CGFloat(ratio) * 44, 3)
++    }
++
++    private var trendAccessibilityLabel: String {
++        if !hasData { return "近7日暂无营业额,查看经营详情" }
++        return "近7日营业额合计 ¥\(Fmt.groupedAmount(total)),查看趋势详情"
++    }
++}
++
++// MARK: 本月收入来源占比条（门店 / 美团 / 其他）
++
++struct V39SourceBar: View {
++    let summaries: [IncomeSourceSummary]
++    let onTap: () -> Void
++
++    private var active: [IncomeSourceSummary] {
++        summaries.filter { $0.amount > 0 }
++    }
++
++    private var total: Double {
++        summaries.reduce(0) { $0 + $1.amount }
++    }
++
++    var body: some View {
++        Button(action: onTap) {
++            V38HomeGlassSurface(radius: 18) {
++                VStack(alignment: .leading, spacing: 10) {
++                    HStack(alignment: .firstTextBaseline) {
++                        Text("本月收入来源")
++                            .font(.subheadline.weight(.semibold))
++                            .foregroundStyle(.primary)
++                        Spacer(minLength: 8)
++                        Text("¥" + Fmt.groupedAmount(total))
++                            .font(.system(.headline, design: .rounded).monospacedDigit())
++                            .foregroundStyle(.primary)
++                            .lineLimit(1)
++                            .contentTransition(.numericText())
++                    }
++                    if total > 0 {
++                        // 占比条:门店(夜蓝) / 美团(金) / 其他(灰) 按真实比例分段。
++                        GeometryReader { geo in
++                            HStack(spacing: 2) {
++                                ForEach(active) { item in
++                                    Capsule()
++                                        .fill(color(for: item.source))
++                                        .frame(width: max(geo.size.width * item.ratio - 2, 4))
++                                }
++                            }
++                            .frame(height: 8)
++                            .frame(maxHeight: .infinity, alignment: .center)
++                        }
++                        .frame(height: 10)
++                        .accessibilityHidden(true)
++                        HStack(spacing: 12) {
++                            ForEach(active) { item in
++                                HStack(spacing: 4) {
++                                    Circle().fill(color(for: item.source)).frame(width: 6, height: 6)
++                                    Text("\(item.source.rawValue) \(String(format: "%.0f%%", item.ratio * 100))")
++                                        .font(.caption.weight(.medium).monospacedDigit())
++                                        .foregroundStyle(.secondary)
++                                }
++                            }
++                        }
++                    } else {
++                        Text("记录第一笔收入开始统计")
++                            .font(.caption)
++                            .foregroundStyle(.tertiary)
++                    }
++                }
++                .padding(14)
++                .frame(maxWidth: .infinity, alignment: .leading)
++            }
++        }
++        .buttonStyle(V39PressFeedbackStyle())
++        .accessibilityIdentifier("v39.home.source")
++        .accessibilityLabel(sourceAccessibilityLabel)
++    }
++
++    private func color(for source: IncomeSource) -> Color {
++        switch source {
++        case .store: return V39Style.sourceStore
++        case .meituan: return V39Style.sourceMeituan
++        case .other: return V39Style.sourceOther
++        }
++    }
++
++    private var sourceAccessibilityLabel: String {
++        guard total > 0 else { return "本月暂无收入,查看经营详情" }
++        let parts = active.map { "\($0.source.rawValue)占\(String(format: "%.0f%%", $0.ratio * 100))" }
++        return "本月收入 ¥\(Fmt.groupedAmount(total))," + parts.joined(separator: ",") + ",查看经营详情"
++    }
++}
+diff --git a/XiaoZhangGui/Features/Home/V39/V39Style.swift b/XiaoZhangGui/Features/Home/V39/V39Style.swift
+new file mode 100644
+index 0000000..1df4ce1
+--- /dev/null
++++ b/XiaoZhangGui/Features/Home/V39/V39Style.swift
+@@ -0,0 +1,111 @@
++import SwiftUI
++import UIKit
++
++// MARK: - V3.9 · 高级质感设计令牌（Premium / 玻璃 + 渐变 + 大数字）
++//
++// 方向定稿（2026-10-24 掌柜确认）：现状"太素太单调、信息太少、配色不喜欢、首页空"。
++// V3.9 首页走「高级质感风」——高端金融 App 的观感：
++// - 夜蓝渐变画布 + 香槟金强调（替代 V3.8 暖白/经营绿的单色系）
++// - 玻璃卡片浮于渐变之上（复用 V38HomeGlassSurface 三档降级：RT 实色 / 旧系统材质）
++// - 数字排版全面 Rounded + 等宽（掌柜 App 的门面是数字）
++// - 信息密度补齐：目标环 / 统计 chips / 近7日趋势 / 收入来源 一屏可见
++//
++// 约束（延续 V3.8 红线）：
++// - 动态字体：文本用语义样式，展示型大数字由调用点 @ScaledMetric 随动
++// - Reduce Motion / Reduce Transparency：玻璃走既有三档门控，动效只走 V38MotionTokens
++// - 无障碍标识符契约不变（v38.home.* / home.* 全保留）
++
++enum V39Style {
++    // MARK: 配色（跨明暗单源：UIColor 动态提供者）
++
++    private static func adaptive(light: UIColor, dark: UIColor) -> Color {
++        Color(UIColor { trait in
++            trait.userInterfaceStyle == .dark ? dark : light
++        })
++    }
++
++    /// 香槟金：Dark #E7C983（暖金）/ Light #A97E2F（深金，保证对比度）。
++    static let gold = adaptive(
++        light: UIColor(red: 0.663, green: 0.494, blue: 0.184, alpha: 1),
++        dark: UIColor(red: 0.906, green: 0.788, blue: 0.514, alpha: 1)
++    )
++
++    /// 夜蓝（Light 模式下作为主要文字/柱形色）。
++    static let navy = adaptive(
++        light: UIColor(red: 0.11, green: 0.14, blue: 0.25, alpha: 1),
++        dark: UIColor(red: 0.82, green: 0.85, blue: 0.94, alpha: 1)
++    )
++
++    /// 画布渐变（页面背景）：Dark 夜蓝深邃 / Light 冰蓝珍珠。
++    static var canvasGradient: LinearGradient {
++        let dark = Color(red: 0.09, green: 0.11, blue: 0.20)
++        let darkDeep = Color(red: 0.043, green: 0.059, blue: 0.122)
++        let light = Color(red: 0.943, green: 0.955, blue: 0.976)
++        let lightDeep = Color(red: 0.876, green: 0.897, blue: 0.933)
++        return LinearGradient(
++            colors: [dark, darkDeep],
++            startPoint: .top, endPoint: .bottom
++        )
++    }
++
++    /// Light 画布渐变（与 canvasGradient 按环境选择，见 V39Canvas）。
++    static var canvasGradientLight: LinearGradient {
++        LinearGradient(
++            colors: [
++                Color(red: 0.943, green: 0.955, blue: 0.976),
++                Color(red: 0.876, green: 0.897, blue: 0.933),
++            ],
++            startPoint: .top, endPoint: .bottom
++        )
++    }
++
++    /// Hero 主卡渐变（深空蓝，明暗通用，数字/金字在其上高对比）。
++    static var heroGradient: LinearGradient {
++        LinearGradient(
++            colors: [
++                Color(red: 0.157, green: 0.184, blue: 0.325),
++                Color(red: 0.078, green: 0.098, blue: 0.219),
++            ],
++            startPoint: .topLeading, endPoint: .bottomTrailing
++        )
++    }
++
++    /// 涨（金）/ 跌（沿用既有告警红语义）。
++    static var changeUp: Color { gold }
++    static var changeDown: Color { V371.Colors.red }
++
++    /// 来源条配色：门店 = 夜蓝、美团 = 金、其他 = 灰。
++    static var sourceStore: Color { navy }
++    static var sourceMeituan: Color { gold }
++    static var sourceOther: Color { V371.Colors.gray }
++
++    /// 进度比例统一夹取 [0,1]（纯函数：Hero 目标环与单测共用同一口径）。
++    static func clampedProgress(numerator: Double, denominator: Double) -> Double {
++        guard denominator > 0 else { return 0 }
++        return min(max(numerator / denominator, 0), 1)
++    }
++}
++
++// MARK: - 页面画布（替换首页的 v371Canvas）
++
++/// V3.9 首页画布：按明暗铺夜蓝/冰蓝渐变（等效 v371Canvas 的忽略安全区铺底）。
++struct V39Canvas: ViewModifier {
++    @Environment(\.colorScheme) private var colorScheme
++
++    func body(content: Content) -> some View {
++        content.background(
++            Group {
++                if colorScheme == .dark {
++                    V39Style.canvasGradient
++                } else {
++                    V39Style.canvasGradientLight
++                }
++            }
++            .ignoresSafeArea()
++        )
++    }
++}
++
++extension View {
++    func v39Canvas() -> some View { modifier(V39Canvas()) }
++}
+-- 
+2.55.0.windows.3
+
