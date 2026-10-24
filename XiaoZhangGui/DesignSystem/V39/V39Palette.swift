@@ -34,6 +34,43 @@ enum V39Palette {
         dark: UIColor(red: 0.82, green: 0.85, blue: 0.94, alpha: 1)
     )
 
+    // MARK: V3.9.1 P0-2 · 深色卡面固定色(不随系统明暗漂移)
+    //
+    // 问题:月报卡/经营 Hero 本就是固定深色渐变,却用了 adaptive 的 gold:
+    // Light 下金字偏深、Dark 下偏亮,分享图随系统模式导出两份不同配色,
+    // 且金底白字分享按钮对比度仅约 1.6:1(WCAG AA 失败)。
+    // 修复只动深色卡面:固定香槟金 + 深色墨字,用户自选主题色不受影响。
+
+    /// 固定香槟金 #E7C983:深色卡面上的金字/金条/金底,深浅系统导出同一份。
+    /// 在深蓝卡面(#14202E 附近)上对比度约 9:1,远超 WCAG AA 4.5:1。
+    static let heroGold = Color(red: 0.906, green: 0.788, blue: 0.514)
+
+    /// 金底上的深色墨字 #16233C:在 #E7C983 金底上对比度约 9:1(WCAG AA 通过)。
+    static let heroInk = Color(red: 0.086, green: 0.137, blue: 0.235)
+
+    /// 月报来源固定三色(深色卡面可辨):门店浅蓝 / 美团香槟金 / 其他浅灰。
+    static let sourceStoreFixed = Color(red: 0.561, green: 0.659, blue: 0.847)
+    static let sourceOtherFixed = Color(red: 0.722, green: 0.745, blue: 0.792)
+
+    // MARK: WCAG 对比度纯函数(供单测锁定 P0-2,颜色值与上方常量一一对应)
+
+    /// sRGB 通道线性化(WCAG 2.x 公式)。
+    private static func linearized(_ c: Double) -> Double {
+        c <= 0.03928 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4)
+    }
+
+    /// 两 sRGB 颜色的 WCAG 对比度(1–21);正文/重要按钮须 ≥ 4.5:1(AA)。
+    static func wcagContrast(
+        _ a: (r: Double, g: Double, b: Double),
+        _ b: (r: Double, g: Double, b: Double)
+    ) -> Double {
+        let lum: ((r: Double, g: Double, b: Double)) -> Double = {
+            0.2126 * linearized($0.r) + 0.7152 * linearized($0.g) + 0.0722 * linearized($0.b)
+        }
+        let l1 = lum(a), l2 = lum(b)
+        return (max(l1, l2) + 0.05) / (min(l1, l2) + 0.05)
+    }
+
     // MARK: 渐变
 
     /// Dark 画布:夜蓝深邃。

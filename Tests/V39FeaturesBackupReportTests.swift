@@ -128,7 +128,8 @@ final class V39FeaturesBackupReportTests: XCTestCase {
         let now = fixedDate(2026, 1, 15)
         let performances = [
             Performance(amount: 800, note: "本月", date: fixedDate(2026, 1, 10), incomeSource: "门店"),
-            Performance(amount: 400, note: "上年12月", date: fixedDate(2025, 12, 20), incomeSource: "门店"),
+            // V3.9.1 P0-1 口径重定:now=1月15日,上期同期为上年12月1–15日,样本须落入同期内
+            Performance(amount: 400, note: "上年12月", date: fixedDate(2025, 12, 10), incomeSource: "门店"),
         ]
         let report = MonthlyReportBuilder.build(performances: performances, expenses: [], todos: [], now: now)
         XCTAssertEqual(report.monthLabel, "2026年1月")
@@ -142,7 +143,8 @@ final class V39FeaturesBackupReportTests: XCTestCase {
         let now = fixedDate(2026, 3, 15)
         let performances = [
             Performance(amount: 600, note: "本月", date: fixedDate(2026, 3, 10), incomeSource: "门店"),
-            Performance(amount: 300, note: "上月2月", date: fixedDate(2026, 2, 20), incomeSource: "门店"),
+            // V3.9.1 P0-1 口径重定:now=3月15日,上期同期为2月1–15日,样本须落入同期内
+            Performance(amount: 300, note: "上月2月", date: fixedDate(2026, 2, 10), incomeSource: "门店"),
         ]
         let report = MonthlyReportBuilder.build(performances: performances, expenses: [], todos: [], now: now)
         XCTAssertEqual(report.monthLabel, "2026年3月")

@@ -19,6 +19,18 @@ struct BackupPreview: Equatable {
     let backupCounts: [String: Int]
     /// 当前库各类型条数(同一套键)。
     let currentCounts: [String: Int]
+    /// V3.9.1 P0-3 去重预览:预计新增 / 已存在跳过(nil = 未计算,保持旧调用兼容)。
+    let dedupToInsert: Int?
+    let dedupSkipped: Int?
+
+    init(exportedAt: Date, backupCounts: [String: Int], currentCounts: [String: Int],
+         dedupToInsert: Int? = nil, dedupSkipped: Int? = nil) {
+        self.exportedAt = exportedAt
+        self.backupCounts = backupCounts
+        self.currentCounts = currentCounts
+        self.dedupToInsert = dedupToInsert
+        self.dedupSkipped = dedupSkipped
+    }
 
     var backupTotal: Int { backupCounts.values.reduce(0, +) }
     var currentTotal: Int { currentCounts.values.reduce(0, +) }

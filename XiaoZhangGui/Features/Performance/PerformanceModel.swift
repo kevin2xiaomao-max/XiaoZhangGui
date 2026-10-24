@@ -117,6 +117,27 @@ struct IncomeSourceSummary: Identifiable {
     let ratio: Double
     var id: IncomeSource { source }
 
+    /// 展示用整百分比(最大余数法):逐项四舍五入会使合计 101% 或 99%,
+    /// 本函数保证合计恒为 100%(总额 > 0 时)。条宽仍用原始 ratio,不受影响。
+    static func displayPercents(for summaries: [IncomeSourceSummary]) -> [Int] {
+        guard !summaries.isEmpty else { return [] }
+        let total = summaries.reduce(0) { $0 + $1.amount }
+        guard total > 0 else { return summaries.map { _ in 0 } }
+        let raw = summaries.map { $0.ratio * 100 }
+        var result = raw.map { Int($0.rounded(.down)) }
+        var leftover = 100 - result.reduce(0, +)
+        let order = raw.enumerated()
+            .sorted { ($0.element - Double(Int($0.element))) > ($1.element - Double(Int($1.element))) }
+            .map(\.offset)
+        var i = 0
+        while leftover > 0, !order.isEmpty {
+            result[order[i % order.count]] += 1
+            leftover -= 1
+            i += 1
+        }
+        return result
+    }
+
     static func compute(performances: [Performance], range: (start: Date, end: Date)) -> [IncomeSourceSummary] {
         let filtered = performances.filter { $0.date >= range.start && $0.date <= range.end }
         let total = filtered.reduce(0) { $0 + $1.amount }

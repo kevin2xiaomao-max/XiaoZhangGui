@@ -387,7 +387,17 @@ struct ProfileView: View {
         defer { if secured { url.stopAccessingSecurityScopedResource() } }
         do {
             let raw = try Data(contentsOf: url)
-            pendingRestore = try BackupPreviewService.makePreview(context: context, data: raw)
+            let base = try BackupPreviewService.makePreview(context: context, data: raw)
+            // V3.9.1 P0-3:预览同时给出「预计新增 / 已存在跳过」(去重指纹口径,失败则只显示条数)。
+            if let dedup = try? BackupService.previewRestore(context: context, from: raw) {
+                pendingRestore = BackupPreview(
+                    exportedAt: base.exportedAt, backupCounts: base.backupCounts,
+                    currentCounts: base.currentCounts,
+                    dedupToInsert: dedup.toInsert, dedupSkipped: dedup.skipped
+                )
+            } else {
+                pendingRestore = base
+            }
             pendingRestoreData = raw
         } catch {
             Haptic.error()
@@ -395,13 +405,16 @@ struct ProfileView: View {
         }
     }
 
-    /// 预览确认后执行真正的恢复。
+    /// 预览确认后执行真正的恢复(V3.9.1 P0-3:完成反馈分列新增/跳过/失败)。
     private func confirmRestore() {
         guard let data = pendingRestoreData else { return }
         do {
-            let count = try BackupService.restore(context: context, from: data)
+            let result = try BackupService.restoreDetailed(context: context, from: data)
             Haptic.success()
-            showToast("已恢复 \(count) 条记录")
+            var parts = ["已恢复 \(result.inserted) 条"]
+            if result.skipped > 0 { parts.append("跳过重复 \(result.skipped) 条") }
+            if result.failed > 0 { parts.append("失败 \(result.failed) 条") }
+            showToast(parts.joined(separator: "，"))
         } catch {
             Haptic.error()
             showToast("恢复失败：\(error.localizedDescription)")
@@ -420,8 +433,12 @@ struct ProfileView: View {
             return "\(BackupPreview.displayNames[key] ?? key) \(n) 条"
         }
         let summary = parts.isEmpty ? "备份内没有记录" : "备份内含：" + parts.joined(separator: "、")
+        var dedupLine = ""
+        if let toInsert = preview.dedupToInsert, let skipped = preview.dedupSkipped {
+            dedupLine = "预计新增 \(toInsert) 条，已存在跳过 \(skipped) 条（重复恢复不会翻倍）。"
+        }
         return """
-            \(backupDate) 导出的备份。\(summary)。当前库共 \(preview.currentTotal) 条记录。\
+            \(backupDate) 导出的备份。\(summary)。当前库共 \(preview.currentTotal) 条记录。\(dedupLine)\
             恢复为追加合并，不会删除现有数据。
             """
     }

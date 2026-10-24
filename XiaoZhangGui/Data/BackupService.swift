@@ -30,8 +30,9 @@ enum BackupError: LocalizedError {
 
 enum BackupService {
     static let appName = "xiao-zhang-gui"
-    /// v2：字段对称（状态/时间/图片 base64/扫呗字段）；读取侧同时兼容 v1
-    static let formatVersion = 2
+    /// v3：新增每条记录稳定 id（内容指纹，见 fingerprint）；读取侧同时兼容 v1/v2。
+    /// v1/v2 备份无 id 时，恢复侧按同一指纹算法从字段现算（保守去重，见下）。
+    static let formatVersion = 3
     static let fileName = "xiao-zhang-gui-backup.json"
 
     // MARK: - 导出
@@ -76,6 +77,7 @@ enum BackupService {
         for todo in todos {
             var d: [String: Any] = [
                 "type": "todo",
+                "id": fingerprint(todo: todo),
                 "title": todo.title,
                 "detail": todo.detail,
                 "priority": todo.priority,
@@ -90,6 +92,7 @@ enum BackupService {
         for memo in memos {
             var d: [String: Any] = [
                 "type": "memo",
+                "id": fingerprint(memo: memo),
                 "title": memo.title,
                 "content": memo.content,
                 "createdAt": millis(memo.createdAt),
@@ -101,6 +104,7 @@ enum BackupService {
         for performance in performances {
             records.append([
                 "type": "performance",
+                "id": fingerprint(performance: performance),
                 "amount": performance.amount,
                 "note": performance.note,
                 "date": millis(performance.date),
@@ -114,6 +118,7 @@ enum BackupService {
         for expense in expenses {
             records.append([
                 "type": "expense",
+                "id": fingerprint(expense: expense),
                 "amount": expense.amount,
                 "category": expense.category,
                 "note": expense.note,
@@ -124,6 +129,7 @@ enum BackupService {
         for item in expiryItems {
             var d: [String: Any] = [
                 "type": "expiry",
+                "id": fingerprint(expiryItem: item),
                 "name": item.name,
                 "category": item.category,
                 "quantity": item.quantity,
@@ -141,6 +147,7 @@ enum BackupService {
         for request in customers {
             var d: [String: Any] = [
                 "type": "customer",
+                "id": fingerprint(customer: request),
                 // customer 字段内含 deliveryTime / note 的编码串（CustomerDeliveryStorage），
                 // 必须随备份恢复，配送时间才能 round-trip
                 "customer": request.customer,
@@ -157,6 +164,7 @@ enum BackupService {
         for item in goods {
             var d: [String: Any] = [
                 "type": "goods",
+                "id": fingerprint(goods: item),
                 "name": item.name,
                 "category": item.category,
                 "barcode": item.barcode,
@@ -205,13 +213,144 @@ enum BackupService {
         return url
     }
 
-    // MARK: - 恢复
 
-    /// 解析备份并以「追加」方式恢复进当前 context（不清空现有数据，与旧版恢复语义一致）。
-    /// - 直接构造模型、单次 save；完成后统一重建通知、刷新一次快照。
-    @discardableResult
+    // MARK: - V3.9.1 P0-3 · 稳定记录身份(内容指纹,无 Schema 变更)
+    //
+    // 原理:指纹 = 该记录全部导出字段的连接串(类型 + 关键字段 + 状态/时间(秒级) + 图片 base64)。
+    // - 新备份(v3)导出时写入 id;恢复时优先认 id,无 id 的旧备份现算同一指纹。
+    // - 保守性:只认「全部字段一致」才算重复;同额不同备注/日期/标题的合法交易指纹不同,
+    //   绝不只凭金额或粗糙时间+备注去重。代价:同一秒内、全部字段逐字相同的两条记录
+    //   会被视为同一条(与恢复重复在导出字段上不可区分,这是保守去重的既定取舍)。
+    // - 时间取秒级截断:毫秒 Double 经 JSON 往返有亚毫秒浮点误差,秒级可保证导出/恢复指纹一致;
+    //   归一化默认值与 restore 构造完全一致(v1 无 completedAt 的已完成待办补 exportedAt 等),
+    //   否则旧备份第二次恢复仍会因默认值漂移而重复。
+    // - 图片参与指纹:同名同字段但图片不同的记录不算重复。
+
+    struct RestoreResult {
+        let inserted: Int
+        let skipped: Int
+        let failed: Int
+        let insertedByType: [String: Int]
+        let skippedByType: [String: Int]
+    }
+
+    struct RestorePreview {
+        let toInsert: Int
+        let skipped: Int
+        let failed: Int
+        let toInsertByType: [String: Int]
+        let skippedByType: [String: Int]
+    }
+
+    private static func fpSec(_ date: Date) -> String { "\(Int64(date.timeIntervalSince1970))" }
+    private static func fpSecOpt(_ date: Date?) -> String { date.map(fpSec) ?? "-" }
+    private static func fpNum(_ value: Double) -> String { "\(value)" }
+    private static func fpImage(_ data: Data?) -> String { data?.base64EncodedString() ?? "" }
+    private static func fp(_ parts: [String]) -> String { parts.joined(separator: "\u{1F}") }
+
+    static func fingerprint(todo: Todo) -> String {
+        fp(["todo", todo.title, todo.detail, "\(todo.priority)", todo.isCompleted ? "1" : "0",
+            fpSec(todo.createdAt), fpSecOpt(todo.dueDate), fpSecOpt(todo.completedAt), fpImage(todo.imageData)])
+    }
+    static func fingerprint(memo: Memo) -> String {
+        fp(["memo", memo.title, memo.content, fpSec(memo.createdAt), fpSec(memo.updatedAt), fpImage(memo.imageData)])
+    }
+    static func fingerprint(performance: Performance) -> String {
+        fp(["performance", fpNum(performance.amount), performance.note, fpSec(performance.date),
+            performance.fingerprint, performance.paymentMethod, performance.orderNo,
+            performance.importSource, performance.incomeSource])
+    }
+    static func fingerprint(expense: Expense) -> String {
+        fp(["expense", fpNum(expense.amount), expense.category, expense.note, fpSec(expense.date), fpSec(expense.createdAt)])
+    }
+    static func fingerprint(expiryItem: ExpiryItem) -> String {
+        fp(["expiry", expiryItem.name, expiryItem.category, "\(expiryItem.quantity)",
+            fpSecOpt(expiryItem.productionDate), fpSec(expiryItem.expiryDate), "\(expiryItem.remindDaysBefore)",
+            expiryItem.note, expiryItem.returnStatus, fpSecOpt(expiryItem.returnedAt), fpImage(expiryItem.imageData)])
+    }
+    static func fingerprint(customer: CustomerRequest) -> String {
+        fp(["customer", customer.customer, customer.roomOrAddress, customer.phone, customer.content,
+            customer.status, fpSec(customer.createdAt), fpSec(customer.updatedAt), fpImage(customer.imageData)])
+    }
+    static func fingerprint(goods: Goods) -> String {
+        fp(["goods", goods.name, goods.category, goods.barcode, "\(goods.stock)", "\(goods.minStock)",
+            fpNum(goods.purchasePrice), fpNum(goods.salePrice), fpSecOpt(goods.productionDate),
+            "\(goods.shelfLifeDays)", fpSecOpt(goods.expiryDate), goods.note,
+            fpSec(goods.createdAt), fpSec(goods.updatedAt), fpImage(goods.imageData)])
+    }
+
+    /// 备份记录指纹:优先用 v3 的 id;旧备份按与 restore 构造一致的归一化字段现算。
+    /// 返回 nil = 类型未知或无法识别(调用方计 failed,不落库)。
+    static func fingerprintForRecord(_ item: [String: Any], exportedAt: Date) -> (type: String, fingerprint: String)? {
+        let reader = RecordReader(item, exportedAt: exportedAt)
+        switch reader.string("type") {
+        case "todo":
+            let completedAt = reader.date("completedAt") ?? (reader.bool("isCompleted") ? exportedAt : nil)
+            return ("todo", fp(["todo", reader.string("title"), reader.string("detail"),
+                "\(reader.int("priority") ?? 0)", reader.bool("isCompleted") ? "1" : "0",
+                fpSec(reader.date("createdAt") ?? exportedAt), fpSecOpt(reader.date("dueDate")),
+                fpSecOpt(completedAt), reader.string("imageBase64")]))
+        case "memo":
+            return ("memo", fp(["memo", reader.string("title"), reader.string("content"),
+                fpSec(reader.date("createdAt") ?? exportedAt),
+                fpSec(reader.date("updatedAt") ?? reader.date("createdAt") ?? exportedAt),
+                reader.string("imageBase64")]))
+        case "performance":
+            let income = IncomeSource(rawValue: reader.string("incomeSource"))?.rawValue ?? IncomeSource.store.rawValue
+            return ("performance", fp(["performance", fpNum(reader.double("amount")), reader.string("note"),
+                fpSec(reader.date("date") ?? exportedAt), reader.string("fingerprint"),
+                reader.string("paymentMethod"), reader.string("orderNo"), reader.string("importSource"), income]))
+        case "expense":
+            let category = reader.string("category").isEmpty ? "其他" : reader.string("category")
+            return ("expense", fp(["expense", fpNum(reader.double("amount")), category, reader.string("note"),
+                fpSec(reader.date("date") ?? exportedAt), fpSec(reader.date("createdAt") ?? exportedAt)]))
+        case "expiry":
+            let status = reader.statusString("returnStatus", valid: [ReturnStatus.pending.rawValue, ReturnStatus.returned.rawValue])
+                ?? ReturnStatus.pending.rawValue
+            let returnedAt = reader.date("returnedAt") ?? (status == ReturnStatus.returned.rawValue ? exportedAt : nil)
+            return ("expiry", fp(["expiry", reader.string("name"), reader.string("category"),
+                "\(reader.int("quantity") ?? 1)", fpSecOpt(reader.date("productionDate")),
+                fpSec(reader.date("expiryDate") ?? exportedAt), "\(reader.int("remindDaysBefore") ?? 7)",
+                reader.string("note"), status, fpSecOpt(returnedAt), reader.string("imageBase64")]))
+        case "customer":
+            let status = reader.statusString("status", valid: [CustomerStatus.pending.rawValue,
+                CustomerStatus.delivering.rawValue, CustomerStatus.done.rawValue]) ?? CustomerStatus.pending.rawValue
+            let createdAt = reader.date("createdAt") ?? exportedAt
+            return ("customer", fp(["customer", reader.string("customer"), reader.string("roomOrAddress"),
+                reader.string("phone"), reader.string("content"), status, fpSec(createdAt),
+                fpSec(reader.date("updatedAt") ?? createdAt), reader.string("imageBase64")]))
+        case "goods":
+            let category = reader.string("category").isEmpty ? "其他" : reader.string("category")
+            return ("goods", fp(["goods", reader.string("name"), category, reader.string("barcode"),
+                "\(reader.int("stock") ?? 0)", "\(reader.int("minStock") ?? 0)",
+                fpNum(reader.double("purchasePrice")), fpNum(reader.double("salePrice")),
+                fpSecOpt(reader.date("productionDate")), "\(reader.int("shelfLifeDays") ?? 0)",
+                fpSecOpt(reader.date("expiryDate")), reader.string("note"),
+                fpSec(reader.date("createdAt") ?? exportedAt),
+                fpSec(reader.date("updatedAt") ?? reader.date("createdAt") ?? exportedAt),
+                reader.string("imageBase64")]))
+        default:
+            return nil
+        }
+    }
+
+    /// 当前库全部记录的指纹集(恢复/预览共用)。
     @MainActor
-    static func restore(context: ModelContext, from data: Data) throws -> Int {
+    static func existingFingerprints(context: ModelContext) throws -> Set<String> {
+        var set = Set<String>()
+        for todo in try context.fetch(FetchDescriptor<Todo>()) { set.insert(fingerprint(todo: todo)) }
+        for memo in try context.fetch(FetchDescriptor<Memo>()) { set.insert(fingerprint(memo: memo)) }
+        for performance in try context.fetch(FetchDescriptor<Performance>()) { set.insert(fingerprint(performance: performance)) }
+        for expense in try context.fetch(FetchDescriptor<Expense>()) { set.insert(fingerprint(expense: expense)) }
+        for item in try context.fetch(FetchDescriptor<ExpiryItem>()) { set.insert(fingerprint(expiryItem: item)) }
+        for request in try context.fetch(FetchDescriptor<CustomerRequest>()) { set.insert(fingerprint(customer: request)) }
+        for item in try context.fetch(FetchDescriptor<Goods>()) { set.insert(fingerprint(goods: item)) }
+        return set
+    }
+
+    /// 只解析不落库的恢复预览:预计新增 / 已存在跳过 / 无法识别失败,按类型分列。
+    @MainActor
+    static func previewRestore(context: ModelContext, from data: Data) throws -> RestorePreview {
         guard let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw BackupError.invalidFile
         }
@@ -220,13 +359,76 @@ enum BackupService {
         }
         let exportedAt = (payload["exportedAt"] as? NSNumber)
             .map { Date(timeIntervalSince1970: $0.doubleValue / 1000) } ?? Date()
-
-        var count = 0
+        let existing = try existingFingerprints(context: context)
+        var seen = Set<String>()
+        var toInsert = 0, skipped = 0, failed = 0
+        var toInsertByType: [String: Int] = [:], skippedByType: [String: Int] = [:]
         for item in records {
+            // v3 id 优先:若记录自带 id 且库中/文件内已见,直接跳过(不依赖现算指纹)。
+            if let id = item["id"] as? String, !id.isEmpty, (existing.contains(id) || seen.contains(id)) {
+                skipped += 1; skippedByType[item["type"] as? String ?? "unknown", default: 0] += 1; continue
+            }
+            guard let (type, fingerprint) = fingerprintForRecord(item, exportedAt: exportedAt) else {
+                failed += 1; continue
+            }
+            if existing.contains(fingerprint) || seen.contains(fingerprint) {
+                skipped += 1; skippedByType[type, default: 0] += 1
+            } else {
+                seen.insert(fingerprint)
+                toInsert += 1; toInsertByType[type, default: 0] += 1
+            }
+        }
+        return RestorePreview(toInsert: toInsert, skipped: skipped, failed: failed,
+                              toInsertByType: toInsertByType, skippedByType: skippedByType)
+    }
+
+    // MARK: - 恢复
+
+    /// 解析备份并以「追加」方式恢复进当前 context（不清空现有数据，与旧版恢复语义一致）。
+    /// V3.9.1 P0-3 语义：
+    /// - 幂等：同一文件连续恢复两次，第二次新增为 0（文件内重复同样只插一次）。
+    /// - 校验先行：JSON/ records 结构非法时在插入任何记录前抛错，库 untouched；
+    ///   单条未知类型只计 failed 跳过，不中断其余记录。
+    /// - 保存失败回滚：save() 抛错时删除本轮新插对象并再次 save（尽力回滚），再原样抛错，
+    ///   避免「部分数据留下造成混乱」；通知/快照只在 save 成功后统一刷新一次。
+    @discardableResult
+    @MainActor
+    static func restore(context: ModelContext, from data: Data) throws -> Int {
+        try restoreDetailed(context: context, from: data).inserted
+    }
+
+    @MainActor
+    static func restoreDetailed(context: ModelContext, from data: Data) throws -> RestoreResult {
+        guard let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw BackupError.invalidFile
+        }
+        guard let records = payload["records"] as? [[String: Any]] else {
+            throw BackupError.invalidRecords
+        }
+        let exportedAt = (payload["exportedAt"] as? NSNumber)
+            .map { Date(timeIntervalSince1970: $0.doubleValue / 1000) } ?? Date()
+        let existing = try existingFingerprints(context: context)
+        var seen = Set<String>()
+        var insertedObjects: [any PersistentModel] = []
+        var inserted = 0, skipped = 0, failed = 0
+        var insertedByType: [String: Int] = [:], skippedByType: [String: Int] = [:]
+
+        for item in records {
+            if let id = item["id"] as? String, !id.isEmpty, (existing.contains(id) || seen.contains(id)) {
+                skipped += 1; skippedByType[item["type"] as? String ?? "unknown", default: 0] += 1; continue
+            }
+            guard let (type, fingerprint) = fingerprintForRecord(item, exportedAt: exportedAt) else {
+                failed += 1; continue
+            }
+            if existing.contains(fingerprint) || seen.contains(fingerprint) {
+                skipped += 1; skippedByType[type, default: 0] += 1; continue
+            }
+            seen.insert(fingerprint)
             let reader = RecordReader(item, exportedAt: exportedAt)
-            switch reader.string("type") {
+            let object: any PersistentModel
+            switch type {
             case "todo":
-                context.insert(Todo(
+                object = Todo(
                     title: reader.string("title"),
                     detail: reader.string("detail"),
                     dueDate: reader.date("dueDate"),
@@ -234,19 +436,18 @@ enum BackupService {
                     imageData: reader.image("imageBase64"),
                     isCompleted: reader.bool("isCompleted"),
                     createdAt: reader.date("createdAt") ?? exportedAt,
-                    // v1 备份无 completedAt：已完成项用导出时间补齐，保证「今日已完成」语义可追踪
                     completedAt: reader.date("completedAt") ?? (reader.bool("isCompleted") ? exportedAt : nil)
-                ))
+                )
             case "memo":
-                context.insert(Memo(
+                object = Memo(
                     title: reader.string("title"),
                     content: reader.string("content"),
                     imageData: reader.image("imageBase64"),
                     createdAt: reader.date("createdAt") ?? exportedAt,
                     updatedAt: reader.date("updatedAt") ?? reader.date("createdAt") ?? exportedAt
-                ))
+                )
             case "performance":
-                context.insert(Performance(
+                object = Performance(
                     amount: reader.double("amount"),
                     note: reader.string("note"),
                     date: reader.date("date") ?? exportedAt,
@@ -254,22 +455,21 @@ enum BackupService {
                     paymentMethod: reader.string("paymentMethod"),
                     orderNo: reader.string("orderNo"),
                     importSource: reader.string("importSource"),
-                    // 空则派生 .store，兼容旧备份
                     incomeSource: IncomeSource(rawValue: reader.string("incomeSource"))?.rawValue ?? IncomeSource.store.rawValue
-                ))
+                )
             case "expense":
-                context.insert(Expense(
+                object = Expense(
                     amount: reader.double("amount"),
                     category: reader.string("category").isEmpty ? "其他" : reader.string("category"),
                     note: reader.string("note"),
                     date: reader.date("date") ?? exportedAt,
                     createdAt: reader.date("createdAt") ?? exportedAt
-                ))
+                )
             case "expiry":
                 let returnStatus = reader.statusString("returnStatus", valid: [
                     ReturnStatus.pending.rawValue, ReturnStatus.returned.rawValue,
                 ]) ?? ReturnStatus.pending.rawValue
-                context.insert(ExpiryItem(
+                object = ExpiryItem(
                     name: reader.string("name"),
                     category: reader.string("category"),
                     quantity: reader.int("quantity") ?? 1,
@@ -282,7 +482,7 @@ enum BackupService {
                     returnStatus: returnStatus,
                     returnedAt: reader.date("returnedAt")
                         ?? (returnStatus == ReturnStatus.returned.rawValue ? exportedAt : nil)
-                ))
+                )
             case "customer":
                 let status = reader.statusString("status", valid: [
                     CustomerStatus.pending.rawValue,
@@ -290,7 +490,7 @@ enum BackupService {
                     CustomerStatus.done.rawValue,
                 ]) ?? CustomerStatus.pending.rawValue
                 let createdAt = reader.date("createdAt") ?? exportedAt
-                context.insert(CustomerRequest(
+                object = CustomerRequest(
                     customer: reader.string("customer"),
                     roomOrAddress: reader.string("roomOrAddress"),
                     phone: reader.string("phone"),
@@ -299,9 +499,9 @@ enum BackupService {
                     imageData: reader.image("imageBase64"),
                     createdAt: createdAt,
                     updatedAt: reader.date("updatedAt") ?? createdAt
-                ))
+                )
             case "goods":
-                context.insert(Goods(
+                object = Goods(
                     name: reader.string("name"),
                     category: reader.string("category").isEmpty ? "其他" : reader.string("category"),
                     barcode: reader.string("barcode"),
@@ -316,15 +516,23 @@ enum BackupService {
                     imageData: reader.image("imageBase64"),
                     createdAt: reader.date("createdAt") ?? exportedAt,
                     updatedAt: reader.date("updatedAt") ?? reader.date("createdAt") ?? exportedAt
-                ))
+                )
             default:
-                continue
+                failed += 1; continue
             }
-            count += 1
+            context.insert(object)
+            insertedObjects.append(object)
+            inserted += 1; insertedByType[type, default: 0] += 1
         }
 
-        // 单次落库
-        try context.save()
+        // 单次落库；失败则尽力回滚本轮新插对象，再原样抛错。
+        do {
+            try context.save()
+        } catch {
+            for object in insertedObjects { context.delete(object) }
+            try? context.save()
+            throw error
+        }
 
         // 统一重建本地通知（各调度器内部仅安排未来时间，幂等）
         let todos = try? context.fetch(FetchDescriptor<Todo>())
@@ -335,7 +543,8 @@ enum BackupService {
         customers?.forEach { NotificationManager.rescheduleCustomer($0) }
 
         SnapshotSyncManager.refreshAll(context: context)
-        return count
+        return RestoreResult(inserted: inserted, skipped: skipped, failed: failed,
+                             insertedByType: insertedByType, skippedByType: skippedByType)
     }
 
     // MARK: - 私有工具

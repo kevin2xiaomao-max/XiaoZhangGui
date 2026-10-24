@@ -47,12 +47,12 @@ struct V39HeroCard: View {
                                 Text(String(format: "%.1f%%", abs(change)))
                                     .font(.caption.weight(.semibold).monospacedDigit())
                             }
-                            .foregroundStyle(change >= 0 ? V39Style.gold : V39Style.changeDown)
+                            .foregroundStyle(change >= 0 ? V39Palette.heroGold : V39Style.changeDown)
                             .padding(.horizontal, 7)
                             .padding(.vertical, 3)
                             .background(
                                 Capsule().fill(
-                                    (change >= 0 ? V39Style.gold : V39Style.changeDown).opacity(0.18)
+                                    (change >= 0 ? V39Palette.heroGold : V39Style.changeDown).opacity(0.18)
                                 )
                             )
                         }
@@ -67,7 +67,7 @@ struct V39HeroCard: View {
                     V39Style.heroGradient
                     // 金色微光：Hero 右上角一抹柔光（静态,无动画,RM 无关）。
                     LinearGradient(
-                        colors: [V39Style.gold.opacity(0.22), .clear],
+                        colors: [V39Palette.heroGold.opacity(0.22), .clear],
                         startPoint: .topTrailing, endPoint: .center
                     )
                     .blendMode(.plusLighter)
@@ -77,7 +77,7 @@ struct V39HeroCard: View {
             .overlay(
                 // 金色描边：高端卡片的"包边"质感。
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .strokeBorder(V39Style.gold.opacity(0.35), lineWidth: 1)
+                    .strokeBorder(V39Palette.heroGold.opacity(0.35), lineWidth: 1)
             )
             .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         }
@@ -113,7 +113,7 @@ struct V39GoalRing: View {
                 .stroke(.white.opacity(0.16), lineWidth: 6)
             Circle()
                 .trim(from: 0, to: fraction)
-                .stroke(V39Style.gold, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                .stroke(V39Palette.heroGold, style: StrokeStyle(lineWidth: 6, lineCap: .round))
                 .rotationEffect(.degrees(-90))
             VStack(spacing: 0) {
                 Text("\(Int((fraction * 100).rounded()))")

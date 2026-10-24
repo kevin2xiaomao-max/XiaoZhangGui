@@ -11,12 +11,16 @@ import SwiftData
 struct MonthlyReport {
     let monthLabel: String            // "2026年10月"
     let revenue: Double               // 本月营业额
-    let revenueChangePercent: Double? // 较上月
+    let revenueChangePercent: Double? // 较上月同期(本月至今 vs 上月同期天数)
     let expense: Double               // 本月支出合计
     let sourceSplit: [IncomeSourceSummary] // 本月来源(金额>0)
     let todoCompleted: Int
     let todoTotalTracked: Int         // 已完成 + 全部未完成(整体口径,同 V38TodoProgress)
     let trendPoints: [TrendPoint]     // 近7日(收尾趋势)
+    /// 对比文案固定为「较上月同期」,不得再写「较上月」(V3.9.1 P0-1)。
+    let comparisonLabel: String
+    /// 上期对比区间,如 "5月1日–5月15日"(空 = 无对比区间)。
+    let previousPeriodLabel: String
 
     var todoCompletionPercent: Int {
         guard todoTotalTracked > 0 else { return 0 }
@@ -45,14 +49,32 @@ enum MonthlyReportBuilder {
             .filter { $0.date >= thisMonthStart && $0.date <= thisMonthEnd }
             .reduce(0) { $0 + $1.amount }
 
-        // 较上月(上月无收入则无对比,口径同首页环比)。
+        // V3.9.1 P0-1 · 较上月同期(本月至今 vs 上月同期天数),不再拿本月至今比上月整月:
+        // - 本月第 N 天 → 上月 1 日至第 N 天;上月天数不足 N 天时钳制到上月月末
+        //   (短月规则:如 3 月 31 日比 2 月 1–28/29 日,闰年 2 月取 29 天)。
+        // - 上期收入为 0 时不显示虚假百分比(change = nil,口径同首页环比)。
+        // - 区间边界均为「日」粒度(endOfDay),漏记/重复计入皆无:本月用 start..<本月至今,
+        //   上期用上月 1 日..<同期末日,两区间互不重叠。
         var change: Double?
-        if let lastMonthInterval = cal.dateInterval(of: .month, for: cal.date(byAdding: .month, value: -1, to: now) ?? now) {
-            let lastRevenue = performances
-                .filter { $0.date >= lastMonthInterval.start && $0.date < lastMonthInterval.end }
-                .reduce(0) { $0 + $1.amount }
-            if lastRevenue > 0 {
-                change = (monthRevenue - lastRevenue) / lastRevenue * 100
+        var previousPeriodLabel = ""
+        if let prevMonthDate = cal.date(byAdding: .month, value: -1, to: now),
+           let prevInterval = cal.dateInterval(of: .month, for: prevMonthDate),
+           let prevDayCount = cal.range(of: .day, in: .month, for: prevMonthDate)?.count {
+            let dayOfMonth = cal.component(.day, from: now)
+            let prevDay = min(dayOfMonth, prevDayCount)
+            if let prevEnd = cal.date(byAdding: .day, value: prevDay - 1, to: prevInterval.start) {
+                let prevEndDay = prevEnd.endOfDay
+                let prevRevenue = performances
+                    .filter { $0.date >= prevInterval.start && $0.date <= prevEndDay }
+                    .reduce(0) { $0 + $1.amount }
+                if prevRevenue > 0 {
+                    change = (monthRevenue - prevRevenue) / prevRevenue * 100
+                }
+                let fmt: (Date) -> String = { date in
+                    let c = cal.dateComponents([.month, .day], from: date)
+                    return "\(c.month ?? 0)月\(c.day ?? 0)日"
+                }
+                previousPeriodLabel = "\(fmt(prevInterval.start))–\(fmt(prevEnd))"
             }
         }
 
@@ -74,7 +96,9 @@ enum MonthlyReportBuilder {
             sourceSplit: split,
             todoCompleted: completed,
             todoTotalTracked: completed + pending,
-            trendPoints: PerformanceTrend.last7Days(performances: performances, now: now)
+            trendPoints: PerformanceTrend.last7Days(performances: performances, now: now),
+            comparisonLabel: "较上月同期",
+            previousPeriodLabel: previousPeriodLabel
         )
     }
 }
@@ -83,6 +107,9 @@ enum MonthlyReportBuilder {
 
 struct MonthlyReportCard: View {
     let report: MonthlyReport
+    /// 分享图排版宽度:导出固定 390(见 renderShareImage);Sheet 预览传入可用宽度,
+    /// 防止小屏下 390pt 卡片溢出(V3.9.1 P1-9)。生产导出宽度不得改。
+    let width: CGFloat = 390
 
     private var maxValue: Double {
         max(report.trendPoints.map(\.value).max() ?? 0, 1)
@@ -94,21 +121,22 @@ struct MonthlyReportCard: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("掌柜的月报")
                         .font(.system(.title3, design: .rounded).weight(.bold))
-                        .foregroundStyle(V39Style.gold)
+                        .foregroundStyle(V39Palette.heroGold)
                     Text(report.monthLabel)
                         .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.7))
                 }
                 Spacer()
                 if let change = report.revenueChangePercent {
-                    Text("\(change >= 0 ? "↑" : "↓")\(String(format: "%.1f", abs(change)))% 较上月")
+                    Text("\(change >= 0 ? "↑" : "↓")\(String(format: "%.1f", abs(change)))% \(report.comparisonLabel)")
                         .font(.caption.weight(.semibold).monospacedDigit())
-                        .foregroundStyle(change >= 0 ? V39Style.gold : V39Style.changeDown)
+                        .foregroundStyle(change >= 0 ? V39Palette.heroGold : V39Style.changeDown)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
                         .background(Capsule().fill(
-                            (change >= 0 ? V39Style.gold : V39Style.changeDown).opacity(0.2)
+                            (change >= 0 ? V39Palette.heroGold : V39Style.changeDown).opacity(0.2)
                         ))
+                        .accessibilityLabel("\(report.comparisonLabel)\(change >= 0 ? "上涨" : "下降")\(String(format: "%.1f", abs(change)))%,对比区间\(report.previousPeriodLabel)")
                 }
             }
 
@@ -126,37 +154,47 @@ struct MonthlyReportCard: View {
                 }
             }
 
-            // 近7日收尾趋势
+            // 近7日收尾趋势(明确标注口径 + 每柱日期,不得只写「近7日」含糊带过)。
             VStack(alignment: .leading, spacing: 6) {
-                Text("近7日趋势")
+                Text("近7日趋势\(report.trendPoints.first.map { "（\($0.label)" } ?? "")\(report.trendPoints.last.map { "–\($0.label)）" } ?? "")")
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.6))
                 HStack(alignment: .bottom, spacing: 7) {
                     ForEach(report.trendPoints) { point in
                         let isLast = point.id == (report.trendPoints.last?.id ?? -1)
                         RoundedRectangle(cornerRadius: 3, style: .continuous)
-                            .fill(isLast ? V39Style.gold : Color.white.opacity(0.3))
+                            .fill(isLast ? V39Palette.heroGold : Color.white.opacity(0.3))
                             .frame(width: 22, height: max(CGFloat(point.value / maxValue) * 52, 4))
                     }
                 }
                 .frame(height: 52, alignment: .bottom)
+                HStack(spacing: 7) {
+                    ForEach(report.trendPoints) { point in
+                        Text(point.label)
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.white.opacity(0.55))
+                            .frame(width: 22)
+                    }
+                }
+                .accessibilityHidden(true)
             }
 
-            // 收入来源
+            // 收入来源:三色固定区分(门店浅蓝 / 美团香槟金 / 其他浅灰),深色卡上均可辨;
+            // 百分比用最大余数法取整,和为 100%(见 IncomeSourceSummary.displayPercents)。
             if !report.sourceSplit.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("收入来源")
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.6))
-                    ForEach(report.sourceSplit) { item in
+                    ForEach(Array(report.sourceSplit.enumerated()), id: \.element.id) { index, item in
                         HStack {
                             Circle()
-                                .fill(item.source == .meituan ? V39Style.gold : V39Style.navy)
+                                .fill(MonthlyReportCard.sourceColor(for: item.source))
                                 .frame(width: 6, height: 6)
                             Text(item.source.rawValue)
                                 .font(.footnote)
                                 .foregroundStyle(.white.opacity(0.85))
-                            Text("¥" + Fmt.groupedAmount(item.amount) + " · \(String(format: "%.0f%%", item.ratio * 100))")
+                            Text("¥" + Fmt.groupedAmount(item.amount) + " · \(IncomeSourceSummary.displayPercents(for: report.sourceSplit)[index])%")
                                 .font(.footnote.monospacedDigit())
                                 .foregroundStyle(.white.opacity(0.6))
                         }
@@ -165,18 +203,19 @@ struct MonthlyReportCard: View {
             }
 
             HStack {
-                Label("待办完成 \(report.todoCompletionPercent)%", systemImage: "checklist")
+                // 待办口径明确标注:当前统计为全部历史待办(同 V38TodoProgress),非本月待办。
+                Label("待办完成 \(report.todoCompletionPercent)%（全部历史待办）", systemImage: "checklist")
                 Spacer()
                 Text("你的小掌柜")
                     .font(.caption2.weight(.semibold))
-                    .foregroundStyle(V39Style.gold.opacity(0.8))
+                    .foregroundStyle(V39Palette.heroGold.opacity(0.8))
             }
             .font(.footnote)
             .foregroundStyle(.white.opacity(0.7))
             .padding(.top, 2)
         }
         .padding(24)
-        .frame(width: 390, alignment: .leading)
+        .frame(width: width, alignment: .leading)
         .background(
             ZStack {
                 V39Palette.heroGradient
@@ -198,20 +237,34 @@ struct MonthlyReportSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var shareImage: Image?
 
+    /// 分享图图例固定色:深色卡面上三色可辨,不随系统明暗漂移(P0-2)。
+    static func sourceColor(for source: IncomeSource) -> Color {
+        switch source {
+        case .store: return V39Palette.sourceStoreFixed
+        case .meituan: return V39Palette.heroGold
+        case .other: return V39Palette.sourceOtherFixed
+        }
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 18) {
-                    MonthlyReportCard(report: report)
-                        .accessibilityIdentifier("v39.report.card")
+                    // 预览按可用宽度缩放排版(导出仍固定 390,见 renderShareImage)。
+                    GeometryReader { geo in
+                        MonthlyReportCard(report: report, width: min(390, max(280, geo.size.width)))
+                            .accessibilityIdentifier("v39.report.card")
+                    }
+                    .frame(height: 560)
                     if let shareImage {
+                        // P0-2:金底必须配深色文字(白字在金底上仅约 1.6:1,深色字 >7:1)。
                         ShareLink("分享月报图片", item: shareImage, preview: SharePreview("掌柜的月报", image: shareImage))
                             .font(.headline)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(V39Palette.heroInk)
                             .frame(maxWidth: .infinity, minHeight: 50)
                             .background(
                                 RoundedRectangle(cornerRadius: V371.Radius.control, style: .continuous)
-                                    .fill(V39Palette.gold)
+                                    .fill(V39Palette.heroGold)
                             )
                             .accessibilityIdentifier("v39.report.share")
                     }
