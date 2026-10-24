@@ -13,6 +13,8 @@ enum AppDeepLink: Equatable {
     case quickRecord
     /// 新：小掌柜 AI 页；voiceMode=true 时同时拉起短语音面板
     case ai(voiceMode: Bool)
+    /// V3.9.2 PR-I:掌柜晨报——回首页即见晨报卡(卡在趋势卡与 AI 胶囊之间)
+    case morningBrief
 
     /// 从 URL 解析；无法识别返回 nil（调用方忽略，不崩溃）。
     static func route(url: URL) -> AppDeepLink? {
@@ -31,6 +33,8 @@ enum AppDeepLink: Equatable {
         case "ai":
             let mode = queryItems.first(where: { $0.name == "mode" })?.value?.lowercased()
             return .ai(voiceMode: mode == "voice")
+        case "morningbrief", "brief":
+            return .morningBrief
         default:
             return nil
         }

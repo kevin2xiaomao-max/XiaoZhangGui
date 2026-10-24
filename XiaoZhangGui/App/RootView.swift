@@ -99,6 +99,10 @@ struct RootView: View {
             }
             showAI = true
             showAIVoice = voiceMode
+        case .morningBrief:
+            // V3.9.2 PR-I:晨报卡固定在首页(趋势卡与 AI 胶囊之间),回首页即见;
+            // 不做 RootView 级 Sheet,避免与 HomeView 局部状态形成双数据源。
+            tab = .home
         }
     }
 }

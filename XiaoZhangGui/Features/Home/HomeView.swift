@@ -34,7 +34,8 @@ struct HomeView: View {
     @Query private var performances: [Performance]
     @Query private var expiryItems: [ExpiryItem]
     @Query private var customers: [CustomerRequest]
-    @Query(sort: \Memo.updatedAt, order: .reverse) private var memos: [Memo]
+    // V3.9.2 PR-I:快捷行删除后首页已无备忘消费点,移除死查询(每次 body 白拉全表);
+    // 需要备忘数据时按路由进 MemoView,不在首页预取。
     @State private var route: HomeRoute?
     // V3.7.1 起的首页待办操作失败反馈:FlowConsistencyTests 以源码审计
     // 「首页入口同样须等 Repository 成功」;toggleTodo 目前未被行内调用,
@@ -42,6 +43,9 @@ struct HomeView: View {
     @State private var stateActionError: String?
     @State private var showWeatherSheet = false
     @State private var weatherModel = WeatherViewModel()
+    /// V3.9.2 PR-I:掌柜晨报(已读状态存 UserDefaults,跨天自动未读)。
+    @State private var showMorningBrief = false
+    @AppStorage(MorningBriefStore.readOnKey) private var morningBriefReadOn: String = ""
 
     // V3.8 PR-D C3：展示型大数字随系统动态字体档位缩放（基准确认默认视觉不变）。
     @ScaledMetric(relativeTo: .largeTitle) private var heroAmountSize: CGFloat = 54
@@ -92,6 +96,7 @@ struct HomeView: View {
                 heroCard(agg)
                 statChipsRow(agg)
                 trendAndSourceSection(agg)
+                briefSection(agg)
                 aiSection
                 mattersSection(agg)
                 V371ScrollEndMarker(identifier: V371AccessibilityID.scrollEndHome)
@@ -123,6 +128,17 @@ struct HomeView: View {
             WeatherDetailSheet(model: weatherModel)
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showMorningBrief) {
+            MorningBriefSheet(
+                brief: MorningBriefBuilder.build(
+                    performances: performances, todos: todos,
+                    expiryItems: expiryItems, customers: customers,
+                    monthGoal: MonthlyBusinessMetrics.goal(isDemoEnabled: demo.isEnabled, settingsGoal: settings.monthGoal)
+                )
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
         }
         .task { weatherModel.loadIfNeeded() }
     }
@@ -291,6 +307,28 @@ struct HomeView: View {
             V39SourceBar(
                 summaries: agg.sourceSummaries,
                 onTap: { route = .performance }
+            )
+        }
+    }
+
+    // MARK: - V3.9.2 PR-I · 掌柜晨报卡(开店前 30 秒总览)
+
+    private func briefSection(_ agg: HomeAggregates) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            V38HomeSectionHeader(title: "掌柜晨报")
+            MorningBriefCard(
+                brief: MorningBriefBuilder.build(
+                    performances: performances, todos: todos,
+                    expiryItems: expiryItems, customers: customers,
+                    monthGoal: agg.monthGoal
+                ),
+                isRead: morningBriefReadOn == MorningBriefStore.dayKey(Date()),
+                onTap: {
+                    // 打开即视为已读(金点消失);详情数据在 Sheet 内按当下时刻重算。
+                    MorningBriefStore.markRead()
+                    morningBriefReadOn = MorningBriefStore.dayKey(Date())
+                    showMorningBrief = true
+                }
             )
         }
     }

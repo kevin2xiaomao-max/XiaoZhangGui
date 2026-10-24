@@ -319,6 +319,12 @@ struct ProfileView: View {
             valueTrailing(BackupReminder.weeklyReminderEnabled ? "已开启" : "已关闭")
         }
         V371Divider()
+        // V3.9.2 PR-I:每日晨报提醒开关(本地通知,每天 8:00;内容进 App 当场计算)。
+        WorkRow(icon: "sun.horizon", iconColor: MorningBriefNotifier.dailyReminderEnabled ? V39Style.gold : V371.Colors.gray,
+                title: "每日晨报提醒", action: { toggleMorningBriefReminder() }) {
+            valueTrailing(MorningBriefNotifier.dailyReminderEnabled ? "已开启" : "已关闭")
+        }
+        V371Divider()
         WorkRow(icon: "arrow.clockwise", iconColor: V371.Colors.gray,
                 title: "数据恢复", action: { showImporter = true }) {
             valueTrailing("先预览")
@@ -375,6 +381,19 @@ struct ProfileView: View {
             } else {
                 Haptic.light()
                 showToast(next ? "每周一上午 10 点提醒你备份" : "已关闭备份提醒")
+            }
+        }
+    }
+
+    /// V3.9.2 PR-I:每日晨报提醒开关(每天 8:00,重复;授权纪律与备份提醒一致)。
+    private func toggleMorningBriefReminder() {
+        let next = !MorningBriefNotifier.dailyReminderEnabled
+        MorningBriefNotifier.setDailyReminder(next) { ok in
+            if next, !ok {
+                showNotificationDeniedAlert = true
+            } else {
+                Haptic.light()
+                showToast(next ? "每天早上 8 点提醒你看晨报" : "已关闭晨报提醒")
             }
         }
     }
