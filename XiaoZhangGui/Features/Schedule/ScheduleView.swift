@@ -12,6 +12,13 @@ import SwiftUI
 //
 // 数据复用 CalendarAgenda + ScheduleAgenda；计算语义零改动（§15 受保护核心）。
 // V3.8 改动仅限展示层与密度状态，业务链（toggle/导航路由/数据派生）与 V3.7.1 一致。
+//
+// V3.9.2 PR-K · 日历页 V39 化(仅视觉层,零业务链改动):
+// - 今日 = 固定香槟金实心圆(heroGold) + 深墨字(heroInk),深浅系统同一份(WCAG ≈9:1)
+// - 选中 = 自适应金环(V39Style.gold),与首页/经营页的金语言对齐
+// - 密度 chips 激活 = 金底深墨字;「今天」按钮/「+」新增 = 金色操作色
+// - 事项状态点/完成绿等状态色语义不变(绿=收入/完成,蓝=待办,橙=临期)
+// - 红线:不动 V38ScheduleLayout 锚点/ghost 沉降/两段式勾选持久化。
 
 struct ScheduleView: View {
     @Query private var todos: [Todo]
@@ -147,7 +154,7 @@ struct ScheduleView: View {
                 } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(V371.Colors.blue)
+                        .foregroundStyle(V39Style.gold)
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
@@ -197,7 +204,7 @@ struct ScheduleView: View {
                 selectedDate = Date()
             }
             .font(.subheadline.weight(.semibold))
-            .foregroundStyle(V38ScheduleStyle.accent)
+            .foregroundStyle(V39Style.gold)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
             .background(.thinMaterial, in: Capsule(style: .continuous))
@@ -534,12 +541,13 @@ struct ScheduleView: View {
         } label: {
             Text(title)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(isActive ? Color.white : V371.Colors.textSecondary)
+                // 金底配深墨字(P0-2 口径),不用白字:浅色档金偏浅,白字对比不足。
+                .foregroundStyle(isActive ? V39Palette.heroInk : V371.Colors.textSecondary)
                 .padding(.horizontal, 16)
                 .frame(minHeight: 36)
                 .background {
                     if isActive {
-                        Capsule(style: .continuous).fill(V38ScheduleStyle.accent)
+                        Capsule(style: .continuous).fill(V39Style.gold)
                     }
                 }
                 .contentShape(Capsule(style: .continuous))
@@ -702,23 +710,26 @@ struct ScheduleView: View {
         } label: {
             ZStack {
                 if isToday {
-                    Circle().fill(V38ScheduleStyle.accent)
+                    // V3.9.2:今日 = 固定香槟金圆 + 深墨数字——深浅系统同色,
+                    // 与月报卡/经营 Hero 的「固定色」纪律一致(分享/截图不漂移)。
+                    Circle().fill(V39Palette.heroGold)
                         .frame(width: 40, height: 40)
                 } else if isSelected {
-                    Circle().fill(V38ScheduleStyle.accent.opacity(0.12))
+                    Circle().fill(V39Style.gold.opacity(0.14))
                         .frame(width: 40, height: 40)
                 }
                 if isSelected {
-                    // 选中环：全网格唯一实例，切换选中日期时滑到新格，格子 frame 不变。
+                    // 选中环:全网格唯一实例,切换选中日期时滑到新格,格子 frame 不变。
+                    // 金环;今日选中时用深墨环(金底上可见)。
                     Circle()
-                        .strokeBorder(isToday ? Color.white : V38ScheduleStyle.accent, lineWidth: 1.5)
+                        .strokeBorder(isToday ? V39Palette.heroInk : V39Style.gold, lineWidth: 1.5)
                         .frame(width: 40, height: 40)
                         .matchedGeometryEffect(id: "v38.schedule.selectionRing", in: selectionAnchor)
                 }
                 VStack(spacing: 2) {
                     Text("\(monthCalendar.component(.day, from: date))")
                         .font(isSelected || isToday ? V38ScheduleStyle.dayNumberFontEmphasized : V38ScheduleStyle.dayNumberFont)
-                        .foregroundStyle(isToday ? Color.white : (isSelected ? V371.Colors.textPrimary : V371.Colors.textSecondary))
+                        .foregroundStyle(isToday ? V39Palette.heroInk : (isSelected ? V371.Colors.textPrimary : V371.Colors.textSecondary))
                     HStack(spacing: 2) {
                         if flags.hasRevenue { ScheduleEventDot(color: V371.Colors.green) }
                         if flags.hasTodo { ScheduleEventDot(color: V371.Colors.blue) }
@@ -786,7 +797,7 @@ struct ScheduleView: View {
                         Spacer(minLength: 8)
                         if date.isSameDay(as: selectedDate) {
                             Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(V371.Colors.blue)
+                                .foregroundStyle(V39Style.gold)
                                 .accessibilityHidden(true)
                         }
                     }
