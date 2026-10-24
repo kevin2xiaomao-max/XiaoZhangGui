@@ -7,7 +7,9 @@ import SwiftUI
 // - `XZG_iOS_V38_UI_Light/Dark.png`：大日期 → 今天的经营（Revenue Hero 深绿卡）
 //   → 问小掌柜（AI 胶囊）→ 今日事项（平面列表）
 // - 2026-10-23 用户确认减法：整行删除「快速记一笔 / 写备忘」快捷操作行，
-//   首页不再设重复入口；快速记录仍由深链（xzg://quickrecord）等原有路径可达。
+//   不得恢复整排或四宫格；快速记录仍由深链（xzg://quickrecord）等原有路径可达。
+// - 2026-10-24 V3.9.1 P1-6（在减法之上、非回退）：首页顶部仅设一个克制「记一笔」
+//   图标入口，复用 RootView 的 showQuickRecord Binding，不属于已删的快捷行。
 // - `02_设计与交互升级说明.md`：Editorial Content + Soft Frosted Controls +
 //   Native Interaction + Time-driven Organization
 //
@@ -366,11 +368,21 @@ struct HomeView: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("\(item.title)，\(item.subtitle)\(item.time.isEmpty ? "" : "，\(item.time)")")
+                        .accessibilityLabel("\(item.title)，\(item.subtitle)\(toneWord(item.tone).isEmpty ? "" : "，\(toneWord(item.tone))")\(item.time.isEmpty ? "" : "，\(item.time)")")
                         .accessibilityIdentifier(routeIdentifier(item.route))
                     }
                 }
             }
+        }
+    }
+
+    /// P2-A:无障碍朗读含优先级语义(紧急/临期),不只读标题与时间。
+    private func toneWord(_ tone: HomeInboxItem.Tone) -> String {
+        switch tone {
+        case .urgent: return "紧急"
+        case .warning: return "临期提醒"
+        case .accent: return "待办"
+        case .normal: return ""
         }
     }
 

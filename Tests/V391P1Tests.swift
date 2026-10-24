@@ -136,6 +136,14 @@ final class V391P1Tests: XCTestCase {
         XCTAssertEqual(state.requestedTab, .today)
     }
 
+    // MARK: - P2-A 金额格式分工锁定(明细 2 位小数 / 大数字整数千分位,精度不丢)
+
+    func testAmountFormatsAreStableByRole() {
+        XCTAssertEqual(Fmt.money(1234.5), "¥1,234.50", "明细金额恒为 2 位小数")
+        XCTAssertEqual(Fmt.groupedAmount(1234.4), "1,234", "Hero 大数字为整数千分位")
+        XCTAssertEqual(Fmt.money(0), "¥0.00")
+    }
+
     // MARK: - P2-C 金额精度约束(持久化仍为 Double,合计走整分)
 
     func testMoneyPrecisionGuards() {

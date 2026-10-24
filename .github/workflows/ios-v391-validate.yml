@@ -1,8 +1,8 @@
-# XZG iOS V3.8 isolated validation (PoC-only branch; M0 recovery BLOCKED)
+# XZG iOS V3.9.1 validation (renamed from ios-v38-validate in V3.9.1 P2-E; job flow unchanged)
 # Runs ONLY on GitHub Actions macOS/Xcode runner. Muse has no local Xcode.
 # Reviewed from Tools/ios-v38-validate.yml.example (2026-10-16 handoff package).
 # No Release, no signed/unsigned IPA publishing, no secrets required.
-name: XZG iOS V3.8 isolated validation
+name: XZG iOS V3.9.1 validation
 
 on:
   push:
@@ -10,13 +10,15 @@ on:
       - 'ios/v3.8-*'
       - 'ios/v38-*'
       - 'ios/v39-*'
+      - 'ios/v391-*'
+      - 'fix/v391-*'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: xzg-ios-v38-${{ github.ref }}
+  group: xzg-ios-v391-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -69,7 +71,7 @@ jobs:
           mkdir -p artifacts
           xcodebuild build -project XiaoZhangGui.xcodeproj -scheme XiaoZhangGui \
             -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
-            -derivedDataPath "$RUNNER_TEMP/xzg-ios-v38-derived" \
+            -derivedDataPath "$RUNNER_TEMP/xzg-ios-v391-derived" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             >artifacts/build.log 2>&1 || { tail -n 120 artifacts/build.log; exit 1; }
       # V3.8 RC: read-only proof that the BUILT products carry the release
@@ -80,7 +82,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          PRODUCTS="$RUNNER_TEMP/xzg-ios-v38-derived/Build/Products"
+          PRODUCTS="$RUNNER_TEMP/xzg-ios-v391-derived/Build/Products"
           APP_PATH=$(find "$PRODUCTS" -name "XiaoZhangGui.app" -maxdepth 2 | head -1)
           if [ -z "$APP_PATH" ]; then echo "built XiaoZhangGui.app not found under $PRODUCTS" >&2; exit 1; fi
           APPEX_PATH=$(find "$APP_PATH" -name "*.appex" -maxdepth 3 | head -1)
@@ -111,8 +113,8 @@ jobs:
           # and runs here again. No skips, no continue-on-error.
           xcodebuild test -project XiaoZhangGui.xcodeproj -scheme XiaoZhangGui \
             -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
-            -derivedDataPath "$RUNNER_TEMP/xzg-ios-v38-derived" \
-            -resultBundlePath "$RUNNER_TEMP/xzg-ios-v38-test.xcresult" \
+            -derivedDataPath "$RUNNER_TEMP/xzg-ios-v391-derived" \
+            -resultBundlePath "$RUNNER_TEMP/xzg-ios-v391-test.xcresult" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             >artifacts/test.log 2>&1 || { tail -n 160 artifacts/test.log; exit 1; }
       # E·QA: record the MotionLab demo while UI tests drive REAL expand/collapse
@@ -155,7 +157,7 @@ jobs:
           # device UDID than the first grep match above; recording "booted"
           # then captures the wrong (home-screen) device while tests pass on
           # another (run 38836192317: 5/5 tests green, video all home screen).
-          xcrun simctl io "$SIM_UDID" recordVideo --force artifacts/v38-motionlab-demo.mp4 &
+          xcrun simctl io "$SIM_UDID" recordVideo --force artifacts/v391-motionlab-demo.mp4 &
           RECORDER=$!
           sleep 2
           set +e
@@ -171,11 +173,11 @@ jobs:
             echo "== motion test attempt $ATTEMPT/4 =="
             # xcodebuild refuses to overwrite an existing result bundle,
             # so remove the previous attempt's before retrying.
-            rm -rf "$RUNNER_TEMP/xzg-ios-v38-motion.xcresult"
+            rm -rf "$RUNNER_TEMP/xzg-ios-v391-motion.xcresult"
             xcodebuild test -project XiaoZhangGui.xcodeproj -scheme XiaoZhangGui \
               -destination "platform=iOS Simulator,id=$SIM_UDID" \
-              -derivedDataPath "$RUNNER_TEMP/xzg-ios-v38-derived" \
-              -resultBundlePath "$RUNNER_TEMP/xzg-ios-v38-motion.xcresult" \
+              -derivedDataPath "$RUNNER_TEMP/xzg-ios-v391-derived" \
+              -resultBundlePath "$RUNNER_TEMP/xzg-ios-v391-motion.xcresult" \
               -only-testing:XiaoZhangGuiUITests/V38MotionLabUITests \
               CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
               >artifacts/motion-test.log 2>&1
@@ -207,10 +209,10 @@ jobs:
           kill -INT "$RECORDER" 2>/dev/null || true
           wait "$RECORDER" 2>/dev/null || true
           for i in $(seq 1 30); do
-            [ -s artifacts/v38-motionlab-demo.mp4 ] && break
+            [ -s artifacts/v391-motionlab-demo.mp4 ] && break
             sleep 1
           done
-          ls -la artifacts/v38-motionlab-demo.mp4
+          ls -la artifacts/v391-motionlab-demo.mp4
           tail -n 40 artifacts/motion-test.log
           exit $TEST_EXIT
       # E·QA: extract 1-fps frames and require several distinct frames,
@@ -223,7 +225,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          VID=artifacts/v38-motionlab-demo.mp4
+          VID=artifacts/v391-motionlab-demo.mp4
           if [ ! -s "$VID" ]; then echo "motion video missing: $VID"; exit 1; fi
           PASSED=$(grep -a -c "Test Case '-\[XiaoZhangGuiUITests.V38MotionLabUITests .*' passed" artifacts/motion-test.log || true)
           echo "motion tests passed in recording run: $PASSED/5"
@@ -232,7 +234,7 @@ jobs:
             exit 1
           fi
           if ! command -v ffmpeg >/dev/null 2>&1; then brew install ffmpeg; fi
-          FRAMEDIR="$RUNNER_TEMP/v38-motion-frames"
+          FRAMEDIR="$RUNNER_TEMP/v391-motion-frames"
           rm -rf "$FRAMEDIR"; mkdir -p "$FRAMEDIR"
           ffmpeg -hide_banner -loglevel error -i "$VID" -vf fps=1 "$FRAMEDIR/f%04d.png"
           COUNT=$(ls "$FRAMEDIR" | wc -l | tr -d ' ')
@@ -267,20 +269,20 @@ jobs:
             sleep 1
             xcrun simctl launch "$SIM_UDID" "$BUNDLE" ui-testing v38-motion-lab v38-color-scheme "$SCHEME"
             sleep 6
-            xcrun simctl io "$SIM_UDID" screenshot "artifacts/v38-motionlab-$SCHEME.png"
+            xcrun simctl io "$SIM_UDID" screenshot "artifacts/v391-motionlab-$SCHEME.png"
             xcrun simctl terminate "$SIM_UDID" "$BUNDLE" 2>/dev/null || true
           done
-          ls -la artifacts/v38-motionlab-*.png
+          ls -la artifacts/v391-motionlab-*.png
       - name: Save test result bundles
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          if [ -d "$RUNNER_TEMP/xzg-ios-v38-test.xcresult" ]; then
-            (cd "$RUNNER_TEMP" && zip -qry "$GITHUB_WORKSPACE/artifacts/V38-Test.xcresult.zip" xzg-ios-v38-test.xcresult)
+          if [ -d "$RUNNER_TEMP/xzg-ios-v391-test.xcresult" ]; then
+            (cd "$RUNNER_TEMP" && zip -qry "$GITHUB_WORKSPACE/artifacts/V391-Test.xcresult.zip" xzg-ios-v391-test.xcresult)
           fi
-          if [ -d "$RUNNER_TEMP/xzg-ios-v38-motion.xcresult" ]; then
-            (cd "$RUNNER_TEMP" && zip -qry "$GITHUB_WORKSPACE/artifacts/V38-Motion-Test.xcresult.zip" xzg-ios-v38-motion.xcresult)
+          if [ -d "$RUNNER_TEMP/xzg-ios-v391-motion.xcresult" ]; then
+            (cd "$RUNNER_TEMP" && zip -qry "$GITHUB_WORKSPACE/artifacts/V391-Motion-Test.xcresult.zip" xzg-ios-v391-motion.xcresult)
           fi
       - name: Build unsigned IPA (rebuild R1+)
         # V3.8 重建：每阶段产出可编译的完整 unsigned IPA（CI 产物，不签名、不发布）。
@@ -292,10 +294,10 @@ jobs:
           set -euo pipefail
           xcodebuild build -project XiaoZhangGui.xcodeproj -scheme XiaoZhangGui \
             -destination "generic/platform=iOS" \
-            -derivedDataPath "$RUNNER_TEMP/xzg-ios-v38-ipa" \
+            -derivedDataPath "$RUNNER_TEMP/xzg-ios-v391-ipa" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             >artifacts/ipa-build.log 2>&1 || { tail -n 80 artifacts/ipa-build.log; exit 1; }
-          APP_PATH=$(find "$RUNNER_TEMP/xzg-ios-v38-ipa/Build/Products" -name "*.app" -maxdepth 2 | head -1)
+          APP_PATH=$(find "$RUNNER_TEMP/xzg-ios-v391-ipa/Build/Products" -name "*.app" -maxdepth 2 | head -1)
           if [ -z "$APP_PATH" ]; then echo "No .app found for IPA packaging" >&2; exit 1; fi
           echo "Packaging: $APP_PATH"
           rm -rf "$RUNNER_TEMP/ipa-payload" && mkdir -p "$RUNNER_TEMP/ipa-payload/Payload"
@@ -306,14 +308,14 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: xzg-ios-v38-ci-${{ github.sha }}
+          name: xzg-ios-v391-ci-${{ github.sha }}
           path: artifacts/
           if-no-files-found: warn
       - name: Upload unsigned IPA
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: xzg-ios-v38-unsigned-ipa-${{ github.sha }}
+          name: xzg-ios-v391-unsigned-ipa-${{ github.sha }}
           path: artifacts/XiaoZhangGui-V38-unsigned.ipa
           if-no-files-found: warn
 # IMPORTANT: Unsigned IPA only (CI artifact for user-side signing). No signed IPA, no GitHub Release.

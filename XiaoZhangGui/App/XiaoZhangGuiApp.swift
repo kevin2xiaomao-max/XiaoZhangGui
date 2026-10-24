@@ -124,7 +124,7 @@ struct XiaoZhangGuiApp: App {
                 .environment(settings)
                 .environment(themeStore)
                 .tint(V32.brand)
-                .preferredColorScheme(settings.colorScheme)
+                .preferredColorScheme(V391ScreenshotOptions.colorScheme ?? settings.colorScheme)
                 .task {
                     NotificationManager.requestAuthorization()
                     // 首次启动即构建当日快照并尝试创建 Live Activity，

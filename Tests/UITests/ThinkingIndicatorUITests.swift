@@ -1,5 +1,14 @@
 import XCTest
 
+/// V3.9.1 P2-E · skip 真实原因(非核心测试被跳过):
+/// 两个 skip 用例(testThinkingIndicatorAppearsDuringSlowRealRequestThenStops /
+/// testThinkingIndicatorStopsOnRequestFailure)依赖外部慢速验证服务
+/// (outputs/thinking-orbs/slow_server.py,需本机起服务 + harnessReachable),
+/// CI  runner 上无该服务故 XCTSkipUnless 跳过;这不是断言失败,也不是测试被删除。
+/// 思考指示的状态机本身由单元测试(V38AIOperationStateTests)与本地查询用例
+/// (testThinkingIndicatorNotPersistentAfterLocalQuery,CI 内运行)覆盖;
+/// 慢请求/失败请求的端到端窗口须在起服务后本地补跑,不得以 skip 冒充通过。
+
 /// V3.7.1：AI 思考态指示（ThinkingOrbs）必须由**真实请求状态**驱动。
 ///
 /// 覆盖三条要求：
