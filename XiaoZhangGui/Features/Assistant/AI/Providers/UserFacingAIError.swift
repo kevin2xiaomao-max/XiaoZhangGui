@@ -87,6 +87,16 @@ enum UserFacingAIError {
 enum AILog {
     private static let logger = Logger(subsystem: "com.xiaozhanggui.ai", category: "provider")
 
+    /// 高质量档 fallback 先行诊断。只允许传非敏感字段。
+    /// - Parameters:
+    ///   - model: 模型 ID
+    ///   - tier: 档位（高质量档先行时为 highQuality）
+    static func fallbackFirstSelected(model: String, tier: ModelTier) {
+        #if DEBUG
+        logger.info("provider=\("fallback", privacy: .public) model=\(model, privacy: .public) tier=\(tier.rawValue, privacy: .public)")
+        #endif
+    }
+
     /// Provider 请求失败诊断。只允许传非敏感字段。
     /// - Parameters:
     ///   - providerID: 工程内 provider 标识（如 primary-deepseek）

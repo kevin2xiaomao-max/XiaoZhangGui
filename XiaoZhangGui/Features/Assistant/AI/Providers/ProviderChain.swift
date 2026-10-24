@@ -29,6 +29,7 @@ struct ProviderChain: AIProvider {
     func complete(_ request: ProviderRequest) async throws -> ProviderTurn {
         // 高质量档：路由把槽位指到 fallback，先打强模型，可故障转移时再由主链兜底。
         if request.route.providerID == Self.fallbackSlotID, let fallback {
+            AILog.fallbackFirstSelected(model: request.route.model, tier: request.route.tier)
             do {
                 return try await fallback.complete(request)
             } catch let error as ProviderFailure {

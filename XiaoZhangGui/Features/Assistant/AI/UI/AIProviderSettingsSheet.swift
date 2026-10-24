@@ -384,7 +384,7 @@ struct AIProviderSettingsSheet: View {
         VStack(alignment: .leading, spacing: 6) {
             Label("Key 只存在本机 Keychain，不会进入聊天记录、日志或备份。", systemImage: "lock.shield")
             Label("记账与查询在本机完成，聊天只发送你的原话；只有主动要经营建议时，才会上送脱敏摘要。", systemImage: "hand.raised")
-            Label("图片与文件会整张发送给你所配置的模型服务商用于识别，请勿上传证件、银行卡等敏感图片。", systemImage: "photo.badge.exclamationmark")
+            Label("图片整张发送给所配置的模型服务商用于识别；文件只上传本地提取出的文字，不上传原文件。请勿上传证件、银行卡等敏感图片。", systemImage: "photo.badge.exclamationmark")
         }
         .font(.caption)
         .foregroundStyle(V371.Colors.textSecondary)

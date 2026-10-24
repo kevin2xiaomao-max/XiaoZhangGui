@@ -36,6 +36,19 @@ final class V392VisionDraftTests: XCTestCase {
         XCTAssertNil(VisionDraftParser.draftToolCall(from: "退款 58 元 已原路退回"))
     }
 
+    func testRemainingExpenseCuesNeverDraftRevenue() {
+        // 与 testExpenseTextNeverDraftsRevenue 同一模式：补齐阻断表其余 9 词。
+        XCTAssertNil(VisionDraftParser.draftToolCall(from: "采购 500 元"))
+        XCTAssertNil(VisionDraftParser.draftToolCall(from: "付款 200 元"))
+        XCTAssertNil(VisionDraftParser.draftToolCall(from: "退货 120 元"))
+        XCTAssertNil(VisionDraftParser.draftToolCall(from: "报销 300 元"))
+        XCTAssertNil(VisionDraftParser.draftToolCall(from: "工资 5000 元"))
+        XCTAssertNil(VisionDraftParser.draftToolCall(from: "水电 180 元"))
+        XCTAssertNil(VisionDraftParser.draftToolCall(from: "支出 90 元"))
+        XCTAssertNil(VisionDraftParser.draftToolCall(from: "付了 60 元"))
+        XCTAssertNil(VisionDraftParser.draftToolCall(from: "买入 400 元"))
+    }
+
     func testNonBusinessTextDraftsNothing() {
         XCTAssertNil(VisionDraftParser.draftToolCall(from: "今天天气不错"))
         XCTAssertNil(VisionDraftParser.draftToolCall(from: "  "))
