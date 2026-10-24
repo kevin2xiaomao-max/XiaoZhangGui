@@ -9,6 +9,7 @@ on:
     branches:
       - 'ios/v3.8-*'
       - 'ios/v38-*'
+      - 'ios/v39-*'
   workflow_dispatch:
 
 permissions:
