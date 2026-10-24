@@ -126,7 +126,7 @@ struct HomeView: View {
         }
         .sheet(isPresented: $showWeatherSheet) {
             WeatherDetailSheet(model: weatherModel)
-                .presentationDetents([.medium])
+                .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showMorningBrief) {
@@ -161,7 +161,8 @@ struct HomeView: View {
         .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
             .fill(V371.Colors.orange.opacity(0.15)))
         .accessibilityIdentifier("v39.demo.banner")
-        .accessibilityLabel("演示数据，仅供演示，不会写入真实账本，可退出演示")
+        // 无障碍：原先在整条横幅上盖 label，会把「退出演示」按钮的语义一起吞掉；
+        // 去掉后由内部两段文案 + 按钮各自播报。
     }
 
     // MARK: - 顶部：大日期 / 星期 / 今日经营一览

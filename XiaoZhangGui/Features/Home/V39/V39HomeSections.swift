@@ -23,7 +23,11 @@ struct V39HeroCard: View {
     }
 
     var body: some View {
-        Button(action: onTap) {
+        Button {
+            // 按压反馈：金色 Hero 卡是首页最大点击区，原实现只有视觉按压、没有触感。
+            Haptic.light()
+            onTap()
+        } label: {
             HStack(alignment: .center, spacing: 14) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("本月营业额")
@@ -97,7 +101,7 @@ struct V39HeroCard: View {
             )
             .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(V39PressFeedbackStyle())
         .accessibilityIdentifier("v38.home.hero")
         .accessibilityLabel(heroAccessibilityLabel)
     }

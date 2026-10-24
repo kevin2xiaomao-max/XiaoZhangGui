@@ -179,13 +179,18 @@ enum MorningBriefStore {
     static let readOnKey = "xzg.morningBrief.readOn"
 
     /// 稳定日期键(yyyy-MM-dd,本地时区),与日历页 UI 测试标识同一格式。
+    /// P1:原实现每次调用都新建 DateFormatter(首页 body 每帧调用两次),改为静态缓存。
     static func dayKey(_ date: Date, calendar: Calendar = .current) -> String {
+        isoDayFormatter.string(from: date)
+    }
+
+    private static let isoDayFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .gregorian)
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
-    }
+        return formatter
+    }()
 
     static func isRead(on date: Date, defaults: UserDefaults = .standard, calendar: Calendar = .current) -> Bool {
         defaults.string(forKey: readOnKey) == dayKey(date, calendar: calendar)

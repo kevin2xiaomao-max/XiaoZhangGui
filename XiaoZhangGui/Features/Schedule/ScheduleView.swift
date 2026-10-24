@@ -218,11 +218,13 @@ struct ScheduleView: View {
 
     @ViewBuilder
     private var timelineSection: some View {
-        if !scheduleDay.timedEvents.isEmpty {
+        // P1：当日聚合只取一次（scheduleDay 每引用一次就会重跑一遍全表过滤）。
+        let day = scheduleDay
+        if !day.timedEvents.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
                 SectionHeader("当日时间")
                 GroupSurface {
-                    ForEach(Array(scheduleDay.timedEvents.enumerated()), id: \.element.id) { index, event in
+                    ForEach(Array(day.timedEvents.enumerated()), id: \.element.id) { index, event in
                         if index > 0 { V371Divider() }
                         timedEventRow(event)
                     }
@@ -263,24 +265,21 @@ struct ScheduleView: View {
 
     // MARK: - 全天事项（WorkRow）
 
-    /// 全天事项分组（ViewBuilder 内不允许局部 let，上提到计算属性）
-    private var allDayTodos: [Todo] { scheduleDay.allDay.todos }
-    private var allDayDeliveries: [CustomerRequest] { scheduleDay.allDay.deliveries }
-    private var allDayExpiry: [ExpiryItem] { scheduleDay.allDay.expiry }
-    private var allDayMemos: [Memo] { scheduleDay.allDay.memos }
-
     @ViewBuilder
     private var allDaySection: some View {
+        // P1：scheduleDay 是计算属性（两次全表 filter + 聚合 + 排序），
+        // 原实现经 4 个计算属性 + 3 处内联各跑一遍，这里取一次复用。
+        let day = scheduleDay
         VStack(alignment: .leading, spacing: 12) {
             SectionHeader("全天事项") {
-                if !scheduleDay.allDay.isEmpty {
-                    Text(allDayCount)
+                if !day.allDay.isEmpty {
+                    Text(allDayCount(day))
                         .font(V371.Typography.rowSubtitle)
                         .foregroundStyle(V371.Colors.textTertiary)
                 }
             }
 
-            if scheduleDay.allDay.isEmpty && scheduleDay.timedEvents.isEmpty {
+            if day.allDay.isEmpty && day.timedEvents.isEmpty {
                 // V3.8 P1-C1：空态统一为 EmptyState（清晰标题 + 一句行动指引），
                 // 与待办/经营页同一组件；行动指引指向本页新增的「+」入口。
                 EmptyState(
@@ -290,32 +289,32 @@ struct ScheduleView: View {
                 )
                 .padding(.vertical, 8)
                 .accessibilityElement(children: .combine)
-            } else if !scheduleDay.allDay.isEmpty {
+            } else if !day.allDay.isEmpty {
                 GroupSurface {
                     VStack(spacing: 0) {
-                        ForEach(allDayTodos, id: \.persistentModelID) { todo in
+                        ForEach(day.allDay.todos, id: \.persistentModelID) { todo in
                             allDayTodoRow(todo)
-                            if todo.persistentModelID != allDayTodos.last?.persistentModelID
-                                || !allDayDeliveries.isEmpty || !allDayExpiry.isEmpty || !allDayMemos.isEmpty {
+                            if todo.persistentModelID != day.allDay.todos.last?.persistentModelID
+                                || !day.allDay.deliveries.isEmpty || !day.allDay.expiry.isEmpty || !day.allDay.memos.isEmpty {
                                 V371Divider()
                             }
                         }
-                        ForEach(allDayDeliveries, id: \.persistentModelID) { request in
+                        ForEach(day.allDay.deliveries, id: \.persistentModelID) { request in
                             allDayDeliveryRow(request)
-                            if request.persistentModelID != allDayDeliveries.last?.persistentModelID
-                                || !allDayExpiry.isEmpty || !allDayMemos.isEmpty {
+                            if request.persistentModelID != day.allDay.deliveries.last?.persistentModelID
+                                || !day.allDay.expiry.isEmpty || !day.allDay.memos.isEmpty {
                                 V371Divider()
                             }
                         }
-                        ForEach(allDayExpiry, id: \.persistentModelID) { item in
+                        ForEach(day.allDay.expiry, id: \.persistentModelID) { item in
                             expiryRow(item)
-                            if item.persistentModelID != allDayExpiry.last?.persistentModelID || !allDayMemos.isEmpty {
+                            if item.persistentModelID != day.allDay.expiry.last?.persistentModelID || !day.allDay.memos.isEmpty {
                                 V371Divider()
                             }
                         }
-                        ForEach(allDayMemos, id: \.persistentModelID) { memo in
+                        ForEach(day.allDay.memos, id: \.persistentModelID) { memo in
                             allDayMemoRow(memo)
-                            if memo.persistentModelID != allDayMemos.last?.persistentModelID {
+                            if memo.persistentModelID != day.allDay.memos.last?.persistentModelID {
                                 V371Divider()
                             }
                         }
@@ -325,11 +324,11 @@ struct ScheduleView: View {
         }
     }
 
-    private var allDayCount: String {
-        let n = scheduleDay.allDay.todos.count
-            + scheduleDay.allDay.deliveries.count
-            + scheduleDay.allDay.expiry.count
-            + scheduleDay.allDay.memos.count
+    private func allDayCount(_ day: ScheduleDay) -> String {
+        let n = day.allDay.todos.count
+            + day.allDay.deliveries.count
+            + day.allDay.expiry.count
+            + day.allDay.memos.count
         return "\(n) 项"
     }
 
@@ -751,12 +750,18 @@ struct ScheduleView: View {
     }
 
     /// UI 测试定位用的稳定日期标识（yyyy-MM-dd，本地时区）。
-    private static func isoDateString(_ date: Date) -> String {
+    /// P1：月网格每帧要渲染 30-42 格，原实现每格新建 DateFormatter（约 0.1ms/次），
+    /// 改为静态缓存（与 `Fmt` 同一策略；仅在主线程使用）。
+    private static let isoDateFormatter: DateFormatter = {
         let f = DateFormatter()
         f.calendar = Calendar(identifier: .gregorian)
         f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "yyyy-MM-dd"
-        return f.string(from: date)
+        return f
+    }()
+
+    private static func isoDateString(_ date: Date) -> String {
+        isoDateFormatter.string(from: date)
     }
 
     /// 无障碍列表的日期范围：月档列整月；周档只列选中日期所在周行

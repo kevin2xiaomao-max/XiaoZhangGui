@@ -432,7 +432,9 @@ private struct TodoListRow: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("编辑 \(DisplayText.visible(todo.title, fallback: "待办事项"))")
+                // 无障碍：合并标题 + 优先级/时间（原实现只播报标题，VoiceOver 丢元信息）。
+                .accessibilityElement(children: .combine)
+                .accessibilityHint("轻点编辑待办")
                 deleteMenu
             }
             .opacity(showsChecked ? 0.55 : 1)
@@ -667,23 +669,33 @@ private struct RecordEditorSheet: View {
     }
 
     private var saveButton: some View {
-        Button {
-            Haptic.light()
-            save()
-        } label: {
-            Text("保存")
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity, minHeight: 50)
-                .background(
-                    canSave ? V371.Colors.blue : V371.Colors.gray.opacity(0.35),
-                    in: RoundedRectangle(cornerRadius: V371.Radius.control, style: .continuous)
-                )
-                .contentShape(Rectangle())
+        VStack(spacing: 6) {
+            Button {
+                Haptic.light()
+                save()
+            } label: {
+                Text("保存")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, minHeight: 50)
+                    .background(
+                        canSave ? V371.Colors.blue : V371.Colors.gray.opacity(0.35),
+                        in: RoundedRectangle(cornerRadius: V371.Radius.control, style: .continuous)
+                    )
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!canSave)
+            .accessibilityLabel("保存")
+            // 置灰时补一句原因，避免「点了没反应」。
+            .accessibilityHint(canSave ? "" : "填写内容后即可保存")
+
+            if !canSave {
+                Text("填写内容后即可保存")
+                    .font(.footnote)
+                    .foregroundStyle(V371.Colors.textTertiary)
+            }
         }
-        .buttonStyle(.plain)
-        .disabled(!canSave)
-        .accessibilityLabel("保存")
     }
 
     private func save() {
