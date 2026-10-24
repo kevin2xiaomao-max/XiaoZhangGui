@@ -45,6 +45,10 @@ struct PerformanceView: View {
         PerformanceHeaderAggregates.build(performances: performances)
     }
 
+    private var monthGoal: Double {
+        MonthlyBusinessMetrics.goal(isDemoEnabled: demo.isEnabled, settingsGoal: settings.monthGoal)
+    }
+
     /// 图表数据：既有模型 `PerformanceTrend.points(for:)`，不做二次计算。
     private var chartPoints: [TrendPoint] {
         PerformanceTrend.points(for: chartPeriod, performances: performances)

@@ -109,7 +109,22 @@ struct MonthlyReportCard: View {
     let report: MonthlyReport
     /// 分享图排版宽度:导出固定 390(见 renderShareImage);Sheet 预览传入可用宽度,
     /// 防止小屏下 390pt 卡片溢出(V3.9.1 P1-9)。生产导出宽度不得改。
-    let width: CGFloat = 390
+    let width: CGFloat
+
+    /// 显式 init(不依赖 memberwise 合成,避免 Swift 6 下参数识别歧义)。
+    init(report: MonthlyReport, width: CGFloat = 390) {
+        self.report = report
+        self.width = width
+    }
+
+    /// 分享图图例固定色:深色卡面上三色可辨,不随系统明暗漂移(P0-2)。
+    static func sourceColor(for source: IncomeSource) -> Color {
+        switch source {
+        case .store: return V39Palette.sourceStoreFixed
+        case .meituan: return V39Palette.heroGold
+        case .other: return V39Palette.sourceOtherFixed
+        }
+    }
 
     private var maxValue: Double {
         max(report.trendPoints.map(\.value).max() ?? 0, 1)
@@ -236,15 +251,6 @@ struct MonthlyReportSheet: View {
     let report: MonthlyReport
     @Environment(\.dismiss) private var dismiss
     @State private var shareImage: Image?
-
-    /// 分享图图例固定色:深色卡面上三色可辨,不随系统明暗漂移(P0-2)。
-    static func sourceColor(for source: IncomeSource) -> Color {
-        switch source {
-        case .store: return V39Palette.sourceStoreFixed
-        case .meituan: return V39Palette.heroGold
-        case .other: return V39Palette.sourceOtherFixed
-        }
-    }
 
     var body: some View {
         NavigationStack {
