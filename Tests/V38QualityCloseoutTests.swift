@@ -68,8 +68,10 @@ final class V38QualityCloseoutTests: XCTestCase {
             source.contains("@ScaledMetric(relativeTo: .largeTitle) private var dateNumberSize"),
             "首页日期大数字必须随动态字体缩放"
         )
+        // PR-E 后 Hero 金额改为经 V39HeroCard 参数传入缩放字号，日期数字走
+        // V38HomeStyle.scaledDateNumber 助手；断言“缩放值确实流入渲染”，而非旧调用形态。
         XCTAssertTrue(
-            source.contains("scaledHeroAmount(size: heroAmountSize)")
+            source.contains("heroAmountSize: heroAmountSize")
                 && source.contains("scaledDateNumber(size: dateNumberSize)"),
             "展示型大数字必须通过缩放后的字号构造"
         )

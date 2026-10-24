@@ -79,13 +79,23 @@ final class V39FeaturesBackupReportTests: XCTestCase {
 
     // MARK: - H:月度报表(纯函数,真实样本)
 
+    /// 固定日期构造：不用 Date() 与月份算术拼日期，避免 Mar 31 → Feb 28 +14 天
+    /// 漂回本月之类的跨月漂移；本月/上月日期全部显式指定。正午构造，避开 DST 与午夜边界。
+    private func fixedDate(_ year: Int, _ month: Int, _ day: Int) -> Date {
+        var comps = DateComponents()
+        comps.year = year
+        comps.month = month
+        comps.day = day
+        comps.hour = 12
+        return Calendar.current.date(from: comps)!
+    }
+
     @MainActor
     func testMonthlyReportComputesFromSampleData() throws {
-        let cal = Calendar.current
-        let now = Date()
-        let thisMonth10th = try XCTUnwrap(cal.date(from: cal.dateComponents([.year, .month], from: now))).addingTimeInterval(9 * 24 * 3600)
-        let lastMonth15th = try XCTUnwrap(cal.date(byAdding: .month, value: -1, to: now))
-            .addingTimeInterval(14 * 24 * 3600)
+        // 固定 now：2026-06-15，本月 6 月、上月 5 月，数值口径与旧样本一致。
+        let now = fixedDate(2026, 6, 15)
+        let thisMonth10th = fixedDate(2026, 6, 10)
+        let lastMonth15th = fixedDate(2026, 5, 15)
 
         let performances = [
             Performance(amount: 800, note: "本月", date: thisMonth10th, incomeSource: "门店"),
@@ -100,6 +110,7 @@ final class V39FeaturesBackupReportTests: XCTestCase {
         ]
 
         let report = MonthlyReportBuilder.build(performances: performances, expenses: expenses, todos: todos, now: now)
+        XCTAssertEqual(report.monthLabel, "2026年6月")
         XCTAssertEqual(report.revenue, 1000, accuracy: 0.001, "本月 = 800 + 200")
         XCTAssertEqual(report.expense, 100, accuracy: 0.001)
         XCTAssertEqual(report.net, 900, accuracy: 0.001)
@@ -109,6 +120,34 @@ final class V39FeaturesBackupReportTests: XCTestCase {
         XCTAssertEqual(report.todoCompletionPercent, 33, "1/3 四舍五入 33%")
         XCTAssertEqual(report.trendPoints.count, 7, "近7日趋势 7 点")
         XCTAssertTrue(report.sourceSplit.contains { $0.source == .meituan && $0.amount == 200 })
+    }
+
+    @MainActor
+    func testMonthlyReportYearBoundary() throws {
+        // 年初边界：now = 2026-01-15，上月必须是 2025 年 12 月（跨年）。
+        let now = fixedDate(2026, 1, 15)
+        let performances = [
+            Performance(amount: 800, note: "本月", date: fixedDate(2026, 1, 10), incomeSource: "门店"),
+            Performance(amount: 400, note: "上年12月", date: fixedDate(2025, 12, 20), incomeSource: "门店"),
+        ]
+        let report = MonthlyReportBuilder.build(performances: performances, expenses: [], todos: [], now: now)
+        XCTAssertEqual(report.monthLabel, "2026年1月")
+        XCTAssertEqual(report.revenue, 800, accuracy: 0.001)
+        XCTAssertEqual(report.revenueChangePercent ?? 0, 100, accuracy: 0.01, "较上月 +100%(800 vs 400)")
+    }
+
+    @MainActor
+    func testMonthlyReportShortMonthBoundary() throws {
+        // 短月边界：now = 2026-03-15，上月是 28 天的 2026 年 2 月。
+        let now = fixedDate(2026, 3, 15)
+        let performances = [
+            Performance(amount: 600, note: "本月", date: fixedDate(2026, 3, 10), incomeSource: "门店"),
+            Performance(amount: 300, note: "上月2月", date: fixedDate(2026, 2, 20), incomeSource: "门店"),
+        ]
+        let report = MonthlyReportBuilder.build(performances: performances, expenses: [], todos: [], now: now)
+        XCTAssertEqual(report.monthLabel, "2026年3月")
+        XCTAssertEqual(report.revenue, 600, accuracy: 0.001)
+        XCTAssertEqual(report.revenueChangePercent ?? 0, 100, accuracy: 0.01, "较上月 +100%(600 vs 300)")
     }
 
     @MainActor

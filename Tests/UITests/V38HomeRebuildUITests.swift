@@ -138,7 +138,10 @@ final class V38HomeRebuildUITests: XCTestCase {
         XCTAssertTrue(waitForElement("v38.home.hero", timeout: 10))
         // Hero 的 accessibilityLabel 包含真实金额（"今日营业额 ¥..."）
         let label = hero.label
-        XCTAssertTrue(label.contains("今日营业额"), "Hero 缺少标题：\(label)")
+        // V3.9 新 Hero 文案更紧凑（“今日 ¥680”），但本月/今日金额与目标数据点齐全；
+        // 断言数据点本身，而非旧 Hero 的完整措辞。
+        XCTAssertTrue(label.contains("本月营业额"), "Hero 缺少本月营业额标题：\(label)")
+        XCTAssertTrue(label.contains("今日 ¥"), "Hero 缺少今日营业额：\(label)")
         // 不得是 Mockup 中的占位 "¥ —"
         XCTAssertFalse(label.contains("¥ —") || label.contains("¥-"), "Hero 显示占位金额而非真实数据：\(label)")
     }

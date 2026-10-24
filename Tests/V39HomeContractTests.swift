@@ -38,10 +38,14 @@ final class V39HomeContractTests: XCTestCase {
         let sections = try source("XiaoZhangGui/Features/Home/V39/V39HomeSections.swift")
         // Hero 标识符契约:V38HomeRebuildUITests 依赖。
         XCTAssertTrue(sections.contains("\"v38.home.hero\""), "Hero 卡必须保留 v38.home.hero 标识符")
-        // 新区块标识符。
-        for id in ["v39.home.trend", "v39.home.source", "v39.home.chips"] {
+        // 新区块标识符：趋势/来源在 V39HomeSections；chips 行在 HomeView，且为逐项标识
+        //（容器标识会遮蔽子元素 AX 查询，iOS 27 实证，故不设容器标识，逐项标识即契约）。
+        for id in ["v39.home.trend", "v39.home.source"] {
             XCTAssertTrue(sections.contains(id), "V3.9 新区块标识符缺失:\(id)")
         }
+        let home = try source("XiaoZhangGui/Features/Home/HomeView.swift")
+        XCTAssertTrue(home.contains("v39.home.chips.todo"), "chips 待办标识缺失")
+        XCTAssertTrue(home.contains("v39.home.chips.overdue"), "chips 逾期标识缺失")
         // 玻璃三档降级必须复用 V38HomeGlassSurface,不得裸用材质。
         XCTAssertTrue(sections.contains("V38HomeGlassSurface"), "玻璃卡必须复用三档降级表面(RT 安全)")
         // 展示型大数字仍走调用点缩放字号(动态字体契约)。

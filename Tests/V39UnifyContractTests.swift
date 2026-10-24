@@ -40,7 +40,12 @@ final class V39UnifyContractTests: XCTestCase {
         let primitives = try source("XiaoZhangGui/DesignSystem/V371/V371Primitives.swift")
         XCTAssertTrue(primitives.contains("V39Palette.headerTick"), "SectionHeader 必须带金色签名竖条")
         XCTAssertTrue(primitives.contains(".accessibilityHidden(true)"), "装饰竖条必须无障碍隐藏")
-        XCTAssertFalse(primitives.contains("children: .combine)"), "SectionHeader 不得 combine(会吞 trailing 元素标识符)")
+        // combine 断言只钉 SectionHeader 本体：同文件内 Hero 卡 / WorkRow 按钮行的
+        // combine 是有意的（按钮行合并为单一可点元素），全文件扫描会误伤。
+        let headerStart = try XCTUnwrap(primitives.range(of: "struct SectionHeader")?.lowerBound)
+        let headerEnd = try XCTUnwrap(primitives.range(of: "// MARK: - WorkRow")?.lowerBound)
+        let header = primitives[headerStart..<headerEnd]
+        XCTAssertFalse(header.contains("children: .combine)"), "SectionHeader 不得 combine(会吞 trailing 元素标识符)")
     }
 
     func testHomeSectionHeaderMatchesGlobalTick() throws {
