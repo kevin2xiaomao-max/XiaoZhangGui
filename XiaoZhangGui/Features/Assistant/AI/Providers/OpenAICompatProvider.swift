@@ -122,7 +122,8 @@ struct OpenAICompatProvider: AIProvider {
             model: model,
             messages: messages,
             temperature: 0.2,
-            maxTokens: nil,
+            // V3.9.2 成本守卫：原来传 nil（不限），话痨式输出没有上限。
+            maxTokens: ConversationBudget.maxCompletionTokens,
             topP: nil,
             tools: tools
         )

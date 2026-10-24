@@ -231,12 +231,12 @@ final class AgentCore {
                 imageData: data, mimeType: mimeType, prompt: prompt)
             return try await appendAssistant(result.userFacingText, userMessage: userMessage)
         } catch let error as AICapabilityError {
-            return try! await appendAssistant(
+            return await appendAssistantUnchecked(
                 error.errorDescription ?? "图片分析失败，请稍后重试。",
                 userMessage: userMessage,
                 isError: true)
         } catch {
-            return try! await appendAssistant("图片分析失败，请稍后重试。", userMessage: userMessage, isError: true)
+            return await appendAssistantUnchecked("图片分析失败，请稍后重试。", userMessage: userMessage, isError: true)
         }
     }
 
@@ -248,12 +248,12 @@ final class AgentCore {
                 data: data, fileName: fileName, mimeType: mimeType, prompt: prompt)
             return try await appendAssistant(result.userFacingText, userMessage: userMessage)
         } catch let error as AICapabilityError {
-            return try! await appendAssistant(
+            return await appendAssistantUnchecked(
                 error.errorDescription ?? "文件分析失败，请稍后重试。",
                 userMessage: userMessage,
                 isError: true)
         } catch {
-            return try! await appendAssistant("文件分析失败，请稍后重试。", userMessage: userMessage, isError: true)
+            return await appendAssistantUnchecked("文件分析失败，请稍后重试。", userMessage: userMessage, isError: true)
         }
     }
 
@@ -465,7 +465,8 @@ final class AgentCore {
             }
         }()
         let route = env.modelRouter.route(task: task, intent: intent, tier: env.tier)
-        let history = await env.conversation.load().messages
+        // V3.9.2 成本守卫：只带最近若干轮进模型上下文，失败回执不进（ConversationBudget）。
+        let history = ConversationBudget.trimmed(await env.conversation.load().messages)
         // 把最后一条用户原文替换成清洗后的业务内容，纠正话术不外发、不污染抽取
         var cloudMessages = history
         if let lastUserIndex = cloudMessages.lastIndex(where: { $0.role == .user }),
@@ -500,6 +501,15 @@ final class AgentCore {
 
     private func appendAssistant(_ content: String, userMessage: AIMessage, isError: Bool = false)
         async throws -> AgentTurnResult {
+        let message = AIMessage(role: .assistant, content: content, isError: isError)
+        await env.conversation.append(message)
+        return AgentTurnResult(userMessage: userMessage, assistantMessage: message, proposal: nil)
+    }
+
+    /// 非抛错变体：会话落盘本身不抛错（ConversationStoring.append 是 async 无 throws），
+    /// 能力层失败回执不该用 `try!` 顶着——将来 appendAssistant 内新增抛错调用会直接崩溃。
+    private func appendAssistantUnchecked(_ content: String, userMessage: AIMessage, isError: Bool = false)
+        async -> AgentTurnResult {
         let message = AIMessage(role: .assistant, content: content, isError: isError)
         await env.conversation.append(message)
         return AgentTurnResult(userMessage: userMessage, assistantMessage: message, proposal: nil)
