@@ -21,6 +21,8 @@ struct HomeView: View {
     @Binding var showQuickRecord: Bool
     @Binding var showAI: Bool
     let showsVoiceButton: Bool
+    /// V3.9.1 P1-4:与 TodoView 共享的筛选导航状态(RootView 持有)。
+    var todoNavigation: TodoNavigationState = TodoNavigationState()
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -34,30 +36,19 @@ struct HomeView: View {
     @State private var route: HomeRoute?
     @State private var showWeatherSheet = false
     @State private var weatherModel = WeatherViewModel()
-    @State private var stateActionError: String?
-
-    // V3.8：AI 胶囊展开态。
-    @State private var aiExpanded = false
 
     // V3.8 PR-D C3：展示型大数字随系统动态字体档位缩放（基准确认默认视觉不变）。
     @ScaledMetric(relativeTo: .largeTitle) private var heroAmountSize: CGFloat = 54
     @ScaledMetric(relativeTo: .largeTitle) private var dateNumberSize: CGFloat = 64
 
-    private var summary: TodaySummary {
-        TodaySummary.build(performances: performances, todos: todos, customers: customers, expiryItems: expiryItems)
-    }
-
-    private var monthRevenue: Double {
-        MonthlyBusinessMetrics.revenue(from: performances)
-    }
-
-    private var monthGoal: Double {
-        MonthlyBusinessMetrics.goal(isDemoEnabled: demo.isEnabled, settingsGoal: settings.monthGoal)
-    }
-
-    private var handlingItems: [HomeInboxItem] {
-        return HomeInbox.items(todos: summary.todos, deliveries: summary.deliveries,
-                               expiryItems: summary.pendingExpiry, limit: 3)
+    /// V3.9.1 P1-7:首页全部派生数据一次遍历产出,body 内只求值一次并下发各区块,
+    /// 各区块不得再各自对 performances/todos 做全量聚合。
+    private var aggregates: HomeAggregates {
+        HomeAggregates.build(
+            performances: performances, todos: todos, customers: customers,
+            expiryItems: expiryItems,
+            monthGoal: MonthlyBusinessMetrics.goal(isDemoEnabled: demo.isEnabled, settingsGoal: settings.monthGoal)
+        )
     }
 
     // MARK: V3.9 数据(全部复用既有模型口径,零新增计算规则)
@@ -83,16 +74,20 @@ struct HomeView: View {
     }
 
     var body: some View {
-        ScrollView {
+        let agg = aggregates
+        return ScrollView {
             // V3.9 高级质感版式:日期 → 玻璃Hero(目标环) → 统计chips → 趋势/来源
-            // → AI 胶囊 → 快捷行 → 今日事项。信息密度一屏补齐(用户定稿方向)。
+            // → AI 胶囊 → 今日事项。信息密度一屏补齐(用户定稿方向)。
             VStack(alignment: .leading, spacing: 18) {
+                if demo.isEnabled {
+                    demoBanner
+                }
                 dateHeader
-                heroCard
-                statChipsRow
-                trendAndSourceSection
+                heroCard(agg)
+                statChipsRow(agg)
+                trendAndSourceSection(agg)
                 aiSection
-                mattersSection
+                mattersSection(agg)
                 V371ScrollEndMarker(identifier: V371AccessibilityID.scrollEndHome)
             }
             .padding(.horizontal, 16)
@@ -105,9 +100,6 @@ struct HomeView: View {
         // V3.8.1 P0-2：iOS 26/27 浮动 Tab 栏为覆盖层，系统底部安全区不含栏体；
         // 用共享 safeAreaInset 机制让内容可完整滚动到栏上方（禁内容内 Spacer 掩盖）。
         .v32PageBottomInset()
-        .alert("操作失败", isPresented: Binding(get: { stateActionError != nil }, set: { if !$0 { stateActionError = nil } })) {
-            Button("知道了", role: .cancel) { stateActionError = nil }
-        } message: { Text(stateActionError ?? "待办状态未改变，请重试") }
         .navigationDestination(item: $route) { destination in
             switch destination {
             case .customer: CustomerView()
@@ -126,7 +118,28 @@ struct HomeView: View {
         .task { weatherModel.loadIfNeeded() }
     }
 
-    // MARK: - 顶部：大日期 / 星期 / 经营时间线
+    // MARK: - Demo 提示条(V3.9.1 P1-12:演示数据不得被误认为真实经营数据)
+
+    private var demoBanner: some View {
+        HStack(spacing: 8) {
+            Label("演示数据", systemImage: "exclamationmark.triangle.fill")
+                .font(.footnote.weight(.semibold))
+            Text("仅供演示，不会写入真实账本")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Button("退出演示") { demo.isEnabled = false }
+                .font(.footnote.weight(.semibold))
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .fill(V371.Colors.orange.opacity(0.15)))
+        .accessibilityIdentifier("v39.demo.banner")
+        .accessibilityLabel("演示数据，仅供演示，不会写入真实账本，可退出演示")
+    }
+
+    // MARK: - 顶部：大日期 / 星期 / 今日经营一览
 
     private var dateHeader: some View {
         HStack(alignment: .top) {
@@ -139,7 +152,7 @@ struct HomeView: View {
                     Text(Date(), format: .dateTime.month().weekday(.wide).locale(Locale(identifier: "zh_CN")))
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(.secondary)
-                    Text("经营时间线")
+                    Text("今日经营一览")
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                 }
@@ -148,6 +161,14 @@ struct HomeView: View {
             Spacer(minLength: 12)
             HStack(spacing: 4) {
                 weatherButton
+                // V3.9.1 P1-6:首页顶部唯一的克制「记一笔」入口,复用 RootView 的
+                // showQuickRecord Binding(不恢复已删快捷行整排、不新增四宫格)。
+                headerAction(
+                    icon: "plus",
+                    label: "记一笔",
+                    identifier: "v39.home.quickRecord",
+                    action: { showQuickRecord = true }
+                )
                 headerAction(
                     icon: "person.crop.circle.fill",
                     label: "个人中心",
@@ -196,12 +217,12 @@ struct HomeView: View {
 
     // MARK: - V3.9 · 本月营业额玻璃大卡（含月目标进度环,替代 V3.8 深绿 Hero）
 
-    private var heroCard: some View {
+    private func heroCard(_ agg: HomeAggregates) -> some View {
         V39HeroCard(
-            monthRevenue: monthRevenue,
-            monthGoal: monthGoal,
-            todayRevenue: summary.revenue,
-            changePercent: summary.changePercent,
+            monthRevenue: agg.monthRevenue,
+            monthGoal: agg.monthGoal,
+            todayRevenue: agg.todayRevenue,
+            changePercent: agg.changePercent,
             heroAmountSize: heroAmountSize,
             onTap: { route = .performance }
         )
@@ -209,36 +230,39 @@ struct HomeView: View {
 
     // MARK: - V3.9 · 统计 chips（待办 / 逾期 / 临期 / 配送,一眼看全）
 
-    private var statChipsRow: some View {
+    private func statChipsRow(_ agg: HomeAggregates) -> some View {
         HStack(spacing: 10) {
             V39StatChip(
                 icon: "checklist",
                 title: "待办",
-                count: todayTodoCount,
+                count: agg.todayTodoCount,
                 tint: V39Style.navy,
                 identifier: "v39.home.chips.todo",
-                onTap: { tab = .todo }
+                hint: "打开今日待办",
+                onTap: { todoNavigation.request(.today); tab = .todo }
             )
             V39StatChip(
                 icon: "exclamationmark.circle.fill",
                 title: "逾期",
-                count: overdueCount,
-                tint: V371.Colors.orange,
+                count: agg.overdueCount,
+                // V3.9.1 P1-4:颜色语义统一——逾期=红(警示),临期=橙(提示);旧代码恰好写反。
+                tint: V371.Colors.red,
                 identifier: "v39.home.chips.overdue",
-                onTap: { tab = .todo }
+                hint: "打开逾期筛选",
+                onTap: { todoNavigation.request(.overdue); tab = .todo }
             )
             V39StatChip(
                 icon: "hourglass",
                 title: "临期",
-                count: summary.pendingExpiry.count,
-                tint: V371.Colors.red,
+                count: agg.pendingExpiryCount,
+                tint: V371.Colors.orange,
                 identifier: V371AccessibilityID.homeExpiry,
                 onTap: { route = .expiry }
             )
             V39StatChip(
                 icon: "box.truck.fill",
                 title: "配送",
-                count: summary.deliveries.count,
+                count: agg.deliveryCount,
                 tint: V39Style.gold,
                 identifier: V371AccessibilityID.homeCustomer,
                 onTap: { route = .customer }
@@ -248,15 +272,15 @@ struct HomeView: View {
 
     // MARK: - V3.9 · 近7日趋势 + 本月收入来源（玻璃数据卡）
 
-    private var trendAndSourceSection: some View {
+    private func trendAndSourceSection(_ agg: HomeAggregates) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             V39TrendCard(
-                points: trendPoints,
+                points: agg.trendPoints,
                 heroAmountSize: heroAmountSize,
                 onTap: { route = .performance }
             )
             V39SourceBar(
-                summaries: sourceSummaries,
+                summaries: agg.sourceSummaries,
                 onTap: { route = .performance }
             )
         }
@@ -266,11 +290,11 @@ struct HomeView: View {
 
     private var aiSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            V38HomeSectionHeader(title: "问小掌柜", trailing: "AI 入口")
+            V38HomeSectionHeader(title: "问小掌柜")
+            // V3.9.1 P1-5:一次点击直接打开现有 AIChatView,去除「展开→再点输入行」
+            // 的中间步骤;不另起 AI 引擎,Sheet/键盘/TabBar 行为不变。
             V38HomeAICapsule(
-                isExpanded: $aiExpanded,
                 onOpenAI: {
-                    aiExpanded = false
                     withAnimation(V38MotionTokens.animation(for: .contentChange, reduceMotion: reduceMotion)) {
                         showAI = true
                     }
@@ -281,15 +305,28 @@ struct HomeView: View {
 
     // MARK: - 今日事项（平面列表）
 
-    private var mattersSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            V38HomeSectionHeader(title: "今日事项")
+    private func mattersSection(_ agg: HomeAggregates) -> some View {
+        let handlingItems = agg.handlingItems
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                V38HomeSectionHeader(title: "今日事项")
+                Spacer()
+                // P2-A:今日事项「查看全部」入口(只列 3 条时可达完整待办)。
+                Button("查看全部") { tab = .todo }
+                    .font(.footnote.weight(.semibold))
+                    .accessibilityIdentifier("v39.home.matters.all")
+            }
             if handlingItems.isEmpty {
-                Text("今天暂无安排")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 8)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("今天暂无安排")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Button("去待办添加") { tab = .todo }
+                        .font(.footnote.weight(.semibold))
+                        .accessibilityIdentifier("v39.home.matters.add")
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 8)
             } else {
                 VStack(spacing: 0) {
                     ForEach(Array(handlingItems.enumerated()), id: \.element.id) { index, item in
@@ -329,7 +366,7 @@ struct HomeView: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("\(item.title)，\(item.subtitle)")
+                        .accessibilityLabel("\(item.title)，\(item.subtitle)\(item.time.isEmpty ? "" : "，\(item.time)")")
                         .accessibilityIdentifier(routeIdentifier(item.route))
                     }
                 }
@@ -366,18 +403,6 @@ struct HomeView: View {
     }
 
     // MARK: - 动作（保留 V3.7.1 业务逻辑）
-
-    private func toggleTodo(for item: HomeInboxItem) {
-        guard item.route == .todo,
-              let todo = summary.todos.first(where: { "todo-\($0.notificationID)" == item.id }) else { return }
-        do {
-            try TodoRepository(context: modelContext).toggleComplete(todo)
-            todo.isCompleted ? Haptic.success() : Haptic.light()
-        } catch {
-            Haptic.error()
-            stateActionError = "待办状态未改变，请重试。"
-        }
-    }
 
     private func open(_ destination: HomeInboxItem.Route) {
         switch destination {

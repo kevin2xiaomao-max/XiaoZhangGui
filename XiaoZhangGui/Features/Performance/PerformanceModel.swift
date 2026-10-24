@@ -154,6 +154,42 @@ struct IncomeSourceSummary: Identifiable {
     }
 }
 
+/// V3.9.1 P1-7 · 经营页头部统计单次遍历(今日/昨日/本月/本年各一遍 filter 的替代)。
+/// 谓词与 PerformanceView 旧计算逐项一致;本年 = 当年 1 月 1 日...今日终了。
+/// 注意:经营记录列表仍只展示近期 30 天(展示截断),本月/本年累计一律用全量 performances,
+/// 严禁把列表截断误读为统计口径(见 records 注释)。
+struct PerformanceHeaderAggregates {
+    let today: Double
+    let yesterday: Double
+    let month: Double
+    let year: Double
+
+    var changePercent: Double? {
+        guard yesterday > 0 else { return nil }
+        return (today - yesterday) / yesterday * 100
+    }
+
+    static func build(performances: [Performance], now: Date = Date()) -> PerformanceHeaderAggregates {
+        let cal = Calendar.current
+        let todayStart = now.startOfDay
+        let todayEnd = now.endOfDay
+        let yesterday = cal.date(byAdding: .day, value: -1, to: now) ?? now
+        let monthStart = now.startOfMonth
+        let yearStart = cal.date(from: cal.dateComponents([.year], from: now)) ?? now
+        var today = 0.0, yesterdaySum = 0.0, month = 0.0, year = 0.0
+        for performance in performances {
+            let date = performance.date
+            // 今日/昨日沿用旧 isToday / isSameDay 口径(生产 now 即今天时等价于区间判定)。
+            if date.isToday { today += performance.amount }
+            if date.isSameDay(as: yesterday) { yesterdaySum += performance.amount }
+            if date >= monthStart && date <= todayEnd { month += performance.amount }
+            if date >= yearStart && date <= todayEnd { year += performance.amount }
+        }
+        _ = todayStart
+        return PerformanceHeaderAggregates(today: today, yesterday: yesterdaySum, month: month, year: year)
+    }
+}
+
 /// 近 7 天真实收入趋势点
 struct TrendPoint: Identifiable {
     let id: Int

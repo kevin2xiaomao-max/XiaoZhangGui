@@ -26,6 +26,34 @@ struct GoodsEditorSheet: View {
     @State private var note = ""
     @State private var imageData: Data?
     @State private var isInitialized = false
+    @State private var showDiscardAlert = false
+
+    /// V3.9.1 P1-8:与原记录(编辑)或默认值(新增)比对;日期只比「日」。
+    private var isDirty: Bool {
+        if let goods {
+            let initialCategory = GoodsCategory.known.contains(goods.category) ? goods.category : "其他"
+            return name != goods.name || category != initialCategory || barcode != goods.barcode
+                || stockText != String(goods.stock) || minStockText != String(goods.minStock)
+                || purchaseText != (goods.purchasePrice == 0 ? "" : String(goods.purchasePrice))
+                || saleText != (goods.salePrice == 0 ? "" : String(goods.salePrice))
+                || hasProductionDate != (goods.productionDate != nil)
+                || (hasProductionDate && goods.productionDate != nil
+                    && !Calendar.current.isDate(productionDate, inSameDayAs: goods.productionDate!))
+                || shelfLifeText != (goods.shelfLifeDays == 0 ? "" : String(goods.shelfLifeDays))
+                || hasExpiryDate != (goods.expiryDate != nil)
+                || (hasExpiryDate && goods.expiryDate != nil
+                    && !Calendar.current.isDate(expiryDate, inSameDayAs: goods.expiryDate!))
+                || note != goods.note || imageData != goods.imageData
+        }
+        return !name.isEmpty || category != "其他" || !barcode.isEmpty || stockText != "0"
+            || minStockText != "0" || !purchaseText.isEmpty || !saleText.isEmpty
+            || hasProductionDate || !shelfLifeText.isEmpty || hasExpiryDate || !note.isEmpty
+            || imageData != nil
+    }
+
+    private func cancelTapped() {
+        if isDirty { showDiscardAlert = true } else { dismiss() }
+    }
 
     private var canSave: Bool {
         !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -93,7 +121,7 @@ struct GoodsEditorSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
+                    Button("取消", action: cancelTapped)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("保存") { save() }
@@ -103,7 +131,11 @@ struct GoodsEditorSheet: View {
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
-        .onAppear(perform: initializeIfNeeded)
+        .interactiveDismissDisabled(isDirty)
+        .onAppear(perform: initializeIfNeeded)        .alert("放弃未保存的修改？", isPresented: $showDiscardAlert) {
+            Button("放弃修改", role: .destructive) { dismiss() }
+            Button("继续编辑", role: .cancel) {}
+        } message: { Text("已输入的内容将丢失。") }
     }
 
     // MARK: 复用

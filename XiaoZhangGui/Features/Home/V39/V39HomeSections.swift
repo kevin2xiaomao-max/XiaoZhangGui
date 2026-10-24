@@ -44,7 +44,8 @@ struct V39HeroCard: View {
                             HStack(spacing: 2) {
                                 Image(systemName: change >= 0 ? "arrow.up.right" : "arrow.down.right")
                                     .font(.system(size: 9, weight: .bold))
-                                Text(String(format: "%.1f%%", abs(change)))
+                                // P1-1:涨跌必须明示口径——TodaySummary 对比的是昨日,不得只写百分比。
+                                Text("较昨日 \(String(format: "%.1f", abs(change)))%")
                                     .font(.caption.weight(.semibold).monospacedDigit())
                             }
                             .foregroundStyle(change >= 0 ? V39Palette.heroGold : V39Style.changeDown)
@@ -59,7 +60,22 @@ struct V39HeroCard: View {
                     }
                 }
                 Spacer(minLength: 8)
-                V39GoalRing(fraction: goalFraction)
+                // P1-1:月目标为 0 时不得显示误导性 0% 环,改为明确的未设置态。
+                if monthGoal > 0 {
+                    V39GoalRing(fraction: goalFraction)
+                } else {
+                    VStack(spacing: 2) {
+                        Text("未设置")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.85))
+                        Text("月目标")
+                            .font(.caption2)
+                            .foregroundStyle(.white.opacity(0.6))
+                    }
+                    .frame(width: 68, height: 68)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("未设置月目标")
+                }
             }
             .padding(18)
             .background(
@@ -96,6 +112,11 @@ struct V39HeroCard: View {
         }
         if monthGoal > 0 {
             parts.append("月目标完成 \(Int((goalFraction * 100).rounded()))%")
+            if monthRevenue >= monthGoal {
+                parts.append("已达成月目标")
+            }
+        } else {
+            parts.append("未设置月目标")
         }
         parts.append("查看经营详情")
         return parts.joined(separator: "，")
@@ -139,6 +160,7 @@ struct V39StatChip: View {
     let count: Int
     let tint: Color
     let identifier: String
+    var hint: String? = nil
     let onTap: () -> Void
 
     var body: some View {
@@ -162,8 +184,11 @@ struct V39StatChip: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(V39PressFeedbackStyle())
+        // P1-4:数量为 0 时降低视觉强调(弱化而非隐藏,布局不跳动)。
+        .opacity(count == 0 ? 0.55 : 1)
         .accessibilityIdentifier(identifier)
         .accessibilityLabel("\(title)\(count)项")
+        .accessibilityHint(hint ?? "")
     }
 }
 
@@ -214,19 +239,37 @@ struct V39TrendCard: View {
                             .minimumScaleFactor(0.6)
                             .contentTransition(.numericText())
                     }
-                    HStack(alignment: .bottom, spacing: 8) {
-                        ForEach(points) { point in
-                            let isToday = point.id == (points.last?.id ?? -1)
-                            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                                .fill(isToday ? V39Style.gold : Color.primary.opacity(0.22))
-                                .frame(height: barHeight(for: point))
-                                .frame(maxHeight: 44, alignment: .bottom)
-                                .accessibilityHidden(true)
+                    if hasData {
+                        HStack(alignment: .bottom, spacing: 8) {
+                            ForEach(points) { point in
+                                let isToday = point.id == (points.last?.id ?? -1)
+                                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                                    .fill(isToday ? V39Style.gold : Color.primary.opacity(0.22))
+                                    .frame(height: barHeight(for: point))
+                                    .frame(maxHeight: 44, alignment: .bottom)
+                                    .accessibilityHidden(true)
+                            }
                         }
+                        .frame(height: 44, alignment: .bottom)
+                        // P2-A:每柱下方标日期(M/d),不再是一排无解释的柱子。
+                        HStack(spacing: 8) {
+                            ForEach(points) { point in
+                                Text(point.label)
+                                    .font(.caption2.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                                    .frame(maxWidth: .infinity)
+                                    .accessibilityHidden(true)
+                            }
+                        }
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("近7日趋势柱形图")
+                    } else {
+                        // P2-A:无收入时给清晰空态,而非一排零柱子。
+                        Text("近7日暂无营业额，记录第一笔收入后这里会显示趋势")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .frame(height: 44, alignment: .bottom)
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("近7日趋势柱形图")
                 }
                 .padding(14)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -296,11 +339,13 @@ struct V39SourceBar: View {
                         }
                         .frame(height: 10)
                         .accessibilityHidden(true)
-                        HStack(spacing: 12) {
-                            ForEach(active) { item in
+                        // P2-A:图例用自适应网格换行,Dynamic Type 下不横向溢出;
+                        // 百分比用最大余数法,合计恒为 100%。
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 12)], alignment: .leading, spacing: 6) {
+                            ForEach(Array(active.enumerated()), id: \.element.id) { index, item in
                                 HStack(spacing: 4) {
                                     Circle().fill(color(for: item.source)).frame(width: 6, height: 6)
-                                    Text("\(item.source.rawValue) \(String(format: "%.0f%%", item.ratio * 100))")
+                                    Text("\(item.source.rawValue) \(IncomeSourceSummary.displayPercents(for: active)[index])%")
                                         .font(.caption.weight(.medium).monospacedDigit())
                                         .foregroundStyle(.secondary)
                                 }

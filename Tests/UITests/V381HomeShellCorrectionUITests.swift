@@ -139,7 +139,7 @@ final class V381HomeShellCorrectionUITests: XCTestCase {
     /// 而保留区块（Hero / AI 胶囊 / 今日事项）必须在位。
     private func assertQuickRowAbsent(schemeName: String) {
         XCTAssertTrue(
-            element("v38.home.ai.expand").waitForExistence(timeout: 5),
+            element("v38.home.ai.openSheet").waitForExistence(timeout: 5),
             "\(schemeName) 下 AI 胶囊（保留入口）未出现"
         )
         XCTAssertFalse(element("v38.home.quick.expand").exists, "\(schemeName) 下快捷菜单胶囊不得出现")
@@ -233,7 +233,7 @@ final class V381HomeShellCorrectionUITests: XCTestCase {
         )
 
         // 标题保持单行且不溢出胶囊宽度（两行将 ≥ 约 100pt，64 上限可决定性区分）。
-        let axAIButton = axApp.descendants(matching: .any).matching(identifier: "v38.home.ai.expand").firstMatch
+        let axAIButton = axApp.descendants(matching: .any).matching(identifier: "v38.home.ai.openSheet").firstMatch
         XCTAssertTrue(axAIButton.waitForExistence(timeout: 10), "AX 字号下 AI 胶囊不存在")
         XCTAssertLessThanOrEqual(
             axAITitle.frame.height, 64,

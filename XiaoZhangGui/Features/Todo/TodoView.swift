@@ -10,6 +10,8 @@ import PhotosUI
 // 过滤 / 优先级 / 排序 / 图片 / 提醒 / persistence 语义全部保持 V3.6 原样，只做 presentation 迁移。
 
 struct TodoView: View {
+    /// V3.9.1 P1-4:首页 chips 写入的筛选请求(RootView 注入,缺省为独立实例)。
+    var todoNavigation: TodoNavigationState = TodoNavigationState()
     @Environment(\.modelContext) private var context
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query private var todos: [Todo]
@@ -46,10 +48,8 @@ struct TodoView: View {
         return TodoFilter.grouped(list)
     }
 
-    private var todayCount: Int { TodoFilter.todos(for: .today, in: todos).count }
-    private var doneCount: Int { todos.filter(\.isCompleted).count }
-    private var overdueCount: Int { TodoFilter.todos(for: .overdue, in: todos).count }
-    private var pendingTotal: Int { todos.filter { !$0.isCompleted }.count }
+    // V3.9.1 P1-7:四项计数一次遍历产出(旧代码每项各 filter 全量一次)。
+    private var counts: TodoCounts { TodoCounts.build(todos: todos) }
 
     var body: some View {
         ScrollView {
@@ -57,7 +57,7 @@ struct TodoView: View {
                 // 切换控件始终可见；「备忘」展示独立 Memo 内容。
                 // 只隐藏进度区域，不隐藏 tab 导航。
                 tabPicker
-                if tab != .records { progressHeader }
+                if tab != .records { progressHeader(counts: counts) }
                 content
                 V371ScrollEndMarker(identifier: V371AccessibilityID.scrollEndTodo)
             }
@@ -66,6 +66,15 @@ struct TodoView: View {
             .padding(.bottom, V371.Space.section)
         }
         .scrollIndicators(.hidden)
+        .onAppear {
+            if let requested = todoNavigation.consume() { tab = requested }
+        }
+        .onChange(of: todoNavigation.requestedTab) { _, newValue in
+            if let newValue {
+                tab = newValue
+                todoNavigation.requestedTab = nil
+            }
+        }
         .accessibilityIdentifier(V371AccessibilityID.screenTodo)
         .v371Canvas()
         // V3.8.1 P0-2：共享浮动 Tab 栏底部避让（safeAreaInset，非内容内 Spacer）。
@@ -140,12 +149,12 @@ struct TodoView: View {
     }
 
     /// V3.8 Editorial 进度头：大数字 + 细进度条，低密度呈现（仅非「备忘」tab 显示）。
-    private var progressHeader: some View {
+    private func progressHeader(counts: TodoCounts) -> some View {
         let progress = V38TodoProgress(
-            pendingToday: todayCount,
-            completed: doneCount,
-            overdue: overdueCount,
-            pendingTotal: pendingTotal
+            pendingToday: counts.today,
+            completed: counts.done,
+            overdue: counts.overdue,
+            pendingTotal: counts.pendingTotal
         )
         return VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline, spacing: 0) {
@@ -154,7 +163,7 @@ struct TodoView: View {
                 progressCell(
                     value: progress.overdue,
                     label: "逾期",
-                    tint: progress.overdue > 0 ? V371.Colors.orange : V371.Colors.textTertiary
+                    tint: progress.overdue > 0 ? V371.Colors.red : V371.Colors.textTertiary
                 )
             }
             // 整体完成进度（已完成 / 全部待办），细条呈现，不抢视觉。
@@ -213,6 +222,7 @@ struct TodoView: View {
                             TodoListRow(
                                 todo: todo,
                                 isOverdueTab: tab == .overdue,
+                                suppressFailureBar: stateActionError != nil,
                                 phase: phase(for: todo),
                                 shakeTrigger: shakeTriggers[todo.persistentModelID, default: 0],
                                 onToggle: { toggle(todo) },
@@ -361,6 +371,9 @@ struct TodoSegmentedPicker: View {
 private struct TodoListRow: View {
     let todo: Todo
     let isOverdueTab: Bool
+    /// V3.9.1 P1-11:模态失败 Alert 在位时行内失败条隐藏,避免同一失败双通道重复提示;
+    /// Alert 取消后状态机仍为 failed,行内条恢复(重试入口不丢)。
+    var suppressFailureBar: Bool = false
     let phase: V38PageTogglePhase
     var shakeTrigger: Int = 0
     let onToggle: () -> Void
@@ -423,7 +436,7 @@ private struct TodoListRow: View {
                 deleteMenu
             }
             .opacity(showsChecked ? 0.55 : 1)
-            if isFailed { failureBar }
+            if isFailed && !suppressFailureBar { failureBar }
         }
         .padding(.vertical, 10)
         .frame(minHeight: V38TodoStyle.rowMinHeight)
@@ -519,8 +532,8 @@ private struct TodoListRow: View {
     /// 编辑与删除收进原生菜单，减少行尾竞争；删除仍走原确认流程。
     private var deleteMenu: some View {
         Menu {
-            Button("编辑", systemImage: "pencil", action: onEdit)
-            Button("删除", systemImage: "trash", role: .destructive, action: onDelete)
+            Button("编辑待办", systemImage: "pencil", action: onEdit)
+            Button("删除待办", systemImage: "trash", role: .destructive, action: onDelete)
         } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: 17, weight: .semibold))
@@ -528,7 +541,8 @@ private struct TodoListRow: View {
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
-        .accessibilityLabel("删除待办")
+        // P1-11:菜单本身的无障碍标签必须是「更多操作」,不得误标为「删除待办」。
+        .accessibilityLabel("更多操作")
         .accessibilityHint("打开编辑或删除操作菜单")
     }
 

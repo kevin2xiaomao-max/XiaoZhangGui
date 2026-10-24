@@ -18,6 +18,26 @@ struct CustomerEditorSheet: View {
     @State private var imageData: Data?
     @State private var isInitialized = false
     @State private var saveError: String?
+    @State private var showDiscardAlert = false
+
+    /// V3.9.1 P1-8:与原记录(编辑)或空态(新增)比对;配送时间/备注走同一解码口径。
+    private var isDirty: Bool {
+        if let request {
+            let info = CustomerDeliveryStorage.decode(request.customer)
+            return content != request.content || roomOrAddress != request.roomOrAddress
+                || phone != request.phone || note != info.note
+                || hasDeliveryTime != (info.deliveryTime != nil)
+                || (hasDeliveryTime && info.deliveryTime != nil
+                    && !Calendar.current.isDate(deliveryTime, inSameDayAs: info.deliveryTime!))
+                || imageData != request.imageData
+        }
+        return !content.isEmpty || !roomOrAddress.isEmpty || !phone.isEmpty || !note.isEmpty
+            || hasDeliveryTime || imageData != nil
+    }
+
+    private func cancelTapped() {
+        if isDirty { showDiscardAlert = true } else { dismiss() }
+    }
 
     private var canSave: Bool {
         !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -55,7 +75,7 @@ struct CustomerEditorSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
+                    Button("取消", action: cancelTapped)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("保存") { save() }
@@ -68,7 +88,11 @@ struct CustomerEditorSheet: View {
             } message: { Text(saveError ?? "请稍后重试") }
         }
         .v32Sheet([.large])
-        .onAppear(perform: initializeIfNeeded)
+        .interactiveDismissDisabled(isDirty)
+        .onAppear(perform: initializeIfNeeded)        .alert("放弃未保存的修改？", isPresented: $showDiscardAlert) {
+            Button("放弃修改", role: .destructive) { dismiss() }
+            Button("继续编辑", role: .cancel) {}
+        } message: { Text("已输入的内容将丢失。") }
     }
 
     private func initializeIfNeeded() {

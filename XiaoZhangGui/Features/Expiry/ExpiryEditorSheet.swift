@@ -17,6 +17,23 @@ struct ExpiryEditorSheet: View {
     @State private var imageData: Data?
     @State private var isInitialized = false
     @State private var saveError: String?
+    @State private var showDiscardAlert = false
+
+    /// V3.9.1 P1-8:与原记录(编辑)或默认值(新增)比对;日期只比「日」。
+    private var isDirty: Bool {
+        if let item {
+            return name != item.name || quantityText != String(max(item.quantity, 1))
+                || !Calendar.current.isDate(expiryDate, inSameDayAs: item.expiryDate)
+                || remindDays != item.remindDaysBefore || note != item.note
+                || imageData != item.imageData
+        }
+        return !name.isEmpty || quantityText != "1" || remindDays != 7 || !note.isEmpty
+            || !Calendar.current.isDateInToday(expiryDate) || imageData != nil
+    }
+
+    private func cancelTapped() {
+        if isDirty { showDiscardAlert = true } else { dismiss() }
+    }
 
     private var quantity: Int {
         Int(quantityText.filter(\.isNumber)) ?? 0
@@ -72,7 +89,7 @@ struct ExpiryEditorSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
+                    Button("取消", action: cancelTapped)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("保存") { save() }
@@ -85,7 +102,11 @@ struct ExpiryEditorSheet: View {
             } message: { Text(saveError ?? "请稍后重试") }
         }
         .v32Sheet([.large])
-        .onAppear(perform: initializeIfNeeded)
+        .interactiveDismissDisabled(isDirty)
+        .onAppear(perform: initializeIfNeeded)        .alert("放弃未保存的修改？", isPresented: $showDiscardAlert) {
+            Button("放弃修改", role: .destructive) { dismiss() }
+            Button("继续编辑", role: .cancel) {}
+        } message: { Text("已输入的内容将丢失。") }
     }
 
     private func initializeIfNeeded() {

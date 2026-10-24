@@ -37,6 +37,28 @@ struct MoneyEditorSheet: View {
     @State private var date = Date()
     @State private var incomeSource: IncomeSource = .store
     @State private var saveError: String?
+    @State private var showDiscardAlert = false
+
+    /// V3.9.1 P1-8:与原记录(编辑)或默认值(新增)比对;日期只比「日」,
+    /// 避免 DatePicker 归一化时分造成误判为脏。
+    private var isDirty: Bool {
+        switch mode {
+        case .new:
+            return !amountText.isEmpty || !note.isEmpty || category != "其他" || incomeSource != .store
+        case .editPerformance(let p):
+            return amountText != (p.amount == p.amount.rounded(.towardZero) ? String(Int(p.amount)) : String(p.amount))
+                || note != p.note || !Calendar.current.isDate(date, inSameDayAs: p.date)
+                || incomeSource != IncomeSource.from(performance: p)
+        case .editExpense(let e):
+            return amountText != (e.amount == e.amount.rounded(.towardZero) ? String(Int(e.amount)) : String(e.amount))
+                || note != e.note || category != e.category
+                || !Calendar.current.isDate(date, inSameDayAs: e.date)
+        }
+    }
+
+    private func cancelTapped() {
+        if isDirty { showDiscardAlert = true } else { dismiss() }
+    }
     /// V3.8 PR-D C1：金额输入焦点——decimalPad 无回车键，键盘栏补「完成」收起。
     @FocusState private var amountFocused: Bool
 
@@ -127,7 +149,7 @@ struct MoneyEditorSheet: View {
             .scrollDismissesKeyboard(.interactively)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
+                    Button("取消", action: cancelTapped)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("保存") { save() }
@@ -141,6 +163,11 @@ struct MoneyEditorSheet: View {
                 }
             }
             .onAppear(perform: loadEditing)
+            .interactiveDismissDisabled(isDirty)
+            .alert("放弃未保存的修改？", isPresented: $showDiscardAlert) {
+                Button("放弃修改", role: .destructive) { dismiss() }
+                Button("继续编辑", role: .cancel) {}
+            } message: { Text("已输入的内容将丢失。") }
             .alert("保存失败", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
                 Button("重试") { save() }
                 Button("取消", role: .cancel) { saveError = nil }
@@ -152,6 +179,8 @@ struct MoneyEditorSheet: View {
     private func loadEditing() {
         switch mode {
         case .new:
+            // V3.9.1 P1-8:记一笔优先自动聚焦金额字段(键盘直达输入)。
+            amountFocused = true
             break
         case .editPerformance(let p):
             amountText = p.amount == p.amount.rounded(.towardZero)

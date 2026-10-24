@@ -39,35 +39,10 @@ struct PerformanceView: View {
     @State private var chartPeriod: PerformanceChartPeriod = .week
     @State private var sourceSelection: V38SourceSelection = .all
 
-    private var todayRevenue: Double {
-        performances.filter { $0.date.isToday }.reduce(0) { $0 + $1.amount }
-    }
-
-    private var yesterdayRevenue: Double {
-        let date = Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date()
-        return performances.filter { $0.date.isSameDay(as: date) }.reduce(0) { $0 + $1.amount }
-    }
-
-    private var monthRevenue: Double {
-        MonthlyBusinessMetrics.revenue(from: performances)
-    }
-
-    private var yearRevenue: Double {
-        let start = Calendar.current.date(from: Calendar.current.dateComponents([.year], from: Date())) ?? Date()
-        return performances.filter { $0.date >= start && $0.date <= Date().endOfDay }.reduce(0) { $0 + $1.amount }
-    }
-
-    private var monthGoal: Double {
-        MonthlyBusinessMetrics.goal(isDemoEnabled: demo.isEnabled, settingsGoal: settings.monthGoal)
-    }
-
-    private var goalProgress: Double {
-        monthGoal > 0 ? min(max(monthRevenue / monthGoal, 0), 1) : 0
-    }
-
-    private var changePercent: Double? {
-        guard yesterdayRevenue > 0 else { return nil }
-        return (todayRevenue - yesterdayRevenue) / yesterdayRevenue * 100
+    /// V3.9.1 P1-7:头部四项统计一次遍历产出(旧代码每项各 filter 全量一次)。
+    /// 注意:goalSection/editorialHero 由 body 一次求值后下发,不得各自再算。
+    private var headerAggregates: PerformanceHeaderAggregates {
+        PerformanceHeaderAggregates.build(performances: performances)
     }
 
     /// 图表数据：既有模型 `PerformanceTrend.points(for:)`，不做二次计算。
@@ -87,19 +62,26 @@ struct PerformanceView: View {
         )
     }
 
+    /// 近期记录列表仅展示最近 30 天(展示截断,另有「查看全部」进全量交易页);
+    /// 本月/本年累计一律用全量 performances(headerAggregates),严禁把 30 天截断
+    /// 误读为统计口径(V3.9.1 P1-7 红线:不得为性能把经营记录限制为最近两个月)。
     private var records: [MoneyRecord] {
         let start = Calendar.current.date(byAdding: .day, value: -30, to: Date().startOfDay) ?? Date()
         return MoneyRecord.merged(performances: performances, expenses: expenses, range: (start, Date().endOfDay))
     }
 
     var body: some View {
-        ScrollView {
+        let header = headerAggregates
+        return ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                editorialHero
-                .accessibilityLabel(heroAccessibilityLabel)
+                if demo.isEnabled {
+                    demoBanner
+                }
+                editorialHero(header)
+                .accessibilityLabel(heroAccessibilityLabel(header))
                 trendSection
                 sourcesSection
-                goalSection
+                goalSection(header)
                 recordsSection
                 V371ScrollEndMarker(identifier: V371AccessibilityID.scrollEndBusiness)
             }
@@ -123,6 +105,8 @@ struct PerformanceView: View {
                 .accessibilityLabel("商品管理")
                 .accessibilityIdentifier(V371AccessibilityID.businessGoods)
 
+                // V3.9.1 P1-6:「记一笔」只含录入(收入/支出/扫呗导入);
+                // 报表/备忘/日报移到独立「更多」菜单,不得再混入录入菜单。
                 Menu {
                     Button("记收入") { newRecordKind = .income }
                         .accessibilityIdentifier(V371AccessibilityID.businessAddIncome)
@@ -130,19 +114,24 @@ struct PerformanceView: View {
                         .accessibilityIdentifier(V371AccessibilityID.businessAddExpense)
                     Button("扫呗导入", systemImage: "square.and.arrow.down") { showImport = true }
                         .accessibilityIdentifier(V371AccessibilityID.businessImport)
-                    // V3.9 PR-H:月度报表(生成+分享图片)。
-                    Button("月度报表", systemImage: "doc.richtext") { showMonthlyReport = true }
-                        .accessibilityIdentifier("v39.performance.monthlyReport")
-                    Divider()
-                    Button("记录", systemImage: "note.text") { showMemo = true }
-                        .accessibilityIdentifier(V371AccessibilityID.businessMemo)
-                    Button("今日经营日报", systemImage: "doc.text.magnifyingglass") { showDailyReport = true }
-                        .accessibilityIdentifier(V371AccessibilityID.businessDailyReport)
                 } label: {
                     Label("记一笔", systemImage: "plus")
                 }
                 .accessibilityLabel("记一笔")
                 .accessibilityIdentifier(V371AccessibilityID.businessMenu)
+                Menu {
+                    // V3.9 PR-H:月度报表(生成+分享图片)。
+                    Button("月度报表", systemImage: "doc.richtext") { showMonthlyReport = true }
+                        .accessibilityIdentifier("v39.performance.monthlyReport")
+                    Button("记录", systemImage: "note.text") { showMemo = true }
+                        .accessibilityIdentifier(V371AccessibilityID.businessMemo)
+                    Button("今日经营日报", systemImage: "doc.text.magnifyingglass") { showDailyReport = true }
+                        .accessibilityIdentifier(V371AccessibilityID.businessDailyReport)
+                } label: {
+                    Label("更多", systemImage: "ellipsis.circle")
+                }
+                .accessibilityLabel("更多")
+                .accessibilityIdentifier("v39.performance.moreMenu")
             }
         }
         .navigationDestination(isPresented: $showGoods) { GoodsView() }
@@ -184,14 +173,35 @@ struct PerformanceView: View {
         } message: { Text(deleteError ?? "请稍后重试") }
     }
 
+    // MARK: Demo 提示条(V3.9.1 P1-12,与首页同口径)
+
+    private var demoBanner: some View {
+        HStack(spacing: 8) {
+            Label("演示数据", systemImage: "exclamationmark.triangle.fill")
+                .font(.footnote.weight(.semibold))
+            Text("仅供演示，不会写入真实账本")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Button("退出演示") { demo.isEnabled = false }
+                .font(.footnote.weight(.semibold))
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .fill(V371.Colors.orange.opacity(0.15)))
+        .accessibilityIdentifier("v39.demo.banner.business")
+        .accessibilityLabel("演示数据，仅供演示，不会写入真实账本，可退出演示")
+    }
+
     // MARK: Hero（本月营业额 · 54pt Editorial 大数字）
 
-    private var editorialHero: some View {
+    private func editorialHero(_ header: PerformanceHeaderAggregates) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("本月营业额")
                 .font(V38PerformanceStyle.heroLabel)
                 .foregroundStyle(.white.opacity(0.72))
-            Text(Fmt.money(monthRevenue))
+            Text(Fmt.money(header.month))
                 .font(V38PerformanceStyle.heroAmount)
                 .foregroundStyle(.white)
                 .lineLimit(1)
@@ -199,9 +209,9 @@ struct PerformanceView: View {
                 .contentTransition(.numericText())
                 .animation(
                     V38MotionTokens.animation(for: .contentChange, reduceMotion: reduceMotion),
-                    value: monthRevenue
+                    value: header.month
                 )
-            heroInfo
+            heroInfo(header)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)
@@ -220,12 +230,12 @@ struct PerformanceView: View {
         .accessibilityIdentifier("v38.performance.hero")
     }
 
-    private var heroInfo: some View {
+    private func heroInfo(_ header: PerformanceHeaderAggregates) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text("今日")
                 .font(V371.Typography.rowSubtitle)
                 .foregroundStyle(.white.opacity(0.6))
-            Text(Fmt.money(todayRevenue))
+            Text(Fmt.money(header.today))
                 .font(V38PerformanceStyle.secondaryAmount)
                 .foregroundStyle(.white)
                 .lineLimit(1)
@@ -233,18 +243,18 @@ struct PerformanceView: View {
                 .contentTransition(.numericText())
                 .animation(
                     V38MotionTokens.animation(for: .contentChange, reduceMotion: reduceMotion),
-                    value: todayRevenue
+                    value: header.today
                 )
-            changeBadge
+            changeBadge(header)
         }
     }
 
-    private var heroAccessibilityLabel: String {
+    private func heroAccessibilityLabel(_ header: PerformanceHeaderAggregates) -> String {
         var parts = [
-            "本月营业额 \(Fmt.money(monthRevenue))",
-            "今日 \(Fmt.money(todayRevenue))"
+            "本月营业额 \(Fmt.money(header.month))",
+            "今日 \(Fmt.money(header.today))"
         ]
-        if let change = changePercent {
+        if let change = header.changePercent {
             let direction = change >= 0 ? "上涨" : "下降"
             parts.append("较昨日\(direction) \(String(format: "%.1f", abs(change)))%")
         }
@@ -252,9 +262,9 @@ struct PerformanceView: View {
     }
 
     @ViewBuilder
-    private var changeBadge: some View {
+    private func changeBadge(_ header: PerformanceHeaderAggregates) -> some View {
         // V3.9 PR-F:徽标配色换 V39 语义——涨 = 香槟金,跌 = 柔红,在深空蓝卡上高对比。
-        if let change = changePercent {
+        if let change = header.changePercent {
             HStack(spacing: 4) {
                 Image(systemName: change >= 0 ? "arrow.up.right" : "arrow.down.right")
                     .font(.system(size: 10, weight: .bold))
@@ -407,13 +417,14 @@ struct PerformanceView: View {
 
     // MARK: 月目标
 
-    private var goalSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+    private func goalSection(_ header: PerformanceHeaderAggregates) -> some View {
+        let goalProgress = monthGoal > 0 ? min(max(header.month / monthGoal, 0), 1) : 0
+        return VStack(alignment: .leading, spacing: 12) {
             V38HomeSectionHeader(title: "月目标")
             GroupSurface {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(alignment: .firstTextBaseline) {
-                        Text(Fmt.money(monthRevenue))
+                        Text(Fmt.money(header.month))
                             .font(V371.Typography.rowTitle)
                             .foregroundStyle(V371.Colors.textPrimary)
                             .monospacedDigit()
@@ -446,7 +457,7 @@ struct PerformanceView: View {
                             .font(V371.Typography.rowSubtitle)
                             .foregroundStyle(V371.Colors.textTertiary)
                         Spacer(minLength: 8)
-                        Text(Fmt.money(yearRevenue))
+                        Text(Fmt.money(header.year))
                             .font(V371.Typography.rowTitle)
                             .foregroundStyle(V371.Colors.textPrimary)
                             .monospacedDigit()

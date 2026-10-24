@@ -53,9 +53,9 @@ final class V38HomeRebuildUITests: XCTestCase {
             waitForElement("v38.home.hero", timeout: 10),
             "Revenue Hero 未渲染"
         )
-        // AI 胶囊入口
+        // AI 胶囊入口(单步直达)
         XCTAssertTrue(
-            waitForElement("v38.home.ai.expand", timeout: 5),
+            waitForElement("v38.home.ai.openSheet", timeout: 5),
             "AI 胶囊未渲染"
         )
         // AI 不在 TabBar 中（设计红线）
@@ -63,16 +63,15 @@ final class V38HomeRebuildUITests: XCTestCase {
         XCTAssertFalse(app.tabBars.buttons["AI"].exists)
     }
 
-    // MARK: - AI 胶囊：展开 → 打开真实 AI Sheet → 返回
+    // MARK: - AI 胶囊：一次点击直接打开真实 AI Sheet → 返回(V3.9.1 P1-5)
 
-    func testAICapsuleExpandOpenSheetAndReturn() {
-        // 展开 AI 胶囊（展开态由收起按钮存在性判定）
-        element("v38.home.ai.expand").tap()
-        XCTAssertTrue(
-            waitForElement("v38.home.ai.collapse", timeout: 5),
-            "AI 胶囊未展开"
+    func testAICapsuleOpensSheetDirectlyAndReturns() {
+        // 单步直达：不得再有展开中间态(collapse 不得出现)
+        XCTAssertFalse(
+            element("v38.home.ai.collapse").exists,
+            "AI 胶囊不得再有展开中间态"
         )
-        // 点击输入行 → 打开真实 AI Sheet（现有 AIChatView）
+        // 一次点击 → 打开真实 AI Sheet（现有 AIChatView）
         element("v38.home.ai.openSheet").tap()
         // AI Sheet 以 .large detent 呈现；验证 Sheet 内容出现（sheet.ai）
         XCTAssertTrue(
@@ -85,10 +84,10 @@ final class V38HomeRebuildUITests: XCTestCase {
             waitForElement("screen.home", timeout: 10),
             "关闭 AI Sheet 后未回到首页"
         )
-        // AI 胶囊应回到收起态
+        // AI 胶囊应仍在首页(单步入口)
         XCTAssertTrue(
-            waitForElement("v38.home.ai.expand", timeout: 5),
-            "返回后 AI 胶囊未回到收起态"
+            waitForElement("v38.home.ai.openSheet", timeout: 5),
+            "返回后 AI 胶囊入口未回到首页"
         )
     }
 
@@ -118,12 +117,12 @@ final class V38HomeRebuildUITests: XCTestCase {
         )
 
         // 固定顺序：日期 Header → 今日经营 Hero → 问小掌柜 → 今日事项。
-        let dateLine = app.staticTexts["经营时间线"]
+        let dateLine = app.staticTexts["今日经营一览"]
         XCTAssertTrue(dateLine.waitForExistence(timeout: 10), "日期 Header 未渲染")
         let hero = element("v38.home.hero")
         XCTAssertTrue(waitForElement("v38.home.hero", timeout: 5), "营业额 Hero 未渲染")
-        let ai = element("v38.home.ai.expand")
-        XCTAssertTrue(waitForElement("v38.home.ai.expand", timeout: 5), "AI 胶囊未渲染")
+        let ai = element("v38.home.ai.openSheet")
+        XCTAssertTrue(waitForElement("v38.home.ai.openSheet", timeout: 5), "AI 胶囊未渲染")
         let mattersHeader = app.staticTexts["今日事项"]
         XCTAssertTrue(mattersHeader.waitForExistence(timeout: 5), "今日事项标题未渲染")
         XCTAssertLessThan(dateLine.frame.minY, hero.frame.minY, "日期 Header 必须在营业额 Hero 之上")

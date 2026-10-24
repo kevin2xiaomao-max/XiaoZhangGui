@@ -1,5 +1,6 @@
 import AppIntents
 import SwiftUI
+import UIKit
 import WidgetKit
 
 // MARK: - Widget 2.0「快捷工作台」视图（systemSmall / systemMedium）
@@ -15,8 +16,13 @@ import WidgetKit
 /// - 文字一律 .primary / .secondary，标题/图标可被系统单色化，不会在 Tinted 下消失
 /// - 金额与事项行均 minimumScaleFactor + lineLimit，大字号/窄屏不崩
 
-// Ocean fallback keeps the Widget readable without claiming unverified theme sync.
-private let workbenchInk = Color(red: 0x3A / 255, green: 0x70 / 255, blue: 0xB7 / 255)
+// V3.9.1 P1-13:与主 App V3.9 夜蓝语义对齐的自适应墨色(Light 深蓝 / Dark 浅蓝),
+/// 替代旧海洋绿;Widget 底仍为系统材质,用户自选主题色不受影响。
+private let workbenchInk = Color(UIColor { trait in
+    trait.userInterfaceStyle == .dark
+        ? UIColor(red: 0.82, green: 0.85, blue: 0.94, alpha: 1)
+        : UIColor(red: 0.11, green: 0.14, blue: 0.25, alpha: 1)
+})
 
 // MARK: - Small
 
@@ -27,10 +33,10 @@ struct SmallWorkbenchView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 5) {
                 Image(systemName: "sparkles")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
                     .foregroundStyle(workbenchInk)
                 Text("你的小掌柜")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                 Spacer(minLength: 0)
@@ -57,7 +63,7 @@ struct SmallWorkbenchView: View {
             Spacer(minLength: 8)
 
             Text(verbatim: statusText)
-                .font(.system(size: 10, weight: .medium))
+                .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
@@ -126,7 +132,7 @@ struct MediumWorkbenchView: View {
                 if items.isEmpty {
                     Spacer(minLength: 0)
                     Text(snapshot == nil ? "打开 App 同步数据" : "现在没有要紧事")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.footnote.weight(.medium))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                     Spacer(minLength: 0)
@@ -155,7 +161,7 @@ struct MediumWorkbenchView: View {
     private var revenueColumn: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text("今日营业额")
-                .font(.system(size: 11, weight: .medium))
+                .font(.footnote.weight(.medium))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
             Spacer(minLength: 0)
@@ -184,7 +190,7 @@ private struct FocusRow: View {
                     .minimumScaleFactor(0.85)
                 if let detail = item.detail {
                     Text(detail)
-                        .font(.system(size: 10))
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.85)
@@ -223,9 +229,9 @@ private struct WorkbenchPill: View {
         Button(intent: OpenURLIntent(url)) {
             HStack(spacing: 3) {
                 Image(systemName: icon)
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
                 Text(title)
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             }

@@ -201,7 +201,11 @@ final class ThinkingIndicatorUITests: XCTestCase {
             let homeTab = app.tabBars.buttons["首页"]
             if homeTab.waitForExistence(timeout: 5) { homeTab.tap() }
         }
-        // V3.8 重建：AI 胶囊两步打开（展开 → 点击输入行进 Sheet）；兼容旧版 home.ai。
+        // V3.9.1 P1-5：AI 胶囊一次点击直接打开 Sheet（旧两步展开路径已废止，仅作兼容回退）。
+        if element("v38.home.ai.openSheet").exists {
+            element("v38.home.ai.openSheet").tap()
+            return
+        }
         if element("v38.home.ai.expand").exists {
             element("v38.home.ai.expand").tap()
             XCTAssertTrue(element("v38.home.ai.collapse").waitForExistence(timeout: 5))

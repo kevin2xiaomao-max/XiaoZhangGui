@@ -12,6 +12,29 @@ enum TodoTab: String, CaseIterable, Identifiable, Hashable {
     var id: String { rawValue }
 }
 
+/// V3.9.1 P1-7 · 待办计数单次遍历(与 TodoFilter 各 Tab 谓词逐项一致)。
+struct TodoCounts {
+    let today: Int
+    let done: Int
+    let overdue: Int
+    let pendingTotal: Int
+
+    static func build(todos: [Todo], now: Date = Date()) -> TodoCounts {
+        let todayStart = now.startOfDay
+        let todayEnd = now.endOfDay
+        var today = 0, done = 0, overdue = 0, pendingTotal = 0
+        for todo in todos {
+            if todo.isCompleted { done += 1; continue }
+            pendingTotal += 1
+            if todo.dueDate == nil || (todo.dueDate! >= todayStart && todo.dueDate! <= todayEnd) {
+                today += 1
+            }
+            if let due = todo.dueDate, due < todayStart { overdue += 1 }
+        }
+        return TodoCounts(today: today, done: done, overdue: overdue, pendingTotal: pendingTotal)
+    }
+}
+
 enum TodoFilter {
     /// 按 Tab 过滤并按时间排序
     static func todos(for tab: TodoTab, in all: [Todo], now: Date = Date()) -> [Todo] {

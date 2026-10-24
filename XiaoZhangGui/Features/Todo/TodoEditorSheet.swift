@@ -22,6 +22,22 @@ struct TodoEditorSheet: View {
     @State private var imageData: Data?
     @State private var isInitialized = false
     @State private var saveError: String?
+    @State private var showDiscardAlert = false
+
+    /// V3.9.1 P1-8:与原记录(编辑)或空态(新增)比对,任意字段变化即为脏。
+    private var isDirty: Bool {
+        if let todo {
+            return title != todo.title || detail != todo.detail
+                || hasDue != (todo.dueDate != nil)
+                || (hasDue && todo.dueDate != nil && dueDate != todo.dueDate!)
+                || priority != todo.priorityLevel || imageData != todo.imageData
+        }
+        return !title.isEmpty || !detail.isEmpty || hasDue || imageData != nil
+    }
+
+    private func cancelTapped() {
+        if isDirty { showDiscardAlert = true } else { dismiss() }
+    }
 
     private var canSave: Bool {
         !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -61,7 +77,7 @@ struct TodoEditorSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
+                    Button("取消", action: cancelTapped)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("保存") { save() }
@@ -71,7 +87,11 @@ struct TodoEditorSheet: View {
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
-        .onAppear(perform: initializeIfNeeded)
+        .interactiveDismissDisabled(isDirty)
+        .onAppear(perform: initializeIfNeeded)        .alert("放弃未保存的修改？", isPresented: $showDiscardAlert) {
+            Button("放弃修改", role: .destructive) { dismiss() }
+            Button("继续编辑", role: .cancel) {}
+        } message: { Text("已输入的内容将丢失。") }
         .alert("保存失败", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
             Button("重试") { save() }
             Button("取消", role: .cancel) { saveError = nil }

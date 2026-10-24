@@ -15,6 +15,8 @@ struct RootView: View {
     @State private var showVoice = false
     @State private var showQuickRecord = false
     @State private var showAI = false
+    /// V3.9.1 P1-4:首页 chips 与待办页共享的筛选导航状态。
+    @State private var todoNavigation = TodoNavigationState()
     @State private var showAIVoice = false
     @Environment(\.modelContext) private var modelContext
     @Environment(ThemeStore.self) private var themeStore
@@ -29,7 +31,8 @@ struct RootView: View {
                         showVoice: $showVoice,
                         showQuickRecord: $showQuickRecord,
                         showAI: $showAI,
-                        showsVoiceButton: canInitializeSpeechRecognizer || UITestMode.isEnabled
+                        showsVoiceButton: canInitializeSpeechRecognizer || UITestMode.isEnabled,
+                        todoNavigation: todoNavigation
                     )
                 }
                 .accessibilityIdentifier(V371AccessibilityID.screenHome)
@@ -37,7 +40,7 @@ struct RootView: View {
             .accessibilityIdentifier(V371AccessibilityID.tabHome)
             Tab("待办", systemImage: "checkmark.circle", value: AppTab.todo) {
                 NavigationStack {
-                    TodoView()
+                    TodoView(todoNavigation: todoNavigation)
                 }
                 .accessibilityIdentifier(V371AccessibilityID.screenTodo)
             }

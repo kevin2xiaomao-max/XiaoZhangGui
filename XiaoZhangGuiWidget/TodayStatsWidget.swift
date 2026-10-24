@@ -21,17 +21,21 @@ struct SnapshotProvider: TimelineProvider {
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<SnapshotEntry>) -> Void) {
+        // V3.9.1 P1-13 跨午夜修正:旧实现在生成 timeline 时就把当前快照塞进
+        // 「午夜条目」,午夜到来时 Widget 仍显示生成时的旧数字,且 policy .atEnd
+        // 不再请求新 timeline。改为只给当前条目 + policy .after(次日 0 点),
+        // 系统在午夜后重新请求 timeline,此时 load() 读到的才是新一天快照。
+        // (WidgetKit 仍可能延迟刷新,故午夜后以主 App 数据变化 reload 为主、timeline 为兜底。)
         let now = SnapshotEntry(date: .now, snapshot: BusinessSnapshot.load())
-        // 0 点与次日 0 点各刷新一次（跨天数据归零），主 App 数据变化时会主动 reload
-        var entries = [now]
         if let midnight = Calendar.current.nextDate(
             after: .now,
             matching: DateComponents(hour: 0, minute: 0),
             matchingPolicy: .nextTime
         ) {
-            entries.append(SnapshotEntry(date: midnight, snapshot: BusinessSnapshot.load()))
+            completion(Timeline(entries: [now], policy: .after(midnight)))
+        } else {
+            completion(Timeline(entries: [now], policy: .atEnd))
         }
-        completion(Timeline(entries: entries, policy: .atEnd))
     }
 }
 
@@ -147,7 +151,7 @@ private struct CircularView: View {
     var body: some View {
         VStack(spacing: 0) {
             Text("今日")
-                .font(.system(size: 9, weight: .medium))
+                .font(.caption2.weight(.medium))
                 .foregroundStyle(.secondary)
             Text(verbatim: shortAmount(snapshot?.todayRevenue ?? 0))
                 .font(.system(size: 16, weight: .bold, design: .rounded))
@@ -163,15 +167,15 @@ private struct RectangularView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 4) {
-                Circle().fill(WidgetBrand.green).frame(width: 5, height: 5)
+                Circle().fill(WidgetBrand.gold).frame(width: 5, height: 5)
                 Text("你的小掌柜")
-                    .font(.system(size: 10, weight: .semibold).smallCaps())
+                    .font(.caption.weight(.semibold).smallCaps())
             }
             Text(verbatim: "今日 ¥\(formatAmount(snapshot?.todayRevenue ?? 0)) · 待办 \(snapshot?.todayTodoCount ?? 0)")
                 .font(.system(size: 12, weight: .semibold))
                 .lineLimit(1)
             Text(verbatim: nextLine)
-                .font(.system(size: 11))
+                .font(.footnote)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
         }
