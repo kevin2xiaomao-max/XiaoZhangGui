@@ -90,12 +90,14 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         tapNavigationBack()
         XCTAssertTrue(element("screen.business").waitForExistence(timeout: 5))
 
-        openBusinessMenu(item: "business.memo")
+        // V3.9.1 P1-6:备忘/日报已从「记一笔」菜单移入独立「更多」菜单,
+        // 路由断言不变,只改菜单入口。
+        openMoreMenu(item: "business.memo")
         XCTAssertTrue(element("screen.memo").waitForExistence(timeout: 5))
         tapNavigationBack()
         XCTAssertTrue(element("screen.business").waitForExistence(timeout: 5))
 
-        openBusinessMenu(item: "business.dailyReport")
+        openMoreMenu(item: "business.dailyReport")
         XCTAssertTrue(element("sheet.dailyReport").waitForExistence(timeout: 5))
         XCTAssertTrue(element("dailyReport.close").waitForExistence(timeout: 5))
         element("dailyReport.close").tap()
@@ -370,6 +372,15 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
 
     private func openBusinessMenu(item identifier: String) {
         let menu = element("business.menu")
+        XCTAssertTrue(menu.waitForExistence(timeout: 5))
+        menu.tap()
+        let item = element(identifier)
+        XCTAssertTrue(item.waitForExistence(timeout: 5))
+        item.tap()
+    }
+
+    private func openMoreMenu(item identifier: String) {
+        let menu = element("v39.performance.moreMenu")
         XCTAssertTrue(menu.waitForExistence(timeout: 5))
         menu.tap()
         let item = element(identifier)

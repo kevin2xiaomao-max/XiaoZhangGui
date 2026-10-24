@@ -534,6 +534,9 @@ private struct TodoListRow: View {
         Menu {
             Button("编辑待办", systemImage: "pencil", action: onEdit)
             Button("删除待办", systemImage: "trash", role: .destructive, action: onDelete)
+                // P1-11 修正的另一半:菜单容器误标已改为「更多操作」,但删除按钮
+                // 本身的无障碍标签仍须是「删除待办」(Phase52 审计契约)。
+                .accessibilityLabel("删除待办")
         } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: 17, weight: .semibold))

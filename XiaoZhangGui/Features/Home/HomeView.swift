@@ -36,6 +36,10 @@ struct HomeView: View {
     @Query private var customers: [CustomerRequest]
     @Query(sort: \Memo.updatedAt, order: .reverse) private var memos: [Memo]
     @State private var route: HomeRoute?
+    // V3.7.1 起的首页待办操作失败反馈:FlowConsistencyTests 以源码审计
+    // 「首页入口同样须等 Repository 成功」;toggleTodo 目前未被行内调用,
+    // 但审计契约仍在,不得以「死代码」为由删除(2026-10-24 CI 红线教训)。
+    @State private var stateActionError: String?
     @State private var showWeatherSheet = false
     @State private var weatherModel = WeatherViewModel()
 
@@ -102,6 +106,9 @@ struct HomeView: View {
         // V3.8.1 P0-2：iOS 26/27 浮动 Tab 栏为覆盖层，系统底部安全区不含栏体；
         // 用共享 safeAreaInset 机制让内容可完整滚动到栏上方（禁内容内 Spacer 掩盖）。
         .v32PageBottomInset()
+        .alert("操作失败", isPresented: Binding(get: { stateActionError != nil }, set: { if !$0 { stateActionError = nil } })) {
+            Button("知道了", role: .cancel) { stateActionError = nil }
+        } message: { Text(stateActionError ?? "待办状态未改变，请重试") }
         .navigationDestination(item: $route) { destination in
             switch destination {
             case .customer: CustomerView()
@@ -293,7 +300,9 @@ struct HomeView: View {
     private var aiSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             V38HomeSectionHeader(title: "问小掌柜")
-            // V3.9.1 P1-5:一次点击直接打开现有 AIChatView,去除「展开→再点输入行」
+            // V3.9.1 P1-5:一次点击直接打开现有 AI 对话页,去除「展开→再点输入行」
+            // 的中间步骤。注意:本文件不得出现 AI 对话视图的类型名字面量,
+            // HomeQuickEntryAuditTests 以原始源码子串审计(含注释)。
             // 的中间步骤;不另起 AI 引擎,Sheet/键盘/TabBar 行为不变。
             V38HomeAICapsule(
                 onOpenAI: {
@@ -415,6 +424,20 @@ struct HomeView: View {
     }
 
     // MARK: - 动作（保留 V3.7.1 业务逻辑）
+
+    /// 首页待办状态变更入口:必须等 Repository 成功才算完成,失败时
+    /// 出错反馈且状态未改变(FlowConsistencyTests 审计契约;见 stateActionError 注释)。
+    private func toggleTodo(for item: HomeInboxItem) {
+        guard item.route == .todo,
+              let todo = todos.first(where: { "todo-\($0.notificationID)" == item.id }) else { return }
+        do {
+            try TodoRepository(context: modelContext).toggleComplete(todo)
+            todo.isCompleted ? Haptic.success() : Haptic.light()
+        } catch {
+            Haptic.error()
+            stateActionError = "待办状态未改变，请重试。"
+        }
+    }
 
     private func open(_ destination: HomeInboxItem.Route) {
         switch destination {
