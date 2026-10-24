@@ -27,8 +27,9 @@ final class V39HomeContractTests: XCTestCase {
         XCTAssertTrue(home.contains("V39TrendCard("), "首页必须有近7日趋势卡")
         XCTAssertTrue(home.contains("V39SourceBar("), "首页必须有收入来源占比条")
         XCTAssertTrue(home.contains(".v39Canvas()"), "首页画布必须换 V3.9 渐变(配色定稿)")
-        // 既有契约不回退。
-        XCTAssertTrue(home.contains("V38HomeQuickMenu"), "快捷记录入口保留(V3.7.1 冻结 IA)")
+        // 既有契约不回退；快捷行已按用户 10-23 硬决定删除、V3.9 对齐 RC edb991d 承接删除，
+        // 快捷记录入口改由 RootView 呈现 QuickRecordSheet，不依赖首页快捷行。
+        XCTAssertFalse(home.contains("V38HomeQuickMenu"), "首页快捷行已删除，不得复活（对齐 RC edb991d）")
         XCTAssertTrue(home.contains("V38HomeAICapsule("), "AI 唯一入口保留")
         XCTAssertTrue(home.contains("V371ScrollEndMarker(identifier: V371AccessibilityID.scrollEndHome)"), "滚动终点标识保留")
     }
