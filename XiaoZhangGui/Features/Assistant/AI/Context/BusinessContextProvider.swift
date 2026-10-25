@@ -47,6 +47,13 @@ struct BusinessPeriodSummary: Equatable, Sendable {
     let comparisonAverageAmount: Double?
 }
 
+/// V3.9.3 · 本月收入来源占比投影（仅名称/金额/占比，无备注与原始记录）。
+struct SourceShareSummary: Equatable, Sendable {
+    let name: String
+    let amount: Double
+    /// 0…100 的百分比数值。
+    let percent: Double
+}
 /// AI 2.0 唯一经营上下文入口。只保留聚合值和短标题，不承载 SwiftData 对象或客户隐私。
 struct GroundingPack: Equatable, Sendable {
     var todayRevenue: Double?
@@ -59,6 +66,10 @@ struct GroundingPack: Equatable, Sendable {
     var goods: [GoodsSummary]
     var localSummary: String?
     var periodSummaries: [BusinessPeriodSummary] = []
+    /// V3.9.3 · 各时段支出合计（仅含确有支出记录的时段；左闭右开，与收入口径一致）。
+    var expenseTotals: [BusinessPeriod: Double] = [:]
+    /// V3.9.3 · 本月收入来源占比（仅金额 > 0 的来源）。
+    var sourceShares: [SourceShareSummary] = []
 
     static let empty = GroundingPack(
         todayRevenue: nil, yesterdayRevenue: nil, sevenDayRevenue: [],
@@ -69,6 +80,7 @@ struct GroundingPack: Equatable, Sendable {
     var hasBusinessData: Bool {
         todayRevenue != nil || yesterdayRevenue != nil || sevenDayRevenue.contains { $0.amount != 0 }
             || periodSummaries.contains { $0.amount != 0 || ($0.comparisonAmount ?? 0) != 0 || $0.count > 0 }
+            || !expenseTotals.isEmpty || !sourceShares.isEmpty
             || !unfinishedTodoTitles.isEmpty || deliveryPendingCount > 0
             || deliveryDeliveringCount > 0 || !expiryTitles.isEmpty || !goods.isEmpty
     }
@@ -80,6 +92,10 @@ enum BusinessInsightKind: Equatable, Sendable {
     case sevenDayTrend
     case inventory
     case advice
+    /// V3.9.3 · 近 7 天最高 / 最低营业日（只用 sevenDayRevenue 的已知事实）。
+    case extremes
+    /// V3.9.3 · 本月收入来源占比（只用 sourceShares 的已知事实）。
+    case sourceShare
     case period(BusinessPeriod)
 }
 

@@ -88,7 +88,7 @@ final class RepositoryBusinessContextReader: BusinessContextProviding {
                 todos: todos, memos: memos, customers: customers, expiryItems: expiry, weather: nil)
             let localSummary = await BusinessAssistantEngine().analyze(input).summary.text
             let periodParser = BusinessPeriodParser()
-            let periods: [BusinessPeriod] = [.today, .yesterday, .lastSevenDays, .thisMonth, .lastMonth, .lastThreeMonths, .lastSixMonths, .thisMonthComparedWithLastMonth, .lastThreeMonthsComparedWithThisMonth]
+            let periods: [BusinessPeriod] = [.today, .yesterday, .lastSevenDays, .thisWeek, .lastWeek, .thisMonth, .lastMonth, .lastThreeMonths, .lastSixMonths, .thisMonthComparedWithLastMonth, .lastThreeMonthsComparedWithThisMonth]
             let periodSummaries = periods.compactMap { period -> BusinessPeriodSummary? in
                 guard let bounds = periodParser.bounds(for: period, now: now, calendar: calendar) else { return nil }
                 let isThreeMonthComparison = period == .lastThreeMonthsComparedWithThisMonth
@@ -117,6 +117,24 @@ final class RepositoryBusinessContextReader: BusinessContextProviding {
                 return BusinessPeriodSummary(period: period, amount: rows.reduce(0) { $0 + $1.amount }, count: rows.count, comparisonAmount: comparison, comparisonMonthCount: comparisonMonthCount, comparisonAverageAmount: comparisonAverageAmount)
             }
 
+            // V3.9.3 · 支出合计与本月来源占比（与收入同口径：左闭右开；来源占比
+            // 用 IncomeSourceSummary 的闭区间计算时把 end 往前推 1 秒，等价于左闭右开）。
+            var expenseTotals: [BusinessPeriod: Double] = [:]
+            for period in [BusinessPeriod.today, .yesterday, .lastSevenDays, .thisWeek, .lastWeek, .thisMonth, .lastMonth, .lastThreeMonths, .lastSixMonths] {
+                guard let bounds = periodParser.bounds(for: period, now: now, calendar: calendar) else { continue }
+                let rows = expenses.filter { $0.date >= bounds.start && $0.date < bounds.end }
+                if !rows.isEmpty { expenseTotals[period] = rows.reduce(0) { $0 + $1.amount } }
+            }
+            let sourceShares: [SourceShareSummary] = {
+                guard let monthBounds = calendar.dateInterval(of: .month, for: now) else { return [] }
+                let summaries = IncomeSourceSummary.compute(
+                    performances: revenues,
+                    range: (start: monthBounds.start, end: monthBounds.end.addingTimeInterval(-1)))
+                return summaries
+                    .filter { $0.amount > 0 }
+                    .map { SourceShareSummary(name: $0.source.rawValue, amount: $0.amount, percent: $0.ratio * 100) }
+            }()
+
             return GroundingPack(
                 todayRevenue: todayRows.isEmpty ? nil : todayRows.reduce(0) { $0 + $1.amount },
                 yesterdayRevenue: yesterdayRows.isEmpty ? nil : yesterdayRows.reduce(0) { $0 + $1.amount },
@@ -125,7 +143,9 @@ final class RepositoryBusinessContextReader: BusinessContextProviding {
                 deliveryPendingCount: todayDeliveries.filter { $0.statusEnum == .pending }.count,
                 deliveryDeliveringCount: todayDeliveries.filter { $0.statusEnum == .delivering }.count,
                 expiryTitles: Array(expiryTitles), goods: goods, localSummary: localSummary,
-                periodSummaries: periodSummaries
+                periodSummaries: periodSummaries,
+                expenseTotals: expenseTotals,
+                sourceShares: sourceShares
             )
         } catch {
             return .empty

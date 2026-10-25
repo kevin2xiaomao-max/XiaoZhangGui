@@ -208,6 +208,15 @@ struct IntentRouter {
     }
 
     private func classifyBusinessInsight(_ text: String) -> BusinessInsightKind? {
+        // V3.9.3 · 极值 / 占比问法优先于时段解析，避免「本周最高营业日」被时段吞掉。
+        if (text.contains("最高") || text.contains("最低")),
+           ["营业", "生意", "收入", "营收"].contains(where: { text.contains($0) }) {
+            return .extremes
+        }
+        if (text.contains("占比") || text.contains("来源")),
+           ["营业", "生意", "收入", "营收", "本月"].contains(where: { text.contains($0) }) {
+            return .sourceShare
+        }
         if let period = BusinessPeriodParser().parse(text),
            period != .today, period != .yesterday,
            (period != .lastSevenDays || ["生意", "业绩", "经营"].contains(where: { text.contains($0) })) ,
