@@ -69,7 +69,9 @@ enum AIAssembly {
             tier: settings.tier,
             webSearchCapability: searchCapability,
             visionCapability: multimodalVision,
-            documentCapability: multimodalDocument
+            documentCapability: multimodalDocument,
+            usageMeter: AIUsageStore.shared,
+            fallbackModelDisplay: settings.fallbackModel
         )
         return AgentCore(env)
     }

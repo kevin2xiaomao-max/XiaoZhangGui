@@ -131,7 +131,10 @@ struct AgentEnvironment: Sendable {
         weatherService: WeatherService? = WeatherService(provider: WeatherAPIProvider(configuration: .current())),
         webSearchCapability: WebSearchCapability = WebSearchCapability(),
         visionCapability: VisionCapability = VisionCapability(),
-        documentCapability: DocumentCapability = DocumentCapability()
+        documentCapability: DocumentCapability = DocumentCapability(),
+        // V3.9.3 D · 用量计量与真实模型显示（默认 nil：预览与旧测试装配不计量）。
+        usageMeter: AIUsageStore? = nil,
+        fallbackModelDisplay: String? = nil
     ) throws -> AgentEnvironment {
         // Release 红线：live 环境绝不允许 Mock 假装成功
         if provider is MockAIProvider || fallback is MockAIProvider {
@@ -141,7 +144,8 @@ struct AgentEnvironment: Sendable {
             throw AgentError.notConfigured
         }
         return AgentEnvironment(
-            provider: ProviderChain(primary: provider, fallback: fallback),
+            provider: ProviderChain(primary: provider, fallback: fallback,
+                                    meter: usageMeter, fallbackModelDisplay: fallbackModelDisplay),
             intentRouter: IntentRouter(),
             modelRouter: modelRouter,
             contextProvider: contextProvider,
@@ -492,7 +496,11 @@ final class AgentCore {
         }()
         let route = env.modelRouter.route(task: task, intent: intent, tier: env.tier)
         // V3.9.2 成本守卫：只带最近若干轮进模型上下文，失败回执不进（ConversationBudget）。
-        let history = ConversationBudget.trimmed(await env.conversation.load().messages)
+        // V3.9.3 D：在 16 条之上再做估算输入预算裁剪（不丢当前意图、待确认操作）。
+        // 内层 ConversationBudget.trimmed(…) 保留 16 条裁剪契约（审计测试锚点），
+        // 外层再做输入预算裁剪（其内部同样先走 trimmed，双重裁剪结果一致）。
+        let history = ConversationBudget.trimmedForInputBudget(
+            ConversationBudget.trimmed(await env.conversation.load().messages))
         // 把最后一条用户原文替换成清洗后的业务内容，纠正话术不外发、不污染抽取
         var cloudMessages = history
         if let lastUserIndex = cloudMessages.lastIndex(where: { $0.role == .user }),

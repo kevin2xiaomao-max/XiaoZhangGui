@@ -1,8 +1,8 @@
 import XCTest
 
-/// V3.9.3 C · 新界面真实模拟器验收：复合意图卡组（一键确认全部真实执行）。
-/// 截图以 XCTAttachment 留在 xcresult，CI 后可从测试产物中提取认页（不是设计图）。
-/// 用量区（D）与晨报 Sheet（E）测试由各自提交追加。
+/// V3.9.3 · 新界面真实模拟器验收：复合意图卡组（一键确认全部真实执行）、
+/// AI 设置用量与费用区、晨报详情 Sheet。截图以 XCTAttachment 留在 xcresult，
+/// CI 后可从测试产物中提取认页（不是设计图）。
 final class V393SmartOperationsUITests: XCTestCase {
     private var app: XCUIApplication!
 
@@ -78,6 +78,19 @@ final class V393SmartOperationsUITests: XCTestCase {
         }
         XCTAssertTrue(disabled, "一键确认后按钮应变灰（两张卡均已处理）")
         shot("v393-composite-confirmed")
+    }
+
+    /// AI 设置：用量与费用区（含真实模型显示与不可用声明）必须可见。
+    func testUsageSectionInSettings() {
+        openAI()
+        let menu = app.buttons["ai.menu"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 10), "ai.menu 未找到")
+        menu.tap()
+        let settingsButton = app.buttons["AI 设置"]
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 5), "AI 设置菜单项未找到")
+        settingsButton.tap()
+        XCTAssertTrue(element("ai.usage.section").waitForExistence(timeout: 10), "用量与费用区未出现")
+        shot("v393-settings-usage")
     }
 
 }
