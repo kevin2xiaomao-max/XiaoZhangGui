@@ -9,6 +9,16 @@ import Foundation
 enum BusinessAnswerComposer {
 
     static func answer(for insight: BusinessInsightKind, pack: GroundingPack) -> String {
+        // V3.9.3 A · 极值与来源占比自带专属空态，先于通用守卫分派，
+        // 避免空包被通用文案吞掉；其余种类仍走原有守卫，行为不变。
+        switch insight {
+        case .extremes:
+            return extremesAnswer(pack: pack)
+        case .sourceShare:
+            return sourceShareAnswer(pack: pack)
+        default:
+            break
+        }
         guard pack.hasBusinessData else { return "目前还没有足够的店铺数据可以分析。" }
         switch insight {
         case .overview:
@@ -39,10 +49,6 @@ enum BusinessAnswerComposer {
             return "有 \(low.count) 个商品需要注意库存：\(names)。"
         case .advice:
             return adviceAnswer(pack: pack)
-        case .extremes:
-            return extremesAnswer(pack: pack)
-        case .sourceShare:
-            return sourceShareAnswer(pack: pack)
         case .period(let period):
             guard let summary = pack.periodSummaries.first(where: { $0.period == period }) else {
                 return "该时间范围暂无营业额记录。"
