@@ -93,4 +93,17 @@ final class V393SmartOperationsUITests: XCTestCase {
         shot("v393-settings-usage")
     }
 
+    /// 晨报详情 Sheet 可打开（UI 测试库为空库时行动区无数据属实，不强断行动区存在；
+    /// 行动区构成由 V393MorningBriefActionTests 单元测试覆盖）。
+    func testMorningBriefSheetOpens() {
+        if !element("screen.home").exists {
+            let homeTab = app.tabBars.buttons["首页"]
+            if homeTab.waitForExistence(timeout: 5) { homeTab.tap() }
+        }
+        let card = element("v39.morningBrief.card")
+        XCTAssertTrue(card.waitForExistence(timeout: 20), "晨报卡未出现")
+        card.tap()
+        XCTAssertTrue(app.buttons["完成"].firstMatch.waitForExistence(timeout: 10), "晨报详情 Sheet 未打开")
+        shot("v393-morning-brief-sheet")
+    }
 }

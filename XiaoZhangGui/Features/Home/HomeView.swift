@@ -135,7 +135,43 @@ struct HomeView: View {
                     performances: performances, todos: todos,
                     expiryItems: expiryItems, customers: customers,
                     monthGoal: MonthlyBusinessMetrics.goal(isDemoEnabled: demo.isEnabled, settingsGoal: settings.monthGoal)
-                )
+                ),
+                onNavigate: { destination in
+                    showMorningBrief = false
+                    switch destination {
+                    case .todo: tab = .todo
+                    case .delivery: route = .customer
+                    case .expiry: route = .expiry
+                    }
+                },
+                onExecute: { destination in
+                    switch destination {
+                    case .todo(let title):
+                        guard let todo = todos.first(where: { !$0.isCompleted && $0.title == title }) else { return }
+                        do {
+                            try TodoRepository(context: modelContext).toggleComplete(todo)
+                            Haptic.success()
+                        } catch {
+                            Haptic.error()
+                            stateActionError = "待办状态未改变，请重试。"
+                        }
+                    case .delivery(let customer, let room):
+                        guard let request = customers.first(where: {
+                            $0.statusEnum != .done
+                            && (customer.isEmpty || $0.customer == customer)
+                            && (room.isEmpty || $0.roomOrAddress == room)
+                        }) else { return }
+                        do {
+                            try CustomerRepository(context: modelContext).advanceStatus(request)
+                            Haptic.success()
+                        } catch {
+                            Haptic.error()
+                            stateActionError = "配送状态未改变，请重试。"
+                        }
+                    case .expiry:
+                        break
+                    }
+                }
             )
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)

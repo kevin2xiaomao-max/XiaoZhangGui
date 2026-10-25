@@ -31,6 +31,9 @@ struct MorningBrief: Equatable {
     /// 今日重点,最多 3 条("09:00 补货"/"全天 盘点"格式,与日历页同一时间标注)。
     let focusItems: [String]
     let advice: String
+    /// V3.9.3 · 可行动项（最多 6 条；只含标题 / 时间 / 客户 / 房号等最小字段，
+    /// 不含电话、地址全文与图片；无数据时为空数组，绝不制造提醒）。
+    var actionItems: [MorningBriefActionItem] = []
 
     /// 主句:昨日营收 + 环比(口径明示「较前日」,与首页 Hero「较昨日」区分)。
     var headlineText: String {
@@ -47,6 +50,20 @@ struct MorningBrief: Equatable {
         guard monthGoal > 0 else { return "未设月目标" }
         return "本月 \(Int((monthProgress * 100).rounded()))% · ¥\(Fmt.groupedAmount(monthRevenue)) / ¥\(Fmt.groupedAmount(monthGoal))"
     }
+}
+
+/// V3.9.3 · 晨报行动项的目的地（导航到原记录页或执行完成 / 推进）。
+enum MorningBriefActionDestination: Equatable {
+    case todo(title: String)
+    case delivery(customer: String, room: String)
+    case expiry(name: String)
+}
+
+/// V3.9.3 · 晨报行动项：标题 + 时间/状态明细 + 目的地；不含电话与地址全文。
+struct MorningBriefActionItem: Equatable {
+    let title: String
+    let detail: String
+    let destination: MorningBriefActionDestination
 }
 
 enum MorningBriefBuilder {
@@ -79,14 +96,19 @@ enum MorningBriefBuilder {
         // 口径与 HomeAggregates 完全一致:
         // 今日待办 = 未完成且(无截止或截止今天);逾期 = 未完成且截止早于今日 0 点。
         var todayTodos: [Todo] = []
+        var overdueTodos: [Todo] = []
         var overdueCount = 0
         for todo in todos where !todo.isCompleted {
             if todo.dueDate == nil || (todo.dueDate! >= todayStart && todo.dueDate! <= todayEnd) {
                 todayTodos.append(todo)
             }
-            if let due = todo.dueDate, due < todayStart { overdueCount += 1 }
+            if let due = todo.dueDate, due < todayStart {
+                overdueCount += 1
+                overdueTodos.append(todo)
+            }
         }
         todayTodos.sort { ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture) }
+        overdueTodos.sort { ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture) }
         // 时间标注不直接用 DayTimeLabel(其 isToday 判断耦合真实时钟,与注入 now 分叉);
         // 此处谓词已保证全部是今日待办:有钟点 → HH:mm,无钟点/无截止 → 全天。
         let focusItems = todayTodos.prefix(3).map { todo in
@@ -106,6 +128,46 @@ enum MorningBriefBuilder {
 
         // 配送:全部未完成配送(与首页 chips「配送」同口径,不限今日,避免第二口径)。
         let deliveryCount = customers.filter { $0.statusEnum != .done }.count
+
+        // V3.9.3 · 行动项（最多 6 条；时间标注沿用 hasClock + Fmt.time，逾期单独标注；
+        // 配送只取未完成单，临期只取待处理 7 天内；无数据不制造条目）。
+        let todoTime: (Todo) -> String = { todo in
+            if let due = todo.dueDate, ScheduleAgenda.hasClock(due) { return Fmt.time(due) }
+            return "全天"
+        }
+        var actionItems: [MorningBriefActionItem] = []
+        for todo in overdueTodos.prefix(2) {
+            actionItems.append(MorningBriefActionItem(
+                title: DisplayText.visible(todo.title, fallback: "待办事项"),
+                detail: "已逾期 · \(todoTime(todo))",
+                destination: .todo(title: todo.title)))
+        }
+        for todo in todayTodos.prefix(3) {
+            actionItems.append(MorningBriefActionItem(
+                title: DisplayText.visible(todo.title, fallback: "待办事项"),
+                detail: todoTime(todo),
+                destination: .todo(title: todo.title)))
+        }
+        let undoneDeliveries = customers
+            .filter { $0.statusEnum != .done }
+            .sorted { $0.createdAt < $1.createdAt }
+        for request in undoneDeliveries.prefix(2) {
+            actionItems.append(MorningBriefActionItem(
+                title: request.customer.isEmpty ? request.roomOrAddress : request.customer,
+                detail: "\(request.statusEnum.rawValue) · \(request.roomOrAddress)",
+                destination: .delivery(customer: request.customer, room: request.roomOrAddress)))
+        }
+        let expiringSoon = expiryItems
+            .filter { $0.status == .pending && $0.daysLeft(from: now) <= 7 }
+            .sorted { $0.expiryDate < $1.expiryDate }
+        for item in expiringSoon.prefix(2) {
+            let days = item.daysLeft(from: now)
+            actionItems.append(MorningBriefActionItem(
+                title: item.name,
+                detail: days < 0 ? "已到期" : (days == 0 ? "今天到期" : "\(days) 天后到期"),
+                destination: .expiry(name: item.name)))
+        }
+        actionItems = Array(actionItems.prefix(6))
 
         return MorningBrief(
             generatedAt: now,
@@ -127,7 +189,8 @@ enum MorningBriefBuilder {
                 deliveryCount: deliveryCount, monthGoal: monthGoal,
                 monthRevenue: monthRevenue, yesterdayRevenue: yesterdayRevenue,
                 now: now, calendar: calendar
-            )
+            ),
+            actionItems: actionItems
         )
     }
 
@@ -250,6 +313,11 @@ enum MorningBriefNotifier {
         content.title = "掌柜晨报已就绪"
         content.body = "昨日经营、今日安排、临期提醒,30 秒看完。"
         content.sound = .default
+        // V3.9.3 · 点击路由基础：category + userInfo 标明晨报详情；
+        // App 内点击处理（UNUserNotificationCenterDelegate）尚未接线，点按进详情
+        // 仍列为 NOT RUN（首页晨报卡点击进详情已可用，不依赖通知点击）。
+        content.categoryIdentifier = "xzg.morningbrief"
+        content.userInfo = ["route": "morningBrief"]
         var components = DateComponents()
         components.hour = 8
         components.minute = 0
@@ -351,6 +419,10 @@ struct MorningBriefCard: View {
 
 struct MorningBriefSheet: View {
     let brief: MorningBrief
+    /// 点行 → 导航到原记录页（待办切 Tab、配送/临期进对应页）；缺省 nil 时行不可点。
+    var onNavigate: ((MorningBriefActionDestination) -> Void)? = nil
+    /// 行尾执行按钮 → 完成待办 / 推进配送；临期无执行按钮。缺省 nil 时不显示执行按钮。
+    var onExecute: ((MorningBriefActionDestination) -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -359,6 +431,7 @@ struct MorningBriefSheet: View {
                 VStack(alignment: .leading, spacing: 16) {
                     headlineCard
                     if !brief.focusItems.isEmpty { focusSection }
+                    if !brief.actionItems.isEmpty { actionSection }
                     statSection
                     goalSection
                     adviceSection
@@ -412,6 +485,58 @@ struct MorningBriefSheet: View {
                 }
                 if index < brief.focusItems.count - 1 { V371Divider() }
             }
+        }
+    }
+
+    private var actionSection: some View {
+        briefSection("今日行动") {
+            ForEach(Array(brief.actionItems.enumerated()), id: \.offset) { index, item in
+                HStack(spacing: 10) {
+                    Button {
+                        onNavigate?(item.destination)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.title)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                            Text(item.detail)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(onNavigate == nil)
+                    .accessibilityLabel("\(item.title)，\(item.detail)")
+                    .accessibilityIdentifier("v39.morningBrief.action.\(index)")
+                    if onExecute != nil {
+                        switch item.destination {
+                        case .todo, .delivery:
+                            Button(actionButtonTitle(for: item.destination)) {
+                                onExecute?(item.destination)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .accessibilityLabel("\(actionButtonTitle(for: item.destination))：\(item.title)")
+                        case .expiry:
+                            EmptyView()
+                        }
+                    }
+                }
+                if index < brief.actionItems.count - 1 { V371Divider() }
+            }
+        }
+        .accessibilityIdentifier("v39.morningBrief.actions")
+    }
+
+    private func actionButtonTitle(for destination: MorningBriefActionDestination) -> String {
+        switch destination {
+        case .todo: return "完成"
+        case .delivery: return "推进"
+        case .expiry: return "查看"
         }
     }
 
