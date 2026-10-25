@@ -17,6 +17,13 @@ enum ToolIdempotency {
         case .recordRevenue(let a):
             let amount = (a.amount ?? 0).rounded(to: 2)
             return "rev|\(fmt(amount))|\(day(a.date))|\(norm(a.source))|\(norm(a.note))"
+        case .recordExpense(let a):
+            let amount = (a.amount ?? 0).rounded(to: 2)
+            return "exp|\(fmt(amount))|\(day(a.date))|\(norm(a.category))|\(norm(a.note))"
+        case .completeTodo(let a):
+            return "todoDone|\(norm(a.titleKeyword))"
+        case .advanceDelivery(let a):
+            return "delAdv|\(norm(a.customer))|\(norm(a.roomOrAddress))|\(norm(a.goodsKeyword))"
         case .createTodo(let a):
             return "todo|\(norm(a.title))|\(minute(a.dueDate))|\(a.priority ?? 0)"
         case .createMemo(let a):

@@ -12,6 +12,9 @@ struct ToolCatalog {
     static let liteTools: [ToolName] = [
         .searchRecords,
         .recordRevenue,
+        .recordExpense,
+        .completeTodo,
+        .advanceDelivery,
         .createTodo,
         .createMemo,
         .createDelivery
@@ -42,6 +45,9 @@ struct ToolCatalog {
     private static func required(for name: ToolName) -> [String] {
         switch name {
         case .recordRevenue: return ["amount"]
+        case .recordExpense: return ["amount"]
+        case .completeTodo: return ["titleKeyword"]
+        case .advanceDelivery: return []
         case .createTodo: return ["title"]
         case .createMemo: return ["title", "content"]
         case .createDelivery: return []
@@ -57,6 +63,23 @@ struct ToolCatalog {
                 "source": ["type": "string", "description": "来源，如 美团 / 现金 / 微信"],
                 "date": ["type": "string", "format": "date-time", "description": "ISO8601 日期"],
                 "note": ["type": "string", "description": "备注"]
+            ]
+        case .recordExpense:
+            return [
+                "amount": ["type": "number", "description": "支出金额，如 320"],
+                "category": ["type": "string", "description": "支出类别，如 进货 / 房租 / 工资"],
+                "date": ["type": "string", "format": "date-time", "description": "ISO8601 日期"],
+                "note": ["type": "string", "description": "备注"]
+            ]
+        case .completeTodo:
+            return [
+                "titleKeyword": ["type": "string", "description": "待办标题关键词，用于定位首个未完成待办"]
+            ]
+        case .advanceDelivery:
+            return [
+                "customer": ["type": "string", "description": "客户名"],
+                "roomOrAddress": ["type": "string", "description": "房号或地址，如 302"],
+                "goodsKeyword": ["type": "string", "description": "商品关键词"]
             ]
         case .createTodo:
             return [
@@ -111,6 +134,25 @@ extension ToolArguments {
             if let source = a.source, !source.isEmpty { rows.append(("来源", source)) }
             if let date = a.date { rows.append(("日期", Self.dayText(date))) }
             if let note = a.note, !note.isEmpty { rows.append(("备注", note)) }
+            return rows.map { (label: $0.0, value: $0.1) }
+
+        case .recordExpense(let a):
+            var rows: [(String, String)] = [
+                ("金额", "¥" + Self.money(a.amount ?? 0))
+            ]
+            if let category = a.category, !category.isEmpty { rows.append(("类别", category)) }
+            if let date = a.date { rows.append(("日期", Self.dayText(date))) }
+            if let note = a.note, !note.isEmpty { rows.append(("备注", note)) }
+            return rows.map { (label: $0.0, value: $0.1) }
+
+        case .completeTodo(let a):
+            return [("待办", a.titleKeyword ?? "")].map { (label: $0.0, value: $0.1) }
+
+        case .advanceDelivery(let a):
+            var rows: [(String, String)] = [("操作", "推进到下一状态")]
+            if let customer = a.customer, !customer.isEmpty { rows.append(("客户", customer)) }
+            if let room = a.roomOrAddress, !room.isEmpty { rows.append(("房号", room)) }
+            if let goods = a.goodsKeyword, !goods.isEmpty { rows.append(("商品", goods)) }
             return rows.map { (label: $0.0, value: $0.1) }
 
         case .createTodo(let a):

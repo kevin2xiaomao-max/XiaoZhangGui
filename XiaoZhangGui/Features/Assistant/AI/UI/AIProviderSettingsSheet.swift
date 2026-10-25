@@ -18,12 +18,15 @@ struct AIProviderSettingsSheet: View {
     @State private var draft = AISettingsDraft(settings: .shared)
     @State private var tester = ProviderConnectionTester(initial: .unverified)
     @State private var saveError: String?
+    // V3.9.3 D · 用量统计（次数级；token / 费用无可信数据时明确显示不可用）。
+    @State private var usageSummary: AIUsageSummary?
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     tierCard
+                    usageCard
                     primaryCard
                     searchCard
                     advancedCard
@@ -47,6 +50,7 @@ struct AIProviderSettingsSheet: View {
             }
             .onAppear {
                 tester.synchronize(hasEffectiveKey: !effectivePrimaryKey.isEmpty)
+                Task { usageSummary = await AIUsageStore.shared.summary() }
             }
             .alert("保存失败", isPresented: Binding(
                 get: { saveError != nil },
@@ -249,6 +253,51 @@ struct AIProviderSettingsSheet: View {
         }
     }
 
+    // MARK: - V3.9.3 D · 用量与费用（并入已有设置页，不建独立管理中心）
+
+    private var usageCard: some View {
+        GroupSurface {
+            VStack(alignment: .leading, spacing: 8) {
+                SectionHeader("用量与费用")
+                let settings = AISettings.shared
+                Text("普通档位实际模型：\(settings.resolvedPrimaryModel)")
+                    .font(.subheadline)
+                if settings.isFallbackConfigured {
+                    Text("高质量档位实际模型：\(settings.fallbackModel)")
+                        .font(.subheadline)
+                } else {
+                    Text("高质量档位：未配置（仍走主 Provider 模型，不会假装用了更强模型）")
+                        .font(.subheadline)
+                }
+                Text("单次上限：上下文 \(ConversationBudget.maxMessages) 条 · 输出 \(ConversationBudget.maxCompletionTokens) token · 估算输入预算 \(ConversationBudget.maxEstimatedInputTokens) token（估算值，非计费口径）")
+                    .font(.caption)
+                    .foregroundStyle(V371.Colors.textSecondary)
+                if let summary = usageSummary {
+                    if summary.total == 0 {
+                        Text("用量统计：暂无调用记录。")
+                            .font(.caption)
+                            .foregroundStyle(V371.Colors.textSecondary)
+                    } else {
+                        Text("用量统计：共 \(summary.total) 次（成功 \(summary.success) · 失败 \(summary.failed) · 取消 \(summary.cancelled)）。")
+                            .font(.caption)
+                            .foregroundStyle(V371.Colors.textSecondary)
+                    }
+                }
+                Text("Token 用量：\(usageSummary?.hasTokenData == true ? "服务商已返回（见调用记录）" : "不可用（服务商未返回用量数据，绝不估算冒充）")")
+                    .font(.caption)
+                    .foregroundStyle(V371.Colors.textSecondary)
+                Text("费用估算：不可用（无可信价格配置，绝不硬编码单价）")
+                    .font(.caption)
+                    .foregroundStyle(V371.Colors.textSecondary)
+                Text("超限处理：过长历史按预算截断，但不丢当前意图、待确认操作与最近消息；大图片 / 长文档外发前会提示潜在费用。")
+                    .font(.caption)
+                    .foregroundStyle(V371.Colors.textSecondary)
+            }
+            .padding(V371.Space.rowPadding)
+        }
+        .accessibilityIdentifier("ai.usage.section")
+    }
+
     // MARK: 主 Provider（DeepSeek）
 
     private var primaryCard: some View {
@@ -370,9 +419,9 @@ struct AIProviderSettingsSheet: View {
         GroupSurface {
             VStack(alignment: .leading, spacing: 8) {
                 SectionHeader("图片与文件")
-                Toggle("发送图片前先确认", isOn: $draft.imageUploadNeedsConfirmation)
+                Toggle("发送图片与文件前先确认", isOn: $draft.imageUploadNeedsConfirmation)
                     .font(.subheadline)
-                Text("开启时，每次选完图片都会先弹一次确认，说明这张图会整张上传给你配置的服务商；关闭后选完直接发送。文件只上传在本地提取出的文字，不上传原文件。")
+                Text("开启时，每次选完图片或文件都会先弹一次确认：图片会整张上传给你配置的服务商，文件只上传在本地提取出的文字，不上传原文件；关闭后选完直接发送。")
                     .font(.caption)
                     .foregroundStyle(V371.Colors.textSecondary)
             }

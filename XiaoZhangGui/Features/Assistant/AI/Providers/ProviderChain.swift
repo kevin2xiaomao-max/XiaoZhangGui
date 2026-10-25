@@ -17,33 +17,79 @@ struct ProviderChain: AIProvider {
     let id: String = "chain"
     let primary: any AIProvider
     let fallback: (any AIProvider)?
+    /// V3.9.3 · 用量计量（次数级；nil 表示不计量，如预览环境与旧测试装配）。
+    let meter: AIUsageStore?
+    /// V3.9.3 · fallback 的真实配置模型 ID（取自 AISettings.fallbackModel）。
+    /// route.model 是占位串（fallback.strong），绝不能当真实模型显示或记账；
+    /// 有真实配置时日志与计量一律用它，无配置时回落占位串并在文案中说明。
+    let fallbackModelDisplay: String?
 
     static let primarySlotID = "primary"
     static let fallbackSlotID = "fallback"
 
-    init(primary: any AIProvider, fallback: (any AIProvider)? = nil) {
+    init(primary: any AIProvider, fallback: (any AIProvider)? = nil,
+         meter: AIUsageStore? = nil, fallbackModelDisplay: String? = nil) {
         self.primary = primary
         self.fallback = fallback
+        self.meter = meter
+        self.fallbackModelDisplay = fallbackModelDisplay
     }
 
     func complete(_ request: ProviderRequest) async throws -> ProviderTurn {
         // 高质量档：路由把槽位指到 fallback，先打强模型，可故障转移时再由主链兜底。
         if request.route.providerID == Self.fallbackSlotID, let fallback {
-            AILog.fallbackFirstSelected(model: request.route.model, tier: request.route.tier)
+            let displayModel = (fallbackModelDisplay?.isEmpty == false)
+                ? fallbackModelDisplay!
+                : request.route.model
+            AILog.fallbackFirstSelected(model: displayModel, tier: request.route.tier)
             do {
-                return try await fallback.complete(request)
+                let turn = try await fallback.complete(request)
+                await meter?.record(slot: Self.fallbackSlotID, tier: request.route.tier, outcome: .success)
+                return turn
             } catch let error as ProviderFailure {
+                await meter?.record(slot: Self.fallbackSlotID, tier: request.route.tier, outcome: .failed)
                 guard error.allowsFailover else { throw error }
-                return try await primary.complete(request.rebased(to: Self.primarySlotID))
+                do {
+                    let turn = try await primary.complete(request.rebased(to: Self.primarySlotID))
+                    await meter?.record(slot: Self.primarySlotID, tier: request.route.tier, outcome: .success)
+                    return turn
+                } catch {
+                    await recordFailureOrCancellation(error, slot: Self.primarySlotID, tier: request.route.tier)
+                    throw error
+                }
+            } catch {
+                await recordFailureOrCancellation(error, slot: Self.fallbackSlotID, tier: request.route.tier)
+                throw error
             }
         }
         do {
-            return try await primary.complete(request)
+            let turn = try await primary.complete(request)
+            await meter?.record(slot: Self.primarySlotID, tier: request.route.tier, outcome: .success)
+            return turn
         } catch let error as ProviderFailure {
+            await meter?.record(slot: Self.primarySlotID, tier: request.route.tier, outcome: .failed)
             guard error.allowsFailover, let fallback else { throw error }
-            return try await fallback.complete(request.rebased(to: Self.fallbackSlotID))
+            do {
+                let turn = try await fallback.complete(request.rebased(to: Self.fallbackSlotID))
+                await meter?.record(slot: Self.fallbackSlotID, tier: request.route.tier, outcome: .success)
+                return turn
+            } catch {
+                await recordFailureOrCancellation(error, slot: Self.fallbackSlotID, tier: request.route.tier)
+                throw error
+            }
+        } catch {
+            await recordFailureOrCancellation(error, slot: Self.primarySlotID, tier: request.route.tier)
+            throw error
         }
         // AgentError / CancellationError / 未知错误：不换链
+    }
+
+    private func recordFailureOrCancellation(_ error: Error, slot: String, tier: ModelTier) async {
+        if error is CancellationError {
+            await meter?.record(slot: slot, tier: tier, outcome: .cancelled)
+        } else {
+            await meter?.record(slot: slot, tier: tier, outcome: .failed)
+        }
     }
 }
 

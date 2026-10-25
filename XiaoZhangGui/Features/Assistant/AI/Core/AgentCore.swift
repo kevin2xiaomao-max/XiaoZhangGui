@@ -131,7 +131,10 @@ struct AgentEnvironment: Sendable {
         weatherService: WeatherService? = WeatherService(provider: WeatherAPIProvider(configuration: .current())),
         webSearchCapability: WebSearchCapability = WebSearchCapability(),
         visionCapability: VisionCapability = VisionCapability(),
-        documentCapability: DocumentCapability = DocumentCapability()
+        documentCapability: DocumentCapability = DocumentCapability(),
+        // V3.9.3 D · 用量计量与真实模型显示（默认 nil：预览与旧测试装配不计量）。
+        usageMeter: AIUsageStore? = nil,
+        fallbackModelDisplay: String? = nil
     ) throws -> AgentEnvironment {
         // Release 红线：live 环境绝不允许 Mock 假装成功
         if provider is MockAIProvider || fallback is MockAIProvider {
@@ -141,7 +144,8 @@ struct AgentEnvironment: Sendable {
             throw AgentError.notConfigured
         }
         return AgentEnvironment(
-            provider: ProviderChain(primary: provider, fallback: fallback),
+            provider: ProviderChain(primary: provider, fallback: fallback,
+                                    meter: usageMeter, fallbackModelDisplay: fallbackModelDisplay),
             intentRouter: IntentRouter(),
             modelRouter: modelRouter,
             contextProvider: contextProvider,
@@ -230,7 +234,17 @@ final class AgentCore {
         do {
             let result = try await env.visionCapability.execute(
                 imageData: data, mimeType: mimeType, prompt: prompt)
-            if let call = VisionDraftParser.draftToolCall(from: result.userFacingText) {
+            // V3.9.3 · 多金额单据：无总计标记时不出卡、不相加，请用户选择其一。
+            let assessment = VisionDraftParser.assess(from: result.userFacingText)
+            if assessment.reason == "multiAmount" {
+                let options = assessment.ambiguousAmounts
+                    .map { "¥\($0 == $0.rounded() ? String(format: "%.0f", $0) : String(format: "%.2f", $0))" }
+                    .joined(separator: "、")
+                return try await appendAssistant(
+                    "这张单据里有多个金额（\(options)），请告诉我要记哪一个，例如「记 \(options.components(separatedBy: "、").first ?? "")」；我不会把它们相加。",
+                    userMessage: userMessage)
+            }
+            if let call = assessment.draft {
                 return await propose(call, userMessage: userMessage)
             }
             return try await appendAssistant(result.userFacingText, userMessage: userMessage)
@@ -357,6 +371,18 @@ final class AgentCore {
                 cancelledProposalIDs: cancelledIDs)
         }
 
+        // V3.9.3 C · 复合意图：多卡、或「一卡 + 补齐提示」、或单条推进语义
+        // （completeTodo / advanceDelivery 无单意图链路，必须走复合建卡）时走多卡路径；
+        // 其余一律回落原有单意图链路，不改变单句行为。
+        let composite = CompositeIntentParser.parse(text, now: Date())
+        let isUpdateOnly = composite.calls.count == 1
+            && (composite.calls[0].name == .completeTodo || composite.calls[0].name == .advanceDelivery)
+        if composite.calls.count >= 2
+            || (composite.calls.count >= 1 && !composite.clarifications.isEmpty)
+            || isUpdateOnly {
+            return await proposeComposite(composite, userMessage: userMessage)
+        }
+
         let intent = env.intentRouter.classify(text)
         return try await handleIntent(
             intent, workingText: text, originalText: text, userMessage: userMessage)
@@ -438,6 +464,29 @@ final class AgentCore {
             return try await appendAssistant(
                 BusinessAnswerComposer.answer(for: insight, pack: pack), userMessage: userMessage)
 
+        case .globalSearch(let rawText):
+            // V3.9.3 F · 只读本地搜索：不写库、不出卡、不把原文发给第三方。
+            let query = GlobalSearchEngine.parse(rawText, now: Date(), calendar: .current)
+            let results = await env.contextProvider.searchGlobal(query)
+            if results.isEmpty {
+                let keywords = query.terms.isEmpty ? "该条件" : "「\(query.terms.joined(separator: " "))」"
+                return try await appendAssistant(
+                    "没有找到与\(keywords)匹配的记录。换个关键词试试，例如商品名、客户名或房号；也可以去掉时间词扩大范围。",
+                    userMessage: userMessage)
+            }
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "zh_CN")
+            formatter.dateFormat = "M月d日"
+            let lines = results.prefix(10).enumerated().map { index, result in
+                let record = result.record
+                let dateText = record.date.map { " · \(formatter.string(from: $0))" } ?? ""
+                return "\(index + 1). [\(record.category.label)] \(record.title) — \(record.snippet)\(dateText)"
+            }.joined(separator: "\n")
+            let more = results.count > 10 ? "\n（共 \(results.count) 条，仅显示前 10 条）" : ""
+            return try await appendAssistant(
+                "找到 \(results.count) 条（只显示标题与摘要，电话、地址不在结果中）：\n\(lines)\(more)\n在对应页面查看详情：备忘→备忘页，配送→客户页，商品→商品页，交易→经营页，待办→待办页，临期→临期页。",
+                userMessage: userMessage)
+
         case .worldChat, .localZeroToken:
             if let meta = MetaReply.reply(for: workingText) {
                 return try await appendAssistant(meta, userMessage: userMessage)
@@ -466,11 +515,16 @@ final class AgentCore {
             case .worldChat, .weatherQuery: return .chat
             case .goodsQuery: return .businessAnswer
             case .businessInsight: return .businessAnswer
+            case .globalSearch: return .businessAnswer
             }
         }()
         let route = env.modelRouter.route(task: task, intent: intent, tier: env.tier)
         // V3.9.2 成本守卫：只带最近若干轮进模型上下文，失败回执不进（ConversationBudget）。
-        let history = ConversationBudget.trimmed(await env.conversation.load().messages)
+        // V3.9.3 D：在 16 条之上再做估算输入预算裁剪（不丢当前意图、待确认操作）。
+        // 内层 ConversationBudget.trimmed(…) 保留 16 条裁剪契约（审计测试锚点），
+        // 外层再做输入预算裁剪（其内部同样先走 trimmed，双重裁剪结果一致）。
+        let history = ConversationBudget.trimmedForInputBudget(
+            ConversationBudget.trimmed(await env.conversation.load().messages))
         // 把最后一条用户原文替换成清洗后的业务内容，纠正话术不外发、不污染抽取
         var cloudMessages = history
         if let lastUserIndex = cloudMessages.lastIndex(where: { $0.role == .user }),
@@ -576,6 +630,100 @@ final class AgentCore {
         let message = AIMessage(role: .assistant, content: lead, proposalID: proposal.id)
         await env.conversation.append(message)
         return AgentTurnResult(userMessage: userMessage, assistantMessage: message, proposal: proposal)
+    }
+
+    // MARK: - V3.9.3 C · 复合意图：多卡确认 / 一键确认全部
+
+    /// 复合建卡：每张卡独立校验、独立幂等键；已处理过的卡直接跳过不建卡，
+    /// 不完整的项只出补齐提示、不猜卡；不做跨项回滚（成功项保留）。
+    func proposeComposite(_ parsed: CompositeIntentParser.Result, userMessage: AIMessage) async -> AgentTurnResult {
+        var ids: [UUID] = []
+        var skipped: [String] = []
+        for call in parsed.calls {
+            let errors = ToolArgumentValidator.validate(call)
+            guard errors.isEmpty else {
+                skipped.append("「\(call.name.displayName)」信息不完整（\(errors.joined(separator: "、"))），已跳过")
+                continue
+            }
+            let fingerprint = ToolIdempotency.fingerprint(for: call)
+            if await env.journal.isFingerprintUsed(fingerprint) {
+                skipped.append("「\(call.name.displayName)」已经处理过，不会重复保存")
+                continue
+            }
+            let proposal = ActionProposal(call: call, isPreviewOnly: env.gate == .preview)
+            await env.pending.upsert(proposal)
+            await env.journal.append(JournalEntry(
+                toolCallID: call.id, fingerprint: fingerprint, toolName: call.name.rawValue,
+                status: ProposalStatus.pending.rawValue, recordID: nil, createdAt: .now))
+            ids.append(proposal.id)
+        }
+        guard !ids.isEmpty else {
+            let message = await appendAssistantUnchecked(
+                "这几项都不完整，无法出确认卡：" + (skipped + parsed.clarifications).joined(separator: "；"),
+                userMessage: userMessage, isError: true)
+            return message
+        }
+        var content = "准备处理 \(ids.count) 项，请逐项确认，或点「一键确认全部」按列出顺序执行："
+        if !parsed.clarifications.isEmpty {
+            content += "\n还需补充：" + parsed.clarifications.joined(separator: "；")
+        }
+        if !skipped.isEmpty {
+            content += "\n已跳过：" + skipped.joined(separator: "；")
+        }
+        let message = AIMessage(role: .assistant, content: content, compositeProposalIDs: ids)
+        await env.conversation.append(message)
+        return AgentTurnResult(userMessage: userMessage, assistantMessage: message, proposal: nil)
+    }
+
+    /// 一键确认全部：先展示完整明细（卡片本身即明细），再按列出顺序逐项执行；
+    /// 每张卡独立幂等（已执行 = 空操作成功、不重复写入）；单项失败隔离，
+    /// 失败卡保持可重试状态，成功项保留、不回滚；最后以一条汇总消息明确反馈。
+    /// 返回每张卡执行后的最新状态（调用方须据此刷新卡片 UI：pending()
+    /// 只返回待处理卡，单靠 refresh() 同步不到已执行卡的状态，按钮会永不禁用）。
+    @discardableResult
+    func confirmComposite(_ proposalIDs: [UUID]) async -> [ActionProposal] {
+        var outcomes: [String] = []
+        var updatedProposals: [ActionProposal] = []
+        for id in proposalIDs {
+            guard let proposal = await env.pending.proposal(id: id) else {
+                outcomes.append("一项已不在待确认列表，已跳过")
+                continue
+            }
+            let name = proposal.call.name.displayName
+            switch proposal.status {
+            case .executed, .duplicate:
+                outcomes.append("「\(name)」已经处理过，已跳过（不重复写入）")
+                updatedProposals.append(proposal)
+            case .cancelled:
+                outcomes.append("「\(name)」已取消，已跳过")
+                updatedProposals.append(proposal)
+            case .confirmed:
+                outcomes.append("「\(name)」正在处理，已跳过")
+                updatedProposals.append(proposal)
+            case .pending, .failed:
+                guard let updated = await confirm(proposalID: id) else {
+                    outcomes.append("「\(name)」未能处理")
+                    updatedProposals.append(proposal)
+                    continue
+                }
+                updatedProposals.append(updated)
+                if updated.previewAcknowledged {
+                    outcomes.append("「\(name)」预览版不会真实保存")
+                } else if updated.status == .executed {
+                    outcomes.append("「\(name)」已完成：\(updated.resultText ?? "")")
+                } else if updated.status == .duplicate {
+                    outcomes.append("「\(name)」已经处理过，已跳过（不重复写入）")
+                } else if updated.status == .failed {
+                    outcomes.append("「\(name)」失败：\(updated.resultText ?? "原因未知")，可单独重试")
+                } else {
+                    outcomes.append("「\(name)」状态：\(updated.status.rawValue)")
+                }
+            }
+        }
+        let summary = "一键确认结果：\n" + outcomes.enumerated()
+            .map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n")
+        await env.conversation.append(AIMessage(role: .assistant, content: summary))
+        return updatedProposals
     }
 
     // MARK: 清空对话

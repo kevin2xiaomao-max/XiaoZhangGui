@@ -151,6 +151,17 @@ final class AIConversationViewModel {
         }
     }
 
+    /// V3.9.3 C · 一键确认全部：按列出顺序逐项执行，汇总消息由 AgentCore 追加。
+    /// 返回的最新卡状态必须写回字典（refresh() 只同步待处理卡，
+    /// 已执行卡的状态只能从这里同步，否则一键确认按钮永不禁用）。
+    func confirmAll(_ proposalIDs: [UUID]) {
+        Task {
+            let updated = await agent.confirmComposite(proposalIDs)
+            for proposal in updated { proposals[proposal.id] = proposal }
+            await refresh()
+        }
+    }
+
     func cancelCard(_ proposalID: UUID) {
         Task {
             await agent.cancel(proposalID: proposalID)

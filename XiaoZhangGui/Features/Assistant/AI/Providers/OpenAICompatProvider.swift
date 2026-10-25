@@ -164,6 +164,12 @@ struct OpenAICompatProvider: AIProvider {
             switch tool {
             case .recordRevenue:
                 arguments = .recordRevenue(try decoder.decode(RevenueArguments.self, from: data))
+            case .recordExpense:
+                arguments = .recordExpense(try decoder.decode(ExpenseArguments.self, from: data))
+            case .completeTodo:
+                arguments = .completeTodo(try decoder.decode(CompleteTodoArguments.self, from: data))
+            case .advanceDelivery:
+                arguments = .advanceDelivery(try decoder.decode(AdvanceDeliveryArguments.self, from: data))
             case .createTodo:
                 arguments = .createTodo(try decoder.decode(TodoArguments.self, from: data))
             case .createMemo:
@@ -251,6 +257,12 @@ struct OpenAICompatProvider: AIProvider {
         switch name {
         case .recordRevenue:
             return "记录一笔营业额。amount：数字金额（必填，正数）；source：来源，如 美团/微信/支付宝/现金；date：ISO8601，缺省为今天；note：备注。"
+        case .recordExpense:
+            return "记录一笔支出。amount：数字金额（必填，正数）；category：类别，如 进货/房租/工资；date：ISO8601，缺省为今天；note：备注。支出绝不能记成营业额。"
+        case .completeTodo:
+            return "完成一条待办。titleKeyword：标题关键词（必填），用于定位首个未完成待办；找不到时不要猜，直接说明。"
+        case .advanceDelivery:
+            return "推进一条配送到下一状态（待处理→配送中→已完成）。customer / roomOrAddress / goodsKeyword 至少给一项，用于定位待处理单；找不到时不要猜，直接说明。绝不能自动给客户发消息。"
         case .createTodo:
             return "新建一条待办。title：标题（必填）；detail：详情；dueDate：ISO8601；priority：0普通/1重要/2紧急。单纯提问不要建待办；时间有歧义（如「3点」没说上午下午）时不要猜，直接追问。"
         case .createMemo:

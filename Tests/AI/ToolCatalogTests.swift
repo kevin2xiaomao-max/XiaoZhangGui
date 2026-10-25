@@ -2,10 +2,14 @@ import XCTest
 @testable import XiaoZhangGui
 
 final class ToolCatalogTests: XCTestCase {
+    /// V3.9.3：工具集由 5 个扩为 8 个（+ recordExpense 支出、completeTodo 完成待办、
+    /// advanceDelivery 推进配送）；新增的 3 个同样是 CREATE（需确认卡），仍不注册
+    /// addExpiry / 通用 update / delete。
     func testLiteRegistersExactlyFiveTools() {
-        XCTAssertEqual(ToolCatalog.liteTools.count, 5)
+        XCTAssertEqual(ToolCatalog.liteTools.count, 8)
         XCTAssertEqual(Set(ToolCatalog.liteTools),
-                       Set([.searchRecords, .recordRevenue, .createTodo, .createMemo, .createDelivery]))
+                       Set([.searchRecords, .recordRevenue, .recordExpense, .completeTodo,
+                            .advanceDelivery, .createTodo, .createMemo, .createDelivery]))
         // V3.3 Lite 不注册临期 / 更新 / 删除
         XCTAssertFalse(ToolCatalog.liteTools.map(\.rawValue).contains("addExpiry"))
         XCTAssertFalse(ToolCatalog.liteTools.map(\.rawValue).contains("update"))
@@ -14,7 +18,7 @@ final class ToolCatalogTests: XCTestCase {
 
     func testDefinitionsCountAndValidJSON() throws {
         let defs = ToolCatalog.definitions()
-        XCTAssertEqual(defs.count, 5)
+        XCTAssertEqual(defs.count, 8)
         for def in defs {
             let object = try JSONSerialization.jsonObject(with: def.jsonSchema) as? [String: Any]
             XCTAssertEqual(object?["type"] as? String, "object", "\(def.name) schema 必须是 JSON object")
@@ -24,7 +28,8 @@ final class ToolCatalogTests: XCTestCase {
 
     func testPermissions() {
         XCTAssertEqual(ToolName.searchRecords.permission, .read)
-        for name in [ToolName.recordRevenue, .createTodo, .createMemo, .createDelivery] {
+        for name in [ToolName.recordRevenue, .recordExpense, .completeTodo, .advanceDelivery,
+                     .createTodo, .createMemo, .createDelivery] {
             XCTAssertEqual(name.permission, .create, "\(name) 必须是 CREATE（需确认卡）")
         }
     }
