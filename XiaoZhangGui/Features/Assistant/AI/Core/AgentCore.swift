@@ -131,10 +131,7 @@ struct AgentEnvironment: Sendable {
         weatherService: WeatherService? = WeatherService(provider: WeatherAPIProvider(configuration: .current())),
         webSearchCapability: WebSearchCapability = WebSearchCapability(),
         visionCapability: VisionCapability = VisionCapability(),
-        documentCapability: DocumentCapability = DocumentCapability(),
-        // V3.9.3 D · 用量计量与真实模型显示（默认 nil：预览与旧测试装配不计量）。
-        usageMeter: AIUsageStore? = nil,
-        fallbackModelDisplay: String? = nil
+        documentCapability: DocumentCapability = DocumentCapability()
     ) throws -> AgentEnvironment {
         // Release 红线：live 环境绝不允许 Mock 假装成功
         if provider is MockAIProvider || fallback is MockAIProvider {
@@ -144,8 +141,7 @@ struct AgentEnvironment: Sendable {
             throw AgentError.notConfigured
         }
         return AgentEnvironment(
-            provider: ProviderChain(primary: provider, fallback: fallback,
-                                    meter: usageMeter, fallbackModelDisplay: fallbackModelDisplay),
+            provider: ProviderChain(primary: provider, fallback: fallback),
             intentRouter: IntentRouter(),
             modelRouter: modelRouter,
             contextProvider: contextProvider,
@@ -464,29 +460,6 @@ final class AgentCore {
             return try await appendAssistant(
                 BusinessAnswerComposer.answer(for: insight, pack: pack), userMessage: userMessage)
 
-        case .globalSearch(let rawText):
-            // V3.9.3 F · 只读本地搜索：不写库、不出卡、不把原文发给第三方。
-            let query = GlobalSearchEngine.parse(rawText, now: Date(), calendar: .current)
-            let results = await env.contextProvider.searchGlobal(query)
-            if results.isEmpty {
-                let keywords = query.terms.isEmpty ? "该条件" : "「\(query.terms.joined(separator: " "))」"
-                return try await appendAssistant(
-                    "没有找到与\(keywords)匹配的记录。换个关键词试试，例如商品名、客户名或房号；也可以去掉时间词扩大范围。",
-                    userMessage: userMessage)
-            }
-            let formatter = DateFormatter()
-            formatter.locale = Locale(identifier: "zh_CN")
-            formatter.dateFormat = "M月d日"
-            let lines = results.prefix(10).enumerated().map { index, result in
-                let record = result.record
-                let dateText = record.date.map { " · \(formatter.string(from: $0))" } ?? ""
-                return "\(index + 1). [\(record.category.label)] \(record.title) — \(record.snippet)\(dateText)"
-            }.joined(separator: "\n")
-            let more = results.count > 10 ? "\n（共 \(results.count) 条，仅显示前 10 条）" : ""
-            return try await appendAssistant(
-                "找到 \(results.count) 条（只显示标题与摘要，电话、地址不在结果中）：\n\(lines)\(more)\n在对应页面查看详情：备忘→备忘页，配送→客户页，商品→商品页，交易→经营页，待办→待办页，临期→临期页。",
-                userMessage: userMessage)
-
         case .worldChat, .localZeroToken:
             if let meta = MetaReply.reply(for: workingText) {
                 return try await appendAssistant(meta, userMessage: userMessage)
@@ -515,16 +488,11 @@ final class AgentCore {
             case .worldChat, .weatherQuery: return .chat
             case .goodsQuery: return .businessAnswer
             case .businessInsight: return .businessAnswer
-            case .globalSearch: return .businessAnswer
             }
         }()
         let route = env.modelRouter.route(task: task, intent: intent, tier: env.tier)
         // V3.9.2 成本守卫：只带最近若干轮进模型上下文，失败回执不进（ConversationBudget）。
-        // V3.9.3 D：在 16 条之上再做估算输入预算裁剪（不丢当前意图、待确认操作）。
-        // 内层 ConversationBudget.trimmed(…) 保留 16 条裁剪契约（审计测试锚点），
-        // 外层再做输入预算裁剪（其内部同样先走 trimmed，双重裁剪结果一致）。
-        let history = ConversationBudget.trimmedForInputBudget(
-            ConversationBudget.trimmed(await env.conversation.load().messages))
+        let history = ConversationBudget.trimmed(await env.conversation.load().messages)
         // 把最后一条用户原文替换成清洗后的业务内容，纠正话术不外发、不污染抽取
         var cloudMessages = history
         if let lastUserIndex = cloudMessages.lastIndex(where: { $0.role == .user }),
