@@ -106,4 +106,18 @@ final class V393SmartOperationsUITests: XCTestCase {
         XCTAssertTrue(app.buttons["完成"].firstMatch.waitForExistence(timeout: 10), "晨报详情 Sheet 未打开")
         shot("v393-morning-brief-sheet")
     }
+
+    /// 全局搜索：空态范例「搜索 怡宝」直达只读本地搜索，空库返回合理空态（不写库、不出卡）。
+    func testGlobalSearchEmptyState() {
+        openAI()
+        let chip = app.buttons["搜索 怡宝"]
+        if chip.waitForExistence(timeout: 10) {
+            chip.tap()
+        } else {
+            sendMessage("搜索 怡宝")
+        }
+        let empty = app.staticTexts.matching(NSPredicate(format: "label CONTAINS '没有找到与'")).firstMatch
+        XCTAssertTrue(empty.waitForExistence(timeout: 30), "全局搜索空态回复未出现")
+        shot("v393-global-search-empty")
+    }
 }

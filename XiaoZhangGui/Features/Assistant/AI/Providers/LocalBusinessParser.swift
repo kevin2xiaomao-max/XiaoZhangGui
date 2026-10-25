@@ -69,7 +69,7 @@ struct LocalBusinessParser {
             case .createDelivery: return parseDelivery(text, now: now)
             case .searchRecords: return nil
             }
-        case .businessQuery, .worldChat, .localZeroToken, .weatherQuery, .goodsQuery, .businessInsight:
+        case .businessQuery, .worldChat, .localZeroToken, .weatherQuery, .goodsQuery, .businessInsight, .globalSearch:
             return nil
         }
     }

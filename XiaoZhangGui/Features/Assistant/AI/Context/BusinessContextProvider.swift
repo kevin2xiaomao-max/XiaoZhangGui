@@ -104,11 +104,14 @@ protocol BusinessContextProviding: Sendable {
     func scopedContext(for kinds: [BusinessRecordKind]) async -> ScopedBusinessContext
     func goods(named query: String) async -> [GoodsSummary]
     func groundingPack() async -> GroundingPack
+    /// V3.9.3 · 全局只读搜索（默认空结果；真实实现见 RepositoryBusinessContextReader）。
+    func searchGlobal(_ query: GlobalSearchQuery) async -> [GlobalSearchResult]
 }
 
 extension BusinessContextProviding {
     func goods(named query: String) async -> [GoodsSummary] { [] }
     func groundingPack() async -> GroundingPack { .empty }
+    func searchGlobal(_ query: GlobalSearchQuery) async -> [GlobalSearchResult] { [] }
 }
 
 /// Foundation：尚未接 Repository，统一返回空上下文。

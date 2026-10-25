@@ -36,7 +36,8 @@ struct AIChatView: View {
         "今天美团680",
         "明天下两箱可乐",
         "记一下供应商周五来",
-        "今晚8点给302送两箱怡宝"
+        "今晚8点给302送两箱怡宝",
+        "搜索 怡宝"
     ]
 
     var body: some View {
@@ -114,6 +115,11 @@ struct AIChatView: View {
                         Label("清空当前对话", systemImage: "trash")
                     }
                     Divider()
+                    // V3.9.3 F · 全局搜索入口：把「搜索 」填进输入框，用户补关键词后发送；
+                    // 空态范例里也有「搜索 怡宝」可直接点。
+                    Button { model.input = "搜索 " } label: {
+                        Label("全局搜索", systemImage: "magnifyingglass")
+                    }
                     Button { showSettings = true } label: {
                         Label("AI 设置", systemImage: "gearshape")
                     }

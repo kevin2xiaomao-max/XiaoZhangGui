@@ -152,6 +152,80 @@ final class RepositoryBusinessContextReader: BusinessContextProviding {
         }
     }
 
+    /// V3.9.3 F · 全局只读搜索：全量 fetch 后 Swift 侧过滤（与本 Reader 既有约定一致，
+    /// 不用 #Predicate）；结果只含最小字段——电话、地址全文、图片、备注原文一律不进。
+    /// 注意：商品按建档日期（createdAt）参与时段过滤；交易按业务日期。
+    func searchGlobal(_ query: GlobalSearchQuery) async -> [GlobalSearchResult] {
+        let now = Date()
+        let todayStart = calendar.startOfDay(for: now)
+        func snippet(_ text: String) -> String { String(text.prefix(60)) }
+        func todoStatus(_ todo: Todo) -> GlobalSearchStatus {
+            if todo.isCompleted { return .done }
+            if let due = todo.dueDate, due < todayStart { return .overdue }
+            return .pending
+        }
+        var records: [GlobalSearchRecord] = []
+        if let memos = try? context.fetch(FetchDescriptor<Memo>()) {
+            records += memos.map {
+                GlobalSearchRecord(id: "memo-\($0.title)-\($0.createdAt.timeIntervalSince1970)",
+                                   category: .memo, title: $0.title, snippet: snippet($0.content),
+                                   date: $0.createdAt, status: nil)
+            }
+        }
+        if let customers = try? context.fetch(FetchDescriptor<CustomerRequest>()) {
+            records += customers.map {
+                let status: GlobalSearchStatus = {
+                    switch $0.statusEnum {
+                    case .pending: return .pending
+                    case .delivering: return .delivering
+                    case .done: return .done
+                    }
+                }()
+                // 标题用客户名（空则用房号），摘要只用商品内容；电话绝不进结果。
+                return GlobalSearchRecord(id: "delivery-\($0.customer)-\($0.roomOrAddress)-\($0.createdAt.timeIntervalSince1970)",
+                                          category: .delivery,
+                                          title: $0.customer.isEmpty ? $0.roomOrAddress : $0.customer,
+                                          snippet: snippet($0.content),
+                                          date: $0.createdAt, status: status)
+            }
+        }
+        if let goodsRows = try? context.fetch(FetchDescriptor<Goods>()) {
+            records += goodsRows.map {
+                GlobalSearchRecord(id: "goods-\($0.name)",
+                                   category: .goods, title: $0.name,
+                                   snippet: "库存 \($0.stock) · 售价 ¥\($0.salePrice)",
+                                   date: $0.createdAt, status: nil)
+            }
+        }
+        if let performances = try? context.fetch(FetchDescriptor<Performance>()) {
+            records += performances.map {
+                GlobalSearchRecord(id: "tx-\($0.date.timeIntervalSince1970)-\($0.amount)",
+                                   category: .transaction,
+                                   title: $0.note.isEmpty ? $0.incomeSource : $0.note,
+                                   snippet: "¥\($0.amount) · \($0.incomeSource)",
+                                   date: $0.date, status: nil)
+            }
+        }
+        if let todos = try? context.fetch(FetchDescriptor<Todo>()) {
+            records += todos.map {
+                GlobalSearchRecord(id: "todo-\($0.title)-\($0.createdAt.timeIntervalSince1970)",
+                                   category: .todo, title: $0.title, snippet: snippet($0.detail),
+                                   date: $0.dueDate ?? $0.createdAt, status: todoStatus($0))
+            }
+        }
+        if let expiry = try? context.fetch(FetchDescriptor<ExpiryItem>()) {
+            records += expiry.map {
+                let days = $0.daysLeft(from: now)
+                let status: GlobalSearchStatus? = ($0.status == .pending && days <= 7) ? .expiring : nil
+                return GlobalSearchRecord(id: "expiry-\($0.name)-\($0.expiryDate.timeIntervalSince1970)",
+                                          category: .expiry, title: $0.name,
+                                          snippet: days < 0 ? "已到期" : (days == 0 ? "今天到期" : "\(days) 天后到期"),
+                                          date: $0.expiryDate, status: status)
+            }
+        }
+        return GlobalSearchEngine.search(query, in: records, now: now, calendar: calendar)
+    }
+
     /// 同步测试接缝：查询本身无异步等待，同步实现便于单测与 AgentCore 共用同一份派生逻辑。
     func scopedContextSync(for kinds: [BusinessRecordKind]) -> ScopedBusinessContext {
         guard !kinds.isEmpty else { return .empty }

@@ -464,6 +464,29 @@ final class AgentCore {
             return try await appendAssistant(
                 BusinessAnswerComposer.answer(for: insight, pack: pack), userMessage: userMessage)
 
+        case .globalSearch(let rawText):
+            // V3.9.3 F · 只读本地搜索：不写库、不出卡、不把原文发给第三方。
+            let query = GlobalSearchEngine.parse(rawText, now: Date(), calendar: .current)
+            let results = await env.contextProvider.searchGlobal(query)
+            if results.isEmpty {
+                let keywords = query.terms.isEmpty ? "该条件" : "「\(query.terms.joined(separator: " "))」"
+                return try await appendAssistant(
+                    "没有找到与\(keywords)匹配的记录。换个关键词试试，例如商品名、客户名或房号；也可以去掉时间词扩大范围。",
+                    userMessage: userMessage)
+            }
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "zh_CN")
+            formatter.dateFormat = "M月d日"
+            let lines = results.prefix(10).enumerated().map { index, result in
+                let record = result.record
+                let dateText = record.date.map { " · \(formatter.string(from: $0))" } ?? ""
+                return "\(index + 1). [\(record.category.label)] \(record.title) — \(record.snippet)\(dateText)"
+            }.joined(separator: "\n")
+            let more = results.count > 10 ? "\n（共 \(results.count) 条，仅显示前 10 条）" : ""
+            return try await appendAssistant(
+                "找到 \(results.count) 条（只显示标题与摘要，电话、地址不在结果中）：\n\(lines)\(more)\n在对应页面查看详情：备忘→备忘页，配送→客户页，商品→商品页，交易→经营页，待办→待办页，临期→临期页。",
+                userMessage: userMessage)
+
         case .worldChat, .localZeroToken:
             if let meta = MetaReply.reply(for: workingText) {
                 return try await appendAssistant(meta, userMessage: userMessage)
@@ -492,6 +515,7 @@ final class AgentCore {
             case .worldChat, .weatherQuery: return .chat
             case .goodsQuery: return .businessAnswer
             case .businessInsight: return .businessAnswer
+            case .globalSearch: return .businessAnswer
             }
         }()
         let route = env.modelRouter.route(task: task, intent: intent, tier: env.tier)

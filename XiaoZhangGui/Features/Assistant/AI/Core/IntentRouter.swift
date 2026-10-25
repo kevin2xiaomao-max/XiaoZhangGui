@@ -23,6 +23,8 @@ enum IntentKind: Equatable, Sendable {
     case goodsQuery(String)
     /// AI 2.0 店铺经营分析。除 advice 外均本地 0-token 回答。
     case businessInsight(BusinessInsightKind)
+    /// V3.9.3 · 全局自然语言搜索（只读、本地优先；原文为触发句全文）。
+    case globalSearch(String)
 }
 
 struct IntentRouter {
@@ -60,6 +62,10 @@ struct IntentRouter {
         // 0) 实时外部信息查询（天气）优先于一切 CREATE：
         //    「明天恩平什么天气啊，帮我查下」是 READ，不是「明天 + 新建待办」。
         if isWeatherQuery(text) { return .weatherQuery }
+
+        // V3.9.3 F · 全局搜索触发句（「搜索…」「查找…」）优先于经营洞察与查询聚合，
+        // 但不优先于天气；触发句本身不含写动作词时才进搜索。
+        if GlobalSearchEngine.isGlobalSearch(text) { return .globalSearch(text) }
 
         if let insight = classifyBusinessInsight(text) { return .businessInsight(insight) }
 
