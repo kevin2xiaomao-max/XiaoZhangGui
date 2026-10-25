@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>你的小掌柜 · V4.0 Fusion 原型索引</title>
+<style>
+  :root { color-scheme: light; }
+  body { margin: 0; background: #F3F8F5; color: #1A1D21;
+    font-family: -apple-system, "SF Pro Text", "PingFang SC", sans-serif; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 40px 24px 80px; }
+  h1 { font-size: 28px; margin: 0 0 6px; }
+  .sub { color: #5F646E; font-size: 14px; margin-bottom: 28px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+  a.card { display: block; background: #FFFFFF; border: 1px solid rgba(30,35,40,.08);
+    border-radius: 12px; padding: 16px; text-decoration: none; color: inherit; }
+  a.card:hover { border-color: #1FA971; }
+  .t { font-size: 16px; font-weight: 600; }
+  .d { font-size: 12px; color: #5F646E; margin-top: 4px; line-height: 1.5; }
+  .tag { display: inline-block; font-size: 11px; color: #146B52; background: rgba(31,169,113,.10);
+    border-radius: 6px; padding: 2px 8px; margin-left: 6px; }
+  .note { margin-top: 32px; font-size: 13px; color: #3A3F47; background: #EAF3EE;
+    border-radius: 12px; padding: 14px 16px; line-height: 1.7; }
+  .note b { color: #146B52; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>你的小掌柜 · V4.0 Fusion 原型</h1>
+  <div class="sub">B70 原生工作台 × A20 账页 × C10 留白语音 · 13 页 · 每页 Light/Dark 双态 · 2026-10-25</div>
+  <div class="grid">
+    <a class="card" href="fusion-home.html"><span class="t">工作台</span><span class="tag">核心</span><div class="d">日期头 · 衬线 Hero · 四 chips · 近7日 · 掌柜晨报</div></a>
+    <a class="card" href="fusion-ai.html"><span class="t">AI 对话</span><span class="tag">核心</span><div class="d">收据确认卡 · material 输入条 · 语音球 · 运行三步</div></a>
+    <a class="card" href="fusion-business.html"><span class="t">经营</span><span class="tag">核心</span><div class="d">日/周/月切换 · 收入来源 · 月报「较上月同期」</div></a>
+    <a class="card" href="fusion-todo.html"><span class="t">待办</span><span class="tag">核心</span><div class="d">Editorial 进度头 · 两段式勾选 · 失败重试</div></a>
+    <a class="card" href="fusion-customer.html"><span class="t">客户配送</span><span class="tag">核心</span><div class="d">筛选列表 · 配送状态四态推进</div></a>
+    <a class="card" href="fusion-calendar.html"><span class="t">日历</span><span class="tag">核心</span><div class="d">月/周密度网格 · 当日详情 · 当日经营</div></a>
+    <a class="card" href="fusion-voice.html"><span class="t">语音记账</span><div class="d">语音球 · 大字转写 · glass 确认 sheet</div></a>
+    <a class="card" href="fusion-memo.html"><span class="t">备忘 / 记录</span><div class="d">分组列表 · 行内时间 · 编辑预填</div></a>
+    <a class="card" href="fusion-goods.html"><span class="t">商品库存</span><div class="d">分类 chips · 低库存 Badge · 进货 sheet</div></a>
+    <a class="card" href="fusion-expiry.html"><span class="t">临期退货</span><div class="d">到期分组 · 退货三态 · 统计头联动</div></a>
+    <a class="card" href="fusion-report.html"><span class="t">今日日报</span><div class="d">衬线总览 · 渠道明细 · 分享</div></a>
+    <a class="card" href="fusion-settings.html"><span class="t">设置 / 我的</span><div class="d">晨报·备份提醒开关 · 恢复备份</div></a>
+    <a class="card" href="fusion-widget.html"><span class="t">小组件</span><div class="d">今日营业 · 待办 · 记一笔（Light/Dark）</div></a>
+  </div>
+  <div class="note">
+    <b>用法</b>：双击任一卡片打开单文件原型（file:// 离线可用），页面内每台「手机」都可点击交互。
+    全部 13 页已通过自动审计（溢出 / 点按目标 ≥38px / 字号 ≥11px / WCAG 对比度，totalFails=0）
+    与真实鼠标点击测试（problems=[]）。截图见 shots/ 目录。
+    设计文档：<a href="01-design-system.md">01 设计系统</a> · <a href="04-swiftui-spec.md">04 SwiftUI 规范</a> ·
+    <a href="05-acceptance-report.md">05 验收报告</a> · <a href="06-affectui-reference.md">06 affectUI 参考</a>。
+  </div>
+</div>
+</body>
+</html>
