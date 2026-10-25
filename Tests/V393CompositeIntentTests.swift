@@ -68,8 +68,12 @@ final class V393CompositeIntentTests: XCTestCase {
               let time = delivery.deliveryTime else {
             return XCTFail("应解析出配送时间")
         }
-        XCTAssertEqual(calendar.component(.day, from: time), 29, "明天凌晨 1 点应落在次日")
-        XCTAssertEqual(calendar.component(.hour, from: time), 1, "凌晨 1 点不是下午 1 点")
+        // 解析用设备本地日历（Calendar.current）；断言必须用同一日历，
+        // 否则 UTC runner 与 +08:00 断言日历错位会把 01:00 误读成 09:00。
+        // 「明天凌晨 1 点」在解析日历里恒为次日 01:00，与运行机时区无关。
+        let local = Calendar.current
+        XCTAssertEqual(local.component(.day, from: time), local.component(.day, from: local.date(byAdding: .day, value: 1, to: wednesdayEvening)!), "明天凌晨 1 点应落在次日")
+        XCTAssertEqual(local.component(.hour, from: time), 1, "凌晨 1 点不是下午 1 点")
     }
 
     func testAdvanceAndCompleteCallConstruction() {
@@ -138,12 +142,18 @@ final class V393CompositeIntentTests: XCTestCase {
         let turn = await agent.proposeComposite(parsed, userMessage: userMessage)
         XCTAssertEqual(turn.assistantMessage?.compositeProposalIDs.count, 2)
 
-        await agent.confirmComposite(turn.assistantMessage!.compositeProposalIDs)
+        let firstOutcomes = await agent.confirmComposite(turn.assistantMessage!.compositeProposalIDs)
         XCTAssertEqual(try context.fetch(FetchDescriptor<Performance>()).count, 1)
         XCTAssertEqual(try context.fetch(FetchDescriptor<CustomerRequest>()).count, 1)
+        XCTAssertTrue(firstOutcomes.allSatisfy { $0.status == .executed },
+                      "首轮一键确认返回的状态必须全部是已执行")
 
-        // 同一组卡重确认：已执行卡全部跳过，不重复写入。
-        await agent.confirmComposite(turn.assistantMessage!.compositeProposalIDs)
+        // 同一组卡重确认：已执行卡全部跳过，不重复写入；返回的状态必须
+        // 全部是已处理（ViewModel 靠返回值刷新卡片；单靠 pending() 同步
+        // 不到已执行卡，按钮会永不禁用——UI 测试回归点）。
+        let secondOutcomes = await agent.confirmComposite(turn.assistantMessage!.compositeProposalIDs)
+        XCTAssertTrue(secondOutcomes.allSatisfy { $0.status == .executed || $0.status == .duplicate },
+                      "重确认返回的状态必须全部是已处理（不重复写入）")
         XCTAssertEqual(try context.fetch(FetchDescriptor<Performance>()).count, 1, "重确认绝不能重复入账")
         XCTAssertEqual(try context.fetch(FetchDescriptor<CustomerRequest>()).count, 1)
         let messages = await agent.messages()
