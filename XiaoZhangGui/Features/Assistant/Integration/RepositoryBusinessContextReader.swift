@@ -173,20 +173,20 @@ final class RepositoryBusinessContextReader: BusinessContextProviding {
             }
         }
         if let customers = try? context.fetch(FetchDescriptor<CustomerRequest>()) {
-            records += customers.map {
+            records += customers.map { customer in
                 let status: GlobalSearchStatus = {
-                    switch $0.statusEnum {
+                    switch customer.statusEnum {
                     case .pending: return .pending
                     case .delivering: return .delivering
                     case .done: return .done
                     }
                 }()
                 // 标题用客户名（空则用房号），摘要只用商品内容；电话绝不进结果。
-                return GlobalSearchRecord(id: "delivery-\($0.customer)-\($0.roomOrAddress)-\($0.createdAt.timeIntervalSince1970)",
+                return GlobalSearchRecord(id: "delivery-\(customer.customer)-\(customer.roomOrAddress)-\(customer.createdAt.timeIntervalSince1970)",
                                           category: .delivery,
-                                          title: $0.customer.isEmpty ? $0.roomOrAddress : $0.customer,
-                                          snippet: snippet($0.content),
-                                          date: $0.createdAt, status: status)
+                                          title: customer.customer.isEmpty ? customer.roomOrAddress : customer.customer,
+                                          snippet: snippet(customer.content),
+                                          date: customer.createdAt, status: status)
             }
         }
         if let goodsRows = try? context.fetch(FetchDescriptor<Goods>()) {
