@@ -149,6 +149,16 @@ enum PendingFieldCorrectionParser {
                 value.source = source
                 return .update(.recordRevenue(value), "来源已改为\(source)，请确认。")
             }
+        case .recordExpense(var value):
+            if text.contains("金额"), lastNumber(in: text) == nil {
+                return .followUp("金额要改成多少？")
+            }
+            if text.contains("不是") || text.contains("金额") || text.contains("改成") || text.contains("改为") {
+                if let amount = lastNumber(in: text), amount > 0 {
+                    value.amount = amount
+                    return .update(.recordExpense(value), "支出金额已改为 ¥\(money(amount))，请确认。")
+                }
+            }
         case .createTodo(var value):
             if text.contains("改") || text.contains("刚才") {
                 switch DatePhraseParser.resolve(text, now: now) {

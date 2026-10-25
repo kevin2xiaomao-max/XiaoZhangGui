@@ -100,6 +100,21 @@ final class V393VisionExpenseTests: XCTestCase {
         }
         XCTAssertEqual(try count(Expense.self, in: context), 1, "重复确认绝不能重复入账")
     }
+
+    // MARK: 修正（B 补丁：新增工具 case 必须补穷尽 switch，否则构建失败）
+
+    func testExpenseAmountCorrectionMirrorsRevenue() {
+        let current = ToolArguments.recordExpense(
+            ExpenseArguments(amount: 320, category: "进货", date: nil, note: nil))
+        guard case .update(let updated, let text) =
+                PendingFieldCorrectionParser.parse("不是320，是380", current: current) else {
+            return XCTFail("支出卡金额修正应返回 update")
+        }
+        guard case .recordExpense(let value) = updated else { return XCTFail("修正后仍应为支出类型") }
+        XCTAssertEqual(value.amount, 380)
+        XCTAssertEqual(value.category, "进货", "修正金额不得丢类别")
+        XCTAssertTrue(text.contains("380"), "修正回执必须含新金额")
+    }
 }
 
 private extension ToolCall {
