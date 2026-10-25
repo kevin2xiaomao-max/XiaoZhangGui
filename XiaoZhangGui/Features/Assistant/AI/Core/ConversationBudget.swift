@@ -58,7 +58,7 @@ enum ConversationBudget {
             }
             // 只剩受保护消息：截断最长一条（优先不动最后一条用户发言）。
             let candidates = result.indices.filter { result[$0].id != lastUserID }
-            guard let longest = (candidates.isEmpty ? result.indices : candidates)
+            guard let longest = (candidates.isEmpty ? Array(result.indices) : candidates)
                 .max(by: { result[$0].content.count < result[$1].content.count }) else { break }
             var message = result[longest]
             let keep = max(message.content.count / 2, 1)
