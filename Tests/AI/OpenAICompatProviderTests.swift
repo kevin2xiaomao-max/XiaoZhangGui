@@ -74,7 +74,7 @@ final class OpenAICompatProviderTests: XCTestCase {
         XCTAssertTrue(unwrapped.messages.contains { $0.role == .system })
         XCTAssertTrue(unwrapped.messages.contains { $0.content == "今天美团680" })
         XCTAssertEqual(Set(unwrapped.tools.map(\.name)),
-                       Set(["recordRevenue", "createTodo", "createMemo", "createDelivery", "searchRecords"]))
+                       Set(["recordRevenue", "recordExpense", "createTodo", "createMemo", "createDelivery", "searchRecords"]))
         // 普通请求 context 为空：不得注入任何经营数据
         XCTAssertFalse(unwrapped.messages.map(\.content).joined().contains("revenueTodayTotal"))
     }
