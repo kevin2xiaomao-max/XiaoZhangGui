@@ -173,7 +173,7 @@ enum PendingFieldCorrectionParser {
                     }
                 }
             }
-        case .createMemo, .createDelivery, .searchRecords:
+        case .createMemo, .createDelivery, .searchRecords, .completeTodo, .advanceDelivery:
             break
         }
         return nil

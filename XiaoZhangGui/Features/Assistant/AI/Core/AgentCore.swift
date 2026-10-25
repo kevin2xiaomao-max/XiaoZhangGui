@@ -367,6 +367,18 @@ final class AgentCore {
                 cancelledProposalIDs: cancelledIDs)
         }
 
+        // V3.9.3 C · 复合意图：多卡、或「一卡 + 补齐提示」、或单条推进语义
+        // （completeTodo / advanceDelivery 无单意图链路，必须走复合建卡）时走多卡路径；
+        // 其余一律回落原有单意图链路，不改变单句行为。
+        let composite = CompositeIntentParser.parse(text, now: Date())
+        let isUpdateOnly = composite.calls.count == 1
+            && (composite.calls[0].name == .completeTodo || composite.calls[0].name == .advanceDelivery)
+        if composite.calls.count >= 2
+            || (composite.calls.count >= 1 && !composite.clarifications.isEmpty)
+            || isUpdateOnly {
+            return await proposeComposite(composite, userMessage: userMessage)
+        }
+
         let intent = env.intentRouter.classify(text)
         return try await handleIntent(
             intent, workingText: text, originalText: text, userMessage: userMessage)
@@ -586,6 +598,90 @@ final class AgentCore {
         let message = AIMessage(role: .assistant, content: lead, proposalID: proposal.id)
         await env.conversation.append(message)
         return AgentTurnResult(userMessage: userMessage, assistantMessage: message, proposal: proposal)
+    }
+
+    // MARK: - V3.9.3 C · 复合意图：多卡确认 / 一键确认全部
+
+    /// 复合建卡：每张卡独立校验、独立幂等键；已处理过的卡直接跳过不建卡，
+    /// 不完整的项只出补齐提示、不猜卡；不做跨项回滚（成功项保留）。
+    func proposeComposite(_ parsed: CompositeIntentParser.Result, userMessage: AIMessage) async -> AgentTurnResult {
+        var ids: [UUID] = []
+        var skipped: [String] = []
+        for call in parsed.calls {
+            let errors = ToolArgumentValidator.validate(call)
+            guard errors.isEmpty else {
+                skipped.append("「\(call.name.displayName)」信息不完整（\(errors.joined(separator: "、"))），已跳过")
+                continue
+            }
+            let fingerprint = ToolIdempotency.fingerprint(for: call)
+            if await env.journal.isFingerprintUsed(fingerprint) {
+                skipped.append("「\(call.name.displayName)」已经处理过，不会重复保存")
+                continue
+            }
+            let proposal = ActionProposal(call: call, isPreviewOnly: env.gate == .preview)
+            await env.pending.upsert(proposal)
+            await env.journal.append(JournalEntry(
+                toolCallID: call.id, fingerprint: fingerprint, toolName: call.name.rawValue,
+                status: ProposalStatus.pending.rawValue, recordID: nil, createdAt: .now))
+            ids.append(proposal.id)
+        }
+        guard !ids.isEmpty else {
+            let message = await appendAssistantUnchecked(
+                "这几项都不完整，无法出确认卡：" + (skipped + parsed.clarifications).joined(separator: "；"),
+                userMessage: userMessage, isError: true)
+            return message
+        }
+        var content = "准备处理 \(ids.count) 项，请逐项确认，或点「一键确认全部」按列出顺序执行："
+        if !parsed.clarifications.isEmpty {
+            content += "\n还需补充：" + parsed.clarifications.joined(separator: "；")
+        }
+        if !skipped.isEmpty {
+            content += "\n已跳过：" + skipped.joined(separator: "；")
+        }
+        let message = AIMessage(role: .assistant, content: content, compositeProposalIDs: ids)
+        await env.conversation.append(message)
+        return AgentTurnResult(userMessage: userMessage, assistantMessage: message, proposal: nil)
+    }
+
+    /// 一键确认全部：先展示完整明细（卡片本身即明细），再按列出顺序逐项执行；
+    /// 每张卡独立幂等（已执行 = 空操作成功、不重复写入）；单项失败隔离，
+    /// 失败卡保持可重试状态，成功项保留、不回滚；最后以一条汇总消息明确反馈。
+    func confirmComposite(_ proposalIDs: [UUID]) async {
+        var outcomes: [String] = []
+        for id in proposalIDs {
+            guard let proposal = await env.pending.proposal(id: id) else {
+                outcomes.append("一项已不在待确认列表，已跳过")
+                continue
+            }
+            let name = proposal.call.name.displayName
+            switch proposal.status {
+            case .executed, .duplicate:
+                outcomes.append("「\(name)」已经处理过，已跳过（不重复写入）")
+            case .cancelled:
+                outcomes.append("「\(name)」已取消，已跳过")
+            case .confirmed:
+                outcomes.append("「\(name)」正在处理，已跳过")
+            case .pending, .failed:
+                guard let updated = await confirm(proposalID: id) else {
+                    outcomes.append("「\(name)」未能处理")
+                    continue
+                }
+                if updated.previewAcknowledged {
+                    outcomes.append("「\(name)」预览版不会真实保存")
+                } else if updated.status == .executed {
+                    outcomes.append("「\(name)」已完成：\(updated.resultText ?? "")")
+                } else if updated.status == .duplicate {
+                    outcomes.append("「\(name)」已经处理过，已跳过（不重复写入）")
+                } else if updated.status == .failed {
+                    outcomes.append("「\(name)」失败：\(updated.resultText ?? "原因未知")，可单独重试")
+                } else {
+                    outcomes.append("「\(name)」状态：\(updated.status.rawValue)")
+                }
+            }
+        }
+        let summary = "一键确认结果：\n" + outcomes.enumerated()
+            .map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n")
+        await env.conversation.append(AIMessage(role: .assistant, content: summary))
     }
 
     // MARK: 清空对话

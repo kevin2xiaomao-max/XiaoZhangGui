@@ -61,6 +61,9 @@ struct LocalBusinessParser {
             switch tool {
             case .recordRevenue: return parseRevenue(text, now: now)
             case .recordExpense: return parseExpense(text, now: now)
+            case .completeTodo, .advanceDelivery:
+                // 复合意图解析器直接构造调用，不经聊天单意图分类。
+                return nil
             case .createTodo: return parseTodo(text, now: now)
             case .createMemo: return parseMemo(text)
             case .createDelivery: return parseDelivery(text, now: now)

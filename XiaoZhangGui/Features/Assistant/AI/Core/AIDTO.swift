@@ -23,6 +23,8 @@ struct AIMessage: Identifiable, Codable, Equatable, Sendable {
     var createdAt: Date
     /// 关联的待确认动作（Lite：一条助手消息至多一个）
     var proposalID: UUID?
+    /// V3.9.3 · 复合意图：一组待确认动作的卡片 ID（按列出顺序执行；为空表示非复合消息）。
+    var compositeProposalIDs: [UUID] = []
     /// 助手失败回复标记（用户原文永不标失败、永不丢失）
     var isError: Bool
 
@@ -32,6 +34,7 @@ struct AIMessage: Identifiable, Codable, Equatable, Sendable {
         content: String,
         createdAt: Date = .now,
         proposalID: UUID? = nil,
+        compositeProposalIDs: [UUID] = [],
         isError: Bool = false
     ) {
         self.id = id
@@ -39,6 +42,7 @@ struct AIMessage: Identifiable, Codable, Equatable, Sendable {
         self.content = content
         self.createdAt = createdAt
         self.proposalID = proposalID
+        self.compositeProposalIDs = compositeProposalIDs
         self.isError = isError
     }
 }
@@ -52,6 +56,10 @@ enum ToolName: String, Codable, Sendable, CaseIterable {
     case recordRevenue
     /// V3.9.3 · 记录支出（拍照记账的支出语义专用；绝不与 recordRevenue 混用）。
     case recordExpense
+    /// V3.9.3 · 完成待办（按标题关键词定位首个未完成待办；UPDATE 类工具）。
+    case completeTodo
+    /// V3.9.3 · 推进配送（pending→delivering→done；按客户/房号/商品定位待处理单）。
+    case advanceDelivery
     case createTodo
     case createMemo
     case createDelivery
@@ -60,7 +68,8 @@ enum ToolName: String, Codable, Sendable, CaseIterable {
         switch self {
         case .searchRecords:
             return .read
-        case .recordRevenue, .recordExpense, .createTodo, .createMemo, .createDelivery:
+        case .recordRevenue, .recordExpense, .createTodo, .createMemo, .createDelivery,
+             .completeTodo, .advanceDelivery:
             return .create
         }
     }
@@ -71,6 +80,8 @@ enum ToolName: String, Codable, Sendable, CaseIterable {
         case .searchRecords: return "查询经营记录"
         case .recordRevenue: return "记录营业额"
         case .recordExpense: return "记录支出"
+        case .completeTodo: return "完成待办"
+        case .advanceDelivery: return "推进配送"
         case .createTodo: return "新建待办"
         case .createMemo: return "新建备忘"
         case .createDelivery: return "新建配送"
@@ -103,6 +114,18 @@ struct ExpenseArguments: Codable, Equatable, Sendable {
     var category: String?
     var date: Date?
     var note: String?
+}
+
+/// V3.9.3 · 完成待办参数：标题关键词（定位用，不直接用记录 ID，避免模型编造 ID）。
+struct CompleteTodoArguments: Codable, Equatable, Sendable {
+    var titleKeyword: String?
+}
+
+/// V3.9.3 · 推进配送参数：三项定位条件至少一项；执行时按客户/房号/商品匹配待处理单。
+struct AdvanceDeliveryArguments: Codable, Equatable, Sendable {
+    var customer: String?
+    var roomOrAddress: String?
+    var goodsKeyword: String?
 }
 
 struct TodoArguments: Codable, Equatable, Sendable {
@@ -156,6 +179,8 @@ enum ToolArguments: Codable, Equatable, Sendable {
     case searchRecords(SearchRecordsArguments)
     case recordRevenue(RevenueArguments)
     case recordExpense(ExpenseArguments)
+    case completeTodo(CompleteTodoArguments)
+    case advanceDelivery(AdvanceDeliveryArguments)
     case createTodo(TodoArguments)
     case createMemo(MemoArguments)
     case createDelivery(DeliveryArguments)
@@ -165,6 +190,8 @@ enum ToolArguments: Codable, Equatable, Sendable {
         case .searchRecords: return .searchRecords
         case .recordRevenue: return .recordRevenue
         case .recordExpense: return .recordExpense
+        case .completeTodo: return .completeTodo
+        case .advanceDelivery: return .advanceDelivery
         case .createTodo: return .createTodo
         case .createMemo: return .createMemo
         case .createDelivery: return .createDelivery

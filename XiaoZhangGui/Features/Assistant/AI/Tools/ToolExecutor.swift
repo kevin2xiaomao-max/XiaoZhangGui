@@ -48,6 +48,14 @@ enum ToolArgumentValidator {
         case .recordExpense(let a):
             guard (a.amount ?? 0) > 0 else { return ["缺少有效金额"] }
             return []
+        case .completeTodo(let a):
+            guard let keyword = a.titleKeyword?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !keyword.isEmpty else { return ["缺少待办标题关键词"] }
+            return []
+        case .advanceDelivery(let a):
+            let hasAny = !(a.customer ?? "").isEmpty || !(a.roomOrAddress ?? "").isEmpty || !(a.goodsKeyword ?? "").isEmpty
+            if !hasAny { return ["缺少配送客户 / 房号或商品"] }
+            return []
         case .createTodo(let a):
             guard let title = a.title?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !title.isEmpty else { return ["缺少待办标题"] }

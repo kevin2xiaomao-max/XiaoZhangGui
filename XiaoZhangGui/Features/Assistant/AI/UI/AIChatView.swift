@@ -314,7 +314,18 @@ struct AIChatView: View {
                 .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
                 .transition(.opacity.combined(with: reduceMotion ? .identity : .move(edge: .bottom)))
 
-            if let proposalID = message.proposalID,
+            if !message.compositeProposalIDs.isEmpty {
+                CompositeActionCardGroupView(
+                    proposalIDs: message.compositeProposalIDs,
+                    proposals: model.proposals,
+                    onConfirmAll: { model.confirmAll(message.compositeProposalIDs) },
+                    onConfirm: { model.confirm($0) },
+                    onModify: { model.modifyCard($0) },
+                    onCancel: { model.cancelCard($0) }
+                )
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .transition(.opacity.combined(with: reduceMotion ? .identity : .move(edge: .bottom)))
+            } else if let proposalID = message.proposalID,
                let proposal = model.proposals[proposalID] {
                 ActionCardView(
                     proposal: proposal,

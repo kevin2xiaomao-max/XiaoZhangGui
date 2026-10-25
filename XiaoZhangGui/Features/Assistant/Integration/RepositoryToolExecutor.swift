@@ -63,6 +63,10 @@ final class RepositoryToolExecutor: ToolExecuting {
             return try executeRevenue(call, args)
         case .recordExpense(let args):
             return try executeExpense(call, args)
+        case .completeTodo(let args):
+            return try executeCompleteTodo(call, args)
+        case .advanceDelivery(let args):
+            return try executeAdvanceDelivery(call, args)
         case .createTodo(let args):
             return try executeTodo(call, args)
         case .createMemo(let args):
@@ -111,6 +115,56 @@ final class RepositoryToolExecutor: ToolExecuting {
             date: args.date ?? Date()
         )
         return .executed(recordID: call.id, summary: "已记录支出 \(money(amount))（\(finalCategory)）")
+    }
+
+    // MARK: 完成待办 / 推进配送（V3.9.3 · UPDATE 类工具；只走既有 Repository）
+
+    private func executeCompleteTodo(_ call: ToolCall, _ args: CompleteTodoArguments) throws -> ToolExecutionResult {
+        guard let keyword = args.titleKeyword?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !keyword.isEmpty else {
+            return .failed("缺少待办标题关键词")
+        }
+        let todos = try context.fetch(FetchDescriptor<Todo>())
+        guard let target = todos
+            .filter({ !$0.isCompleted && $0.title.localizedCaseInsensitiveContains(keyword) })
+            .sorted(by: { $0.createdAt < $1.createdAt })
+            .first else {
+            return .failed("未找到未完成的待办：\(keyword)")
+        }
+        try TodoRepository(context: context).toggleComplete(target)
+        return .executed(recordID: call.id, summary: "已完成待办：\(target.title)")
+    }
+
+    private func executeAdvanceDelivery(_ call: ToolCall, _ args: AdvanceDeliveryArguments) throws -> ToolExecutionResult {
+        let customer = args.customer?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let room = args.roomOrAddress?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let goods = args.goodsKeyword?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !customer.isEmpty || !room.isEmpty || !goods.isEmpty else {
+            return .failed("缺少配送客户 / 房号或商品")
+        }
+        let requests = try context.fetch(FetchDescriptor<CustomerRequest>())
+        let candidates = requests.filter { $0.statusEnum != .done }
+        func score(_ request: CustomerRequest) -> Int {
+            var value = 0
+            if !customer.isEmpty && request.customer.localizedCaseInsensitiveContains(customer) { value += 4 }
+            if !room.isEmpty && request.roomOrAddress.localizedCaseInsensitiveContains(room) { value += 4 }
+            if !goods.isEmpty && request.content.localizedCaseInsensitiveContains(goods) { value += 2 }
+            return value
+        }
+        guard let target = candidates
+            .filter({ score($0) > 0 })
+            .sorted(by: { lhs, rhs in
+                let ls = score(lhs), rs = score(rhs)
+                return ls == rs ? lhs.createdAt < rhs.createdAt : ls > rs
+            })
+            .first else {
+            return .failed("未找到待处理的配送单")
+        }
+        let previous = target.statusEnum
+        try CustomerRepository(context: context).advanceStatus(target)
+        return .executed(
+            recordID: call.id,
+            summary: "配送已从「\(previous.rawValue)」推进到「\(target.statusEnum.rawValue)」：\(target.customer) \(target.roomOrAddress)")
     }
 
     // MARK: 待办

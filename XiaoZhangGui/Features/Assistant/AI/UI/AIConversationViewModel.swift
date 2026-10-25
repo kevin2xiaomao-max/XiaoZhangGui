@@ -151,6 +151,14 @@ final class AIConversationViewModel {
         }
     }
 
+    /// V3.9.3 C · 一键确认全部：按列出顺序逐项执行，汇总消息由 AgentCore 追加。
+    func confirmAll(_ proposalIDs: [UUID]) {
+        Task {
+            await agent.confirmComposite(proposalIDs)
+            await refresh()
+        }
+    }
+
     func cancelCard(_ proposalID: UUID) {
         Task {
             await agent.cancel(proposalID: proposalID)

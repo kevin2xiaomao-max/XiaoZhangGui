@@ -1,0 +1,83 @@
+import XCTest
+
+/// V3.9.3 C · 新界面真实模拟器验收：复合意图卡组（一键确认全部真实执行）。
+/// 截图以 XCTAttachment 留在 xcresult，CI 后可从测试产物中提取认页（不是设计图）。
+/// 用量区（D）与晨报 Sheet（E）测试由各自提交追加。
+final class V393SmartOperationsUITests: XCTestCase {
+    private var app: XCUIApplication!
+
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+        app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-id", UUID().uuidString]
+        app.launch()
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 20))
+    }
+
+    override func tearDownWithError() throws {
+        if let app, app.state != .notRunning { app.terminate() }
+    }
+
+    private func element(_ identifier: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+    }
+
+    private func shot(_ name: String) {
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    private func openAI() {
+        if element("ai.input").exists { return }
+        if !element("screen.home").exists {
+            let homeTab = app.tabBars.buttons["首页"]
+            if homeTab.waitForExistence(timeout: 5) { homeTab.tap() }
+        }
+        if element("v38.home.ai.openSheet").exists {
+            element("v38.home.ai.openSheet").tap()
+            return
+        }
+        let entry = element("home.ai")
+        XCTAssertTrue(entry.waitForExistence(timeout: 10), "home.ai 入口未找到")
+        entry.tap()
+        XCTAssertTrue(element("sheet.ai").waitForExistence(timeout: 10))
+    }
+
+    private func sendMessage(_ text: String) {
+        let input = element("ai.input")
+        XCTAssertTrue(input.waitForExistence(timeout: 10), "ai.input 未找到")
+        input.tap()
+        let tutorial = app.buttons["Continue"]
+        if tutorial.waitForExistence(timeout: 1) { tutorial.tap() }
+        input.typeText(text)
+        let sendButton = app.buttons["ai.send"]
+        XCTAssertTrue(sendButton.waitForExistence(timeout: 5), "ai.send 未找到")
+        XCTAssertTrue(sendButton.isHittable, "ai.send 不可点击")
+        sendButton.tap()
+    }
+
+    /// 复合意图：两张卡 + 一键确认全部真实执行（按钮随后变灰，证明无待确认项残留）。
+    func testCompositeGroupAndConfirmAll() {
+        openAI()
+        sendMessage("记一笔美团680，再给302送两箱怡宝")
+        let group = element("ai.composite-group")
+        XCTAssertTrue(group.waitForExistence(timeout: 30), "复合卡组未出现")
+        let confirmAll = app.buttons["ai.composite.confirmAll"]
+        XCTAssertTrue(confirmAll.waitForExistence(timeout: 10), "一键确认全部按钮未出现")
+        XCTAssertTrue(confirmAll.isEnabled, "确认前按钮应可用")
+        shot("v393-composite-group")
+        confirmAll.tap()
+        // 轮询至按钮变灰：两张卡均已执行（成功或跳过），无待确认项残留。
+        let deadline = Date().addingTimeInterval(30)
+        var disabled = false
+        while Date() < deadline {
+            if !app.buttons["ai.composite.confirmAll"].isEnabled { disabled = true; break }
+            usleep(200_000)
+        }
+        XCTAssertTrue(disabled, "一键确认后按钮应变灰（两张卡均已处理）")
+        shot("v393-composite-confirmed")
+    }
+
+}
