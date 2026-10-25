@@ -61,6 +61,8 @@ final class RepositoryToolExecutor: ToolExecuting {
         switch call.arguments {
         case .recordRevenue(let args):
             return try executeRevenue(call, args)
+        case .recordExpense(let args):
+            return try executeExpense(call, args)
         case .createTodo(let args):
             return try executeTodo(call, args)
         case .createMemo(let args):
@@ -92,6 +94,23 @@ final class RepositoryToolExecutor: ToolExecuting {
             incomeSource: IncomeSource.from(note: source ?? args.note ?? "")
         )
         return .executed(recordID: call.id, summary: "已记录营业额 \(money(amount))\(source.map { "（\($0)）" } ?? "")")
+    }
+
+    // MARK: 支出（V3.9.3 · 拍照记账支出语义专用；与收入分属不同表，绝不混写）
+
+    private func executeExpense(_ call: ToolCall, _ args: ExpenseArguments) throws -> ToolExecutionResult {
+        guard let amount = args.amount, amount > 0 else {
+            return .failed("支出金额缺失或无效")
+        }
+        let category = args.category?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let finalCategory = (category?.isEmpty == false) ? category! : "其他"
+        try ExpenseRepository(context: context).add(
+            amount: amount,
+            category: finalCategory,
+            note: args.note?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
+            date: args.date ?? Date()
+        )
+        return .executed(recordID: call.id, summary: "已记录支出 \(money(amount))（\(finalCategory)）")
     }
 
     // MARK: 待办

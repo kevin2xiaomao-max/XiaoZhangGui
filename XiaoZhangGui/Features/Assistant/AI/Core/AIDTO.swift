@@ -50,6 +50,8 @@ struct AIMessage: Identifiable, Codable, Equatable, Sendable {
 enum ToolName: String, Codable, Sendable, CaseIterable {
     case searchRecords
     case recordRevenue
+    /// V3.9.3 · 记录支出（拍照记账的支出语义专用；绝不与 recordRevenue 混用）。
+    case recordExpense
     case createTodo
     case createMemo
     case createDelivery
@@ -58,7 +60,7 @@ enum ToolName: String, Codable, Sendable, CaseIterable {
         switch self {
         case .searchRecords:
             return .read
-        case .recordRevenue, .createTodo, .createMemo, .createDelivery:
+        case .recordRevenue, .recordExpense, .createTodo, .createMemo, .createDelivery:
             return .create
         }
     }
@@ -68,6 +70,7 @@ enum ToolName: String, Codable, Sendable, CaseIterable {
         switch self {
         case .searchRecords: return "查询经营记录"
         case .recordRevenue: return "记录营业额"
+        case .recordExpense: return "记录支出"
         case .createTodo: return "新建待办"
         case .createMemo: return "新建备忘"
         case .createDelivery: return "新建配送"
@@ -90,6 +93,14 @@ struct RevenueArguments: Codable, Equatable, Sendable {
     var amount: Double?
     /// 来源：美团 / 饿了么 / 现金 / 微信 / 支付宝 …
     var source: String?
+    var date: Date?
+    var note: String?
+}
+
+/// V3.9.3 · 支出参数（与 Expense 模型对齐；类别为自由文本，如 进货/房租/工资）。
+struct ExpenseArguments: Codable, Equatable, Sendable {
+    var amount: Double?
+    var category: String?
     var date: Date?
     var note: String?
 }
@@ -144,6 +155,7 @@ struct SearchRecordsArguments: Codable, Equatable, Sendable {
 enum ToolArguments: Codable, Equatable, Sendable {
     case searchRecords(SearchRecordsArguments)
     case recordRevenue(RevenueArguments)
+    case recordExpense(ExpenseArguments)
     case createTodo(TodoArguments)
     case createMemo(MemoArguments)
     case createDelivery(DeliveryArguments)
@@ -152,6 +164,7 @@ enum ToolArguments: Codable, Equatable, Sendable {
         switch self {
         case .searchRecords: return .searchRecords
         case .recordRevenue: return .recordRevenue
+        case .recordExpense: return .recordExpense
         case .createTodo: return .createTodo
         case .createMemo: return .createMemo
         case .createDelivery: return .createDelivery

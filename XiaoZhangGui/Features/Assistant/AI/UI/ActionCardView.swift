@@ -213,6 +213,7 @@ struct ActionCardView: View {
     static func icon(for tool: ToolName) -> String {
         switch tool {
         case .recordRevenue: return "yensign.circle.fill"
+        case .recordExpense: return "creditcard.fill"
         case .createTodo: return "checkmark.circle.fill"
         case .createMemo: return "note.text"
         case .createDelivery: return "box.truck.fill"
@@ -223,6 +224,7 @@ struct ActionCardView: View {
     static func title(for tool: ToolName) -> String {
         switch tool {
         case .recordRevenue: return "记录营业额"
+        case .recordExpense: return "记录支出"
         case .createTodo: return "新建待办"
         case .createMemo: return "新建备忘"
         case .createDelivery: return "新建配送"

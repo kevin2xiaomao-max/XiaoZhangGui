@@ -45,6 +45,9 @@ enum ToolArgumentValidator {
         case .recordRevenue(let a):
             guard (a.amount ?? 0) > 0 else { return ["缺少有效金额"] }
             return []
+        case .recordExpense(let a):
+            guard (a.amount ?? 0) > 0 else { return ["缺少有效金额"] }
+            return []
         case .createTodo(let a):
             guard let title = a.title?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !title.isEmpty else { return ["缺少待办标题"] }

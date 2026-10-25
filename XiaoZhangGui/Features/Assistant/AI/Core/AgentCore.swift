@@ -230,7 +230,17 @@ final class AgentCore {
         do {
             let result = try await env.visionCapability.execute(
                 imageData: data, mimeType: mimeType, prompt: prompt)
-            if let call = VisionDraftParser.draftToolCall(from: result.userFacingText) {
+            // V3.9.3 · 多金额单据：无总计标记时不出卡、不相加，请用户选择其一。
+            let assessment = VisionDraftParser.assess(from: result.userFacingText)
+            if assessment.reason == "multiAmount" {
+                let options = assessment.ambiguousAmounts
+                    .map { "¥\($0 == $0.rounded() ? String(format: "%.0f", $0) : String(format: "%.2f", $0))" }
+                    .joined(separator: "、")
+                return try await appendAssistant(
+                    "这张单据里有多个金额（\(options)），请告诉我要记哪一个，例如「记 \(options.components(separatedBy: "、").first ?? "")」；我不会把它们相加。",
+                    userMessage: userMessage)
+            }
+            if let call = assessment.draft {
                 return await propose(call, userMessage: userMessage)
             }
             return try await appendAssistant(result.userFacingText, userMessage: userMessage)

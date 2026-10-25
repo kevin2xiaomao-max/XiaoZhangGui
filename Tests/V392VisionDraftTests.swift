@@ -27,26 +27,40 @@ final class V392VisionDraftTests: XCTestCase {
         XCTAssertEqual(arguments.amount ?? 0, 680, accuracy: 0.001, "口语金额应被归一后再进草稿")
     }
 
-    func testExpenseTextNeverDraftsRevenue() {
-        XCTAssertNil(
-            VisionDraftParser.draftToolCall(from: "进货 320 元 现金支付"),
-            "进货是支出：当前只有 recordRevenue，记反方向比不识别更坏"
-        )
-        XCTAssertNil(VisionDraftParser.draftToolCall(from: "这个月房租 3000 元"))
-        XCTAssertNil(VisionDraftParser.draftToolCall(from: "退款 58 元 已原路退回"))
+    /// V3.9.3 语义变更（用户已定决策）：支出语义不再「不出卡」，而是改出支出草稿卡；
+    /// 红线不变——收入草稿对 12 词仍被阻断，支出绝不能记成收入。
+    func testExpenseTextDraftsExpenseCardNeverRevenue() throws {
+        let cases: [(String, Double, String)] = [
+            ("进货 320 元 现金支付", 320, "进货"),
+            ("这个月房租 3000 元", 3000, "房租"),
+            ("退款 58 元 已原路退回", 58, "退款"),
+        ]
+        for (text, amount, category) in cases {
+            let call = try XCTUnwrap(VisionDraftParser.draftToolCall(from: text), "支出语义应出支出草稿：\(text)")
+            XCTAssertEqual(call.name, .recordExpense, "支出绝不能生成收入卡：\(text)")
+            guard case .recordExpense(let arguments) = call.arguments else {
+                return XCTFail("参数类型应为 recordExpense：\(text)")
+            }
+            XCTAssertEqual(arguments.amount ?? 0, amount, accuracy: 0.001)
+            XCTAssertEqual(arguments.category, category)
+        }
     }
 
-    func testRemainingExpenseCuesNeverDraftRevenue() {
-        // 与 testExpenseTextNeverDraftsRevenue 同一模式：补齐阻断表其余 9 词。
-        XCTAssertNil(VisionDraftParser.draftToolCall(from: "采购 500 元"))
-        XCTAssertNil(VisionDraftParser.draftToolCall(from: "付款 200 元"))
-        XCTAssertNil(VisionDraftParser.draftToolCall(from: "退货 120 元"))
-        XCTAssertNil(VisionDraftParser.draftToolCall(from: "报销 300 元"))
-        XCTAssertNil(VisionDraftParser.draftToolCall(from: "工资 5000 元"))
-        XCTAssertNil(VisionDraftParser.draftToolCall(from: "水电 180 元"))
-        XCTAssertNil(VisionDraftParser.draftToolCall(from: "支出 90 元"))
-        XCTAssertNil(VisionDraftParser.draftToolCall(from: "付了 60 元"))
-        XCTAssertNil(VisionDraftParser.draftToolCall(from: "买入 400 元"))
+    func testRemainingExpenseCuesDraftExpenseNeverRevenue() throws {
+        // 与上一个测试同一模式：补齐阻断表其余 9 词，全部出支出卡、绝无收入卡。
+        let cases: [(String, Double)] = [
+            ("采购 500 元", 500), ("付款 200 元", 200), ("退货 120 元", 120),
+            ("报销 300 元", 300), ("工资 5000 元", 5000), ("水电 180 元", 180),
+            ("支出 90 元", 90), ("付了 60 元", 60), ("买入 400 元", 400),
+        ]
+        for (text, amount) in cases {
+            let call = try XCTUnwrap(VisionDraftParser.draftToolCall(from: text), "支出语义应出支出草稿：\(text)")
+            XCTAssertEqual(call.name, .recordExpense, "支出绝不能生成收入卡：\(text)")
+            guard case .recordExpense(let arguments) = call.arguments else {
+                return XCTFail("参数类型应为 recordExpense：\(text)")
+            }
+            XCTAssertEqual(arguments.amount ?? 0, amount, accuracy: 0.001)
+        }
     }
 
     func testNonBusinessTextDraftsNothing() {
@@ -73,7 +87,8 @@ final class V392VisionDraftTests: XCTestCase {
         }
 
         let core = try source("XiaoZhangGui/Features/Assistant/AI/Core/AgentCore.swift")
-        XCTAssertTrue(core.contains("VisionDraftParser.draftToolCall(from: result.userFacingText)"))
+        XCTAssertTrue(core.contains("VisionDraftParser.assess(from: result.userFacingText)"),
+                      "图片车道必须经置信度评估（含多金额拦截）")
         XCTAssertTrue(core.contains("private func propose(_ call: ToolCall"), "建卡只允许一条实现")
         XCTAssertTrue(core.contains("return await propose(call, userMessage: userMessage)"))
 

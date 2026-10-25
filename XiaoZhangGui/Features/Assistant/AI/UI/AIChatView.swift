@@ -24,6 +24,12 @@ struct AIChatView: View {
     @State private var showImageConsent = false
     @State private var pendingImageData: Data?
     @State private var pendingImageMimeType = "image/jpeg"
+    // V3.9.3：文件与图片同款确认——文件只上传本地提取出的文字，不上传原文件；
+    // 选完文件不再直接发送，先经用户确认（取消零发送）。
+    @State private var showDocumentConsent = false
+    @State private var pendingDocumentData: Data?
+    @State private var pendingDocumentName = ""
+    @State private var pendingDocumentMimeType = "application/octet-stream"
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let examples = [
@@ -161,7 +167,25 @@ struct AIChatView: View {
             Button("以后直接发送") { sendPendingImage(rememberChoice: true) }
             Button("取消", role: .cancel) { clearPendingImage() }
         } message: {
-            Text("图片会整张上传给你配置的 AI 服务。请勿发送证件、银行卡、客户身份证等敏感照片。")
+            if let size = pendingImageData?.count, size > 1024 * 1024 {
+                Text("图片会整张上传给你配置的 AI 服务。请勿发送证件、银行卡、客户身份证等敏感照片。这张图片较大（约 \(size / 1024 / 1024) MB），可能产生较高费用。")
+            } else {
+                Text("图片会整张上传给你配置的 AI 服务。请勿发送证件、银行卡、客户身份证等敏感照片。")
+            }
+        }
+        .confirmationDialog(
+            "把这个文件发给 AI 分析？",
+            isPresented: $showDocumentConsent,
+            titleVisibility: .visible
+        ) {
+            Button("发送") { sendPendingDocument() }
+            Button("取消", role: .cancel) { clearPendingDocument() }
+        } message: {
+            if let size = pendingDocumentData?.count, size > 512 * 1024 {
+                Text("只会上传本地提取出的文字，不会上传原文件。文件较大（约 \(size / 1024) KB），长文档可能产生较高费用。")
+            } else {
+                Text("只会上传本地提取出的文字，不会上传原文件。")
+            }
         }
         .fileImporter(
             isPresented: $showFileImporter,
@@ -174,7 +198,15 @@ struct AIChatView: View {
             guard let data = try? Data(contentsOf: url) else { return }
             let mimeType = UTType(filenameExtension: url.pathExtension)?.preferredMIMEType
                 ?? "application/octet-stream"
-            model.analyzeDocument(data: data, fileName: url.lastPathComponent, mimeType: mimeType)
+            // 与图片同款确认开关：开着先弹窗，关了（用户选过「以后直接发送」）才直发。
+            if AISettings.shared.imageUploadNeedsConfirmation {
+                pendingDocumentData = data
+                pendingDocumentName = url.lastPathComponent
+                pendingDocumentMimeType = mimeType
+                showDocumentConsent = true
+            } else {
+                model.analyzeDocument(data: data, fileName: url.lastPathComponent, mimeType: mimeType)
+            }
         }
         .alert("清空此对话？", isPresented: $showClearConfirm) {
             Button("取消", role: .cancel) {}
@@ -200,6 +232,21 @@ struct AIChatView: View {
     private func clearPendingImage() {
         pendingImageData = nil
         showImageConsent = false
+    }
+
+    // MARK: 文件外发确认（V3.9.3 · 与图片同款开关；取消零发送）
+
+    private func sendPendingDocument() {
+        if let data = pendingDocumentData {
+            model.analyzeDocument(data: data, fileName: pendingDocumentName, mimeType: pendingDocumentMimeType)
+        }
+        clearPendingDocument()
+    }
+
+    private func clearPendingDocument() {
+        pendingDocumentData = nil
+        pendingDocumentName = ""
+        showDocumentConsent = false
     }
 
     // MARK: 头部说明

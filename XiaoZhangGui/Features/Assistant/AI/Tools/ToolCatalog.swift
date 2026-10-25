@@ -12,6 +12,7 @@ struct ToolCatalog {
     static let liteTools: [ToolName] = [
         .searchRecords,
         .recordRevenue,
+        .recordExpense,
         .createTodo,
         .createMemo,
         .createDelivery
@@ -42,6 +43,7 @@ struct ToolCatalog {
     private static func required(for name: ToolName) -> [String] {
         switch name {
         case .recordRevenue: return ["amount"]
+        case .recordExpense: return ["amount"]
         case .createTodo: return ["title"]
         case .createMemo: return ["title", "content"]
         case .createDelivery: return []
@@ -55,6 +57,13 @@ struct ToolCatalog {
             return [
                 "amount": ["type": "number", "description": "营业额金额，如 680"],
                 "source": ["type": "string", "description": "来源，如 美团 / 现金 / 微信"],
+                "date": ["type": "string", "format": "date-time", "description": "ISO8601 日期"],
+                "note": ["type": "string", "description": "备注"]
+            ]
+        case .recordExpense:
+            return [
+                "amount": ["type": "number", "description": "支出金额，如 320"],
+                "category": ["type": "string", "description": "支出类别，如 进货 / 房租 / 工资"],
                 "date": ["type": "string", "format": "date-time", "description": "ISO8601 日期"],
                 "note": ["type": "string", "description": "备注"]
             ]
@@ -109,6 +118,15 @@ extension ToolArguments {
                 ("金额", "¥" + Self.money(a.amount ?? 0))
             ]
             if let source = a.source, !source.isEmpty { rows.append(("来源", source)) }
+            if let date = a.date { rows.append(("日期", Self.dayText(date))) }
+            if let note = a.note, !note.isEmpty { rows.append(("备注", note)) }
+            return rows.map { (label: $0.0, value: $0.1) }
+
+        case .recordExpense(let a):
+            var rows: [(String, String)] = [
+                ("金额", "¥" + Self.money(a.amount ?? 0))
+            ]
+            if let category = a.category, !category.isEmpty { rows.append(("类别", category)) }
             if let date = a.date { rows.append(("日期", Self.dayText(date))) }
             if let note = a.note, !note.isEmpty { rows.append(("备注", note)) }
             return rows.map { (label: $0.0, value: $0.1) }

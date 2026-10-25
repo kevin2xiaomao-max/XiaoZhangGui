@@ -60,6 +60,7 @@ struct LocalBusinessParser {
         case .businessAction(let tool):
             switch tool {
             case .recordRevenue: return parseRevenue(text, now: now)
+            case .recordExpense: return parseExpense(text, now: now)
             case .createTodo: return parseTodo(text, now: now)
             case .createMemo: return parseMemo(text)
             case .createDelivery: return parseDelivery(text, now: now)
@@ -84,6 +85,15 @@ struct LocalBusinessParser {
             date: date,
             note: source == nil ? text : nil
         )))
+    }
+
+    // MARK: 支出（V3.9.3 · 仅 Vision 草稿与显式支出意图使用；不经 IntentRouter 聊天分类）
+
+    private func parseExpense(_ text: String, now: Date) -> LocalParseResult {
+        guard let draft = VisionDraftParser.expenseDraft(from: text, now: now) else {
+            return .clarify("记支出需要金额，例如「进货 320 元」。")
+        }
+        return .tool(draft.arguments)
     }
 
     // MARK: 待办

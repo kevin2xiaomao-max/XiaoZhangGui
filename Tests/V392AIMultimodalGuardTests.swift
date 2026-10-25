@@ -104,7 +104,8 @@ final class V392AIMultimodalGuardTests: XCTestCase {
         XCTAssertTrue(chat.contains("请勿发送证件、银行卡、客户身份证等敏感照片。"))
 
         let sheet = try source("XiaoZhangGui/Features/Assistant/AI/UI/AIProviderSettingsSheet.swift")
-        XCTAssertTrue(sheet.contains("发送图片前先确认"), "关掉之后要能在这里改回来")
+        // V3.9.3：同一开关现覆盖图片与文件，文案随之改为「发送图片与文件前先确认」。
+        XCTAssertTrue(sheet.contains("发送图片与文件前先确认"), "关掉之后要能在这里改回来")
         XCTAssertTrue(sheet.contains("$draft.imageUploadNeedsConfirmation"))
 
         let vision = try source("XiaoZhangGui/Features/Assistant/AI/Capabilities/LiveCapabilityProviders.swift")
