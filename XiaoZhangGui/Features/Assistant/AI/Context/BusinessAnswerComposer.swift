@@ -49,6 +49,11 @@ enum BusinessAnswerComposer {
             return "有 \(low.count) 个商品需要注意库存：\(names)。"
         case .advice:
             return adviceAnswer(pack: pack)
+        // 下两支仅为 switch 完备性：extremes/sourceShare 已在上方预分派 return，运行时不可达。
+        case .extremes:
+            return extremesAnswer(pack: pack)
+        case .sourceShare:
+            return sourceShareAnswer(pack: pack)
         case .period(let period):
             guard let summary = pack.periodSummaries.first(where: { $0.period == period }) else {
                 return "该时间范围暂无营业额记录。"
