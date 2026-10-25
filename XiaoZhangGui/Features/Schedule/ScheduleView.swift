@@ -695,7 +695,7 @@ struct ScheduleView: View {
     }
 
     /// V3.8 R3 日期格：大日期数字 + 真实事项状态点；
-    /// 今日 = 经营绿实心圆；选中 = 选中环（matchedGeometryEffect 以格为锚滑移）。
+    /// 今日 = 定案金圆 #D4A017（浅底带 1pt 金环 #B8860B）；选中 = 金环 #B8860B（matchedGeometryEffect 以格为锚滑移）。
     @ViewBuilder
     private func dayCell(_ date: Date) -> some View {
         let isSelected = date.isSameDay(as: selectedDate)
@@ -709,26 +709,32 @@ struct ScheduleView: View {
         } label: {
             ZStack {
                 if isToday {
-                    // V3.9.2:今日 = 固定香槟金圆 + 深墨数字——深浅系统同色,
-                    // 与月报卡/经营 Hero 的「固定色」纪律一致(分享/截图不漂移)。
-                    Circle().fill(V39Palette.heroGold)
+                    // V4.0:今日 = 定案金圆 #D4A017 + 深墨数字——深浅系统同色。
+                    // 浅底金圆必须带 1pt 金环（01 §9），未选中时补 1pt 金环；选中时用 1.5pt 深墨环。
+                    Circle().fill(V400Tokens.goldToday)
                         .frame(width: 40, height: 40)
                 } else if isSelected {
-                    Circle().fill(V39Style.gold.opacity(0.14))
+                    Circle().fill(V400Tokens.goldRing.opacity(0.14))
+                        .frame(width: 40, height: 40)
+                }
+                if isToday && !isSelected {
+                    // 浅底金圆 1pt 金环（01 §9）。
+                    Circle()
+                        .strokeBorder(V400Tokens.goldRing, lineWidth: 1)
                         .frame(width: 40, height: 40)
                 }
                 if isSelected {
                     // 选中环:全网格唯一实例,切换选中日期时滑到新格,格子 frame 不变。
                     // 金环;今日选中时用深墨环(金底上可见)。
                     Circle()
-                        .strokeBorder(isToday ? V39Palette.heroInk : V39Style.gold, lineWidth: 1.5)
+                        .strokeBorder(isToday ? V400Tokens.goldInk : V400Tokens.goldRing, lineWidth: 1.5)
                         .frame(width: 40, height: 40)
                         .matchedGeometryEffect(id: "v38.schedule.selectionRing", in: selectionAnchor)
                 }
                 VStack(spacing: 2) {
                     Text("\(monthCalendar.component(.day, from: date))")
                         .font(isSelected || isToday ? V38ScheduleStyle.dayNumberFontEmphasized : V38ScheduleStyle.dayNumberFont)
-                        .foregroundStyle(isToday ? V39Palette.heroInk : (isSelected ? V371.Colors.textPrimary : V371.Colors.textSecondary))
+                        .foregroundStyle(isToday ? V400Tokens.goldInk : (isSelected ? V371.Colors.textPrimary : V371.Colors.textSecondary))
                     HStack(spacing: 2) {
                         if flags.hasRevenue { ScheduleEventDot(color: V371.Colors.green) }
                         if flags.hasTodo { ScheduleEventDot(color: V371.Colors.blue) }
