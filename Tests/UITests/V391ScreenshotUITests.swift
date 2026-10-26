@@ -137,7 +137,7 @@ final class V391ScreenshotUITests: XCTestCase {
 
     func testScreenshotsAX3() {
         relaunch(extraArgs: ["-UIPreferredContentSizeCategoryName",
-                             "UICTContentSizeCategoryAccessibilityXXXLarge"])
+                             "UICTContentSizeCategoryAccessibilityXXXL"])
         waitFor("screen.home")
         shot("v391-home-ax3")
         goTab("日历", screen: "screen.calendar")

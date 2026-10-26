@@ -282,7 +282,7 @@ struct StatusBadge: View {
             .foregroundStyle(color)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
-            .background(V371.Colors.tinted(color), in: Capsule(style: .continuous))
+            .background(color.opacity(0.08), in: Capsule(style: .continuous))
             .lineLimit(1)
             .accessibilityLabel(text)
     }

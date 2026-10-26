@@ -47,6 +47,29 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         XCTAssertTrue(element("v38.performance.hero").exists)
     }
 
+    func testV400MonthlyReportMaximumTypeKeepsShareReachable() {
+        app.terminate()
+        app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL", "v391-force-light"]
+        app.launch()
+        assertTab("tab.business", shows: "screen.business")
+        openMoreMenu(item: "v39.performance.monthlyReport")
+        XCTAssertTrue(element("v39.report.card").waitForExistence(timeout: 10))
+        let heading = app.staticTexts["掌柜的月报"].firstMatch
+        XCTAssertGreaterThan(heading.frame.height, 40, "必须实际使用无障碍大字号，不能因参数无效而假通过")
+        func shot(_ suffix: String) {
+            let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+            attachment.name = "v400-monthly-report-maximum-type-" + suffix
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+        shot("top")
+        let share = element("v39.report.share")
+        XCTAssertTrue(share.waitForExistence(timeout: 10))
+        for _ in 0..<10 where !share.isHittable { app.swipeUp() }
+        XCTAssertTrue(share.isHittable, "最大字号的月报分享按钮必须仍可滚动触达")
+        shot("bottom")
+    }
+
     func testV400SecondaryScreensLight() { captureV400SecondaryScreens(appearance: "light") }
     func testV400SecondaryScreensDark() { captureV400SecondaryScreens(appearance: "dark") }
 

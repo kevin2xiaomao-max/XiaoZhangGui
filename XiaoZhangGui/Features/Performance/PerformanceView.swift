@@ -273,7 +273,7 @@ struct PerformanceView: View {
             .padding(.vertical, 5)
             .background(
                 Capsule().fill(
-                    (change >= 0 ? V400Tokens.greenInk : V400Tokens.dangerText).opacity(0.2)
+                    (change >= 0 ? V400Tokens.greenInk : V400Tokens.dangerText).opacity(0.04)
                 )
             )
         } else {

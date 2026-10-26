@@ -106,6 +106,7 @@ enum MonthlyReportBuilder {
 // MARK: - 月报分享卡片(固定宽度排版,供 ImageRenderer)
 
 struct MonthlyReportCard: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let report: MonthlyReport
     /// 分享图排版宽度:导出固定 390(见 renderShareImage);Sheet 预览传入可用宽度,
     /// 防止小屏下 390pt 卡片溢出(V3.9.1 P1-9)。生产导出宽度不得改。
@@ -130,9 +131,29 @@ struct MonthlyReportCard: View {
         max(report.trendPoints.map(\.value).max() ?? 0, 1)
     }
 
+    private var adaptiveRowLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 8))
+    }
+
+    private var revenueValue: some View {
+        Text("¥" + Fmt.groupedAmount(report.revenue))
+            .font(V400Tokens.serifAmount(size: 44).weight(.bold))
+            .foregroundStyle(.primary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.4)
+    }
+
+    private var expenseValue: some View {
+        Text("支出 ¥" + Fmt.groupedAmount(report.expense))
+            .font(.footnote.monospacedDigit())
+            .foregroundStyle(.secondary)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            HStack(alignment: .firstTextBaseline) {
+            adaptiveRowLayout {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("掌柜的月报")
                         .font(.system(.title3, design: .rounded).weight(.bold))
@@ -141,7 +162,7 @@ struct MonthlyReportCard: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
-                Spacer()
+                if !dynamicTypeSize.isAccessibilitySize { Spacer() }
                 if let change = report.revenueChangePercent {
                     Text("\(change >= 0 ? "↑" : "↓")\(String(format: "%.1f", abs(change)))% \(report.comparisonLabel)")
                         .font(.caption.weight(.semibold).monospacedDigit())
@@ -149,7 +170,7 @@ struct MonthlyReportCard: View {
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
                         .background(Capsule().fill(
-                            (change >= 0 ? V400Tokens.greenInk : V400Tokens.dangerText).opacity(0.2)
+                            (change >= 0 ? V400Tokens.greenInk : V400Tokens.dangerText).opacity(0.04)
                         ))
                         .accessibilityLabel("\(report.comparisonLabel)\(change >= 0 ? "上涨" : "下降")\(String(format: "%.1f", abs(change)))%,对比区间\(report.previousPeriodLabel)")
                 }
@@ -159,13 +180,16 @@ struct MonthlyReportCard: View {
                 Text("本月营业额")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    Text("¥" + Fmt.groupedAmount(report.revenue))
-                        .font(V400Tokens.serifAmount(size: 44).weight(.bold))
-                        .foregroundStyle(.primary)
-                    Text("支出 ¥" + Fmt.groupedAmount(report.expense))
-                        .font(.footnote.monospacedDigit())
-                        .foregroundStyle(.secondary)
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: 8) {
+                        revenueValue
+                        expenseValue
+                    }
+                } else {
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        revenueValue
+                        expenseValue
+                    }
                 }
             }
 
@@ -174,24 +198,37 @@ struct MonthlyReportCard: View {
                 Text("近7日趋势\(report.trendPoints.first.map { "（\($0.label)" } ?? "")\(report.trendPoints.last.map { "–\($0.label)）" } ?? "")")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                HStack(alignment: .bottom, spacing: 7) {
+                if dynamicTypeSize.isAccessibilitySize {
                     ForEach(report.trendPoints) { point in
-                        let isLast = point.id == (report.trendPoints.last?.id ?? -1)
-                        RoundedRectangle(cornerRadius: 3, style: .continuous)
-                            .fill(isLast ? V400Tokens.greenInk : V400Tokens.greenTint)
-                            .frame(width: 22, height: max(CGFloat(point.value / maxValue) * 52, 4))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(point.label).font(.caption)
+                            Text(Fmt.money(point.value))
+                                .font(.body.monospacedDigit())
+                        }
+                        .accessibilityElement(children: .combine)
                     }
-                }
-                .frame(height: 52, alignment: .bottom)
-                HStack(spacing: 7) {
-                    ForEach(report.trendPoints) { point in
-                        Text(point.label)
-                            .font(.caption2.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                            .frame(width: 22)
+                } else {
+                    HStack(alignment: .bottom, spacing: 7) {
+                        ForEach(report.trendPoints) { point in
+                            let isLast = point.id == (report.trendPoints.last?.id ?? -1)
+                            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                                .fill(isLast ? V400Tokens.greenInk : V400Tokens.greenTint)
+                                .frame(width: 22, height: max(CGFloat(point.value / maxValue) * 52, 4))
+                                .frame(maxWidth: .infinity, alignment: .bottom)
+                        }
                     }
+                    .frame(height: 52, alignment: .bottom)
+                    HStack(spacing: 7) {
+                        ForEach(report.trendPoints) { point in
+                            Text(point.label)
+                                .font(.caption2.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .accessibilityHidden(true)
                 }
-                .accessibilityHidden(true)
             }
 
             // 收入来源:三色区分，纸面适配系统明暗；
@@ -202,25 +239,40 @@ struct MonthlyReportCard: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     ForEach(Array(report.sourceSplit.enumerated()), id: \.element.id) { index, item in
-                        HStack {
-                            Circle()
-                                .fill(MonthlyReportCard.sourceColor(for: item.source))
-                                .frame(width: 6, height: 6)
-                            Text(item.source.rawValue)
-                                .font(.footnote)
-                                .foregroundStyle(.primary)
-                            Text("¥" + Fmt.groupedAmount(item.amount) + " · \(IncomeSourceSummary.displayPercents(for: report.sourceSplit)[index])%")
-                                .font(.footnote.monospacedDigit())
-                                .foregroundStyle(.secondary)
+                        if dynamicTypeSize.isAccessibilitySize {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(item.source.rawValue).font(.footnote.weight(.semibold))
+                                Text("¥" + Fmt.groupedAmount(item.amount)).font(.body.monospacedDigit())
+                                Text("占 \(IncomeSourceSummary.displayPercents(for: report.sourceSplit)[index])%")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .accessibilityElement(children: .combine)
+                        } else {
+                            HStack {
+                                Circle()
+                                    .fill(MonthlyReportCard.sourceColor(for: item.source))
+                                    .frame(width: 6, height: 6)
+                                Text(item.source.rawValue)
+                                    .font(.footnote)
+                                    .foregroundStyle(.primary)
+                                Text("¥" + Fmt.groupedAmount(item.amount) + " · \(IncomeSourceSummary.displayPercents(for: report.sourceSplit)[index])%")
+                                    .font(.footnote.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
                 }
             }
 
-            HStack {
-                // 待办口径明确标注:当前统计为全部历史待办(同 V38TodoProgress),非本月待办。
-                Label("待办完成 \(report.todoCompletionPercent)%（全部历史待办）", systemImage: "checklist")
-                Spacer()
+            adaptiveRowLayout {
+                // 待办口径保持全部历史，不改为本月。
+                if dynamicTypeSize.isAccessibilitySize {
+                    Text("待办完成 \(report.todoCompletionPercent)%（全部历史待办）")
+                } else {
+                    Label("待办完成 \(report.todoCompletionPercent)%（全部历史待办）", systemImage: "checklist")
+                    Spacer()
+                }
                 Text("你的小掌柜")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(V400Tokens.greenInk)
@@ -246,17 +298,15 @@ struct MonthlyReportSheet: View {
     let report: MonthlyReport
     @Environment(\.dismiss) private var dismiss
     @State private var shareImage: Image?
+    @State private var previewWidth: CGFloat = 280
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 18) {
                     // 预览按可用宽度缩放排版(导出仍固定 390,见 renderShareImage)。
-                    GeometryReader { geo in
-                        MonthlyReportCard(report: report, width: min(390, max(280, geo.size.width)))
-                            .accessibilityIdentifier("v39.report.card")
-                    }
-                    .frame(height: 560)
+                    MonthlyReportCard(report: report, width: previewWidth)
+                        .accessibilityIdentifier("v39.report.card")
                     if let shareImage {
                         // V4 主按钮使用深绿底白字。
                         ShareLink("分享月报图片", item: shareImage, preview: SharePreview("掌柜的月报", image: shareImage))
@@ -269,6 +319,10 @@ struct MonthlyReportSheet: View {
                             )
                             .accessibilityIdentifier("v39.report.share")
                     }
+                }
+                .frame(maxWidth: .infinity)
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { availableWidth in
+                    previewWidth = min(390, max(280, availableWidth))
                 }
                 .padding(16)
             }

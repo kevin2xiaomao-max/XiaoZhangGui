@@ -163,20 +163,20 @@ private struct ExpiryWorkRow: View {
     /// 分组 accent：warning 色只用在需要处（§9：expired/urgent 才用红/橙）。
     private var iconColor: Color {
         switch group {
-        case .expired, .urgent3: return V371.Colors.red
-        case .urgent7: return V371.Colors.orange
-        case .safe30: return V371.Colors.blue
-        case .later, .returned: return V371.Colors.gray
+        case .expired, .urgent3: return V400Tokens.dangerText
+        case .urgent7: return V400Tokens.warningInk
+        case .safe30: return V400Tokens.infoInk
+        case .later, .returned: return V400Tokens.tertiaryInk
         }
     }
 
     /// 剩余天数徽标色：已退货/安全态不用 warning 色。
     private var badgeColor: Color {
-        if item.status == .returned { return V371.Colors.gray }
+        if item.status == .returned { return V400Tokens.tertiaryInk }
         let days = item.daysLeft()
-        if days <= 3 { return V371.Colors.red }
-        if days <= 7 { return V371.Colors.orange }
-        return V371.Colors.blue
+        if days <= 3 { return V400Tokens.dangerText }
+        if days <= 7 { return V400Tokens.warningInk }
+        return V400Tokens.infoInk
     }
 
     var body: some View {
@@ -194,7 +194,7 @@ private struct ExpiryWorkRow: View {
                         Label(item.status == .returned ? "恢复" : "退货",
                               systemImage: item.status == .returned ? "arrow.counterclockwise" : "arrow.uturn.left")
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(V371.Colors.orange)
+                            .foregroundStyle(V400Tokens.warningInk)
                             .padding(.horizontal, 8)
                             .frame(minWidth: 44, minHeight: 44)
                             .labelStyle(.titleAndIcon)
