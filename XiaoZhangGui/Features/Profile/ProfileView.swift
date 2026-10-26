@@ -314,13 +314,13 @@ struct ProfileView: View {
         }
         V371Divider()
         // V3.9 PR-G:每周备份提醒开关(本地通知,周一 10:00)。
-        WorkRow(icon: "bell.badge", iconColor: BackupReminder.weeklyReminderEnabled ? V39Style.gold : V371.Colors.gray,
+        WorkRow(icon: "bell.badge", iconColor: BackupReminder.weeklyReminderEnabled ? V400Tokens.greenInk : V371.Colors.gray,
                 title: "每周备份提醒", action: { toggleWeeklyReminder() }) {
             valueTrailing(BackupReminder.weeklyReminderEnabled ? "已开启" : "已关闭")
         }
         V371Divider()
         // V3.9.2 PR-I:每日晨报提醒开关(本地通知,每天 8:00;内容进 App 当场计算)。
-        WorkRow(icon: "sun.horizon", iconColor: MorningBriefNotifier.dailyReminderEnabled ? V39Style.gold : V371.Colors.gray,
+        WorkRow(icon: "sun.horizon", iconColor: MorningBriefNotifier.dailyReminderEnabled ? V400Tokens.greenInk : V371.Colors.gray,
                 title: "每日晨报提醒", action: { toggleMorningBriefReminder() }) {
             valueTrailing(MorningBriefNotifier.dailyReminderEnabled ? "已开启" : "已关闭")
         }

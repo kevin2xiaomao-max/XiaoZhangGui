@@ -207,6 +207,7 @@ struct ScheduleView: View {
             .foregroundStyle(V400Tokens.calendarActionInk)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
+            .frame(minHeight: 44)
             .background(.thinMaterial, in: Capsule(style: .continuous))
             .buttonStyle(.plain)
             .frame(minHeight: 44)

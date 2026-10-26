@@ -325,7 +325,7 @@ struct HomeView: View {
                 icon: "box.truck.fill",
                 title: "配送",
                 count: agg.deliveryCount,
-                tint: V39Style.gold,
+                tint: V400Tokens.infoInk,
                 identifier: V371AccessibilityID.homeCustomer,
                 onTap: { route = .customer }
             )
