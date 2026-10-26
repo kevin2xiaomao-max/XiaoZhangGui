@@ -1,7 +1,7 @@
 import XCTest
 
 /// V3.9.3 B · 拍照智能记账 UI 验收：AI 设置页「图片与文件」区必须出现
-/// 「发送图片与文件前先确认」开关（B 把原图片开关扩展为图片与文件同款确认）。
+/// V4 逐次确认说明，且不能通过开关绕过。
 /// 图片/文件真实外发确认弹窗与多金额澄清由单测 + 集成测试覆盖；
 /// UI 测试库内无法可靠构造相册/文件导入，故此处只断设置页入口文案与截图。
 final class V393VisionExpenseUITests: XCTestCase {
@@ -48,8 +48,10 @@ final class V393VisionExpenseUITests: XCTestCase {
         let settingsButton = app.buttons["AI 设置"]
         XCTAssertTrue(settingsButton.waitForExistence(timeout: 5), "AI 设置菜单项未找到")
         settingsButton.tap()
-        let toggle = app.switches["发送图片与文件前先确认"]
-        XCTAssertTrue(toggle.waitForExistence(timeout: 10), "图片与文件确认开关未出现（B 文案）")
+        let policy = app.staticTexts["每次发送图片与文件前确认"]
+        XCTAssertTrue(policy.waitForExistence(timeout: 10), "必须明确展示逐次确认策略")
+        XCTAssertFalse(app.switches["发送图片与文件前先确认"].exists, "逐次确认不能被关闭")
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "取消后不会发送")).firstMatch.exists)
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = "v393-settings-document-consent"
         attachment.lifetime = .keepAlways

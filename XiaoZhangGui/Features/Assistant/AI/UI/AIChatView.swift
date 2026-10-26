@@ -152,14 +152,10 @@ struct AIChatView: View {
             let mimeType = item.supportedContentTypes.first?.preferredMIMEType ?? "image/jpeg"
             Task {
                 if let data = try? await item.loadTransferable(type: Data.self) {
-                    // 默认先问一句：图片会整张上传，误选一次就收不回来。
-                    if AISettings.shared.imageUploadNeedsConfirmation {
-                        pendingImageData = data
-                        pendingImageMimeType = mimeType
-                        showImageConsent = true
-                    } else {
-                        model.analyzeImage(data: data, mimeType: mimeType)
-                    }
+                    // V4 每次外发均确认；旧偏好值保留兼容，但不再跳过本次确认。
+                    pendingImageData = data
+                    pendingImageMimeType = mimeType
+                    showImageConsent = true
                 }
                 selectedPhoto = nil
             }
@@ -169,8 +165,7 @@ struct AIChatView: View {
             isPresented: $showImageConsent,
             titleVisibility: .visible
         ) {
-            Button("发送") { sendPendingImage(rememberChoice: false) }
-            Button("以后直接发送") { sendPendingImage(rememberChoice: true) }
+            Button("发送") { sendPendingImage() }
             Button("取消", role: .cancel) { clearPendingImage() }
         } message: {
             if let size = pendingImageData?.count, size > 1024 * 1024 {
@@ -204,15 +199,10 @@ struct AIChatView: View {
             guard let data = try? Data(contentsOf: url) else { return }
             let mimeType = UTType(filenameExtension: url.pathExtension)?.preferredMIMEType
                 ?? "application/octet-stream"
-            // 与图片同款确认开关：开着先弹窗，关了（用户选过「以后直接发送」）才直发。
-            if AISettings.shared.imageUploadNeedsConfirmation {
-                pendingDocumentData = data
-                pendingDocumentName = url.lastPathComponent
-                pendingDocumentMimeType = mimeType
-                showDocumentConsent = true
-            } else {
-                model.analyzeDocument(data: data, fileName: url.lastPathComponent, mimeType: mimeType)
-            }
+            pendingDocumentData = data
+            pendingDocumentName = url.lastPathComponent
+            pendingDocumentMimeType = mimeType
+            showDocumentConsent = true
         }
         .alert("清空此对话？", isPresented: $showClearConfirm) {
             Button("取消", role: .cancel) {}
@@ -224,11 +214,7 @@ struct AIChatView: View {
 
     // MARK: 图片外发确认
 
-    private func sendPendingImage(rememberChoice: Bool) {
-        if rememberChoice {
-            // 记住「以后直接发送」；想改回来去「AI 设置 → 图片与文件」。
-            AISettings.shared.imageUploadNeedsConfirmation = false
-        }
+    private func sendPendingImage() {
         if let data = pendingImageData {
             model.analyzeImage(data: data, mimeType: pendingImageMimeType)
         }

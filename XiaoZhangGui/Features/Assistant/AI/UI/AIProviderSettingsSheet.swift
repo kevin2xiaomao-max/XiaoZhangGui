@@ -419,9 +419,9 @@ struct AIProviderSettingsSheet: View {
         GroupSurface {
             VStack(alignment: .leading, spacing: 8) {
                 SectionHeader("图片与文件")
-                Toggle("发送图片与文件前先确认", isOn: $draft.imageUploadNeedsConfirmation)
+                Label("每次发送图片与文件前确认", systemImage: "checkmark.shield")
                     .font(.subheadline)
-                Text("开启时，每次选完图片或文件都会先弹一次确认：图片会整张上传给你配置的服务商，文件只上传在本地提取出的文字，不上传原文件；关闭后选完直接发送。")
+                Text("每次选择图片或文件后，都需确认本次发送。图片会整张上传给你配置的服务商；文件只上传本地提取出的文字，不上传原文件。取消后不会发送。")
                     .font(.caption)
                     .foregroundStyle(V371.Colors.textSecondary)
             }

@@ -100,13 +100,18 @@ final class V392AIMultimodalGuardTests: XCTestCase {
 
         let chat = try source("XiaoZhangGui/Features/Assistant/AI/UI/AIChatView.swift")
         XCTAssertTrue(chat.contains("把这张图片发给 AI 分析？"), "选图后必须先弹确认")
-        XCTAssertTrue(chat.contains("AISettings.shared.imageUploadNeedsConfirmation"))
+        XCTAssertFalse(chat.contains("AISettings.shared.imageUploadNeedsConfirmation"), "旧偏好不得绕过逐次确认")
+        XCTAssertFalse(chat.contains("以后直接发送"))
+        XCTAssertEqual(chat.components(separatedBy: "model.analyzeImage(").count - 1, 1, "图片只能从确认发送函数外发")
+        XCTAssertEqual(chat.components(separatedBy: "model.analyzeDocument(").count - 1, 1, "文件只能从确认发送函数外发")
+        XCTAssertTrue(chat.contains("Button(\"取消\", role: .cancel) { clearPendingImage() }"))
+        XCTAssertTrue(chat.contains("Button(\"取消\", role: .cancel) { clearPendingDocument() }"))
         XCTAssertTrue(chat.contains("请勿发送证件、银行卡、客户身份证等敏感照片。"))
 
         let sheet = try source("XiaoZhangGui/Features/Assistant/AI/UI/AIProviderSettingsSheet.swift")
         // V3.9.3：同一开关现覆盖图片与文件，文案随之改为「发送图片与文件前先确认」。
-        XCTAssertTrue(sheet.contains("发送图片与文件前先确认"), "关掉之后要能在这里改回来")
-        XCTAssertTrue(sheet.contains("$draft.imageUploadNeedsConfirmation"))
+        XCTAssertTrue(sheet.contains("每次发送图片与文件前确认"))
+        XCTAssertFalse(sheet.contains("$draft.imageUploadNeedsConfirmation"), "逐次确认不提供关闭入口")
 
         let vision = try source("XiaoZhangGui/Features/Assistant/AI/Capabilities/LiveCapabilityProviders.swift")
         XCTAssertTrue(vision.contains("try Self.validateImageSize(input.data)"))
