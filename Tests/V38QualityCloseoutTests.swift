@@ -154,7 +154,7 @@ final class V38QualityCloseoutTests: XCTestCase {
             "不得绕过 Motion Token 写裸时长（V371 注释明令的纪律）"
         )
         XCTAssertTrue(
-            source.contains("V38MotionTokens.animation(for: .contentChange, reduceMotion: reduceMotion), value: shakeTrigger"),
+            source.contains("reduceMotion ? nil : V38MotionTokens.animation(for: .contentChange, reduceMotion: false), value: shakeTrigger"),
             "抖动触发动画必须走 contentChange token（含 Reduce Motion 降级）"
         )
     }

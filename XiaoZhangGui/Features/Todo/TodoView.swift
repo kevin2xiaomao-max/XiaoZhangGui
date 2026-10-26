@@ -171,7 +171,7 @@ struct TodoView: View {
                 ZStack(alignment: .leading) {
                     Capsule().fill(V371.Colors.divider.opacity(0.6))
                     Capsule()
-                        .fill(V38TodoStyle.businessGreen)
+                        .fill(V400Tokens.brandGreen)
                         .frame(width: max(0, geo.size.width * progress.fraction))
                 }
             }
@@ -196,7 +196,7 @@ struct TodoView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 2)
-        .animation(V38MotionTokens.animation(for: .contentChange, reduceMotion: reduceMotion), value: value)
+        .animation(reduceMotion ? nil : V38MotionTokens.animation(for: .contentChange, reduceMotion: false), value: value)
     }
 
     // MARK: 内容
@@ -299,7 +299,7 @@ struct TodoView: View {
                 lingeringIDs.insert(pid)
                 Task { @MainActor in
                     try? await Task.sleep(nanoseconds: 700_000_000)
-                    withAnimation(V38MotionTokens.animation(for: .contentChange, reduceMotion: reduceMotion)) {
+                    withAnimation(reduceMotion ? nil : V38MotionTokens.animation(for: .contentChange, reduceMotion: false)) {
                         lingeringIDs.remove(pid)
                     }
                     togglingIDs.remove(pid)
@@ -446,7 +446,7 @@ private struct TodoListRow: View {
             travel: reduceMotion ? 0 : 6,
             animatableData: CGFloat(shakeTrigger)
         ))
-        .animation(V38MotionTokens.animation(for: .contentChange, reduceMotion: reduceMotion), value: shakeTrigger)
+        .animation(reduceMotion ? nil : V38MotionTokens.animation(for: .contentChange, reduceMotion: false), value: shakeTrigger)
         .transition(.opacity.combined(with: reduceMotion ? .identity : .scale(scale: 0.98)))
     }
 

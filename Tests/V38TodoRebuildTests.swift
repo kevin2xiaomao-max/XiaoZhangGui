@@ -1,4 +1,6 @@
 import SwiftData
+import SwiftUI
+import UIKit
 import XCTest
 @testable import XiaoZhangGui
 
@@ -147,7 +149,12 @@ final class V38TodoRebuildTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(V38TodoStyle.rowMinHeight, 60, "行高 ≥60pt")
         XCTAssertGreaterThanOrEqual(V38TodoStyle.toggleHitSize, 44, "命中区 ≥44pt")
         XCTAssertEqual(V38TodoStyle.groupRadius, 20, "Group radius 20pt")
-        XCTAssertEqual(V38TodoStyle.businessGreen, V38HomeStyle.businessGreen, "与 Home 同一 Accent 来源")
+        for style in [UIUserInterfaceStyle.light, .dark] {
+            let traits = UITraitCollection(userInterfaceStyle: style)
+            XCTAssertEqual(UIColor(V38TodoStyle.businessGreen).resolvedColor(with: traits),
+                           UIColor(V400Tokens.greenInk).resolvedColor(with: traits),
+                           "进度文字使用双主题文本绿；比较解析色而非动态 provider 身份")
+        }
     }
 
     // MARK: - Helpers

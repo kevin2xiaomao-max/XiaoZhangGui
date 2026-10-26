@@ -4,19 +4,19 @@ import SwiftUI
 ///
 /// 依据 `02_设计与交互升级说明.md` §正确的视觉 DNA，并与 R1 Home 对齐：
 /// - Canvas Light 暖白 / Dark 墨绿黑（复用 `V371.Colors.canvas`）
-/// - Accent 低饱和经营绿（与 `V38HomeStyle.businessGreen` 同一色值，单一来源）
+/// - Accent 低饱和经营绿（与 `V400Tokens.greenInk` 同一色值，单一来源）
 /// - Page 16pt，Section 24pt，Group radius 20pt，行高 ≥60pt，触点 ≥44pt
 /// - 统计数字 SF Rounded 等宽；不引入第三方字体
 enum V38TodoStyle {
     /// 低饱和经营绿（Accent）：与 Home 同一来源，避免色值漂移。
-    static var businessGreen: Color { V38HomeStyle.businessGreen }
+    static var businessGreen: Color { V400Tokens.greenInk }
     /// Hero 深墨绿（与 Home 同一来源，Todo 仅用于进度强调，不铺满屏）。
     static var heroBackground: Color { V38HomeStyle.heroBackground }
 
     /// Section 标题（与 Home 同规格：20pt bold）。
     static let sectionTitle: Font = V38HomeStyle.sectionTitle
     /// 进度大数字：SF Rounded 等宽。
-    static let statNumber: Font = .system(size: 32, weight: .semibold, design: .rounded).monospacedDigit()
+    static let statNumber: Font = V400Tokens.serifAmount(size: 32, relativeTo: .title).weight(.semibold)
     /// 进度标签。
     static let statLabel: Font = .footnote
 
