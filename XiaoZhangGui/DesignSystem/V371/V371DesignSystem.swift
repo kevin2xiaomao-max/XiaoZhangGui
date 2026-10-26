@@ -26,7 +26,7 @@ enum V371 {
         static func tinted(_ color: Color) -> Color { color.opacity(0.13) }
 
         static var textPrimary: Color { .primary }
-        static var textSecondary: Color { .secondary }
+        static var textSecondary: Color { V400Tokens.secondaryInk }
         /// 辅助文字仍保持次级层级，但不用 tertiaryLabel，避免 Dark 与高亮背景下对比度过低。
         static var textTertiary: Color { V400Tokens.tertiaryInk }
         static var divider: Color { Color(.separator) }

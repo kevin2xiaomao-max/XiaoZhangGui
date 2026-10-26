@@ -123,7 +123,7 @@ struct MonthlyReportCard: View {
         switch source {
         case .store: return V400Tokens.greenInk
         case .meituan: return V400Tokens.brandGreen
-        case .other: return Color.secondary
+        case .other: return V400Tokens.tertiaryInk
         }
     }
 
@@ -148,7 +148,7 @@ struct MonthlyReportCard: View {
     private var expenseValue: some View {
         Text("支出 ¥" + Fmt.groupedAmount(report.expense))
             .font(.footnote.monospacedDigit())
-            .foregroundStyle(.secondary)
+            .foregroundStyle(V400Tokens.tertiaryInk)
     }
 
     var body: some View {
@@ -160,7 +160,7 @@ struct MonthlyReportCard: View {
                         .foregroundStyle(V400Tokens.greenInk)
                     Text(report.monthLabel)
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(V400Tokens.tertiaryInk)
                 }
                 if !dynamicTypeSize.isAccessibilitySize { Spacer() }
                 if let change = report.revenueChangePercent {
@@ -179,7 +179,7 @@ struct MonthlyReportCard: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("本月营业额")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(V400Tokens.tertiaryInk)
                 if dynamicTypeSize.isAccessibilitySize {
                     VStack(alignment: .leading, spacing: 8) {
                         revenueValue
@@ -197,7 +197,7 @@ struct MonthlyReportCard: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("近7日趋势\(report.trendPoints.first.map { "（\($0.label)" } ?? "")\(report.trendPoints.last.map { "–\($0.label)）" } ?? "")")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(V400Tokens.tertiaryInk)
                 if dynamicTypeSize.isAccessibilitySize {
                     ForEach(report.trendPoints) { point in
                         VStack(alignment: .leading, spacing: 2) {
@@ -222,7 +222,7 @@ struct MonthlyReportCard: View {
                         ForEach(report.trendPoints) { point in
                             Text(point.label)
                                 .font(.caption2.monospacedDigit())
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(V400Tokens.tertiaryInk)
                                 .lineLimit(1)
                                 .frame(maxWidth: .infinity)
                         }
@@ -237,7 +237,7 @@ struct MonthlyReportCard: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("收入来源")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(V400Tokens.tertiaryInk)
                     ForEach(Array(report.sourceSplit.enumerated()), id: \.element.id) { index, item in
                         if dynamicTypeSize.isAccessibilitySize {
                             VStack(alignment: .leading, spacing: 2) {
@@ -245,7 +245,7 @@ struct MonthlyReportCard: View {
                                 Text("¥" + Fmt.groupedAmount(item.amount)).font(.body.monospacedDigit())
                                 Text("占 \(IncomeSourceSummary.displayPercents(for: report.sourceSplit)[index])%")
                                     .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(V400Tokens.tertiaryInk)
                             }
                             .accessibilityElement(children: .combine)
                         } else {
@@ -258,7 +258,7 @@ struct MonthlyReportCard: View {
                                     .foregroundStyle(.primary)
                                 Text("¥" + Fmt.groupedAmount(item.amount) + " · \(IncomeSourceSummary.displayPercents(for: report.sourceSplit)[index])%")
                                     .font(.footnote.monospacedDigit())
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(V400Tokens.tertiaryInk)
                             }
                         }
                     }
@@ -278,7 +278,7 @@ struct MonthlyReportCard: View {
                     .foregroundStyle(V400Tokens.greenInk)
             }
             .font(.footnote)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(V400Tokens.tertiaryInk)
             .padding(.top, 2)
         }
         .padding(24)

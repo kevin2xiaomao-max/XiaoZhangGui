@@ -61,6 +61,7 @@ enum V400Tokens {
     static var surface: Color {
         adaptive(light: hex(0xFFFFFF), dark: hex(0x1C1C1E))
     }
+    static var secondaryInk: Color { adaptive(light: hex(0x3A3F47), dark: hex(0xC7C7CC)) }
     static var tertiaryInk: Color { adaptive(light: hex(0x5F646E), dark: hex(0x8E8E93)) }
     static var fill: Color { adaptive(light: hex(0xEAF3EE), dark: hex(0x101614)) }
     static var surfaceElevated: Color {

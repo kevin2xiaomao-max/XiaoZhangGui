@@ -185,7 +185,7 @@ struct PerformanceView: View {
                 .font(.footnote.weight(.semibold))
             Text("仅供演示，不会写入真实账本")
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(V400Tokens.tertiaryInk)
             Spacer()
             Button("退出演示") { demo.isEnabled = false }
                 .font(.footnote.weight(.semibold))
@@ -204,7 +204,7 @@ struct PerformanceView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("本月营业额")
                 .font(V38PerformanceStyle.heroLabel)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(V400Tokens.tertiaryInk)
             Text(Fmt.money(header.month))
                 .font(V38PerformanceStyle.heroAmount)
                 .foregroundStyle(.primary)
@@ -231,7 +231,7 @@ struct PerformanceView: View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text("今日")
                 .font(V371.Typography.rowSubtitle)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(V400Tokens.tertiaryInk)
             Text(Fmt.money(header.today))
                 .font(V38PerformanceStyle.secondaryAmount)
                 .foregroundStyle(.primary)
