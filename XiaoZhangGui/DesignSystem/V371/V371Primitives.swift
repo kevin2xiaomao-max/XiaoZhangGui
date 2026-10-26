@@ -117,7 +117,7 @@ struct SectionHeader<Trailing: View>: View {
             // V3.9 PR-F：金色小竖条 = 全 App 统一的「高级感签名」。
             // 4×16 圆角竖条,与标题基线对齐;无障碍隐藏(纯装饰)。
             Capsule()
-                .fill(V39Palette.headerTick)
+                .fill(V400Tokens.brandGreen)
                 .frame(width: 4, height: 16)
                 .accessibilityHidden(true)
             Text(title)

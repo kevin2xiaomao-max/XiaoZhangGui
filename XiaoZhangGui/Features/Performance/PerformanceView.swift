@@ -204,32 +204,25 @@ struct PerformanceView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("本月营业额")
                 .font(V38PerformanceStyle.heroLabel)
-                .foregroundStyle(.white.opacity(0.72))
+                .foregroundStyle(.secondary)
             Text(Fmt.money(header.month))
                 .font(V38PerformanceStyle.heroAmount)
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.58)
                 .contentTransition(.numericText())
                 .animation(
-                    V38MotionTokens.animation(for: .contentChange, reduceMotion: reduceMotion),
+                    reduceMotion ? nil : V38MotionTokens.animation(for: .contentChange, reduceMotion: false),
                     value: header.month
                 )
             heroInfo(header)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)
-        // V3.9 PR-F:与首页 V39HeroCard 同语言——深空蓝渐变 + 金色包边 + 右上柔光。
-        .background(
-            ZStack {
-                V39Palette.heroGradient
-                V39Palette.heroGlow.blendMode(.plusLighter)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-        )
+        .background(V400Tokens.surface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .strokeBorder(V39Palette.heroStroke, lineWidth: 1)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
         )
         .accessibilityIdentifier("v38.performance.hero")
     }
@@ -238,15 +231,15 @@ struct PerformanceView: View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text("今日")
                 .font(V371.Typography.rowSubtitle)
-                .foregroundStyle(.white.opacity(0.6))
+                .foregroundStyle(.secondary)
             Text(Fmt.money(header.today))
                 .font(V38PerformanceStyle.secondaryAmount)
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
                 .contentTransition(.numericText())
                 .animation(
-                    V38MotionTokens.animation(for: .contentChange, reduceMotion: reduceMotion),
+                    reduceMotion ? nil : V38MotionTokens.animation(for: .contentChange, reduceMotion: false),
                     value: header.today
                 )
             changeBadge(header)
@@ -267,7 +260,7 @@ struct PerformanceView: View {
 
     @ViewBuilder
     private func changeBadge(_ header: PerformanceHeaderAggregates) -> some View {
-        // V3.9 PR-F:徽标配色换 V39 语义——涨 = 香槟金,跌 = 柔红,在深空蓝卡上高对比。
+        // V4 纸面徽标使用可读的语义绿/红，保留涨跌方向与口径。
         if let change = header.changePercent {
             HStack(spacing: 4) {
                 Image(systemName: change >= 0 ? "arrow.up.right" : "arrow.down.right")
@@ -275,12 +268,12 @@ struct PerformanceView: View {
                 Text("\(String(format: "%.1f", abs(change)))% 较昨日")
                     .font(V371.Typography.badge)
             }
-            .foregroundStyle(change >= 0 ? V39Style.changeUp : V39Style.changeDown)
+            .foregroundStyle(change >= 0 ? V400Tokens.greenInk : V400Tokens.dangerText)
             .padding(.horizontal, 9)
             .padding(.vertical, 5)
             .background(
                 Capsule().fill(
-                    (change >= 0 ? V39Style.changeUp : V39Style.changeDown).opacity(0.2)
+                    (change >= 0 ? V400Tokens.greenInk : V400Tokens.dangerText).opacity(0.2)
                 )
             )
         } else {
@@ -317,7 +310,7 @@ struct PerformanceView: View {
                             .lineLimit(1)
                             .contentTransition(.numericText())
                             .animation(
-                                V38MotionTokens.animation(for: .contentChange, reduceMotion: reduceMotion),
+                                reduceMotion ? nil : V38MotionTokens.animation(for: .contentChange, reduceMotion: false),
                                 value: chartTotal
                             )
                     }
@@ -369,7 +362,7 @@ struct PerformanceView: View {
                             .minimumScaleFactor(0.7)
                             .contentTransition(.numericText())
                             .animation(
-                                V38MotionTokens.animation(for: .contentChange, reduceMotion: reduceMotion),
+                                reduceMotion ? nil : V38MotionTokens.animation(for: .contentChange, reduceMotion: false),
                                 value: summary.amount
                             )
                             .accessibilityIdentifier("v38.performance.sourceAmount")
@@ -391,7 +384,7 @@ struct PerformanceView: View {
                             subtitle: ratioText
                         ) {
                             Text(Fmt.money(item.amount))
-                                .font(V371.Typography.rowTitle)
+                                .font(V400Tokens.serifAmount(size: 17, relativeTo: .body))
                                 .foregroundStyle(V371.Colors.textPrimary)
                                 .monospacedDigit()
                                 .lineLimit(1)
@@ -439,7 +432,7 @@ struct PerformanceView: View {
                         Spacer(minLength: 8)
                         Text("\(Int((goalProgress * 100).rounded()))%")
                             .font(V371.Typography.badge)
-                            .foregroundStyle(V38PerformanceStyle.accent)
+                            .foregroundStyle(V400Tokens.greenInk)
                             .monospacedDigit()
                     }
                     GeometryReader { proxy in
@@ -568,7 +561,7 @@ private struct PerformanceRecordRow: View {
             .buttonStyle(.plain)
 
             Text(record.kind == .income ? "+\(Fmt.money(record.amount))" : "-\(Fmt.money(record.amount))")
-                .font(V371.Typography.rowTitle)
+                .font(V400Tokens.serifAmount(size: 17, relativeTo: .body))
                 .foregroundStyle(record.kind == .income ? V371.Colors.blue : V371.Colors.red)
                 .monospacedDigit()
                 .lineLimit(1)

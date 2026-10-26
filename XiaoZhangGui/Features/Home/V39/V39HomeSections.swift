@@ -52,12 +52,12 @@ struct V39HeroCard: View {
                                 Text("较昨日 \(String(format: "%.1f", abs(change)))%")
                                     .font(.caption.weight(.semibold).monospacedDigit())
                             }
-                            .foregroundStyle(change >= 0 ? V39Palette.heroGold : V39Style.changeDown)
+                            .foregroundStyle(change >= 0 ? V400Tokens.heroInk : V39Style.changeDown)
                             .padding(.horizontal, 7)
                             .padding(.vertical, 3)
                             .background(
                                 Capsule().fill(
-                                    (change >= 0 ? V39Palette.heroGold : V39Style.changeDown).opacity(0.18)
+                                    (change >= 0 ? V400Tokens.heroInk : V39Style.changeDown).opacity(0.18)
                                 )
                             )
                         }
@@ -82,23 +82,7 @@ struct V39HeroCard: View {
                 }
             }
             .padding(18)
-            .background(
-                ZStack {
-                    V39Style.heroGradient
-                    // 金色微光：Hero 右上角一抹柔光（静态,无动画,RM 无关）。
-                    LinearGradient(
-                        colors: [V39Palette.heroGold.opacity(0.22), .clear],
-                        startPoint: .topTrailing, endPoint: .center
-                    )
-                    .blendMode(.plusLighter)
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-            )
-            .overlay(
-                // 金色描边：高端卡片的"包边"质感。
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .strokeBorder(V39Palette.heroGold.opacity(0.35), lineWidth: 1)
-            )
+            .background(V400Tokens.heroBackground, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
             .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         }
         .buttonStyle(V39PressFeedbackStyle())
@@ -138,7 +122,7 @@ struct V39GoalRing: View {
                 .stroke(.white.opacity(0.16), lineWidth: 6)
             Circle()
                 .trim(from: 0, to: fraction)
-                .stroke(V39Palette.heroGold, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                .stroke(V400Tokens.heroInk, style: StrokeStyle(lineWidth: 6, lineCap: .round))
                 .rotationEffect(.degrees(-90))
             VStack(spacing: 0) {
                 Text("\(Int((fraction * 100).rounded()))")
@@ -372,8 +356,8 @@ struct V39SourceBar: View {
 
     private func color(for source: IncomeSource) -> Color {
         switch source {
-        case .store: return V39Style.sourceStore
-        case .meituan: return V39Style.sourceMeituan
+        case .store: return V400Tokens.greenInk
+        case .meituan: return V400Tokens.brandGreen
         case .other: return V39Style.sourceOther
         }
     }

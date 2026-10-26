@@ -39,6 +39,13 @@ enum V400Tokens {
         Color(hex: 0x1FA971).opacity(0.10)
     }
 
+    /// 首页 Hero 来自 fusion-kit 双主题表；不是品牌绿铺底。
+    static var heroBackground: Color { adaptive(light: hex(0x10382A), dark: hex(0x12352B)) }
+    static var heroInk: Color { adaptive(light: hex(0xEAF3EE), dark: hex(0xCBE9DA)) }
+    static var warningInk: Color { adaptive(light: hex(0xB25000), dark: hex(0xFFB340)) }
+    /// 日历操作文字：规范 §9 的可读金，区别于今日圆填充。
+    static var calendarActionInk: Color { adaptive(light: hex(0x8A6400), dark: hex(0xD4A017)) }
+
     // MARK: - 页面与纸面
     static var pageBackground: Color {
         adaptive(light: hex(0xF3F8F5), dark: hex(0x0B0F0D))

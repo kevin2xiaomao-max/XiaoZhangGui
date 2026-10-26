@@ -98,10 +98,10 @@ struct MoneyEditorSheet: View {
                 Section {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text("¥")
-                            .font(.system(size: 22, weight: .semibold, design: .rounded))
+                            .font(V400Tokens.serifAmount(size: 22, relativeTo: .title3))
                             .foregroundStyle(.secondary)
                         TextField("0.00", text: $amountText)
-                            .font(.system(size: 34, weight: .bold, design: .rounded).monospacedDigit())
+                            .font(V400Tokens.serifAmount(size: 34).weight(.bold))
                             .keyboardType(.decimalPad)
                             .minimumScaleFactor(0.6)
                             .focused($amountFocused)

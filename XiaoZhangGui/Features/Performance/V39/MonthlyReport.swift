@@ -117,12 +117,12 @@ struct MonthlyReportCard: View {
         self.width = width
     }
 
-    /// 分享图图例固定色:深色卡面上三色可辨,不随系统明暗漂移(P0-2)。
+    /// Fusion 来源图例：深绿、品牌绿、灰；同时保留来源文字与百分比。
     static func sourceColor(for source: IncomeSource) -> Color {
         switch source {
-        case .store: return V39Palette.sourceStoreFixed
-        case .meituan: return V39Palette.heroGold
-        case .other: return V39Palette.sourceOtherFixed
+        case .store: return V400Tokens.greenInk
+        case .meituan: return V400Tokens.brandGreen
+        case .other: return Color.secondary
         }
     }
 
@@ -136,20 +136,20 @@ struct MonthlyReportCard: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("掌柜的月报")
                         .font(.system(.title3, design: .rounded).weight(.bold))
-                        .foregroundStyle(V39Palette.heroGold)
+                        .foregroundStyle(V400Tokens.greenInk)
                     Text(report.monthLabel)
                         .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(.secondary)
                 }
                 Spacer()
                 if let change = report.revenueChangePercent {
                     Text("\(change >= 0 ? "↑" : "↓")\(String(format: "%.1f", abs(change)))% \(report.comparisonLabel)")
                         .font(.caption.weight(.semibold).monospacedDigit())
-                        .foregroundStyle(change >= 0 ? V39Palette.heroGold : V39Style.changeDown)
+                        .foregroundStyle(change >= 0 ? V400Tokens.greenInk : V400Tokens.dangerText)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
                         .background(Capsule().fill(
-                            (change >= 0 ? V39Palette.heroGold : V39Style.changeDown).opacity(0.2)
+                            (change >= 0 ? V400Tokens.greenInk : V400Tokens.dangerText).opacity(0.2)
                         ))
                         .accessibilityLabel("\(report.comparisonLabel)\(change >= 0 ? "上涨" : "下降")\(String(format: "%.1f", abs(change)))%,对比区间\(report.previousPeriodLabel)")
                 }
@@ -158,14 +158,14 @@ struct MonthlyReportCard: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("本月营业额")
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.6))
+                    .foregroundStyle(.secondary)
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                     Text("¥" + Fmt.groupedAmount(report.revenue))
-                        .font(.system(size: 44, weight: .bold, design: .rounded).monospacedDigit())
-                        .foregroundStyle(.white)
+                        .font(V400Tokens.serifAmount(size: 44).weight(.bold))
+                        .foregroundStyle(.primary)
                     Text("支出 ¥" + Fmt.groupedAmount(report.expense))
                         .font(.footnote.monospacedDigit())
-                        .foregroundStyle(.white.opacity(0.6))
+                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -173,12 +173,12 @@ struct MonthlyReportCard: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("近7日趋势\(report.trendPoints.first.map { "（\($0.label)" } ?? "")\(report.trendPoints.last.map { "–\($0.label)）" } ?? "")")
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.6))
+                    .foregroundStyle(.secondary)
                 HStack(alignment: .bottom, spacing: 7) {
                     ForEach(report.trendPoints) { point in
                         let isLast = point.id == (report.trendPoints.last?.id ?? -1)
                         RoundedRectangle(cornerRadius: 3, style: .continuous)
-                            .fill(isLast ? V39Palette.heroGold : Color.white.opacity(0.3))
+                            .fill(isLast ? V400Tokens.greenInk : V400Tokens.greenTint)
                             .frame(width: 22, height: max(CGFloat(point.value / maxValue) * 52, 4))
                     }
                 }
@@ -187,20 +187,20 @@ struct MonthlyReportCard: View {
                     ForEach(report.trendPoints) { point in
                         Text(point.label)
                             .font(.caption2.monospacedDigit())
-                            .foregroundStyle(.white.opacity(0.55))
+                            .foregroundStyle(.secondary)
                             .frame(width: 22)
                     }
                 }
                 .accessibilityHidden(true)
             }
 
-            // 收入来源:三色固定区分(门店浅蓝 / 美团香槟金 / 其他浅灰),深色卡上均可辨;
+            // 收入来源:三色区分，纸面适配系统明暗；
             // 百分比用最大余数法取整,和为 100%(见 IncomeSourceSummary.displayPercents)。
             if !report.sourceSplit.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("收入来源")
                         .font(.caption)
-                        .foregroundStyle(.white.opacity(0.6))
+                        .foregroundStyle(.secondary)
                     ForEach(Array(report.sourceSplit.enumerated()), id: \.element.id) { index, item in
                         HStack {
                             Circle()
@@ -208,10 +208,10 @@ struct MonthlyReportCard: View {
                                 .frame(width: 6, height: 6)
                             Text(item.source.rawValue)
                                 .font(.footnote)
-                                .foregroundStyle(.white.opacity(0.85))
+                                .foregroundStyle(.primary)
                             Text("¥" + Fmt.groupedAmount(item.amount) + " · \(IncomeSourceSummary.displayPercents(for: report.sourceSplit)[index])%")
                                 .font(.footnote.monospacedDigit())
-                                .foregroundStyle(.white.opacity(0.6))
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -223,24 +223,19 @@ struct MonthlyReportCard: View {
                 Spacer()
                 Text("你的小掌柜")
                     .font(.caption2.weight(.semibold))
-                    .foregroundStyle(V39Palette.heroGold.opacity(0.8))
+                    .foregroundStyle(V400Tokens.greenInk)
             }
             .font(.footnote)
-            .foregroundStyle(.white.opacity(0.7))
+            .foregroundStyle(.secondary)
             .padding(.top, 2)
         }
         .padding(24)
         .frame(width: width, alignment: .leading)
-        .background(
-            ZStack {
-                V39Palette.heroGradient
-                V39Palette.heroGlow.blendMode(.plusLighter)
-            }
-        )
+        .background(V400Tokens.paperAdaptive)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .strokeBorder(V39Palette.heroStroke, lineWidth: 1)
+                .strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5)
         )
     }
 }
@@ -263,21 +258,21 @@ struct MonthlyReportSheet: View {
                     }
                     .frame(height: 560)
                     if let shareImage {
-                        // P0-2:金底必须配深色文字(白字在金底上仅约 1.6:1,深色字 >7:1)。
+                        // V4 主按钮使用深绿底白字。
                         ShareLink("分享月报图片", item: shareImage, preview: SharePreview("掌柜的月报", image: shareImage))
                             .font(.headline)
-                            .foregroundStyle(V39Palette.heroInk)
+                            .foregroundStyle(.white)
                             .frame(maxWidth: .infinity, minHeight: 50)
                             .background(
                                 RoundedRectangle(cornerRadius: V371.Radius.control, style: .continuous)
-                                    .fill(V39Palette.heroGold)
+                                    .fill(V400Tokens.primaryButton)
                             )
                             .accessibilityIdentifier("v39.report.share")
                     }
                 }
                 .padding(16)
             }
-            .background(V39Palette.canvasGradientDark.ignoresSafeArea())
+            .background(V400Tokens.pageBackground.ignoresSafeArea())
             .navigationTitle("月度报表")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -294,7 +289,7 @@ struct MonthlyReportSheet: View {
 
     /// ImageRenderer 渲染分享图(主线程)。
     private func renderShareImage() {
-        let renderer = ImageRenderer(content: MonthlyReportCard(report: report))
+        let renderer = ImageRenderer(content: MonthlyReportCard(report: report).environment(\.colorScheme, .light).dynamicTypeSize(.large))
         renderer.scale = UIScreen.main.scale
         if let uiImage = renderer.uiImage {
             shareImage = Image(uiImage: uiImage)

@@ -67,7 +67,7 @@ private struct TransactionHistoryRow: View {
             }
             Spacer(minLength: 8)
             Text((record.kind == .income ? "+" : "-") + Fmt.money(record.amount))
-                .font(V371.Typography.rowTitle)
+                .font(V400Tokens.serifAmount(size: 17, relativeTo: .body))
                 .foregroundStyle(record.kind == .income ? V371.Colors.blue : V371.Colors.red)
                 .monospacedDigit()
         }

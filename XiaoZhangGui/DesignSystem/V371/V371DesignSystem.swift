@@ -254,7 +254,7 @@ private extension UIColor {
 /// 主题系统兼容（红线:不删除 V3.7.1 稳定能力）：
 /// - 用户开启壁纸 → 壁纸原样生效（分支不变）
 /// - 用户选择非默认背景主题 → 该主题原样生效
-/// - 仅「默认暖米」背景升级为 V39Palette 渐变（Light 冰蓝 / Dark 夜蓝）
+/// - 仅默认背景升级为 Fusion 双主题纯色
 struct V371CanvasModifier: ViewModifier {
     @Environment(ThemeStore.self) private var themeStore
     @Environment(\.colorScheme) private var colorScheme
@@ -265,17 +265,8 @@ struct V371CanvasModifier: ViewModifier {
                 V32WallpaperBackground()
             }
         } else if themeStore.backgroundTheme == BackgroundTheme.default {
-            // V3.9：默认底色 = 渐变画布（高级质感,明暗各自一档）。
-            content.background(
-                Group {
-                    if colorScheme == .dark {
-                        V39Palette.canvasGradientDark
-                    } else {
-                        V39Palette.canvasGradientLight
-                    }
-                }
-                .ignoresSafeArea()
-            )
+            // Fusion 默认画布；自选主题与壁纸继续走原分支。
+            content.background(V400Tokens.pageBackground.ignoresSafeArea())
         } else {
             content.background(themeStore.backgroundPalette.pageBG.ignoresSafeArea())
         }

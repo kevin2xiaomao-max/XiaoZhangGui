@@ -17,8 +17,8 @@ final class V39UnifyContractTests: XCTestCase {
     func testCanvasUpgradesDefaultOnlyAndKeepsThemes() throws {
         let design = try source("XiaoZhangGui/DesignSystem/V371/V371DesignSystem.swift")
         // 默认底色升级为 V39 渐变。
-        XCTAssertTrue(design.contains("V39Palette.canvasGradientDark"), "默认 Dark 底色必须是 V39 夜蓝渐变")
-        XCTAssertTrue(design.contains("V39Palette.canvasGradientLight"), "默认 Light 底色必须是 V39 冰蓝渐变")
+        XCTAssertTrue(design.contains("V400Tokens.pageBackground"), "默认画布采用 Fusion 双主题纯色")
+        XCTAssertFalse(design.contains("V39Palette.canvasGradient"), "默认画布不保留旧渐变")
         // 红线:壁纸与自选主题分支原样保留。
         XCTAssertTrue(design.contains("themeStore.wallpaper.isEnabled"), "壁纸能力必须保留(V3.7.1 稳定能力)")
         XCTAssertTrue(design.contains("themeStore.backgroundTheme == BackgroundTheme.default"),
@@ -38,7 +38,7 @@ final class V39UnifyContractTests: XCTestCase {
 
     func testSectionHeaderHasGoldTick() throws {
         let primitives = try source("XiaoZhangGui/DesignSystem/V371/V371Primitives.swift")
-        XCTAssertTrue(primitives.contains("V39Palette.headerTick"), "SectionHeader 必须带金色签名竖条")
+        XCTAssertTrue(primitives.contains(".fill(V400Tokens.brandGreen)"), "SectionHeader 使用 Fusion 品牌绿标记")
         XCTAssertTrue(primitives.contains(".accessibilityHidden(true)"), "装饰竖条必须无障碍隐藏")
         // combine 断言只钉 SectionHeader 本体：同文件内 Hero 卡 / WorkRow 按钮行的
         // combine 是有意的（按钮行合并为单一可点元素），全文件扫描会误伤。
@@ -50,17 +50,20 @@ final class V39UnifyContractTests: XCTestCase {
 
     func testHomeSectionHeaderMatchesGlobalTick() throws {
         let homeStyle = try source("XiaoZhangGui/Features/Home/V38/V38HomeStyle.swift")
-        XCTAssertTrue(homeStyle.contains("V39Palette.headerTick"), "首页 SectionHeader 必须同款金条(与全 App 一致)")
+        XCTAssertTrue(homeStyle.contains(".fill(V400Tokens.brandGreen)"), "首页 SectionHeader 与共享组件同源")
     }
 
     // MARK: - 经营页 Hero 同语言
 
     func testPerformanceHeroUsesV39CardAndKeepsIdentifier() throws {
         let perf = try source("XiaoZhangGui/Features/Performance/PerformanceView.swift")
-        XCTAssertTrue(perf.contains("V39Palette.heroGradient"), "经营页 Hero 必须用 V39 深空蓝渐变(与首页同语言)")
-        XCTAssertTrue(perf.contains("V39Palette.heroStroke"), "经营页 Hero 必须带金色包边")
+        XCTAssertTrue(perf.contains(".background(V400Tokens.surface"), "V4 经营页使用定稿表面")
+        XCTAssertFalse(perf.contains("V39Palette.heroGradient"), "V4 不保留旧全色渐变")
+        XCTAssertTrue(perf.contains(".strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)"), "V4 使用发丝线")
+        XCTAssertFalse(perf.contains("V39Palette.heroStroke"), "经营页不可使用日历金")
         XCTAssertTrue(perf.contains("\"v38.performance.hero\""), "Hero 无障碍标识符契约不变")
-        XCTAssertTrue(perf.contains("V39Style.changeUp"), "环比徽标必须用 V39 语义色(涨金/跌红)")
+        XCTAssertTrue(perf.contains("V400Tokens.greenInk"))
+        XCTAssertTrue(perf.contains("V400Tokens.dangerText"))
     }
 
     // MARK: - 纯函数回归(随单源迁移保持)

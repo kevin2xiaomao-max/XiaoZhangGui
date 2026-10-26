@@ -51,7 +51,7 @@ struct V38HomeSectionHeader: View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             // V3.9 PR-F:与全 App SectionHeader 同款金色签名竖条。
             Capsule()
-                .fill(V39Palette.headerTick)
+                .fill(V400Tokens.brandGreen)
                 .frame(width: 4, height: 16)
                 .accessibilityHidden(true)
             Text(title)
