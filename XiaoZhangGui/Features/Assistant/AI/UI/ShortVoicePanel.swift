@@ -13,9 +13,6 @@ struct ShortVoicePanel: View {
     let onCancel: () -> Void
     let onEditText: () -> Void
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var pulsing = false
-
     var body: some View {
         VStack(spacing: 16) {
             switch phase {
@@ -51,21 +48,8 @@ struct ShortVoicePanel: View {
 
     private var listeningContent: some View {
         VStack(spacing: 14) {
-            ZStack {
-                Circle()
-                    .fill(V371.Colors.tinted(V371.Colors.blue))
-                    .frame(width: 84, height: 84)
-                    .scaleEffect(reduceMotion ? 1 : (pulsing ? 1.12 : 0.94))
-                    .opacity(reduceMotion ? 1 : (pulsing ? 0.55 : 1))
-                    .animation(
-                        reduceMotion ? nil : V371.Motion.spring.repeatForever(autoreverses: true),
-                        value: pulsing
-                    )
-                Image(systemName: phase == .finalizing ? "sparkles" : "mic.fill")
-                    .font(.system(size: 30, weight: .semibold))
-                    .foregroundStyle(V371.Colors.blue)
-            }
-            .frame(height: 92)
+            V400VoiceOrb(size: 64, isListening: phase == .listening,
+                          isProcessing: phase == .finalizing)
 
             Text(displayTranscript.isEmpty ? "正在听…说一件事，例如：今晚8点给302送两箱怡宝" : displayTranscript)
                 .font(.body)
@@ -109,7 +93,6 @@ struct ShortVoicePanel: View {
                 .accessibilityLabel("停止并识别")
             }
         }
-        .onAppear { if !reduceMotion { pulsing = true } }
     }
 
     private func failureContent(_ message: String) -> some View {

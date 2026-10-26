@@ -135,6 +135,8 @@ struct VoiceView: View {
                         )
                 } else {
                     VStack(spacing: 10) {
+                        V400VoiceOrb(size: 72, isListening: vm.phase == .listening,
+                                      isProcessing: vm.phase == .recognized || vm.phase == .parsing)
                         if vm.phase == .listening || vm.phase == .recognized || vm.phase == .parsing {
                             CompactVoiceWaveform()
                                 .frame(height: 24)

@@ -130,6 +130,17 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         XCTAssertTrue(element("profile.voiceTest").waitForExistence(timeout: 5))
         tapElement("profile.voiceTest")
         XCTAssertTrue(element("sheet.voice").waitForExistence(timeout: 5))
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "v400-voice-panel"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    func testProfileVoiceOrbDark() {
+        app.terminate()
+        app.launchArguments.append("v391-force-dark")
+        app.launch()
+        testProfileRoutesPaymentCodesAndVoiceTest()
     }
 
     func testCustomerAdvanceFailureDoesNotReportSuccessAndRetrySucceeds() {

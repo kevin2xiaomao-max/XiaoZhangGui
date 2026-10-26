@@ -14,6 +14,11 @@ struct ActionCardView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// 预览确认、失败和幂等跳过都不是一次真实记录成功。
+    var showsRecordedStamp: Bool {
+        proposal.status == .executed && !proposal.isPreviewOnly && !proposal.previewAcknowledged
+    }
+
     var body: some View {
         // V4.0 收据式确认卡：纸面容器（GroupSurface 的 group 底改走 paperAdaptive，
         // 圆角与内边距与原 GroupSurface 一致；不改 GroupSurface 本身，避免波及其他页）。
@@ -36,10 +41,11 @@ struct ActionCardView: View {
                 .fill(V400Tokens.paperAdaptive)
         )
         .transition(.opacity.combined(with: reduceMotion ? .identity : .move(edge: .bottom)))
-        .animation(V371.Motion.animation(V371.Motion.resolve(.spring, reduceMotion: reduceMotion)),
+        .animation(reduceMotion ? nil : V32Motion.standard,
                    value: proposal.status)
-        .animation(V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: reduceMotion)),
+        .animation(reduceMotion ? nil : V32Motion.quick,
                    value: proposal.previewAcknowledged)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("ai.action-card")
     }
 
@@ -60,7 +66,23 @@ struct ActionCardView: View {
                     .foregroundStyle(V371.Colors.textTertiary)
             }
             Spacer(minLength: 0)
-            StatusBadge(statusBadgeText, color: statusBadgeColor)
+            if showsRecordedStamp {
+                Text("已记")
+                    .font(.caption.weight(.bold))
+                    .tracking(1)
+                    .foregroundStyle(V400Tokens.greenInk)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .strokeBorder(V400Tokens.brandGreen, lineWidth: 1.5)
+                    )
+                    .rotationEffect(.degrees(-8))
+                    .accessibilityLabel("已记录，保存成功")
+                    .accessibilityIdentifier("ai.action-card.recorded-stamp")
+            } else {
+                StatusBadge(statusBadgeText, color: statusBadgeColor)
+            }
         }
     }
 

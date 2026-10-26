@@ -130,7 +130,7 @@ struct AIChatView: View {
                 .accessibilityIdentifier("ai.menu")
             }
         }
-        .animation(V371.Motion.animation(V371.Motion.resolve(.spring, reduceMotion: reduceMotion)),
+        .animation(reduceMotion ? nil : V32Motion.standard,
                    value: model.showVoicePanel)
         .onChange(of: voiceDeepLink?.wrappedValue ?? false) { _, triggered in
             if triggered {

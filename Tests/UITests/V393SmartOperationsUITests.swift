@@ -60,6 +60,17 @@ final class V393SmartOperationsUITests: XCTestCase {
 
     /// 复合意图：两张卡 + 一键确认全部真实执行（按钮随后变灰，证明无待确认项残留）。
     func testCompositeGroupAndConfirmAll() {
+        verifyCompositeGroupAndStamp(appearance: "light")
+    }
+
+    func testCompositeGroupAndConfirmAllDark() {
+        verifyCompositeGroupAndStamp(appearance: "dark")
+    }
+
+    private func verifyCompositeGroupAndStamp(appearance: String) {
+        app.terminate()
+        app.launchArguments.append("v391-force-\(appearance)")
+        app.launch()
         openAI()
         sendMessage("记一笔美团680，再给302送两箱怡宝")
         let group = element("ai.composite-group")
@@ -67,6 +78,8 @@ final class V393SmartOperationsUITests: XCTestCase {
         let confirmAll = app.buttons["ai.composite.confirmAll"]
         XCTAssertTrue(confirmAll.waitForExistence(timeout: 10), "一键确认全部按钮未出现")
         XCTAssertTrue(confirmAll.isEnabled, "确认前按钮应可用")
+        XCTAssertFalse(element("ai.action-card.recorded-stamp").exists,
+                       "确认前不得出现成功印章")
         shot("v393-composite-group")
         confirmAll.tap()
         // 轮询至按钮变灰：两张卡均已执行（成功或跳过），无待确认项残留。
@@ -77,6 +90,15 @@ final class V393SmartOperationsUITests: XCTestCase {
             usleep(200_000)
         }
         XCTAssertTrue(disabled, "一键确认后按钮应变灰（两张卡均已处理）")
+        // 确认后新增汇总消息会滚到末尾；先返回卡片，不能把屏外标记当作缺失。
+        let stamp = element("ai.action-card.recorded-stamp")
+        for _ in 0..<4 {
+            if stamp.exists && stamp.isHittable { break }
+            app.scrollViews.firstMatch.swipeDown()
+        }
+        shot("v400-stamp-\(appearance)")
+        XCTAssertTrue(stamp.waitForExistence(timeout: 10),
+                      "真实保存成功后应显示已记印章")
         shot("v393-composite-confirmed")
     }
 
