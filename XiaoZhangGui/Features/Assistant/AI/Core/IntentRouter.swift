@@ -151,11 +151,11 @@ struct IntentRouter {
 
     /// 明确跟在配送动词后的裸房号，不把金额、钟点或电话号码当成房号。
     func roomAfterDeliveryVerb(in text: String) -> String? {
-        let pattern = #"(?:送给|送货给|送)\s*(\d{2,5})(?!\d)(?!\s*(?:元|块|点|时|分|:|：))\s*(?:室|房|号|栋|单元)?"#
+        let pattern = #"(?:送给|送货给|送)\s*(\d{2,5}(?!\d)(?!\s*(?:元|块|点|时|分|:|：|箱|瓶|件|包|桶|袋|个|盒|提|罐|杯|份|斤|公斤|千克|克|升|毫升|%|[.．]\d))\s*(?:室|房|号|栋|单元)?)"#
         guard let regex = try? NSRegularExpression(pattern: pattern),
               let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
               let range = Range(match.range(at: 1), in: text) else { return nil }
-        return String(text[range])
+        return String(text[range]).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     func firstRoomNumber(in text: String) -> String? {

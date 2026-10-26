@@ -60,6 +60,18 @@ final class V393CompositeIntentTests: XCTestCase {
         XCTAssertFalse(result.clarifications.isEmpty, "解析失败必须提示补齐")
     }
 
+    func testNumericGoodsQuantityCannotBecomeBareDeliveryAddress() {
+        let router = IntentRouter()
+        for text in ["送20箱水", "送12瓶水", "送20.5升水"] {
+            XCTAssertNil(router.roomAfterDeliveryVerb(in: text), "商品数量不能成为房号：\(text)")
+            let result = CompositeIntentParser.parse("记一笔美团350，再" + text, now: wednesdayEvening)
+            XCTAssertEqual(result.calls.count, 1, "缺地址只保留营业额卡")
+            XCTAssertFalse(result.clarifications.isEmpty, "缺地址需明确补齐")
+        }
+        XCTAssertEqual(router.roomAfterDeliveryVerb(in: "送302室两箱水"), "302室", "地址后缀不能丢失")
+        XCTAssertEqual(router.roomAfterDeliveryVerb(in: "送302两箱水"), "302")
+    }
+
     func testAmountOnlySegmentMergesIntoPreviousCardNotSummed() {
         let result = CompositeIntentParser.parse("给302送两箱怡宝，一共45元", now: wednesdayEvening)
         XCTAssertEqual(result.calls.count, 1, "金额段绝不能另起一卡")
