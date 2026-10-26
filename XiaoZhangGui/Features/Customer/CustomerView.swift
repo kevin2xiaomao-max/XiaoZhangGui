@@ -41,7 +41,7 @@ struct CustomerView: View {
                 }
                 .pickerStyle(.segmented)
                 .onChange(of: filter) { _, _ in
-                    withAnimation(V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: reduceMotion))) {}
+                    withAnimation(reduceMotion ? nil : V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: false))) {}
                 }
                 if shown.isEmpty {
                     VStack(spacing: 12) {
@@ -53,7 +53,7 @@ struct CustomerView: View {
                                         .foregroundStyle(.white)
                                         .padding(.horizontal, 20)
                                         .padding(.vertical, 12)
-                                        .background(Capsule().fill(V371.Colors.heroTop))
+                                        .background(Capsule().fill(V400Tokens.primaryButton))
                                 }
                                 .padding(.horizontal, 24)
                             } else {
@@ -120,7 +120,7 @@ struct CustomerView: View {
                     .foregroundStyle(Color.white)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
-                    .background(Capsule().fill(V371.Colors.heroTop))
+                    .background(Capsule().fill(V400Tokens.primaryButton))
                     .padding(.bottom, 12)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
@@ -229,9 +229,9 @@ private struct CustomerWorkRow: View {
     /// 彩色微状态只用于 icon / badge（§2-D）。
     private var statusColor: Color {
         switch status {
-        case .pending: return V371.Colors.orange
-        case .delivering: return V371.Colors.blue
-        case .done: return V371.Colors.gray
+        case .pending: return V400Tokens.warningInk
+        case .delivering: return V400Tokens.infoInk
+        case .done: return V400Tokens.greenInk
         }
     }
 

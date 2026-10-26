@@ -36,12 +36,13 @@ enum V400Tokens {
     static let primaryButton = Color(hex: 0x146B52)
     /// 大面积绿唯一合法形态：brandGreen 10%（Light）/ 14%（Dark）底 + 绿描边。
     static var greenTint: Color {
-        Color(hex: 0x1FA971).opacity(0.10)
+        adaptive(light: hex(0x1FA971).withAlphaComponent(0.10), dark: hex(0x1FA971).withAlphaComponent(0.14))
     }
 
     /// 首页 Hero 来自 fusion-kit 双主题表；不是品牌绿铺底。
     static var heroBackground: Color { adaptive(light: hex(0x10382A), dark: hex(0x12352B)) }
     static var heroInk: Color { adaptive(light: hex(0xEAF3EE), dark: hex(0xCBE9DA)) }
+    static var infoInk: Color { adaptive(light: hex(0x0856B3), dark: hex(0x409CFF)) }
     static var warningInk: Color { adaptive(light: hex(0xB25000), dark: hex(0xFFB340)) }
     /// 日历操作文字：规范 §9 的可读金，区别于今日圆填充。
     static var calendarActionInk: Color { adaptive(light: hex(0x8A6400), dark: hex(0xD4A017)) }
@@ -60,6 +61,8 @@ enum V400Tokens {
     static var surface: Color {
         adaptive(light: hex(0xFFFFFF), dark: hex(0x1C1C1E))
     }
+    static var tertiaryInk: Color { adaptive(light: hex(0x5F646E), dark: hex(0x8E8E93)) }
+    static var fill: Color { adaptive(light: hex(0xEAF3EE), dark: hex(0x101614)) }
     static var surfaceElevated: Color {
         adaptive(light: hex(0xFFFFFF), dark: hex(0x2C2C2E))
     }
@@ -68,7 +71,7 @@ enum V400Tokens {
     /// 用户聊天气泡 #0A6ED1（白字达标；原 #0A84FF 仅 4.0，不用）。
     static let userBubble = Color(hex: 0x0A6ED1)
     /// 危险文本 #D03028（白底 4.94）。
-    static let dangerText = Color(hex: 0xD03028)
+    static var dangerText: Color { adaptive(light: hex(0xD03028), dark: hex(0xFF6B6B)) }
 
     // MARK: - 金额衬线（仅金额 / 日报数值 / 确认卡金额 / 进度头数字）
     /// Georgia / Songti SC + tabular-nums；relativeTo 保证动态字体缩放。
