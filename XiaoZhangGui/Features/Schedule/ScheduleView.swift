@@ -126,7 +126,7 @@ struct ScheduleView: View {
             .padding(.horizontal, V371.Space.page)
             .padding(.top, 8)
             .padding(.bottom, V371.Space.section)
-            .animation(V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: reduceMotion)), value: selectedDate)
+            .animation(reduceMotion ? nil : V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: false)), value: selectedDate)
         }
         .scrollIndicators(.hidden)
         .accessibilityIdentifier(V371AccessibilityID.screenCalendar)
@@ -154,7 +154,7 @@ struct ScheduleView: View {
                 } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(V39Style.gold)
+                        .foregroundStyle(V400Tokens.calendarActionInk)
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
@@ -192,7 +192,7 @@ struct ScheduleView: View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(selectedDate, format: .dateTime.month(.wide).day().locale(Locale(identifier: "zh_CN")))
-                    .font(.system(size: mastheadDateSize, weight: .bold, design: .default))
+                    .font(.custom("Georgia", fixedSize: mastheadDateSize).monospacedDigit().weight(.bold))
                     .foregroundStyle(V371.Colors.textPrimary)
                 Text(scheduleWeekdayText(selectedDate))
                     .font(.subheadline)
@@ -204,7 +204,7 @@ struct ScheduleView: View {
                 selectedDate = Date()
             }
             .font(.subheadline.weight(.semibold))
-            .foregroundStyle(V39Style.gold)
+            .foregroundStyle(V400Tokens.calendarActionInk)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
             .background(.thinMaterial, in: Capsule(style: .continuous))
@@ -382,7 +382,7 @@ struct ScheduleView: View {
                 title: "\(DisplayText.visible(item.name, fallback: "临期商品")) × \(item.quantity)",
                 subtitle: expiryHint(days),
                 action: {
-                    withAnimation(V371.Motion.animation(V371.Motion.resolve(.spring, reduceMotion: reduceMotion))) {
+                    withAnimation(reduceMotion ? nil : V371.Motion.animation(V371.Motion.resolve(.spring, reduceMotion: false))) {
                         if isExpanded { expandedExpiry.remove(item.notificationID) } else { expandedExpiry.insert(item.notificationID) }
                     }
                 }
@@ -480,7 +480,7 @@ struct ScheduleView: View {
         ghostSettleTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 500_000_000)
             guard !Task.isCancelled else { return }
-            withAnimation(V38MotionTokens.animation(for: .contentChange, reduceMotion: reduceMotion)) {
+            withAnimation(reduceMotion ? nil : V38MotionTokens.animation(for: .contentChange, reduceMotion: false)) {
                 weekGhostSettled = true
             }
         }
@@ -534,19 +534,20 @@ struct ScheduleView: View {
         let isActive = density == value
         return Button {
             Haptic.selection()
-            withAnimation(V38MotionTokens.animation(for: .contentChange, reduceMotion: reduceMotion)) {
+            withAnimation(reduceMotion ? nil : V38MotionTokens.animation(for: .contentChange, reduceMotion: false)) {
                 density = value
             }
         } label: {
             Text(title)
                 .font(.subheadline.weight(.semibold))
                 // 金底配深墨字(P0-2 口径),不用白字:浅色档金偏浅,白字对比不足。
-                .foregroundStyle(isActive ? V39Palette.heroInk : V371.Colors.textSecondary)
+                .foregroundStyle(isActive ? V400Tokens.goldInk : V371.Colors.textSecondary)
                 .padding(.horizontal, 16)
                 .frame(minHeight: 36)
                 .background {
                     if isActive {
-                        Capsule(style: .continuous).fill(V39Style.gold)
+                        Capsule(style: .continuous).fill(V400Tokens.goldToday)
+                            .overlay(Capsule().strokeBorder(V400Tokens.goldRing, lineWidth: 1))
                     }
                 }
                 .contentShape(Capsule(style: .continuous))
@@ -578,7 +579,7 @@ struct ScheduleView: View {
     /// 周期导航：月密度按月移动网格（选中日期不变，V3.7.1 原行为）；
     /// 周密度按周移动选中日期（标准周视图行为，月份由 onChange 同步跟随）。
     private func navigatePeriod(by direction: Int) {
-        withAnimation(V38MotionTokens.animation(for: .contentChange, reduceMotion: reduceMotion)) {
+        withAnimation(reduceMotion ? nil : V38MotionTokens.animation(for: .contentChange, reduceMotion: false)) {
             switch density {
             case .month:
                 currentMonth = monthCalendar.date(byAdding: .month, value: direction, to: currentMonth) ?? currentMonth
@@ -790,7 +791,7 @@ struct ScheduleView: View {
             ForEach(accessibleListDates, id: \.self) { date in
                 let flags = eventFlags(for: date)
                 Button {
-                    withAnimation(V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: reduceMotion))) {
+                    withAnimation(reduceMotion ? nil : V371.Motion.animation(V371.Motion.resolve(.fade, reduceMotion: false))) {
                         selectedDate = date
                     }
                     Haptic.light()
@@ -808,7 +809,7 @@ struct ScheduleView: View {
                         Spacer(minLength: 8)
                         if date.isSameDay(as: selectedDate) {
                             Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(V39Style.gold)
+                                .foregroundStyle(V400Tokens.calendarActionInk)
                                 .accessibilityHidden(true)
                         }
                     }

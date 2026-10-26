@@ -19,7 +19,7 @@ final class V39ScheduleAXTests: XCTestCase {
             "masthead 日期必须随动态字体缩放（F1 层级倒挂回归钉）"
         )
         XCTAssertTrue(
-            schedule.contains(".font(.system(size: mastheadDateSize"),
+            schedule.contains("fixedSize: mastheadDateSize)"),
             "masthead 日期必须使用缩放后的字号构造"
         )
     }

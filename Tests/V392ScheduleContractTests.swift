@@ -30,9 +30,9 @@ final class V392ScheduleContractTests: XCTestCase {
         XCTAssertTrue(schedule.contains("V400Tokens.goldToday"), "今日圆必须用 V4 定案金 #D4A017(深浅系统同色)")
         XCTAssertTrue(schedule.contains("V400Tokens.goldInk"), "金底必须配深墨字 goldInk #1A1D21(白字对比不足)")
         XCTAssertTrue(schedule.contains("V400Tokens.goldRing.opacity(0.14)"), "选中淡底为金")
-        XCTAssertTrue(schedule.contains("fill(V39Style.gold)"), "密度 chip 激活底为金")
+        XCTAssertTrue(schedule.contains("fill(V400Tokens.goldToday)"), "密度 chip 激活底为金")
         // 操作色:今天按钮 + 新增待办 = 金(至少两处 gold 前景)。
-        let foregroundGolds = schedule.components(separatedBy: ".foregroundStyle(V39Style.gold)").count - 1
+        let foregroundGolds = schedule.components(separatedBy: ".foregroundStyle(V400Tokens.calendarActionInk)").count - 1
         XCTAssertGreaterThanOrEqual(foregroundGolds, 2, "「今天」与「+」操作色须为金")
     }
 

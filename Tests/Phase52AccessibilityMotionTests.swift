@@ -20,10 +20,10 @@ final class Phase52AccessibilityMotionTests: XCTestCase {
         XCTAssertTrue(drawer.contains("reduceMotion ? .easeOut(duration: 0.16)"))
         // V3.8 重建 R2：Todo 使用生产级 V38MotionTokens（Reduce Motion 时返回 nil，即静态呈现）。
         XCTAssertTrue(
-            todo.contains("V38MotionTokens.animation(for:") && todo.contains("reduceMotion: reduceMotion"),
+            todo.contains("V38MotionTokens.animation(for:") && todo.contains("reduceMotion ? nil : V38MotionTokens.animation"),
             "Todo 必须显式处理 Reduce Motion（V38MotionTokens）"
         )
-        XCTAssertTrue(schedule.contains("V371.Motion.resolve(.spring, reduceMotion: reduceMotion)"))
+        XCTAssertTrue(schedule.contains("reduceMotion ? nil : V371.Motion.animation(V371.Motion.resolve(.spring, reduceMotion: false))"))
         XCTAssertTrue(customer.contains("reduceMotion ? nil : V371.Motion.spring"))
     }
 
