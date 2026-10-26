@@ -1,3 +1,5 @@
+> 当前状态（2026-10-27）：以下起点表格保留为交接历史。已完成的实现与回归见 BATCH-02-AI、BATCH-03-DELIVERY、BATCH-04-BUSINESS、BATCH-05-08-WORKFLOWS、BATCH-09-CONSENT；最终验收以 Docs/V400/FINAL-REPORT.md 及 outputs/V400-最终开发与验收报告.md 为准。旧沙箱限制已解除，本轮由 Codex 直接执行本地构建/测试。成功卡折叠已实现，纸面 Dark 已依据原型修正。RunStrip 仍按用户允许的安全降级保留真实 ThinkingIndicator。
+
 # V4.0 设计与实现对照
 
 核对起点：feature/v400-native-ui-integration @ 2febf6493273775e98fc20e4c3ec6270a7afe5f9。
