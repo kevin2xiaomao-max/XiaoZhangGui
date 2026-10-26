@@ -90,6 +90,18 @@ final class V38TodoRebuildUITests: XCTestCase {
         )
     }
 
+    func testCompletedTodoCanBeReopenedFromDoneTab() {
+        testToggleCompletesAndMovesToDoneTab()
+        let toggle = element("todo.toggle")
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        XCTAssertEqual(toggle.value as? String, "已完成")
+        toggle.tap()
+        XCTAssertTrue(waitUntil(timeout: 8) { !self.element("todo.toggle").exists })
+        app.buttons["今天"].tap()
+        XCTAssertTrue(app.staticTexts[seedTitle].waitForExistence(timeout: 5))
+        XCTAssertEqual(element("todo.toggle").value as? String, "未完成", "防止移出行的旧事件不能阻止已完成页正常撤销")
+    }
+
     // MARK: - 勾选失败：无成功闪现 + 行内重试（关键用例）
 
     func testToggleFailureShowsNoSuccessFlashAndInlineRetrySucceeds() {
@@ -133,6 +145,9 @@ final class V38TodoRebuildUITests: XCTestCase {
         // 用 App 级绝对坐标点按：行完成移出后元素消失，元素派生坐标再点按会
         // 报 "Failed to get matching snapshot"；绝对坐标不依赖元素存续，
         // 行移出后点在空白列表区无副作用。
+        XCTAssertTrue(toggle.isHittable)
+        XCTAssertEqual(toggle.value as? String, "未完成")
+        attachScreenshot(XCUIScreen.main.screenshot(), named: "v400-rapid-toggle-before")
         let toggleFrame = toggle.frame
         let anchor = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
             .withOffset(CGVector(dx: toggleFrame.midX, dy: toggleFrame.midY))
@@ -141,6 +156,7 @@ final class V38TodoRebuildUITests: XCTestCase {
             anchor.tap()
             Thread.sleep(forTimeInterval: 0.03)
         }
+        attachScreenshot(XCUIScreen.main.screenshot(), named: "v400-rapid-toggle-after")
         XCTAssertTrue(
             waitUntil(timeout: 8) { !self.element("todo.toggle").exists },
             "连点后行应完成并移出今日列表"

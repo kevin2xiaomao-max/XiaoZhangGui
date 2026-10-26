@@ -269,6 +269,9 @@ struct TodoView: View {
     /// 防重复点击：保存窗口内忽略同一项（失败态点按 = 重试，走同一入口）。
     private func toggle(_ todo: Todo) {
         let pid = todo.persistentModelID
+        // 移出动画中的旧行仍可能接到点按；已不属于当前列表的行不能再次反转保存结果。
+        // 已完成筛选中的真实可见行仍可正常标为未完成，失败行仍可重试。
+        guard list.contains(where: { $0.persistentModelID == pid }) else { return }
         guard !togglingIDs.contains(pid) else { return }
         let current = toggleMachines[pid] ?? V38PageMotionState(isDone: todo.isCompleted)
         guard let saving = V38TodoToggleFlow.begin(from: current) else { return }
