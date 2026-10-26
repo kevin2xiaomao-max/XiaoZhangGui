@@ -25,6 +25,8 @@ struct ActionCardView: View {
                 if let result = proposal.resultText, !result.isEmpty {
                     resultRow(result)
                 }
+                // V4.0 收据式确认卡：字段与操作之间用发丝虚线分隔（A 基因）。
+                dashedSeparator
                 actions
             }
             .padding(V371.Space.rowPadding)
@@ -99,7 +101,8 @@ struct ActionCardView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .layoutPriority(1)
                     Text(row.value)
-                        .font(.body)
+                        // V4.0:仅「金额」行用衬线 tabular-nums（Georgia），其他字段行保持正文字体。
+                        .font(row.label == "金额" ? V400Tokens.serifAmount(size: 17, relativeTo: .body) : .body)
                         .foregroundStyle(V371.Colors.textPrimary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .layoutPriority(0)
@@ -119,6 +122,19 @@ struct ActionCardView: View {
         }
         .foregroundStyle(V371.Colors.orange)
         .padding(.vertical, 4)
+    }
+
+    private var dashedSeparator: some View {
+        GeometryReader { geo in
+            Path { path in
+                path.move(to: .zero)
+                path.addLine(to: CGPoint(x: geo.size.width, y: 0))
+            }
+            .stroke(style: StrokeStyle(lineWidth: 1, dash: [5, 4]))
+            .foregroundStyle(V371.Colors.divider)
+        }
+        .frame(height: 1)
+        .accessibilityHidden(true)
     }
 
     private func resultRow(_ text: String) -> some View {
@@ -146,7 +162,8 @@ struct ActionCardView: View {
                     .frame(maxWidth: .infinity, minHeight: 44)
                     .background(
                         Capsule(style: .continuous)
-                            .fill(resolved ? V371.Colors.gray.opacity(0.4) : V371.Colors.blue)
+                            // V4.0 04 §6.2:确认主按钮 #146B52（白字）；已决态仍为灰。
+                            .fill(resolved ? V371.Colors.gray.opacity(0.4) : V400Tokens.primaryButton)
                     )
             }
             .buttonStyle(.plain)

@@ -355,7 +355,8 @@ struct AIChatView: View {
                 .padding(.vertical, 10)
                 .background(
                     RoundedRectangle(cornerRadius: V371.Radius.tile, style: .continuous)
-                        .fill(V371.Colors.blue)
+                        // V4.0 04 §6.2:用户气泡 #0A6ED1（原系统蓝白字对比仅 4.0，不达标）。
+                        .fill(V400Tokens.userBubble)
                 )
                 .frame(maxWidth: 300, alignment: .trailing)
         } else {
