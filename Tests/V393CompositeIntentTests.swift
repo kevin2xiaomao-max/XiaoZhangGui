@@ -35,6 +35,31 @@ final class V393CompositeIntentTests: XCTestCase {
         XCTAssertTrue((delivery.roomOrAddress ?? "").contains("302"), "房号 302 必须进配送卡，不能被金额混淆")
     }
 
+    func testOriginalBareRoomDeliveryIsNeverSilentlyDropped() {
+        let parsed = CompositeIntentParser.parse("记一笔美团350，再送302两箱水", now: wednesdayEvening)
+        XCTAssertEqual(parsed.calls.count, 2)
+        guard let call = parsed.calls.first(where: { $0.name == .createDelivery }),
+              case .createDelivery(let delivery) = call.arguments else {
+            return XCTFail("用户原句必须保留302配送，不能只出营业额卡")
+        }
+        XCTAssertEqual(delivery.roomOrAddress, "302")
+        XCTAssertEqual(delivery.quantity, "两箱")
+        XCTAssertNil(delivery.amount, "房号不得变为配送金额")
+    }
+
+    func testBareRoomClassifiesAndTimeOrMoneyDoesNotBecomeRoom() {
+        XCTAssertEqual(IntentRouter().classify("送302两箱水"), .businessAction(.createDelivery))
+        XCTAssertNil(IntentRouter().roomAfterDeliveryVerb(in: "送20元的水"))
+        XCTAssertNil(IntentRouter().roomAfterDeliveryVerb(in: "送20:00"))
+        XCTAssertNil(IntentRouter().roomAfterDeliveryVerb(in: "送13800138000"))
+        let incomplete = CompositeIntentParser.parse("记一笔美团350，再送302", now: wednesdayEvening)
+        XCTAssertEqual(incomplete.calls.count, 1)
+        XCTAssertFalse(incomplete.clarifications.isEmpty)
+        let result = CompositeIntentParser.parse("记一笔美团350，再送两箱水", now: wednesdayEvening)
+        XCTAssertEqual(result.calls.count, 1)
+        XCTAssertFalse(result.clarifications.isEmpty, "解析失败必须提示补齐")
+    }
+
     func testAmountOnlySegmentMergesIntoPreviousCardNotSummed() {
         let result = CompositeIntentParser.parse("给302送两箱怡宝，一共45元", now: wednesdayEvening)
         XCTAssertEqual(result.calls.count, 1, "金额段绝不能另起一卡")

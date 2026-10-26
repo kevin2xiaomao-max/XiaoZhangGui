@@ -191,6 +191,7 @@ struct LocalBusinessParser {
         // 旧范例「给302送」沿用历史行为：纯数字房号同时作为客户标识与房号。
         let customer = namedCustomer ?? roomAfterGei
         let roomOrAddress = streetAddress
+            ?? router.roomAfterDeliveryVerb(in: text)
             ?? roomAfterDao
             ?? (namedCustomer == nil && roomAfterGei != nil ? roomAfterGei : nil)
 

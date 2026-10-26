@@ -70,15 +70,29 @@ struct CompositeIntentParser {
             let intent = router.classify(segment, now: now)
             guard case .businessAction = intent else {
                 // 送货但缺房号/客户：明确提示补齐，不猜单。
-                if segment.contains("送"), router.firstRoomNumber(in: segment) == nil,
-                   router.streetAddress(in: segment) == nil {
+                if segment.contains("送") {
                     clarifications.append("配送缺少客户 / 房号，请补充，例如「给 302 送两箱怡宝」。")
                 }
                 continue
             }
-            guard let parsed = parser.parse(segment, intent: intent, now: now) else { continue }
+            guard let parsed = parser.parse(segment, intent: intent, now: now) else {
+                if segment.contains("送") {
+                    clarifications.append("配送未能完整识别，请补充客户 / 房号、商品与数量。")
+                }
+                continue
+            }
             switch parsed {
             case .tool(let arguments):
+                if case .createDelivery(let delivery) = arguments {
+                    if (delivery.roomOrAddress ?? "").isEmpty && (delivery.customer ?? "").isEmpty {
+                        clarifications.append("配送缺少客户 / 房号，请补充后再确认。")
+                        continue
+                    }
+                    if (delivery.content ?? "").isEmpty {
+                        clarifications.append("配送缺少商品和数量，请补充后再确认。")
+                        continue
+                    }
+                }
                 let call = ToolCall(id: ToolCall.makeID(), name: arguments.toolName, arguments: arguments)
                 calls.append(call)
                 // 配送缺时间：卡照出，但附带补齐提示（执行前用户可在卡上改）。

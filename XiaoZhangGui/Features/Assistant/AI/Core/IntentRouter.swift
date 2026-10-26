@@ -127,6 +127,7 @@ struct IntentRouter {
         guard hasVerb else { return false }
         // 「送…到幸福路9号」：出现街道式地址即配送
         if streetAddress(in: text) != nil { return true }
+        if roomAfterDeliveryVerb(in: text) != nil { return true }
         // 「给阿东送…」：中文人名 + 送（无房号也是配送）
         if text.range(of: #"给\s*[一-龥]{2,4}\s*送"#, options: .regularExpression) != nil { return true }
         // “给302送…” / “送…到302” / 含 室|房|号
@@ -146,6 +147,15 @@ struct IntentRouter {
         guard let match = regex.firstMatch(in: text, range: range),
               let r = Range(match.range(at: 1), in: text) else { return nil }
         return String(text[r]).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// 明确跟在配送动词后的裸房号，不把金额、钟点或电话号码当成房号。
+    func roomAfterDeliveryVerb(in text: String) -> String? {
+        let pattern = #"(?:送给|送货给|送)\s*(\d{2,5})(?!\d)(?!\s*(?:元|块|点|时|分|:|：))\s*(?:室|房|号|栋|单元)?"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+              let range = Range(match.range(at: 1), in: text) else { return nil }
+        return String(text[range])
     }
 
     func firstRoomNumber(in text: String) -> String? {

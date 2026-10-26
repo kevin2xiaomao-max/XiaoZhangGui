@@ -67,12 +67,17 @@ final class V393SmartOperationsUITests: XCTestCase {
         verifyCompositeGroupAndStamp(appearance: "dark")
     }
 
-    private func verifyCompositeGroupAndStamp(appearance: String) {
+    func testOriginalBareRoomDeliveryKeepsBothCards() {
+        verifyCompositeGroupAndStamp(appearance: "light", phrase: "记一笔美团350，再送302两箱水")
+    }
+
+    private func verifyCompositeGroupAndStamp(appearance: String,
+        phrase: String = "记一笔美团680，再给302送两箱怡宝") {
         app.terminate()
         app.launchArguments.append("v391-force-\(appearance)")
         app.launch()
         openAI()
-        sendMessage("记一笔美团680，再给302送两箱怡宝")
+        sendMessage(phrase)
         let group = element("ai.composite-group")
         XCTAssertTrue(group.waitForExistence(timeout: 30), "复合卡组未出现")
         let confirmAll = app.buttons["ai.composite.confirmAll"]
