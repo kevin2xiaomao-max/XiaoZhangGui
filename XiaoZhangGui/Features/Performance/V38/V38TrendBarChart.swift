@@ -145,7 +145,7 @@ struct V38TrendBarChart: View {
 
             if let selected = selectedPoint {
                 RuleMark(x: .value("日期", selected.label))
-                    .foregroundStyle(V371.Colors.textTertiary.opacity(0.55))
+                    .foregroundStyle(V371.Colors.textTertiary)
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
             }
         }

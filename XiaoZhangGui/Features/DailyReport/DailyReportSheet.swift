@@ -42,7 +42,7 @@ struct DailyReportSheet: View {
                 .font(V371.Typography.rowSubtitle)
                 .foregroundStyle(V371.Colors.textSecondary)
             Text(Fmt.money(report.todayRevenue))
-                .font(V371.Typography.heroNumber)
+                .font(V400Tokens.serifAmount(size: 38))
                 .foregroundStyle(V371.Colors.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
@@ -51,6 +51,9 @@ struct DailyReportSheet: View {
                 .foregroundStyle(V371.Colors.textSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(V400Tokens.paperAdaptive, in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("今日营业额\(Fmt.money(report.todayRevenue))，\(report.changeText)")
     }
@@ -115,7 +118,7 @@ struct DailyReportSheet: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity, minHeight: 52)
-                    .background(V371.Colors.blue, in: Capsule(style: .continuous))
+                    .background(V400Tokens.primaryButton, in: Capsule(style: .continuous))
                     .contentShape(Capsule(style: .continuous))
             }
             .buttonStyle(.plain)

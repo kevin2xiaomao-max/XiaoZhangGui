@@ -25,6 +25,73 @@ final class XiaoZhangGuiUISmokeTests: XCTestCase {
         }
     }
 
+    func testV400LaunchPerformance() {
+        app.terminate()
+        let options = XCTMeasureOptions()
+        options.iterationCount = 3
+        measure(metrics: [XCTApplicationLaunchMetric()], options: options) {
+            app.launch()
+            XCTAssertTrue(element("screen.home").waitForExistence(timeout: 10))
+            app.terminate()
+        }
+    }
+
+    func testV400BusinessScrollPerformance() {
+        assertTab("tab.business", shows: "screen.business")
+        let options = XCTMeasureOptions()
+        options.iterationCount = 3
+        measure(metrics: [XCTClockMetric(), XCTCPUMetric(application: app), XCTMemoryMetric(application: app)], options: options) {
+            app.swipeUp()
+            app.swipeDown()
+        }
+        XCTAssertTrue(element("v38.performance.hero").exists)
+    }
+
+    func testV400SecondaryScreensLight() { captureV400SecondaryScreens(appearance: "light") }
+    func testV400SecondaryScreensDark() { captureV400SecondaryScreens(appearance: "dark") }
+
+    private func captureV400SecondaryScreens(appearance: String) {
+        app.terminate()
+        app.launchArguments.append("v391-force-\(appearance)")
+        app.launch()
+        XCTAssertTrue(element("screen.home").waitForExistence(timeout: 10))
+        func shot(_ page: String) {
+            let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+            attachment.name = "v400-\(page)-\(appearance)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+        for (route, screen, name) in [("home.customer", "screen.customer", "customer"),
+                                       ("home.expiry", "screen.expiry", "expiry")] {
+            tapElement(route)
+            XCTAssertTrue(element(screen).waitForExistence(timeout: 10))
+            shot(name)
+            tapNavigationBack()
+        }
+        assertTab("tab.business", shows: "screen.business")
+        tapElement("business.goods")
+        XCTAssertTrue(element("screen.goods").waitForExistence(timeout: 10))
+        shot("goods")
+        tapNavigationBack()
+        openMoreMenu(item: "business.memo")
+        XCTAssertTrue(element("screen.memo").waitForExistence(timeout: 10))
+        shot("memo")
+        tapNavigationBack()
+        openMoreMenu(item: "business.dailyReport")
+        XCTAssertTrue(element("sheet.dailyReport").waitForExistence(timeout: 10))
+        shot("daily-report")
+        tapElement("dailyReport.close")
+        openMoreMenu(item: "v39.performance.monthlyReport")
+        XCTAssertTrue(element("v39.report.sheet").waitForExistence(timeout: 10))
+        XCTAssertTrue(element("v39.report.share").waitForExistence(timeout: 10), "月报必须真实生成可分享图片")
+        shot("monthly-report")
+        app.buttons["关闭"].firstMatch.tap()
+        assertTab("tab.home", shows: "screen.home")
+        tapElement("home.profile")
+        XCTAssertTrue(element("screen.profile").waitForExistence(timeout: 10))
+        shot("settings")
+    }
+
     func testAppLaunches() {
         XCTAssertTrue(element("screen.home").waitForExistence(timeout: 10))
         // P0-A: 原生 TabView 在 iOS 27 不暴露自定义 accessibilityIdentifier，

@@ -19,16 +19,16 @@ enum V371 {
         /// S0 页面底色：暖白 / 近黑
         static var canvas: Color { Color(UIColor.v371Canvas) }
         /// S1 分组面：白 / 深灰黑
-        static var group: Color { Color(UIColor.v371Group) }
+        static var group: Color { V400Tokens.surface }
         /// S1 次级（嵌套小块）：浅灰 / 更深灰
-        static var groupSecondary: Color { Color(UIColor.v371GroupSecondary) }
+        static var groupSecondary: Color { V400Tokens.fill }
         /// 行内图标底（彩色微状态用）
         static func tinted(_ color: Color) -> Color { color.opacity(0.13) }
 
         static var textPrimary: Color { .primary }
         static var textSecondary: Color { .secondary }
         /// 辅助文字仍保持次级层级，但不用 tertiaryLabel，避免 Dark 与高亮背景下对比度过低。
-        static var textTertiary: Color { Color(.secondaryLabel) }
+        static var textTertiary: Color { V400Tokens.tertiaryInk }
         static var divider: Color { Color(.separator) }
 
         // MARK: S2 Hero 蓝（能量焦点，暗色降亮度）

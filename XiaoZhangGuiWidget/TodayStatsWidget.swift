@@ -82,7 +82,7 @@ private extension Date {
 private enum WidgetBrand {
     // V3.9.1 P1-13:旧海洋绿与 V3.9 视觉语言脱节,锁屏点改用固定香槟金;
     // 不强迫用户自选主题色失效(Widget 底仍为系统材质,主题色只用于点缀)。
-    static let gold = Color(red: 0.906, green: 0.788, blue: 0.514)
+    static let accent = Color(red: 0x1F / 255, green: 0xA9 / 255, blue: 0x71 / 255)
     static let warning = Color(red: 0xFF / 255, green: 0x9F / 255, blue: 0x0A / 255)
     static let danger = Color(red: 0xFF / 255, green: 0x6B / 255, blue: 0x6B / 255)
 }
@@ -168,7 +168,7 @@ private struct RectangularView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 4) {
-                Circle().fill(WidgetBrand.gold).frame(width: 5, height: 5)
+                Circle().fill(WidgetBrand.accent).frame(width: 5, height: 5)
                 Text("你的小掌柜")
                     .font(.caption.weight(.semibold).smallCaps())
             }

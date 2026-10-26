@@ -25,7 +25,7 @@ struct V38ChipSelector<Option: Hashable & Identifiable>: View where Option.ID ==
                 ForEach(options, id: \.id) { option in
                     let isSelected = option == selection
                     Button {
-                        withAnimation(V38MotionTokens.animation(for: .expand, reduceMotion: reduceMotion)) {
+                        withAnimation(reduceMotion ? nil : V38MotionTokens.animation(for: .expand, reduceMotion: false)) {
                             selection = option
                         }
                     } label: {
@@ -33,13 +33,14 @@ struct V38ChipSelector<Option: Hashable & Identifiable>: View where Option.ID ==
                             .font(V38PerformanceStyle.chipLabel)
                             .lineLimit(1)
                             .fixedSize(horizontal: true, vertical: false)
-                            .foregroundStyle(isSelected ? .white : .primary)
+                            .foregroundStyle(isSelected ? V400Tokens.greenInk : .primary)
                             .padding(.horizontal, 14)
                             .frame(minHeight: 44)
                             .background {
                                 if isSelected {
                                     Capsule()
-                                        .fill(V38PerformanceStyle.accent)
+                                        .fill(V400Tokens.greenTint)
+                                        .overlay(Capsule().strokeBorder(V400Tokens.brandGreen, lineWidth: 1))
                                         .matchedGeometryEffect(id: "v38.chip.selection", in: chipNamespace)
                                 } else {
                                     Capsule()

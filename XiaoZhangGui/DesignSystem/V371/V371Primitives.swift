@@ -42,10 +42,10 @@ struct HeroMetric<Info: View>: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text(title)
                     .font(V371.Typography.heroTitle)
-                    .foregroundStyle(V371.Colors.heroTextSecondary)
+                    .foregroundStyle(V400Tokens.heroInk)
                 Text(value)
-                    .font(V371.Typography.heroNumber)
-                    .foregroundStyle(V371.Colors.heroText)
+                    .font(V400Tokens.serifAmount(size: 44))
+                    .foregroundStyle(V400Tokens.heroInk)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
                 info
@@ -60,27 +60,10 @@ struct HeroMetric<Info: View>: View {
     }
 
     private var heroBackground: some View {
-        ZStack {
-            LinearGradient(
-                colors: [V371.Colors.heroTop, V371.Colors.heroBottom],
-                startPoint: .topLeading, endPoint: .bottomTrailing
-            )
-            // 柔和光感（静态，不做呼吸动画）
-            Circle()
-                .fill(.white.opacity(0.16))
-                .frame(width: 170, height: 170)
-                .blur(radius: 42)
-                .offset(x: -100, y: -80)
-            Circle()
-                .fill(.white.opacity(0.10))
-                .frame(width: 220, height: 220)
-                .blur(radius: 55)
-                .offset(x: 120, y: 60)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: V371.Radius.hero, style: .continuous))
-        .shadow(color: V371.Shadow.hero.color, radius: V371.Shadow.hero.radius,
-                y: V371.Shadow.hero.y)
+        RoundedRectangle(cornerRadius: V371.Radius.hero, style: .continuous)
+            .fill(V400Tokens.heroBackground)
     }
+
 }
 
 // MARK: - S1 GroupSurface（1 个 section surface + 多行 editorial rows）

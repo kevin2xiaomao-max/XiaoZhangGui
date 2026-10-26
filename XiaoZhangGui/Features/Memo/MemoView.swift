@@ -44,7 +44,7 @@ struct MemoView: View {
         .scrollIndicators(.hidden)
         .accessibilityIdentifier(V371AccessibilityID.screenMemo)
         .v371Canvas()
-        .navigationTitle("记录")
+        .navigationTitle("备忘记录")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -158,7 +158,7 @@ struct MemoView: View {
             action: { editingMemo = memo }
         ) {
             HStack(spacing: 2) {
-                Text(Fmt.memoTime(memo.updatedAt))
+                Text("更新于 " + Fmt.memoTime(memo.updatedAt))
                     .font(V371.Typography.time)
                     .foregroundStyle(V371.Colors.textTertiary)
                 Button { delete(memo) } label: {
@@ -261,7 +261,7 @@ struct MemoCard: View {
                         .lineLimit(3)
                 }
                 HStack {
-                    Text(Fmt.memoTime(memo.updatedAt))
+                    Text("更新于 " + Fmt.memoTime(memo.updatedAt))
                         .font(V371.Typography.time)
                         .foregroundStyle(V371.Colors.textTertiary)
                     Spacer(minLength: 8)

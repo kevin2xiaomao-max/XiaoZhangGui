@@ -406,8 +406,8 @@ struct PerformanceView: View {
 
     private func sourceColor(_ source: IncomeSource) -> Color {
         switch source {
-        case .store: return V371.Colors.blue
-        case .meituan: return V371.Colors.orange
+        case .store: return V400Tokens.greenInk
+        case .meituan: return V400Tokens.brandGreen
         case .other: return V371.Colors.gray
         }
     }

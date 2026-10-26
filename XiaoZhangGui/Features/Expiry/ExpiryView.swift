@@ -29,7 +29,7 @@ struct ExpiryView: View {
                                     .foregroundStyle(.white)
                                     .padding(.horizontal, 20)
                                     .padding(.vertical, 12)
-                                    .background(Capsule().fill(V371.Colors.heroTop))
+                                    .background(Capsule().fill(V400Tokens.primaryButton))
                             }
                             .padding(.horizontal, 24)
                         }
@@ -108,7 +108,7 @@ struct ExpiryView: View {
         HStack(spacing: 8) {
             statCell(count: stats.urgentCount, label: "0–3天", color: V371.Colors.red)
             statDivider
-            statCell(count: stats.warningCount, label: "4–7天", color: V371.Colors.orange)
+            statCell(count: stats.warningCount, label: "4–7天", color: V400Tokens.warningInk)
             statDivider
             statCell(count: stats.safeCount, label: "8–30天", color: V371.Colors.blue)
         }
@@ -122,7 +122,7 @@ struct ExpiryView: View {
     private func statCell(count: Int, label: String, color: Color) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("\(count)")
-                .v32Text(.metric)
+                .font(V400Tokens.serifAmount(size: 28, relativeTo: .title))
                 .foregroundStyle(color)
                 .monospacedDigit()
             Text(label)

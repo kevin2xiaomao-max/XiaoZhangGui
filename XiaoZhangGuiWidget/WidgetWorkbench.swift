@@ -166,7 +166,7 @@ struct MediumWorkbenchView: View {
                 .lineLimit(1)
             Spacer(minLength: 0)
             Text("¥\(WidgetDashboard.formatRevenue(snapshot?.todayRevenue ?? 0))")
-                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .font(.custom("Georgia", size: 28, relativeTo: .title).weight(.bold).monospacedDigit())
                 .foregroundStyle(.primary)
                 .minimumScaleFactor(0.5)
                 .lineLimit(1)

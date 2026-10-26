@@ -1,5 +1,6 @@
 import XCTest
 import SwiftData
+import SwiftUI
 @testable import XiaoZhangGui
 
 /// V3.9 PR-G/H:备份 2.0(预览/周提醒)与月度报表的真实业务测试。
@@ -161,4 +162,23 @@ final class V39FeaturesBackupReportTests: XCTestCase {
         XCTAssertTrue(report.sourceSplit.isEmpty)
         XCTAssertEqual(report.trendPoints.count, 7, "空数据仍有 7 个零点(形态稳定)")
     }
+    @MainActor
+    func testFusionMonthlyReportRenders390PointShareImageInBothAppearances() throws {
+        let report = MonthlyReportBuilder.build(
+            performances: [Performance(amount: 63420, note: "导出宽度回归", date: .now, incomeSource: "美团")],
+            expenses: [], todos: [])
+        for scheme in [ColorScheme.light, .dark] {
+            let renderer = ImageRenderer(content: MonthlyReportCard(report: report)
+                .environment(\.colorScheme, scheme).dynamicTypeSize(.large))
+            renderer.scale = 1
+            let image = try XCTUnwrap(renderer.uiImage, "真实 SwiftUI 月报应可导出")
+            XCTAssertEqual(image.size.width, 390, accuracy: 0.01)
+            XCTAssertGreaterThan(image.size.height, 200)
+            let attachment = XCTAttachment(image: image)
+            attachment.name = "v400-monthly-report-390-\(scheme)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+    }
+
 }

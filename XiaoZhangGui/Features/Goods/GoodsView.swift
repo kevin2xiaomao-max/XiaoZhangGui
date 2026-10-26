@@ -157,9 +157,9 @@ struct GoodsView: View {
         HStack(spacing: 0) {
             statCell(label: "全部商品", count: allGoods.count, color: V371.Colors.blue)
             statVDivider
-            statCell(label: "库存不足", count: GoodsStats.lowStock(allGoods), color: V371.Colors.orange)
+            statCell(label: "库存不足", count: GoodsStats.lowStock(allGoods), color: V400Tokens.warningInk)
             statVDivider
-            statCell(label: "7天内临期", count: GoodsStats.expiringSoon(allGoods), color: V371.Colors.orange)
+            statCell(label: "7天内临期", count: GoodsStats.expiringSoon(allGoods), color: V400Tokens.warningInk)
             statVDivider
             statCell(label: "总库存", count: GoodsStats.totalStock(allGoods), color: V371.Colors.textSecondary)
         }
@@ -176,7 +176,7 @@ struct GoodsView: View {
     private func statCell(label: String, count: Int, color: Color) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("\(count)")
-                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .font(V400Tokens.serifAmount(size: 22, relativeTo: .title3).weight(.bold))
                 .monospacedDigit()
                 .foregroundStyle(color)
             Text(label)
@@ -248,7 +248,7 @@ struct GoodsView: View {
                 VStack(alignment: .trailing, spacing: 5) {
                     StatusBadge(state.label, color: tone)
                     Text(Fmt.money(goods.salePrice))
-                        .font(V371.Typography.time)
+                        .font(V400Tokens.serifAmount(size: 13, relativeTo: .caption))
                         .foregroundStyle(V371.Colors.textSecondary)
                         .lineLimit(1)
                 }
@@ -273,7 +273,7 @@ struct GoodsView: View {
     private func goodsTone(_ state: GoodsState) -> Color {
         switch state {
         case .expired: return V371.Colors.red
-        case .expiringSoon, .lowStock: return V371.Colors.orange
+        case .expiringSoon, .lowStock: return V400Tokens.warningInk
         case .normal: return V371.Colors.blue
         }
     }
@@ -301,7 +301,7 @@ struct GoodsView: View {
             GroupSurface {
                 ForEach(Array(items.enumerated()), id: \.offset) { index, item in
                     if index > 0 { V371Divider(leading: 62) }
-                    let tone: Color = item.2 == "高优先级" ? V371.Colors.red : V371.Colors.orange
+                    let tone: Color = item.2 == "高优先级" ? V371.Colors.red : V400Tokens.warningInk
                     WorkRow(
                         icon: "shippingbox",
                         iconColor: item.2.isEmpty ? V371.Colors.blue : tone,

@@ -345,14 +345,14 @@ struct MorningBriefCard: View {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         Image(systemName: "sun.horizon.fill")
                             .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(V39Style.gold)
+                            .foregroundStyle(V400Tokens.greenInk)
                         Text(brief.greeting)
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.primary)
                         if !isRead {
                             // 未读金点(直径 7pt,非交互、不进无障碍树——状态由 label 播报)。
                             Circle()
-                                .fill(V39Style.gold)
+                                .fill(V400Tokens.brandGreen)
                                 .frame(width: 7, height: 7)
                                 .accessibilityHidden(true)
                         }
@@ -362,8 +362,8 @@ struct MorningBriefCard: View {
                             .foregroundStyle(.tertiary)
                     }
                     Text(brief.headlineText)
-                        .font(.system(.headline, design: .rounded).monospacedDigit())
-                        .foregroundStyle(V39Style.gold)
+                        .font(V400Tokens.serifAmount(size: 17, relativeTo: .headline))
+                        .foregroundStyle(V400Tokens.greenInk)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                     // 概览行:待办/逾期/临期/配送,口径与首页 chips 一字不差。
@@ -457,8 +457,8 @@ struct MorningBriefSheet: View {
                 .font(.headline)
                 .foregroundStyle(V39Style.navy)
             Text(brief.headlineText)
-                .font(.system(.title3, design: .rounded).weight(.bold).monospacedDigit())
-                .foregroundStyle(V39Style.gold)
+                .font(V400Tokens.serifAmount(size: 20, relativeTo: .title3).weight(.bold))
+                .foregroundStyle(V400Tokens.greenInk)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             Text("数据由账本当场计算,口径与首页一致")
@@ -475,7 +475,7 @@ struct MorningBriefSheet: View {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Image(systemName: "circle.fill")
                         .font(.system(size: 5))
-                        .foregroundStyle(V39Style.gold)
+                        .foregroundStyle(V400Tokens.greenInk)
                         .padding(.top, 5)
                         .accessibilityHidden(true)
                     Text(item)
@@ -565,7 +565,7 @@ struct MorningBriefSheet: View {
                     ZStack(alignment: .leading) {
                         Capsule().fill(Color.primary.opacity(0.08))
                         Capsule()
-                            .fill(V39Style.gold)
+                            .fill(V400Tokens.brandGreen)
                             .frame(width: max(proxy.size.width * brief.monthProgress, brief.monthGoal > 0 ? 4 : 0))
                     }
                 }
@@ -581,7 +581,7 @@ struct MorningBriefSheet: View {
             HStack(alignment: .top, spacing: 8) {
                 Image(systemName: "sparkles")
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(V39Style.gold)
+                    .foregroundStyle(V400Tokens.greenInk)
                     .padding(.top, 2)
                     .accessibilityHidden(true)
                 Text(brief.advice)
