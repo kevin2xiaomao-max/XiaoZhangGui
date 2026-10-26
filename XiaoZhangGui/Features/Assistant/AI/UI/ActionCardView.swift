@@ -15,22 +15,26 @@ struct ActionCardView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        GroupSurface {
-            VStack(alignment: .leading, spacing: 12) {
-                header
-                fields
-                if proposal.isPreviewOnly {
-                    previewBanner
-                }
-                if let result = proposal.resultText, !result.isEmpty {
-                    resultRow(result)
-                }
-                // V4.0 收据式确认卡：字段与操作之间用发丝虚线分隔（A 基因）。
-                dashedSeparator
-                actions
+        // V4.0 收据式确认卡：纸面容器（GroupSurface 的 group 底改走 paperAdaptive，
+        // 圆角与内边距与原 GroupSurface 一致；不改 GroupSurface 本身，避免波及其他页）。
+        VStack(alignment: .leading, spacing: 12) {
+            header
+            fields
+            if proposal.isPreviewOnly {
+                previewBanner
             }
-            .padding(V371.Space.rowPadding)
+            if let result = proposal.resultText, !result.isEmpty {
+                resultRow(result)
+            }
+            // V4.0 收据式确认卡：字段与操作之间用发丝虚线分隔（A 基因）。
+            dashedSeparator
+            actions
         }
+        .padding(V371.Space.rowPadding)
+        .background(
+            RoundedRectangle(cornerRadius: V371.Radius.group, style: .continuous)
+                .fill(V400Tokens.paperAdaptive)
+        )
         .transition(.opacity.combined(with: reduceMotion ? .identity : .move(edge: .bottom)))
         .animation(V371.Motion.animation(V371.Motion.resolve(.spring, reduceMotion: reduceMotion)),
                    value: proposal.status)

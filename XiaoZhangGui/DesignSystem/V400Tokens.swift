@@ -45,6 +45,11 @@ enum V400Tokens {
     }
     /// A 质感表面（报表 / 确认卡局部）#FCFBF7。
     static let paper = Color(hex: 0xFCFBF7)
+    /// 收据卡纸面（自适应）：Light #FCFBF7 / Dark 用已定案的 elevated #2C2C2E，
+    /// 避免固定浅纸面在 Dark 下配白字不可读；设计未给 Dark 纸面值，故不虚构新色值。
+    static var paperAdaptive: Color {
+        adaptive(light: hex(0xFCFBF7), dark: hex(0x2C2C2E))
+    }
     static var surface: Color {
         adaptive(light: hex(0xFFFFFF), dark: hex(0x1C1C1E))
     }

@@ -74,7 +74,8 @@ struct ChatInputBar: View {
                     .foregroundStyle(.white)
                     .frame(width: 44, height: 44)
                     .background(
-                        Circle().fill(canSend ? V371.Colors.blue : V371.Colors.gray.opacity(0.35))
+                        // V4.0:发送按钮与用户气泡同蓝 #0A6ED1（不可发送时仍灰）。
+                        Circle().fill(canSend ? V400Tokens.userBubble : V371.Colors.gray.opacity(0.35))
                     )
             }
             .buttonStyle(.plain)
