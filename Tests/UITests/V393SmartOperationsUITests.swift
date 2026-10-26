@@ -99,6 +99,10 @@ final class V393SmartOperationsUITests: XCTestCase {
         shot("v400-stamp-\(appearance)")
         XCTAssertTrue(stamp.waitForExistence(timeout: 10),
                       "真实保存成功后应显示已记印章")
+        let details = app.buttons["ai.action-card.details"].firstMatch
+        XCTAssertTrue(details.waitForExistence(timeout: 5))
+        if details.label == "展开记录详情" { details.tap() }
+        XCTAssertEqual(details.label, "收起记录详情", "成功卡必须可以展开，不能丢失记录明细")
         shot("v393-composite-confirmed")
     }
 

@@ -13,6 +13,7 @@ struct ActionCardView: View {
     let onCancel: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isCollapsed = false
 
     /// 预览确认、失败和幂等跳过都不是一次真实记录成功。
     var showsRecordedStamp: Bool {
@@ -24,7 +25,7 @@ struct ActionCardView: View {
         // 圆角与内边距与原 GroupSurface 一致；不改 GroupSurface 本身，避免波及其他页）。
         VStack(alignment: .leading, spacing: 12) {
             header
-            fields
+            if !isCollapsed { fields }
             if proposal.isPreviewOnly {
                 previewBanner
             }
@@ -32,8 +33,24 @@ struct ActionCardView: View {
                 resultRow(result)
             }
             // V4.0 收据式确认卡：字段与操作之间用发丝虚线分隔（A 基因）。
-            dashedSeparator
-            actions
+            if showsRecordedStamp {
+                Button {
+                    withAnimation(reduceMotion ? nil : V32Motion.standard) {
+                        isCollapsed.toggle()
+                    }
+                } label: {
+                    Label(isCollapsed ? "展开记录详情" : "收起记录详情",
+                          systemImage: isCollapsed ? "chevron.down" : "chevron.up")
+                        .font(.subheadline)
+                        .frame(minHeight: 44)
+                }
+                .foregroundStyle(V400Tokens.greenInk)
+                .accessibilityIdentifier("ai.action-card.details")
+            }
+            if !isCollapsed {
+                dashedSeparator
+                actions
+            }
         }
         .padding(V371.Space.rowPadding)
         .background(
@@ -45,6 +62,14 @@ struct ActionCardView: View {
                    value: proposal.status)
         .animation(reduceMotion ? nil : V32Motion.quick,
                    value: proposal.previewAcknowledged)
+        .task(id: showsRecordedStamp) {
+            guard showsRecordedStamp else { isCollapsed = false; return }
+            if !reduceMotion {
+                do { try await Task.sleep(for: .milliseconds(400)) }
+                catch { return }
+            }
+            withAnimation(reduceMotion ? nil : V32Motion.standard) { isCollapsed = true }
+        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("ai.action-card")
     }

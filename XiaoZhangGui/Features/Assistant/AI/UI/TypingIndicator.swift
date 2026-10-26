@@ -19,13 +19,18 @@ struct TypingIndicator: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        ThinkingOrb(
+        HStack(spacing: 8) {
+            ThinkingOrb(
             state: .composing,
             size: .px20,
             theme: .auto,
             paused: reduceMotion,
-            displaySize: 24
-        )
+                displaySize: 24
+            )
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(V371.Colors.textSecondary)
+        }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
         .background(
